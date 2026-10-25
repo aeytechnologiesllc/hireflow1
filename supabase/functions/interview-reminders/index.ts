@@ -18,7 +18,7 @@
 //
 // The answer is counts only: no name, address or time leaves in it.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
-import { REMINDER_LOOKAHEAD_MINUTES, dayWord, reminderColumn, reminderDue, reminderEmail, type ReminderKind } from "../_shared/interviewReminders.ts";
+import { REMINDER_WINDOWS, dayWord, reminderColumn, reminderDue, reminderEmail, type ReminderKind } from "../_shared/interviewReminders.ts";
 import { applicantEmailTime, applicantTimeZone, knownTimeZone } from "../_shared/interviewTimes.ts";
 import { interviewKindPhrase, joinNoteFor, lengthWords, teamZoneOf } from "../_shared/interviewAnswer.ts";
 
@@ -34,25 +34,29 @@ Deno.serve(async (req) => {
   if (secretError || matches !== true) return json({ error: "unauthorized" }, 401);
 
   const now = new Date();
-  const until = new Date(now.getTime() + REMINDER_LOOKAHEAD_MINUTES * 60_000);
-
-  const { data: interviews, error } = await admin
-    .from("interviews")
-    .select("id, application_id, status, candidate_response, scheduled_at, updated_at, duration_minutes, interview_type, meeting_provider, meeting_link, employer_windows, reminder_day_sent_at, reminder_hour_sent_at")
-    .eq("status", "scheduled")
-    .eq("candidate_response", "confirmed")
-    .gt("scheduled_at", now.toISOString())
-    .lte("scheduled_at", until.toISOString())
-    // Still owed a reminder, soonest first: one business's many interviews
-    // could fill the pick and starve everyone else's (the Phase 7 security
-    // review, round 2).
-    .or("reminder_day_sent_at.is.null,reminder_hour_sent_at.is.null")
-    .order("scheduled_at", { ascending: true })
-    .limit(500);
+  const at = (minutes: number) => new Date(now.getTime() + minutes * 60_000).toISOString();
+  // Each reminder is looked for in its own window only, soonest first: one
+  // pick of everything still owed either reminder let a business fill it with
+  // interviews whose reminder was not due yet and starve everyone else's (the
+  // Phase 7 security review, rounds 2 and 3).
+  const owed = (kind: ReminderKind) =>
+    admin
+      .from("interviews")
+      .select("id, application_id, status, candidate_response, scheduled_at, updated_at, duration_minutes, interview_type, meeting_provider, meeting_link, employer_windows, reminder_day_sent_at, reminder_hour_sent_at")
+      .eq("status", "scheduled")
+      .eq("candidate_response", "confirmed")
+      .gt("scheduled_at", at(REMINDER_WINDOWS[kind].from))
+      .lte("scheduled_at", at(REMINDER_WINDOWS[kind].to))
+      .is(reminderColumn(kind), null)
+      .order("scheduled_at", { ascending: true })
+      .limit(500);
+  const [hourOwed, dayOwed] = await Promise.all([owed("hour"), owed("day")]);
+  const error = hourOwed.error ?? dayOwed.error;
   if (error) {
     console.error("[interview-reminders] could not read interviews:", error.message);
     return json({ error: "read_failed" }, 500);
   }
+  const interviews = [...(hourOwed.data ?? []), ...(dayOwed.data ?? [])];
 
   const counts = { looked: interviews?.length ?? 0, sent: 0, skipped: 0, failed: 0 };
   for (const interview of interviews ?? []) {

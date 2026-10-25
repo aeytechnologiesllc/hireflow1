@@ -55,6 +55,7 @@ import {
 } from "@/lib/auditFormatting";
 import { candidateOrigin } from "@/lib/hosts";
 import { externalHref } from "@/lib/safeLink";
+import { generateV1Hash } from "@/lib/documentHash";
 
 interface AuditLog {
   id: string;
@@ -219,6 +220,13 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   const [showAuditTrail, setShowAuditTrail] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [documentData, setDocumentData] = useState<DocumentData | null>(null);
+  // What this screen shows, and its hash: an uploaded PDF is fetched once and
+  // framed from those very bytes, and the signature is sent with their hash,
+  // so the server signs nothing the applicant did not see (the third Phase 7
+  // security review; supabase/functions/_shared/documentShown.ts).
+  const [shownPdf, setShownPdf] = useState<{ src: string; hash: string } | null>(null);
+  const [shownPdfFailed, setShownPdfFailed] = useState(false);
+  const [viewedHash, setViewedHash] = useState<string | null>(null);
   const [candidateSignature, setCandidateSignature] = useState<string | null>(null);
   const [employerSignature, setEmployerSignature] = useState<string | null>(null);
   const [completionCert, setCompletionCert] = useState<CompletionCertificate | null>(null);
@@ -727,17 +735,65 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     pdf.save(`${document.name}.pdf`);
   };
 
+  useEffect(() => {
+    const address = externalHref(documentData?.uploadedFileUrl);
+    setShownPdf(null);
+    setShownPdfFailed(false);
+    if (!address) return;
+    let cancelled = false;
+    let blobUrl: string | null = null;
+    (async () => {
+      try {
+        const response = await fetch(address);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const bytes = await response.arrayBuffer();
+        const hash = await generatePdfHash(bytes);
+        if (cancelled) return;
+        blobUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+        setShownPdf({ src: blobUrl, hash });
+      } catch {
+        if (!cancelled) setShownPdfFailed(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [documentData?.uploadedFileUrl]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (documentData?.uploadedFileUrl) {
+      setViewedHash(shownPdf?.hash ?? null);
+    } else if (typeof documentData?.content === "string") {
+      void generateV1Hash(documentData.content).then((hash) => {
+        if (!cancelled) setViewedHash(hash);
+      });
+    } else {
+      setViewedHash(null);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [documentData, shownPdf]);
+
   const renderDocumentWithSignatures = () => {
     // Handle uploaded PDFs with positioned signatures
     // uploadedFileUrl comes from the document's own body, which the sender
     // wrote: only an http(s) address may become a frame (a javascript: frame
     // would run inside this page). src/lib/safeLink.ts.
-    const uploadedSrc = externalHref(documentData?.uploadedFileUrl);
-    if (uploadedSrc) {
+    if (externalHref(documentData?.uploadedFileUrl)) {
+      if (!shownPdf) {
+        return (
+          <span className="text-muted-foreground">
+            {shownPdfFailed ? "This document could not be opened. Close it and open it again." : "Loading document..."}
+          </span>
+        );
+      }
       return (
         <div className="space-y-4">
           <iframe 
-            src={uploadedSrc} 
+            src={shownPdf.src} 
             className="w-full h-[500px] border border-border rounded-lg bg-background"
             title="Signed Document"
           />
@@ -1091,6 +1147,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                     <DocumentSigningPanel
                       documentId={document.id}
                       mode={canSignAsCandidate ? "sign" : "countersign"}
+                      viewedHash={viewedHash}
                       onComplete={() => {
                         queryClient.invalidateQueries({ queryKey: ["documents"] });
                         onOpenChange(false);

@@ -39,7 +39,7 @@ On 2026-10-09, against the repo and the live project.
 |---|---|
 | Sign-up takes a name, an email and a password | `src/pages/CandidateAuth.tsx`, `src/hooks/useAuth.tsx` |
 | Optional profile fields, a public photo | `profiles` columns; the `avatars` bucket is public live, every other bucket private |
-| Events recorded during tests; no screen, camera or microphone | `src/hooks/useTestIntegrity.ts`, `docs/ASSESSMENT-RECORD.md` |
+| Events recorded during tests; no screen; camera and microphone only in a video introduction while it is recorded and in a spoken interview from start to end | `src/hooks/useTestIntegrity.ts`, `docs/ASSESSMENT-RECORD.md` |
 | Connection check: speeds, device details, IP addresses | `supabase/functions/connection-test`, `docs/EQUIPMENT-CHECK.md` |
 | Typing test, chat practice, written interview contents | `submit-typing-test`, `docs/TYPING-IN-CHAT.md`, `ai-chat-interview` |
 | Signing keeps signature, time, name, email, IP, browser | `supabase/functions/document-signing` |
@@ -54,8 +54,8 @@ On 2026-10-09, against the repo and the live project.
 | The company that runs the site | Southern Digital Technologies LLC (the owner, 2026-10-24), named in both openings; 2026-10-25 |
 | A new account (hiring or applicant) keeps the campaign tags and the site it arrived from | `src/hooks/useAuth.tsx` (`signup_source`, for every sign-up), read by `admin_growth()`; 2026-10-25 |
 | The way to reach the company is Contact us (an applicant, at `/contact`) or Help (a hiring team, at `/help`), never Messages; the short version says so too | `src/cockpit/pages/Help.tsx`, `send_help_message` (`20261025200000_help_for_applicants.sql`): the platform admin reads it, the business never does; 2026-10-25 |
-| What Delete Account removes, and what stays | `supabase/functions/delete-account`: not in its list are the quiz attempt ledger, typing-test starts, the block list and error reports |
-| Emails can be turned off; an application can be withdrawn | `src/pages/Settings.tsx`, `src/pages/Applications.tsx` |
+| What Delete Account removes, and what stays | `supabase/functions/delete-account`: not in its list are the quiz attempt ledger, typing-test starts, the block list, the note that a team removed an application (`private.applicant_removals`, with its reason) and error reports; a withdrawal note (`private.application_withdrawals`) goes with the account |
+| A hiring team turns its own email alerts off in Settings (applicants have no email switch: withdrawing stops a job's emails); an application can be withdrawn | `src/pages/Settings.tsx` (staff only), `src/pages/Applications.tsx` |
 | Free at the moment | billing was removed; no price is shown anywhere |
 
 ## Still to add

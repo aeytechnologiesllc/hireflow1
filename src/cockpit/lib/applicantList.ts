@@ -66,6 +66,8 @@ export interface ApplicantListJob {
   application_questions?: unknown;
   passing_score?: number | null;
   required_wpm?: number | null;
+  /** false: an on-site job, whose chat is no typing measure (assessmentRecord). */
+  is_remote?: boolean | null;
   processing_mode?: string | null;
   updated_at?: string | null;
 }

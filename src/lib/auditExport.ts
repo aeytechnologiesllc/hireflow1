@@ -145,7 +145,7 @@ export function exportAuditTrailJSON(data: AuditExportData): string {
       consentConfirmed: entry.consent_confirmed || false
     })),
     compliance: {
-      framework: "ESIGN Act (15 U.S.C. § 7001) and UETA",
+      framework: "Electronic signatures given with each signer's consent; SHA-256 hash chain; an audit log that is only added to",
       immutabilityStatement: "All entries are immutable and cannot be modified after creation",
       integrityStatement: "Document integrity verified via SHA-256 cryptographic hash"
     }
@@ -335,7 +335,8 @@ export function generateAuditTrailPDF(data: AuditExportData): jsPDF {
   pdf.setFont("helvetica", "normal");
   pdf.setTextColor(60);
   pdf.setFontSize(7);
-  const complianceText = "This audit trail is generated in compliance with the Electronic Signatures in Global and National Commerce Act (ESIGN) and the Uniform Electronic Transactions Act (UETA). All entries are immutable and cannot be modified or deleted after creation. Integrity verified via SHA-256 hash matching the finalized document.";
+  // What was recorded, not a claim of legal compliance (the third Phase 7 product audit).
+  const complianceText = "This audit trail lists every signing event as it was recorded. Entries cannot be edited or deleted after they are made. The SHA-256 fingerprint of the finished document is shown so a copy can be checked against it.";
   const complianceLines = pdf.splitTextToSize(complianceText, pageWidth - 2 * margin - 10);
   pdf.text(complianceLines, margin + 5, y);
 

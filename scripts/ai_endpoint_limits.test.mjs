@@ -179,6 +179,10 @@ check("the rate-limit table keeps two days (a day cap is not reset) and is prune
 check("an ordinary call takes one unit", budget.budgetUnitsFor([{ content: "x".repeat(30000) }]) === 1);
 check("a 1.2 MB prompt takes 30 units, not one", budget.budgetUnitsFor([{ role: "user", content: "x".repeat(1_200_000) }]) === 30);
 check("each file or image adds one; text parts count their characters", budget.budgetUnitsFor([{ content: [{ type: "text", text: "hi" }, { type: "image_url" }, { type: "file" }] }]) === 3);
+// The third security review: a big file costs by its size.
+const pdf8mb = { type: "file", file: { filename: "a.pdf", file_data: "data:application/pdf;base64," + "A".repeat(10_700_000) } };
+check("an 8 MB PDF costs about one unit a megabyte (8), not one", budget.budgetUnitsFor([{ content: [{ type: "text", text: "Review" }, pdf8mb] }]) === 1 + 1 + Math.floor(pdf8mb.file.file_data.length / 1_500_000));
+check("…a small picture still costs one", budget.budgetUnitsFor([{ content: [{ type: "image_url", image_url: { url: "data:image/png;base64," + "A".repeat(50_000) } }] }]) === 2);
 check("never more than 100 at once (what ai_budget_take takes)", budget.budgetUnitsForText(50_000_000) === 100);
 }
 
@@ -359,6 +363,23 @@ check("the old one-argument function is gone (one budget function, no way round 
   await db.exec(`update public.app_settings set value = '2'::jsonb where key = 'ai_platform_business_daily_call_cap'`);
   for (let i = 0; i < 4; i += 1) await b_take(B_OWNER);
   check("…HireFlow's own business gets no such card (its admins are told)", (await db.query(`select count(*)::int as n from public.notifications where user_id = '${B_OWNER}' and title like 'Applicants%'`)).rows[0].n === 0);
+}
+// The eighth Phase 5 review: a new business is told that confirming its email
+// gives the full day, and no card counts "calls" (the allowance is units).
+{
+  const v8 = read("supabase/migrations/20261025410000_phase5_review8.sql");
+  await db.exec(v8);
+  await db.exec(v8);
+  const B_NEW8 = "30000000-0000-4000-8000-00000000000f";
+  const B_FULL8 = "30000000-0000-4000-8000-000000000010";
+  await db.exec(`insert into public.zz_verified values ('${B_FULL8}') on conflict do nothing; update public.app_settings set value = '3'::jsonb where key = 'ai_business_daily_call_cap'; update public.app_settings set value = '1'::jsonb where key = 'ai_new_business_daily_call_cap';`);
+  const newDay = [await b_take(B_NEW8), await b_take(B_NEW8), await b_take(B_NEW8)];
+  const newCards = (await db.query(`select title, message, link from public.notifications where user_id = '${B_NEW8}'`)).rows;
+  check("a new business past its smaller day is told, once, that confirming its email gives the full allowance at once", JSON.stringify(newDay) === JSON.stringify([true, false, false]) && newCards.length === 1 && /new accounts/.test(newCards[0].title) && /Confirm your email/.test(newCards[0].message) && /6-digit code/.test(newCards[0].message) && !/paused until tomorrow/.test(newCards[0].title), JSON.stringify(newCards));
+  for (let i = 0; i < 5; i += 1) await b_take(B_FULL8);
+  const fullCards = (await db.query(`select title, message from public.notifications where user_id = '${B_FULL8}'`)).rows;
+  check("…a confirmed business gets the paused-until-tomorrow card", fullCards.length === 1 && /paused until tomorrow/.test(fullCards[0].title) && /place is kept/.test(fullCards[0].message), JSON.stringify(fullCards));
+  check("…and neither card counts \"calls\"", ![...newCards, ...fullCards].some((c) => /calls/.test(c.message)));
 }
 const b_aiBudgetTs = read("supabase/functions/_shared/aiBudget.ts");
 check("the helper sends the business only when it is a uuid", /UUID\.test\(business\) \? \{ p_calls: calls, p_business: business \} : \{ p_calls: calls \}/.test(b_aiBudgetTs));

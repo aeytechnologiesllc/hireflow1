@@ -93,5 +93,20 @@ const svc = await as(null, "service_role", forged.replace("Training fee agreemen
 const svcRow = (await db.query(`select status::text, candidate_signed_at, document_code from public.documents where name = 'Signed by the function'`)).rows[0];
 check("the document-signing function's own writes (service role) are untouched", svc.ok && svcRow?.status === "signed" && svcRow.candidate_signed_at !== null && svcRow.document_code === "DOC-SERVICE", JSON.stringify(svcRow));
 
+// The third security review (20261025430000): sent now, by whoever is signed in.
+{
+  const round3 = readFileSync(path.join(ROOT, "supabase/migrations/20261025430000_security_round3.sql"), "utf8");
+  await db.exec(round3);
+  await db.exec(round3);
+  const OTHER_SENDER = "40000000-0000-4000-8000-0000000000aa";
+  const backdated = await as(BIZ, "authenticated", `insert into public.documents (application_id, name, sender_id, recipient_id, created_at, v1_hash) values ('${APP}', 'Backdated', '${OTHER_SENDER}', '${CAND}', '2020-01-01', 'v1')`);
+  const doc = (await db.query(`select sender_id, created_at from public.documents where name = 'Backdated'`)).rows[0];
+  check("a business's document is sent now, never on a date it picks (the third security review)", backdated.ok && doc && new Date(doc.created_at).getFullYear() > 2025, JSON.stringify({ backdated, doc }));
+  check("…and by whoever is signed in, never a sender it names", doc?.sender_id === BIZ, doc?.sender_id);
+  const svcDoc = await as(null, "service_role", `insert into public.documents (application_id, name, sender_id, created_at) values ('${APP}', 'Server dated', '${OTHER_SENDER}', '2021-06-01')`);
+  const sd = (await db.query(`select sender_id, created_at from public.documents where name = 'Server dated'`)).rows[0];
+  check("…the server's own inserts are untouched", svcDoc.ok && sd?.sender_id === OTHER_SENDER && new Date(sd.created_at).getFullYear() === 2021, JSON.stringify(sd));
+}
+
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

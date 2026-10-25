@@ -100,9 +100,11 @@ on GitHub. Keep anything private out of a draft until it is meant to be read.
 - `vercel.json` sends `/blog` to `/blog/index.html` and `/blog/<slug>` to
   `/blog/<slug>/index.html`, before the crawler-only `/:slug` job rule and
   the app's catch-all. Any other address under `/blog` (a draft, a typo) gets
-  `/blog/not-found.html`, a plain page marked noindex that lists the latest
-  guides and links the full list (it answers 200, not 404: a rewrite cannot set
-  the status; noindex keeps it out of search). `/BLOG` and `/Blog/...` get the
+  `/api/blog-not-found`, which answers 404 with `/blog/not-found.html`, a
+  plain page marked noindex that lists the latest guides and links the full
+  list (since the second Phase 7 growth audit; it answered 200 before, a
+  "soft 404"). The page carries no page counter, so a mistyped address is no
+  guide visit. `/BLOG` and `/Blog/...` get the
   app's page shell like any unknown path;
   before, the app's page shell answered, which search engines read as a page
   that exists (seen live 2026-10-25). No `cleanUrls` (the prerender functions fetch

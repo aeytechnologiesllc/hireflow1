@@ -50,7 +50,7 @@ A timed work sample sidesteps the question. The job is answering real customers,
 
 Specific situations also make generic answers stand out. A smooth paragraph about "exceptional experiences" does not answer "I was charged twice and I want my money back today."
 
-HireFlow works this way. In a customer service job, the steps after the application form are a skills check of five multiple-choice situations from the business's kind of work, each timed at 75 or 90 seconds, a connection check for remote roles, a customer chat practice where typing speed and reply time are measured as they write, and a written interview. During the tests it also notes, for the hiring team, when an applicant pastes text, copies the question or leaves the test window, and shows those notes beside the result. They are signs to ask about, never a verdict, and nobody is declined for them. The aim of steps like these is not to catch anyone. It is to see each person's own work under the same conditions as everyone else.
+HireFlow works this way. In a customer service job, the steps after the application form are a skills check of five multiple-choice situations from the business's kind of work, each timed at 75 or 90 seconds, a connection check for remote roles, a customer chat practice where typing speed and reply time are measured as they write, and a written interview. During the tests it also notes, for the hiring team, when an applicant tries to paste text or copy the question, or leaves the test window, and shows those notes beside the result. They are signs to ask about, never a verdict, and nobody is declined for them. The aim of steps like these is not to catch anyone. It is to see each person's own work under the same conditions as everyone else.
 
 ## Be fair
 

@@ -412,8 +412,13 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-xl">Withdraw this application?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes your application for &ldquo;{job?.title}&rdquo; for good. If you change your mind,
-              you're welcome to apply again from the job's page.
+              This removes your application for &ldquo;{job?.title}&rdquo; for good.{" "}
+              {/* A sent application can be made again 30 days later
+                  (applications_refuse_recent_withdrawal); an unsent form at
+                  once (the third product audit: this promised "again" for both). */}
+              {String(application.status) === "in_progress"
+                ? "If you change your mind, you can start again from the job's page."
+                : "If you change your mind, you can apply to it again from the job's page 30 days from now."}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

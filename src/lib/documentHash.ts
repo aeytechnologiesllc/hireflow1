@@ -2,7 +2,7 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/integrations/supabase/client"
 
 /**
  * Document Hashing Utilities for SHA-256 integrity verification
- * Used for ESIGN Act and UETA compliance
+ * Used for the signing record's hash chain (v1 → v2 → v3)
  * Supports explicit document versioning (v1, v2, v3)
  */
 

@@ -348,7 +348,9 @@ export function offerLetterText(fields: OfferLetterFields): string {
   if (f.roleTitle) role.push(`Position: ${f.roleTitle}`);
   if (f.startDate) role.push(`Start date: ${longDate(f.startDate)}`);
   role.push(`Type: ${arrangementWords(f)}`);
-  if (f.remote) role.push("Where: Remote, working from home");
+  // An on-site offer said nothing about where the work is (the third product
+  // audit): in person, at the business's own place.
+  role.push(f.remote ? "Where: Remote, working from home" : `Where: In person, at ${f.companyName ? `${f.companyName}'s` : "our"} workplace`);
   if (f.hours) role.push(`Hours: ${f.hours}`);
   if (f.shift) role.push(`Shift: ${f.shift}`);
   if (f.reportsTo) role.push(`Reports to: ${f.reportsTo}`);

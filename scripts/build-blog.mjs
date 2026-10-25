@@ -93,8 +93,15 @@ export function parsePost(source, file = "post") {
   m[2] = m[2] ?? "";
   // A front-matter key written after the close ("draft: true" and another
   // "---" under it) would build as a heading in a published post.
-  if (/^(title|description|date|draft|slug|updated|author|tags):\s*\S[^\n]*\n(-{3,}|={3,})[ \t]*$/m.test(m[2])) {
+  if (/^(title|description|date|draft|slug|updated|author|tags):\s*\S[^\n]*\n(-{3,}|={3,})[ \t]*$/im.test(m[2])) {
     throw new Error(`${file}: a front matter line is written after the closing --- (move it above it)`);
+  }
+  // A "draft:" line anywhere below the close, in any case, with or without a
+  // rule under it: the writer meant it as front matter, and the post would
+  // go out (the sixth Phase 6 review: a blank line before the rule, no rule,
+  // or "Draft: true" all published).
+  if (/^[ \t]*draft[ \t]*:/im.test(m[2])) {
+    throw new Error(`${file}: a "draft:" line is below the closing --- (move it into the front matter above it)`);
   }
   const meta = {};
   for (const line of m[1].split("\n")) {
@@ -225,6 +232,12 @@ export function loadPosts(dir = path.join(ROOT, "content", "blog"), { includeDra
     for (const m of post.html.matchAll(/href="([^"]*)"/g)) {
       const slug = guideSlugOf(m[1].replace(/&amp;/g, "&"));
       if (slug !== null && !published.has(slug)) throw new Error(`${post.file}: links to ${m[1]}, which is not a published guide (guides are at /blog/<slug>, in lower case)`);
+    }
+    // …nor the repository's own copy of a guide (the repo is public, so a
+    // link to content/blog/<draft>.md on GitHub showed a draft; the sixth
+    // Phase 6 review). No guide needs to link its source.
+    if (/(?:github\.com|githubusercontent\.com)\/aeytechnologiesllc\/hireflow1\b[^"\s<]*content\/blog/i.test(post.html)) {
+      throw new Error(`${post.file}: links to the guides' source on GitHub (a draft can be read there): link the published guide instead`);
     }
     // …and an address written as plain text names no draft either ("hireflownow.com/blog/<draft>").
     for (const m of post.html.matchAll(/\b(?:https?:\/\/)?(?:www\.|staff\.)?hireflownow\.com\/blog\/([a-z0-9-]+)/gi)) {
@@ -517,7 +530,10 @@ export function notFoundPage(posts) {
       .replace('<meta name="robots" content="index, follow, max-image-preview:large">\n', "")
       // No canonical and no og:url: it is no page of its own (the Phase 6 review: they pointed at /blog).
       .replace(`<link rel="canonical" href="${canonical}">\n`, "")
-      .replace(`<meta property="og:url" content="${canonical}">\n`, "") +
+      .replace(`<meta property="og:url" content="${canonical}">\n`, "")
+      // No page counter: a mistyped address is no guide visit (the third
+      // growth review and the sixth Phase 6 review).
+      .replace('<script src="/beacon.js" defer></script>\n', "") +
     `<div class="head"><div>
   <p class="crumbs"><a href="/blog">Guides</a></p>
   <h1>That guide is not here</h1>

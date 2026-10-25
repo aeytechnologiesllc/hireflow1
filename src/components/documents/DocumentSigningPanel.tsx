@@ -19,10 +19,13 @@ const CONSENT_STATEMENT =
 interface DocumentSigningPanelProps {
   documentId: string;
   mode: "sign" | "countersign";
+  /** sign: the hash of what the screen beside it shows (SignedDocumentViewer);
+   *  the server refuses a signature without it. */
+  viewedHash?: string | null;
   onComplete: () => void;
 }
 
-export function DocumentSigningPanel({ documentId, mode, onComplete }: DocumentSigningPanelProps) {
+export function DocumentSigningPanel({ documentId, mode, viewedHash, onComplete }: DocumentSigningPanelProps) {
   const { toast } = useToast();
   const [defaultName, setDefaultName] = useState("");
   const [typedValue, setTypedValue] = useState("");
@@ -55,7 +58,7 @@ export function DocumentSigningPanel({ documentId, mode, onComplete }: DocumentS
 
   const signatureValue = tab === "typed" ? typedValue.trim() : drawnValue;
   const hasSignature = tab === "typed" ? typedValue.trim().length >= 2 : !!drawnValue;
-  const canSubmit = consentAccepted && hasSignature && (mode === "sign" || reviewConfirmed) && !isSubmitting;
+  const canSubmit = consentAccepted && hasSignature && (mode === "sign" ? !!viewedHash : reviewConfirmed) && !isSubmitting;
 
   const handleSubmit = async () => {
     if (!canSubmit || !signatureValue) return;
@@ -67,7 +70,7 @@ export function DocumentSigningPanel({ documentId, mode, onComplete }: DocumentS
         signature: { method: tab, value: signatureValue, consentAccepted: true },
         // The device and the place it is signed from (src/lib/signerContext.ts).
         signerContext: await collectSignerContext(),
-        ...(mode === "countersign" ? { reviewConfirmed: true } : {}),
+        ...(mode === "countersign" ? { reviewConfirmed: true } : { viewedHash }),
       });
       toast({
         title: mode === "sign" ? "Document signed" : "Document countersigned",

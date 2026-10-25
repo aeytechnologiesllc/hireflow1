@@ -194,7 +194,7 @@ check("every cert.candidate_signature.*/cert.employer_signature.* field certific
 check("certificate.signing_order_verified is true (candidate genuinely signed before employer)", certificate.signing_order_verified === true);
 check("certificate.final_document_hash is the real final_pdf_hash, not a v1/v2/v3 fallback", certificate.final_document_hash === document.final_pdf_hash);
 check("certificate.audit_entries_count matches the fixture's audit trail", certificate.audit_entries_count === auditLogs.length);
-check("certificate.compliance_statement is non-empty legal boilerplate, reused not invented", typeof certificate.compliance_statement === "string" && certificate.compliance_statement.includes("ESIGN"));
+check("certificate.compliance_statement says how it was signed, reused not invented, and claims no legal compliance (the third product audit)", typeof certificate.compliance_statement === "string" && /signed this document electronically/.test(certificate.compliance_statement) && !/ESIGN|UETA|legally binding/i.test(certificate.compliance_statement));
 check("certificate.candidate_signature.ip_address is the candidate's OWN ip, not overwritten by the employer's later one", certificate.candidate_signature.ip_address === "203.0.113.5");
 check("certificate.employer_signature has no IP address or location (2026-10-11: the applicant never sees the team's)", !("ip_address" in certificate.employer_signature) && !("location" in certificate.employer_signature));
 

@@ -111,6 +111,16 @@ const COUNTRY_NAME_BY_CODE: Record<string, string> = {
   IT: "Italy",
   NL: "Netherlands",
   IE: "Ireland",
+  // The codes jobLocation.ts learned in the second Phase 7 product audit; the
+  // name was left empty without them (the tenth Phase 4 review).
+  PH: "Philippines",
+  SG: "Singapore",
+  NZ: "New Zealand",
+  MX: "Mexico",
+  ZA: "South Africa",
+  MY: "Malaysia",
+  ID: "Indonesia",
+  VN: "Vietnam",
 };
 
 /** US state names + postal abbreviations (lower-cased) — a state is never a city. */
@@ -431,10 +441,13 @@ export async function createJobFromFlow(
   // Structured salary (currency- + period-aware), parsed from what the employer typed.
   // Country hints the currency (PKR, etc.) when the pay text doesn't state one.
   const payText = brief.pay?.trim() || "";
-  const sal = parseSalary(payText, countryCode ?? undefined);
+  // A remote job's place is where its applicants are, not the money it pays:
+  // "Remote - Philippines" with "5/hr" showed "PHP 5 an hour" (the third
+  // Phase 7 product audit). Only an on-site job's country picks a currency.
+  const sal = parseSalary(payText, isRemote ? undefined : countryCode ?? undefined);
   const salaryMin = sal.min;
   const salaryMax = sal.max;
-  const salaryCurrency = sal.currency ?? (countryCode === "US" ? "USD" : null);
+  const salaryCurrency = sal.currency ?? (!isRemote && countryCode === "US" ? "USD" : null);
   const salaryPeriod = sal.period;
 
   const row = {

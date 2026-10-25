@@ -1367,7 +1367,9 @@ serve(async (req) => {
     if (applicationAnswers && applicationAnswers.length > 0) {
       userContent += `\n\n--- APPLICATION ANSWERS (for cross-reference) ---`;
       applicationAnswers.slice(0, 60).forEach((qa, index) => {
-        userContent += `\n\nQ${index + 1}: ${String(qa.question ?? "").slice(0, 500)}\nA${index + 1}: ${fenceApplicantText(`answer ${index + 1}`, String(qa.answer ?? "").slice(0, 4000))}`;
+        // The question text comes from the applicant's browser too (the third
+        // Phase 7 security review), so it is fenced as well.
+        userContent += `\n\nQ${index + 1}: ${fenceApplicantText(`question ${index + 1}`, String(qa.question ?? "").slice(0, 500))}\nA${index + 1}: ${fenceApplicantText(`answer ${index + 1}`, String(qa.answer ?? "").slice(0, 4000))}`;
       });
     }
 
@@ -1382,7 +1384,7 @@ serve(async (req) => {
 
     if (type === "resume" || type === "application") {
       userContent += `\n\n--- RESUME EVIDENCE SUMMARY ---`;
-      userContent += `\nResume URL: ${resumeUrl || "Not provided"}`;
+      userContent += `\nResume file: ${resumeUrl ? fenceApplicantText("resume file name", String(resumeUrl).slice(0, 300)) : "Not provided"}`;
       userContent += `\nResume text extracted: ${hasResumeText ? `Yes (${resumeText!.length} chars)` : "No"}`;
       userContent += `\nResume images attached: ${normalizedResumeImages.length}`;
     }

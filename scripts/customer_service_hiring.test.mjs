@@ -244,6 +244,46 @@ const CS = [
   ["Customer Support - Drivers", "Answer calls and chats from our delivery drivers"], ["Technical Support - Minecraft Server", ""],
   ["Retail - Customer Service Associate", "Reply to customer chats and emails for our online shop"], ["Customer Service Associate - Retail", "At least 6 months BPO experience. Night shift."],
   ["Customer Service - Online Store", ""], ["Engineering Support Specialist", "Answer customer emails about our engineering software"],
+  // The tenth Phase 4 review: a store part that is the account (a named account, US customers, a BPO site, members, a mail-order
+  // pharmacy, software, a written channel before the role); a support line's people by industry, account, channel or function, or a
+  // level after the noun; a desk's analyst; people the words say the line helps, in the singular; a plan the work is about; how to
+  // apply (walk-in applicants); a chain's 50 stores; a travel agency's group tours; an HMO provider; a negated remote word.
+  ["Customer Service Representative - Retail", "Handle customer concerns for a US retail account. Night shift. Makati."],
+  ["Customer Service Representative (Retail)", "Assist US customers with orders, returns and refunds.\nQualifications:\n- Willing to work night shift\nBenefits:\n- HMO\n- 13th month pay"],
+  ["Customer Service Representative - Retail", "We are looking for CSRs for our retail account. Assist customers with orders and returns."],
+  ["Customer Service Representative - Retail", "You will be supporting a US retail giant's customers via voice."],
+  ["Customer Service Associate - Retail", "Assist customers with orders and returns. Night shift. Work in our Pasig site."],
+  ["Customer Care Representative - Pharmacy", "Respond to member inquiries about prescriptions, claims and orders by telephone."],
+  ["Customer Service Representative - Pharmacy", "Help patients with prescription orders, refills and insurance questions for our mail-order pharmacy."],
+  ["Customer Care Representative - Pharmacy", "Assist members with prescription refills, claims and coverage questions."],
+  ["Customer Support Specialist - Retail", "Support customers of our retail POS software."],
+  ["Pharmacy | Customer Service Representative", "Answer member calls about mail-order prescriptions."], ["Customer Service - Billing Specialist", ""],
+  ["Customer Care - Retention Specialist", ""], ["Customer Support - Technical Specialist", "Assist customers with their concerns in a fast-paced environment."],
+  ["Customer Service - Email Specialist", ""], ["Call Center - Healthcare Agents", ""], ["BPO - Telco Agents", ""], ["BPO - Healthcare Account Agents", ""],
+  ["Customer Service - Account Representative", ""], ["Member Services - Claims Representative", ""], ["Customer Service - Representative II", ""],
+  ["Customer Service - Escalations Specialist", ""], ["Customer Service - Claims Specialist", "Answer calls from policyholders about their claims"],
+  ["Help Desk - Analyst", "Answer customer calls and emails."], ["Receptionist", "Answer phones, schedule appointments, and handle dental insurance verification."],
+  ["Receptionist", "Answer phones and collect medical insurance cards."],
+  ["Customer Service Representative", "Handle customer concerns. Walk-in applicants are welcome at our Makati office, Mon-Fri 9am-5pm."],
+  ["Customer Care Representative", "Answer customer calls about orders and in-store pickups at our 50 stores across Texas."],
+  ["Customer Service Representative - Retail", "Our team supports small businesses using our accounting software."], ["Customer Service - Specialist I", ""],
+  ["Customer Service - Billing Specialist", "Assist customers with their concerns in a fast-paced environment."],
+  ["Customer Care - Retention Specialist", "Assist customers with their concerns in a fast-paced environment."],
+  ["Receptionist", "Answer phones, book appointments and enter medical insurance information."],
+  ["Receptionist", "Answer phones and do dental insurance verifications."], ["Office Assistant", "Answer phones and prepare dental insurance claims."],
+  ["Receptionist", "Provide excellent medical front desk support: answer phones and book appointments."],
+  ["Grocery - Customer Service Representative", "Answer customer calls and emails about online grocery orders."],
+  ["Book Shop - Customer Service", "Answer customer emails about orders from our website."], ["Shop - Customer Support Agent", "Answer customer emails."],
+  ["Customer Service Representative - Restaurant", "Take customer orders and answer questions for our restaurant chain's delivery hotline."],
+  ["Customer Support - Courier", "Help couriers with app issues via chat"], ["Customer Support - Cleaner", "Help the cleaners on our booking app by chat"],
+  ["Customer Support - Nurse", "Help nurses using our scheduling app by phone"], ["Reservations Agent", "Book group tours for travel agencies by email."],
+  ["Receptionist", "Answer phones and coordinate with HMO providers for our clinic."], ["Customer Service - Retail Representative", ""],
+  ["Customer Service - Pharmacy Agents", ""], ["Customer Service Representative", "Work from home. This is not an office job."],
+  ["Customer Service Representative - Retail", "Work remotely, not in a store."], ["Customer Service Representative", "No remote work. Answer customer chats."],
+  ["Customer Service Representative - Retail", "Night shift. Handle customer concerns."],
+  ["Retail - Customer Service Associate", "Answer customer emails and calls about orders."], ["Reservations Agent", "Take reservations by phone at our showroom."],
+  ["Booking Agent", "Book flights on major carriers for our travel agency's clients."], ["Receptionist", "Greet patients and schedule visits at our dental office."],
+  ["Receptionist", "Greet patients at our clinic.\nBenefits:\n- Medical, dental, and vision insurance"],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -433,10 +473,59 @@ const NOT_CS = [
   ["Receptionist", "Answer calls and schedule meetings for our CPA firm. Medical/dental/vision.", "admin"], ["Front Desk Agent", "Work in our office in Ortigas. Greet visitors and answer phones.", "general"],
   ["Booking Agent", "Book loads for our drivers", "general"], ["Booking Coordinator", "Schedule our crews and assign jobs to technicians", "admin"], ["Booking Agent", "Book models for fashion shows", "general"],
   ["Tier 1 Analyst", "", "general"], ["Level 1 Analyst", "Monitor security alerts", "general"],
+  // The tenth: the usual US benefits list (", and", optical, reimbursement, "eligible for", the bullets under "Benefits:") leaves no
+  // clinic word behind; a negated or training-only remote word; a freight broker's carriers, models' and events' bookings; helping
+  // customers in the store; a hotel's front office; plurals of office jobs; another trade's agent or a store's associate after a line.
+  ["Receptionist", "Answer phones, greet visitors, and manage the mail for our office.\nBenefits:\n- Medical, dental, and vision insurance\n- 401(k)\n- Paid time off", "admin"],
+  ["Front Desk Agent", "Greet hotel guests and check them in.\nBenefits:\n- Medical, dental, and vision insurance\n- Hotel discounts", "general"],
+  ["Receptionist", "Answer phones and greet clients at our salon.\nBenefits:\n- Medical, dental, and vision insurance", "admin"],
+  ["Receptionist", "Answer phones, greet visitors, and manage the mail for our law office. Full-time employees are eligible for medical, dental and vision.", "admin"],
+  ["Receptionist", "Answer phones, greet visitors, and manage the mail for our office.\nBenefits:\n- Medical, dental and optical\n- Paid leave", "admin"],
+  ["Receptionist", "Answer phones, greet visitors, and manage the mail for our office.\nBenefits:\n- Medical and dental reimbursement\n- 13th month", "admin"],
+  ["Front Desk Agent", "Greet hotel guests and check them in. This is not a remote position.", "general"],
+  ["Gym Front Desk Staff", "Check members in, answer phones and sell memberships.\nMust be available for occasional remote training.", "general"],
+  ["Front Desk Receptionist", "Answer phones and greet visitors at our office. Not a work from home job.", "admin"],
+  ["Booking Agent", "Negotiate rates with carriers and secure capacity for our shippers.", "general"],
+  ["Booking Agent", "Call carriers, negotiate rates and track deliveries.", "general"],
+  ["Gym Front Desk Staff", "Check members in and answer phones.\nBenefits:\n- Medical, dental, and vision insurance", "general"],
+  ["Hotel Front Desk Agent", "Greet guests and handle check-ins. No remote work.", "general"], ["Booking Agent", "Arrange truckloads with carriers.", "general"],
+  ["Customer Service Representative", "Help customers at our cell phone store with plans, upgrades and repairs.", "cash"],
+  ["CSR | Retail", "Help customers in our store.", "cash"], ["Hotel Front Office Associate", "Handle check-ins and answer guest calls.", "admin"],
+  ["Customer Service - Admin Assistants", "", "admin"], ["Customer Success - Account Executives", "", "cash"],
+  ["Booking Agent", "Manage bookings for our models with brands and photographers.", "general"],
+  ["Booking Coordinator", "Coordinate event venues, catering and AV for our clients' conferences.", "admin"], ["Customer Service - Retail Associate", "", "cash"],
+  ["Customer Service - Pharmacy Technician", "", "general"], ["Customer Service - Travel Agent", "", "general"],
+  ["Customer Service - Medical Representative", "", "general"], ["Customer Service - Account Manager", "", "cash"],
+  ["Customer Service - Mortgage Specialist", "", "general"], ["Customer Service - Logistics Officer", "", "admin"], ["Help Desk - Network Engineer", "", "developer"],
+  ["Front Desk Agent", "Greet guests at our hotel. Not a remote job.", "general"],
+  ["Customer Service Associate - Grocery", "Stock shelves and help shoppers on the night shift.", "general"],
+  ["Customer Service Associate - Retail", "Night shift. Restock shelves and process returns.", "cash"],
+  ["Retail - Customer Service Associate", "Night shift. Handle customer concerns.", "cash"],
+  ["Retail - Customer Service Associate", "Answer customer calls about orders.", "cash"],
+  ["Customer Service Associate - Retail", "Help customers in our store and with orders from our website.", "cash"],
+  ["Customer Service Representative", "Help customers in our store and over the phone.", "cash"], ["Booking Agent", "Call carriers to book loads.", "general"],
+  ["Receptionist", "Greet visitors at our law office. Medical, dental, and vision insurance.", "admin"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is not customer service (${want})`, got !== "customer_service", got);
+}
+// The tenth Phase 4 review: a huge pasted line (the plans over and over, a long run of spaces or tabs) is read in linear time;
+// round 9's benefits filter took 4.4 seconds on 90 KB of plans.
+{
+  const huge = [
+    "- medical, dental, and vision insurance ".repeat(1250),
+    "medical, dental, ".repeat(3000),
+    "a" + " ".repeat(50000) + "interested applicants may send their CV",
+    "help customers" + "\t".repeat(50000) + "submit an application",
+  ];
+  const t0 = performance.now();
+  for (const w of huge) {
+    M.detectFamily(brief("Customer Service Representative - Retail", w));
+    M.channelForBrief({ roleTitle: "Customer Service Representative", whatTheyDo: w, followUps: [] });
+  }
+  const ms = performance.now() - t0;
+  check(`four pasted lines of about 50 KB each are read in well under a second (${ms.toFixed(0)} ms)`, ms < 1000, `${ms.toFixed(0)} ms`);
 }
 
 // The fourth Phase 4 review: the guess is only the start; the business confirms the kind of job.
@@ -614,6 +703,33 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Customer Service Representative", "This job does not involve phone calls or sales.", "chat"], ["Customer Service Representative", "Reply to emails. This role does not involve phone calls or sales.", "email"],
     ["Customer Service Representative", "Answer calls. No phone or sales experience required.", "phone"], ["Customer Service Representative", "Voice account. No calls and no sales quotas", "phone"],
     ["Customer Support", "No calls. Only tickets and live chat.", "chat"], ["Customer Support Agent", "Only phone and email", "mixed"], ["Customer Service Representative", "Inbound only, no sales", "phone"],
+    // The tenth: "inbound only" rules nothing out; telephone experience; inquiries the agent handles, and customers who apply, are no
+    // how to apply; calls through "to", a number, "on calls", "are answered", "every call"; a blended work setup; a telephone duty.
+    ["Chat Support Agent", "Inbound only, no outbound sales.", "chat"], ["Customer Support Agent", "Inbound only. Reply to customer emails and chats.", "chat"],
+    ["Email Support Specialist", "Inbound only. No cold calling.", "email"], ["Customer Service Representative", "Inbound only. Answer customer emails.", "email"],
+    ["Customer Service Representative", "Requirements: 1+ years of telephone customer service experience.", "phone"],
+    ["Customer Service Representative", "Telephone experience required. High school diploma.", "phone"],
+    ["Customer Service Representative", "Prior telephone support experience a plus.", "phone"],
+    ["Customer Service Representative", "Act as the first point of contact for inquiries, complaints and requests via phone, email and chat.", "mixed"],
+    ["Customer Service Representative", "Be the first point of contact for questions, concerns and orders over the phone.", "phone"],
+    ["Customer Service Representative", "Handle requests for information, quotes and orders via phone and email.", "mixed"],
+    ["Customer Service Representative", "Help customers apply online for our credit card through chat and phone.", "mixed"],
+    ["Customer Service Representative", "Help customers submit an application for financing over the phone.", "phone"],
+    ["Customer Service Representative", "Assist customers who apply online or by phone for our credit cards.", "phone"],
+    ["Customer Service Associate", "Answer and respond to calls.", "phone"], ["Customer Service Associate", "Handle up to sixty calls a day.", "phone"],
+    ["Customer Service Associate", "Take care of customers on calls.", "phone"], ["Customer Support Agent", "Make sure calls are answered within 3 rings.", "phone"],
+    ["Customer Support Agent", "Make sure every call is logged in the CRM. Reply to customer emails.", "mixed"],
+    ["Customer Service Representative", "Blended work setup: 3 days onsite, 2 days WFH. Answer customer emails.", "email"],
+    ["Customer Care Representative - Pharmacy", "Respond to member inquiries about prescriptions, claims and orders by telephone.", "phone"],
+    ["Chat Support Agent", "Inbound chats only.", "chat"], ["CSR", "Inbound only", "phone"], ["Customer Service Representative", "Inbound only. No sales.", "phone"],
+    ["Customer Service Representative", "Inbound only. Reply to customer chats and answer calls.", "mixed"],
+    ["Customer Service Representative", "Help customers apply for refunds by phone.", "phone"],
+    ["Customer Service Representative", "Answer calls. To apply, send your CV to hr@abc.com", "phone"],
+    ["Customer Service Representative", "Answer customer emails. For more information, call us at 555-1234.", "email"],
+    ["Customer Service Representative", "Answer customer emails. For inquiries, please call 0917 123 4567.", "email"],
+    ["Customer Service Representative", "Handle inquiries, complaints and requests by phone.", "phone"],
+    ["Customer Support Agent", "Calls are handled by our sales team. Answer customer emails.", "email"],
+    ["Customer Support Agent", "Respond to emails and chats; calls are answered by another team.", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
 }
 
@@ -855,6 +971,14 @@ let aiFlow;
   for (const prompt of ["You're on the phone. Your manager is angry with you. What do you do?", "You take calls all day. How would you deal with a rude coworker?"])
     check(`…but an angry manager or coworker is not the angry-caller question: ${JSON.stringify(prompt)}`, callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
   check("…and a caller who demands a supervisor, put on hold, is the hold question", !callQs(["A caller demands your supervisor. How do you put them on hold while you get one?", "Why us?", "Q3"]).includes("vphone1"));
+  // The tenth: a customer who is the subject is the caller whatever else the sentence names; a question pairs only with a call set
+  // up as a statement, never another question, and never with someone in person.
+  check("a customer who gets angry about a training video, on a call, is the angry-caller question", !callQs(["You're taking calls on a busy Monday. A customer says the training video you sent was useless and gets angry. What do you do?", "Why us?", "Q3"]).includes("vphone0"));
+  for (const prompt of [
+    "How many calls a day did you handle at your last job? How would you handle a rude customer?",
+    "You take calls all day. How would you handle an angry customer in our store?",
+    "What phone system did you use? What would you do if an angry customer walked into the office?",
+  ]) check(`a question after a question about calls, or an angry customer in person, is not the angry-caller question: ${JSON.stringify(prompt)}`, callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ jobPost: { title: "Front desk", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [], voiceQuestions: ["Why us?", "How do you stay calm?", "What hours?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
   const worded = (await M.generateJobFlow({ brief: formFor("Medical or dental office", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;

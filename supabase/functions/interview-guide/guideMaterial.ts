@@ -32,10 +32,12 @@
  * (candidateWrittenBlock, interviewTranscriptForReview).
  *
  * Imports are all import-free or pure: _shared/reviewText.ts,
- * _shared/interviewGuide.ts and ai-chat-interview/interviewContext.ts (which
- * reads the skills check and the chat practice the one way every scorer does).
+ * _shared/ageWording.ts, _shared/interviewGuide.ts and
+ * ai-chat-interview/interviewContext.ts (which reads the skills check and the
+ * chat practice the one way every scorer does).
  */
 import { flattenForReview, quoteIsApplicants } from "../_shared/reviewText.ts";
+import { marksAgeOrFamily } from "../_shared/ageWording.ts";
 import { counterpartFor } from "../_shared/counterpart.ts";
 import { scenarioPack } from "../_shared/scenarioPacks.ts";
 import { applyPlanEdits, interviewPlanFor,
@@ -364,7 +366,33 @@ export const GUIDE_REQUIRED_KEYS = ["atAGlance", "questions"];
  */
 export function personalGuideFrom(raw: unknown, record: GuideRecord): PersonalGuide | null {
   const writing = applicantWriting(record);
-  return readPersonalGuide(raw, (quote) => quoteIsApplicants(quote, writing));
+  return readPersonalGuide(withoutAgeLines(raw), (quote) => quoteIsApplicants(quote, writing));
+}
+
+/**
+ * The writer is told never to ask about age, family or marital status; a
+ * question, a "confirm" line or an at-a-glance line that still does is left
+ * out (_shared/ageWording.ts; the sixth Phase 6 review). Fewer than two
+ * questions left reads as any other unusable answer.
+ */
+function withoutAgeLines(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return raw;
+  const r = raw as Record<string, unknown>;
+  const lineOk = (line: unknown) => !marksAgeOrFamily(line);
+  return {
+    ...r,
+    ...(Array.isArray(r.questions)
+      ? {
+          questions: r.questions.filter((q) =>
+            !q || typeof q !== "object" || Array.isArray(q)
+              ? true
+              : ["question", "why", "listenFor", "redFlag"].every((k) => lineOk((q as Record<string, unknown>)[k]))
+          ),
+        }
+      : {}),
+    ...(Array.isArray(r.confirm) ? { confirm: r.confirm.filter(lineOk) } : {}),
+    ...(Array.isArray(r.atAGlance) ? { atAGlance: r.atAGlance.filter(lineOk) } : {}),
+  };
 }
 
 /**

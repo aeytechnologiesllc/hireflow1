@@ -745,6 +745,7 @@ export default function Auth() {
                     <div className="relative">
                       <Input
                         id="new-password"
+                        autoComplete="new-password"
                         type={showNewPassword ? "text" : "password"}
                         placeholder="••••••••"
                         value={newPassword}
@@ -771,6 +772,7 @@ export default function Auth() {
                     <div className="relative">
                       <Input
                         id="confirm-password"
+                        autoComplete="new-password"
                         type={showConfirmPassword ? "text" : "password"}
                         placeholder="••••••••"
                         value={confirmPassword}
@@ -853,6 +855,7 @@ export default function Auth() {
                       <Label htmlFor="forgot-email" className="text-foreground">Email</Label>
                       <Input
                         id="forgot-email"
+                        autoComplete="email"
                         type="email"
                         placeholder="you@example.com"
                         value={forgotPasswordEmail}
@@ -922,6 +925,7 @@ export default function Auth() {
                     <Label htmlFor="signin-email" className="text-foreground">Email</Label>
                     <Input
                       id="signin-email"
+                      autoComplete="email"
                       type="email"
                       placeholder="you@example.com"
                       value={signInEmail}
@@ -936,6 +940,7 @@ export default function Auth() {
                     <div className="relative">
                       <Input
                         id="signin-password"
+                        autoComplete="current-password"
                         type={showSignInPassword ? "text" : "password"}
                         placeholder="••••••••"
                         value={signInPassword}

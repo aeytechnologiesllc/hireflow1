@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 import { collectSignerContext } from "@/lib/signerContext";
+import { generateV1Hash } from "@/lib/documentHash";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
 import { LetterText } from "./LetterText";
 import { SignaturePad } from "./SignaturePad";
@@ -172,7 +173,10 @@ export function ApplicantDocumentSheet({
     try {
       // The device and the place it is signed from (the team sees it; the applicant never sees the team's).
       const signerContext = await collectSignerContext();
-      await invokeDocumentSigning(supabase, { documentId: document.id, action: "sign", signature: { method: how, value: signature, consentAccepted: true }, signerContext });
+      // The hash of the letter this screen shows: the server signs only that
+      // (supabase/functions/_shared/documentShown.ts).
+      const viewedHash = await generateV1Hash(body?.content ?? "");
+      await invokeDocumentSigning(supabase, { documentId: document.id, action: "sign", signature: { method: how, value: signature, consentAccepted: true }, signerContext, viewedHash });
       setJustSigned(true);
       refresh();
     } catch (e) {

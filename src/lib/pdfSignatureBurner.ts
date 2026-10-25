@@ -172,7 +172,7 @@ export async function burnSignaturesIntoPdf(
     y: y + 5,
     width: certWidth - (margin * 2),
     height: 3,
-    color: rgb(0.13, 0.55, 0.13),
+    color: rgb(0.078, 0.071, 0.055),
   });
   
   certPage.drawText('CERTIFICATE OF COMPLETION', {
@@ -180,11 +180,11 @@ export async function burnSignaturesIntoPdf(
     y,
     size: 20,
     font: helveticaBold,
-    color: rgb(0.13, 0.55, 0.13),
+    color: rgb(0.078, 0.071, 0.055),
   });
   y -= 25;
 
-  certPage.drawText('This document was electronically signed and verified in compliance with the', {
+  certPage.drawText('Signed electronically by both parties. Each version is fingerprinted with', {
     x: margin,
     y,
     size: 10,
@@ -192,7 +192,7 @@ export async function burnSignaturesIntoPdf(
     color: rgb(0.3, 0.3, 0.3),
   });
   y -= 12;
-  certPage.drawText('U.S. ESIGN Act and applicable state laws.', {
+  certPage.drawText('SHA-256, and every signing event is kept in an audit trail.', {
     x: margin,
     y,
     size: 10,
@@ -376,7 +376,7 @@ export async function burnSignaturesIntoPdf(
     width: certWidth - (margin * 2) + 10,
     height: 85,
     color: rgb(0.95, 0.98, 0.95),
-    borderColor: rgb(0.13, 0.55, 0.13),
+    borderColor: rgb(0.078, 0.071, 0.055),
     borderWidth: 1,
   });
 
@@ -386,16 +386,15 @@ export async function burnSignaturesIntoPdf(
     y,
     size: 10,
     font: helveticaBold,
-    color: rgb(0.13, 0.55, 0.13),
+    color: rgb(0.078, 0.071, 0.055),
   });
   y -= 16;
 
+  // What was done, not a claim of legal compliance (the third Phase 7 product audit).
   const complianceText = [
-    'This document was electronically signed and verified in compliance with the U.S. ESIGN Act',
-    'and applicable state laws. The electronic signatures applied to this document are legally',
-    'binding and carry the same legal effect as handwritten signatures under the Electronic',
-    'Signatures in Global and National Commerce Act (15 U.S.C. § 7001) and the Uniform Electronic',
-    'Transactions Act (UETA). Document integrity is protected by SHA-256 cryptographic hashing.',
+    'Both parties signed this document electronically, each after agreeing to sign electronically.',
+    'Each version was fingerprinted with SHA-256, and every signing event is kept in an audit',
+    'trail that cannot be edited afterwards.',
   ];
 
   for (const line of complianceText) {

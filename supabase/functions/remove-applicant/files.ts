@@ -57,22 +57,27 @@ export function resumeFilesToRemove(candidateId: string, resumeUrl: unknown, not
   // that one stored it: compared with the other references both as written
   // and decoded ("Scan%202026" there is "Scan 2026" here; the seventh review:
   // a shared file was deleted because only this side was decoded).
+  // A stray "%" elsewhere made the whole decode fail, and the one-escape-at-a-
+  // time fallback could not decode an accented letter ("%c3%a9" is two), so
+  // runs of escapes are decoded together, and the encoded forms are compared
+  // with the escapes in capitals either way (the eighth review).
   let decodedRefs = otherRefs;
   try {
     decodedRefs = decodeURIComponent(otherRefs);
   } catch {
-    decodedRefs = otherRefs.replace(/%([0-9a-f]{2})/gi, (all, hex) => {
+    decodedRefs = otherRefs.replace(/(?:%[0-9a-f]{2})+/gi, (run) => {
       try {
-        return decodeURIComponent(`%${hex}`);
+        return decodeURIComponent(run);
       } catch {
-        return all;
+        return run;
       }
     });
   }
+  const upperRefs = otherRefs.replace(/%[0-9a-f]{2}/gi, (escape) => escape.toUpperCase());
   const usedElsewhere = (path: string) => {
     if (otherRefs.includes(path) || decodedRefs.includes(path)) return true;
     try {
-      return otherRefs.includes(encodeURI(path)) || otherRefs.includes(encodeURIComponent(path).replace(/%2F/gi, "/"));
+      return upperRefs.includes(encodeURI(path)) || upperRefs.includes(encodeURIComponent(path).replace(/%2F/gi, "/"));
     } catch {
       return false;
     }

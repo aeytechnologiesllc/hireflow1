@@ -305,7 +305,17 @@ Return ONLY the JSON object described in the system prompt.`;
       // The service refused, or the day's AI budget is reached: the calm 503
       // every applicant page reads ("come back later"), never a 500 (the
       // seventh Phase 5 review).
-      if (isAiUnavailable(error)) return aiUnavailableResponse(corsHeaders, aiUnavailableExtra(error));
+      // A report has no answers to keep, so not the steps' "Your answers are
+      // saved" (the eighth Phase 5 review): just when to try again.
+      if (isAiUnavailable(error)) {
+        const extra = aiUnavailableExtra(error);
+        return aiUnavailableResponse(corsHeaders, {
+          ...extra,
+          message: extra.wait === "long"
+            ? "This report can't be made right now. Please come back later today or tomorrow."
+            : "This report can't be made right now. Please try again in a couple of minutes.",
+        });
+      }
       const status = openAIErrorStatus(error);
       if (status !== null) {
         console.error('AI API error:', status, error);

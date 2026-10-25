@@ -46,7 +46,8 @@ let out = runCarry({ search: "?utm_source=YouTube&utm_campaign=v1", referrer: "h
 check("tags ride onto the sign-up link", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_campaign=v1&ref=www.youtube.com", out[0]);
 check("…and the sign-in link", out[1].includes("utm_source=youtube"));
 out = runCarry({ search: "", referrer: "https://www.quora.com/What-is-x?share=1", links: ["https://staff.hireflownow.com/auth?mode=signup"] });
-check("an untagged visit carries the referring host only (never its path or query)", out[0] === "https://staff.hireflownow.com/auth?mode=signup&ref=www.quora.com", out[0]);
+// The third growth review: the site that sent an untagged visitor is the source (it was hidden behind the page's own).
+check("an untagged visit makes the referring host the source (never its path or query)", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=www.quora.com&utm_medium=referral&ref=www.quora.com", out[0]);
 out = runCarry({ search: "?utm_source=a%20b%3Cscript%3E", referrer: "", links: ["https://staff.hireflownow.com/auth?mode=signup"] });
 // The Phase 7 growth review: "Spring Sale" was dropped while the counter kept
 // it; both now tidy a tag to plain characters (never anything else).
@@ -60,7 +61,28 @@ out = runCarry({ search: "?utm_source=youtube&utm_campaign=v1", referrer: "", li
 // The fifth Phase 6 review: mixing them read "youtube / article / v1"; the visitor's set replaces the page's.
 check("on a guide, the visitor's own tags replace the page's whole set", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_campaign=v1", out[0]);
 out = runCarry({ search: "", referrer: "https://www.youtube.com/", links: ["https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=phone-agent-vs-chat-agent"] });
-check("…an untagged visit keeps the guide's tags and adds where it came from", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=phone-agent-vs-chat-agent&ref=www.youtube.com", out[0]);
+check("…an untagged visit on a guide: the site it came from is the source, the guide stays the campaign", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=www.youtube.com&utm_medium=referral&utm_campaign=phone-agent-vs-chat-agent&ref=www.youtube.com", out[0]);
+// …and the tags, or the site, ride on through the logo and the guides (the third growth review).
+function runCarrySite({ search = "", referrer = "", staff, inside }) {
+  const staffAnchors = staff.map((href) => ({ href }));
+  const insideAnchors = inside.map((href) => ({ href }));
+  const sandbox = {
+    window: { location: { search, hostname: "hireflownow.com", href: "https://hireflownow.com/blog/a-guide" + search } },
+    navigator: { doNotTrack: null, globalPrivacyControl: false },
+    document: { referrer, querySelectorAll: (sel) => (sel.includes("staff.hireflownow.com") ? staffAnchors : insideAnchors) },
+    URL, URLSearchParams, Array, Object,
+  };
+  vm.runInNewContext(read("public/carry-source.js"), sandbox);
+  return { staff: staffAnchors.map((a) => a.href), inside: insideAnchors.map((a) => a.href) };
+}
+let site = runCarrySite({ search: "?utm_source=youtube&utm_campaign=v1", staff: [], inside: ["/", "/blog", "/open-jobs"] });
+check("the logo (\"/\") carries a tagged visitor's tags, as Guides and Open jobs do", site.inside.every((h) => h.includes("utm_source=youtube") && h.includes("utm_campaign=v1")) && site.inside[0].startsWith("https://hireflownow.com/?"), JSON.stringify(site.inside));
+site = runCarrySite({ search: "", referrer: "https://www.quora.com/q", staff: [], inside: ["/", "/blog/other"] });
+check("…an untagged visitor's site rides on as ref", site.inside.every((h) => h.includes("ref=www.quora.com") && !h.includes("utm_")), JSON.stringify(site.inside));
+site = runCarrySite({ search: "?ref=www.quora.com", referrer: "https://hireflownow.com/", staff: ["https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=a-guide"], inside: [] });
+check("…so on the next page Quora is still the source of the sign-up", site.staff[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=www.quora.com&utm_medium=referral&utm_campaign=a-guide&ref=www.quora.com", site.staff[0]);
+site = runCarrySite({ search: "?ref=staff.hireflownow.com", referrer: "", staff: ["https://staff.hireflownow.com/auth?mode=signup"], inside: [] });
+check("…never HireFlow's own host as a carried source", site.staff[0] === "https://staff.hireflownow.com/auth?mode=signup", site.staff[0]);
 
 // ---- the staff site counts only its sign-up page --------------------------------
 const beacon = read("public/beacon.js");
@@ -69,7 +91,9 @@ check("the counter allows the staff site's /auth only", /staffSite && !isSignUpP
 // ---- the sign-up page keeps it ----------------------------------------------------
 check("signupSourceFrom reads the four tags", JSON.stringify(src.signupSourceFrom("https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_medium=video&utm_campaign=v1&ref=www.youtube.com")) === JSON.stringify({ utm_source: "youtube", utm_medium: "video", utm_campaign: "v1", ref: "www.youtube.com" }));
 check("no tags: nothing stored", src.signupSourceFrom("https://staff.hireflownow.com/auth?mode=signup") === null);
-check("a long or odd tag is dropped", src.signupSourceFrom(`https://x/auth?utm_source=${"a".repeat(61)}&utm_medium=x%40y`) === null);
+// The third growth review: tidied the way the counter and the carrier do, never dropped.
+check("a long tag is cut to 60 and an odd one tidied, as the page counter does", (() => { const got = src.signupSourceFrom(`https://x/auth?utm_source=${"a".repeat(61)}&utm_medium=x%40y&utm_campaign=Spring%20Sale`); return got?.utm_source === "a".repeat(60) && got?.utm_medium === "x-y" && got?.utm_campaign === "spring-sale"; })());
+check("…a tag of nothing but odd characters is nothing", src.signupSourceFrom("https://x/auth?utm_source=%40%40") === null);
 check("tags are lower-cased", src.signupSourceFrom("https://x/auth?utm_source=YouTube")?.utm_source === "youtube");
 check("useAuth's signUp stores it as signup_source", /\.\.\.\(signupSource \? \{ signup_source: signupSource \} : \{\}\)/.test(read("src/hooks/useAuth.tsx")));
 

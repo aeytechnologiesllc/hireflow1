@@ -166,5 +166,14 @@ check("…made inside the database on the first run, 32 random bytes, and kept o
 check("…and only the service role may ask whether a secret matches", /REVOKE ALL ON FUNCTION public\.interview_reminders_secret_matches\(text\) FROM anon, authenticated;/.test(schedule) && /GRANT EXECUTE ON FUNCTION public\.interview_reminders_secret_matches\(text\) TO service_role;/.test(schedule) && /length\(p_given\) >= 32/.test(schedule));
 check("…to this project's own address", /https:\/\/yqklrkpptnhubsnijqze\.supabase\.co\/functions\/v1\/interview-reminders/.test(schedule));
 
+{
+  // The third security review: each reminder is looked for in its own window,
+  // so interviews whose reminder is not due yet never fill the pick.
+  const sender = await readFile(path.join(ROOT, "supabase/functions/interview-reminders/index.ts"), "utf8");
+  check("the sender looks for each reminder only in its own window, still owed, soonest first",
+    /\.gt\("scheduled_at", at\(REMINDER_WINDOWS\[kind\]\.from\)\)\s*\.lte\("scheduled_at", at\(REMINDER_WINDOWS\[kind\]\.to\)\)\s*\.is\(reminderColumn\(kind\), null\)\s*\.order\("scheduled_at", \{ ascending: true \}\)/.test(sender) &&
+    /Promise\.all\(\[owed\("hour"\), owed\("day"\)\]\)/.test(sender) && !/\.or\("reminder_day_sent_at\.is\.null/.test(sender));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

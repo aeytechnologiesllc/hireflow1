@@ -174,7 +174,10 @@ async function generateAuditTrailHashFromEntries(entries: AuditLogEntry[]): Prom
  * Generate compliance statement - updated for enterprise-grade legal defensibility
  */
 function generateComplianceStatement(): string {
-  return `This document was electronically signed and verified in compliance with the U.S. ESIGN Act and applicable state laws. All parties have consented to conduct this transaction electronically and have acknowledged that their electronic signatures carry the same legal weight as handwritten signatures under the Electronic Signatures in Global and National Commerce Act (15 U.S.C. § 7001 et seq.) and the Uniform Electronic Transactions Act (UETA). The integrity of this document is protected by SHA-256 cryptographic hashes, and all signature events have been recorded in a tamper-evident audit trail. This certificate serves as a legally binding record of the signing process and may be used as evidence in any legal proceeding.`;
+  // What was done, never "in compliance with" a law or "legally binding":
+  // whether an e-signature holds depends on the document and the place (the
+  // second and third Phase 7 product audits).
+  return `Both parties signed this document electronically, each after agreeing to sign electronically. Each version was fingerprinted with SHA-256, and every signing event is kept in an audit trail that cannot be edited afterwards.`;
 }
 
 /**

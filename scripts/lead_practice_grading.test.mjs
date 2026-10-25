@@ -772,7 +772,7 @@ const details = jobDetailsSection(job);
 check("job information names the level, the typing bar and the pay", /Experience Level: lead/.test(details) && /Typing speed this job needs: 45 words a minute/.test(details) && /Posted pay: 500 USD a month/.test(details));
 const leadFields = leadInterviewFields({ leadership: { score: 82, quote: "I led six agents" }, adaptability: 64, workingLead: { score: "71", quote: "I answer chats on every shift" } });
 check("lead marks read as numbers with their quotes", leadFields.scores.leadership === 82 && leadFields.scores.adaptability === 64 && leadFields.scores.workingLead === 71 && leadFields.quotes.workingLead === "I answer chats on every shift");
-check("the interview eval prompt version is bumped (eval-4: the business's own word)", INTERVIEW_EVAL_PROMPT_VERSION === "chat-interview-eval-4");
+check("the interview eval prompt version is bumped (eval-5: never a mark on age or family)", INTERVIEW_EVAL_PROMPT_VERSION === "chat-interview-eval-5");
 
 console.log("\nThe interview's grader:\n");
 const INTERVIEW = [

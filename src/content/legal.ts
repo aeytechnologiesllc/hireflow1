@@ -81,7 +81,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         "Your answers to the application questions, and any file the job asks for, such as a resume or a cover letter. Answers save as you type, so the hiring team can read them before you send the form.",
         { sub: "While you take each step" },
         "For every step we keep when you started and finished, how long you were active, and how far you got.",
-        "To keep the tests fair, we record certain events during the form and the tests: copying, cutting or pasting, text that was pasted in, right-clicks, leaving the tab or window and for how long, screenshot keys, opening the browser's developer tools, and closing the page. We record that these things happened. We do not record your screen, and we do not record your camera or microphone, except for a video introduction or a spoken interview a job asks for, recorded only while you record it.",
+        "To keep the tests fair, we record certain events during the form and the tests: copying, cutting or pasting, text that was pasted in, right-clicks, leaving the tab or window and for how long, screenshot keys, opening the browser's developer tools, and closing the page. We record that these things happened. We do not record your screen. We record your camera and microphone only in a video introduction, while you record it, and in a spoken interview, if a job has one, from when it starts until it ends.",
         {
           list: [
             "Skills check: each answer, the time you took on each question, your score, and how many attempts you made.",
@@ -94,7 +94,7 @@ export const PRIVACY_POLICY: LegalDocument = {
           ],
         },
         "From these, software produces scores, a written summary, and notes on strengths and concerns for the hiring team.",
-        "Not every job uses every step. A job may also include a spoken interview with the AI interviewer. If yours does, what you say is turned into text, and the text and the audio may be stored.",
+        "Not every job uses every step. A job may also include a spoken interview with the AI interviewer. If yours does, it records your camera and microphone, what you say is turned into text, and the text, the audio and the video may be stored.",
         { sub: "Interviews with a person" },
         "The time you agreed, what you wrote about when you are free, and the hiring team's own notes and ratings from your interview.",
         { sub: "Messages" },
@@ -137,7 +137,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       id: "ai",
       title: "AI and automatic scoring",
       body: [
-        "AI software reads your test answers, your chat practice, your written interview and, if you upload one, your resume. It produces scores, a summary and notes for the hiring team. The person you chat with in the chat practice and the interviewer in the written interview are AI, not people.",
+        "AI software reads your test answers, your chat practice, your written interview, the work samples you upload and, if you upload one, your resume. It produces scores, a summary and notes for the hiring team. The person you chat with in the chat practice and the interviewer in the written interview are AI, not people.",
         "When you finish a step, the site may move you to the next step automatically.",
         "No application is declined by software alone. A person on the hiring team makes that decision. The one automatic refusal is this: if the hiring team has blocked an account, that account cannot apply again.",
         "AI can be wrong. If you think a result is wrong, message the hiring team in your account, or write to us from Contact us.",
@@ -149,14 +149,14 @@ export const PRIVACY_POLICY: LegalDocument = {
       body: [
         { sub: "The hiring team" },
         "The owner of the hiring account for the job you applied to, and the team members they have given access to that job. They see your application, your results, the events recorded during your tests, your messages and your documents.",
-        "You can see your own application, messages and documents. You cannot see the scoring detail, the events recorded during tests, or the hiring team's notes and ratings.",
+        "You can see your own application, messages and documents, and the result kept with some steps you take, such as the written review of your work samples. You cannot see the hiring team's overall score and report about you, the events recorded during tests, or the hiring team's notes and ratings.",
         { sub: "Companies that run parts of the site for us" },
         "They handle your information only to provide their service to us:",
         {
           list: [
             "Supabase: the database, sign-in and file storage.",
             "Vercel: hosting the site.",
-            "OpenAI: the AI scoring, the chat practice and the written interview.",
+            "OpenAI: the AI scoring (the review of work samples included), the chat practice and the written interview.",
             "Resend: sending email.",
             "Your browser's own push service (Google, Apple, Mozilla or Microsoft, depending on your browser): phone and desktop notifications, if you turn them on. Notifications travel through it encrypted.",
             "A video-call provider, if the hiring team uses the site's built-in call for your interview.",
@@ -182,7 +182,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 24 hours after someone on the hiring team first opens it, or 7 days after you send it if nobody opens it.",
         "In that time the hiring team may download a copy. A copy they keep is theirs to look after, under their own duties to protect it.",
         "When you delete your account, your profile, your applications, your test records and your files are deleted with it.",
-        "A few technical records stay behind: a count of your test attempts, the start times of typing tests, a block-list entry if the account was blocked, and error reports. Signed documents and their records may also be kept where both sides may still need them or the law requires it.",
+        "A few technical records stay behind: a count of your test attempts, the start times of typing tests, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account. Signed documents and their records may also be kept where both sides may still need them or the law requires it.",
       ],
     },
     {
@@ -192,7 +192,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         {
           list: [
             "See and change your details: open Profile in your account.",
-            "Turn emails off: open Settings.",
+            "Emails: the emails about your applications come with applying. To stop them for one job, withdraw that application. On a hiring team, you can turn your own email alerts off in Settings.",
             "Withdraw an application: open Applications.",
             "Delete your account: open Settings and choose Delete Account.",
             "Ask for a copy of your information, for a correction, or to object to how it is used: write to us from Contact us in your account menu. We usually reply within a day.",
@@ -303,7 +303,7 @@ export const TERMS: LegalDocument = {
           ],
         },
         { sub: "Reports and pausing" },
-        "Applicants can report a job. We read every report, and the business never learns who sent it. When three different people the business has been in touch with (by message, a request for papers, or an interview) report it, it pauses by itself while we look, and we may pause a business ourselves; its jobs close until it is open again.",
+        "Applicants can report a job. We read every report, and the business never learns who sent it. When three different people the business has been in touch with (by message, a document to sign, a request for papers, or an interview) report it, it pauses by itself while we look, and we may pause a business ourselves; its jobs close until it is open again.",
         { sub: "Price" },
         "Using the site is free at the moment. If that changes we will tell you first, and nothing will be charged without your agreement.",
       ],

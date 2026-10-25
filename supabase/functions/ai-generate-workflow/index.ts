@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness, signedInUserId } from "../_shared/signedIn.ts";
-import { AGE_RULE, asksAgeOrStatus, questionAsksAge, withoutAgeAsks } from "../_shared/ageWording.ts";
+import { AGE_RULE, asksAgeOrStatus, questionAsksAge, textWithoutAgeAsks, withoutAgeAsks } from "../_shared/ageWording.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_WORKFLOW_MODEL") || "gpt-5.6-luna";
@@ -592,6 +592,29 @@ function validateWorkflowResponse(value: unknown) {
   return null;
 }
 
+/**
+ * What an applicant reads inside a step, without an age ask (the sixth Phase 6
+ * review): a portfolio or video prompt goes (PortfolioUploadPhase and the
+ * video step below have their own), and so does a practice situation (a list
+ * left empty is removed: the page and the grader then use their own).
+ */
+function configWithoutAgeAsks(config: Record<string, unknown>): Record<string, unknown> {
+  const out = { ...config };
+  if (asksAgeOrStatus(out.prompt)) delete out.prompt;
+  if (Array.isArray(out.scenarios)) {
+    const kept = withoutAgeAsks(out.scenarios as unknown[], (s) =>
+      typeof s === "string"
+        ? s
+        : s && typeof s === "object"
+          ? ["title", "scenario", "prompt"].map((k) => (s as Record<string, unknown>)[k]).filter((x) => typeof x === "string").join(". ")
+          : ""
+    );
+    if (kept.length > 0) out.scenarios = kept;
+    else delete out.scenarios;
+  }
+  return out;
+}
+
 function postProcessWorkflowData(
   workflowData: WorkflowResponse,
   request: WorkflowRequest,
@@ -600,11 +623,15 @@ function postProcessWorkflowData(
 ): WorkflowResponse {
   const data = {
     // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts):
-    // a question by its own words, an option only when it names an age.
+    // a question by its own words or its options (questionAsksAge says which).
     application_questions: (Array.isArray(workflowData.application_questions) ? workflowData.application_questions : []).filter((q) => !questionAsksAge(q?.question, q?.options)),
-    quiz_questions: (Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : []).filter((q) => !questionAsksAge(q?.question, q?.options)),
+    // A quiz question's grading key (fit_context) loses its age sentence, never the question (the sixth review).
+    quiz_questions: (Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : [])
+      .filter((q) => !questionAsksAge(q?.question, q?.options))
+      .map((q) => (asksAgeOrStatus(q?.fit_context) ? { ...q, fit_context: (textWithoutAgeAsks(q.fit_context) as string) || undefined } : q)),
     // A step's own title and description too (the fifth Phase 6 review): the
-    // title falls back to the step's kind, the description to none.
+    // title falls back to the step's kind, the description to none. And its
+    // prompt and practice situations (configWithoutAgeAsks; the sixth review).
     workflow_steps: (Array.isArray(workflowData.workflow_steps) ? workflowData.workflow_steps : []).map((step) =>
       step && typeof step === "object"
         ? {
@@ -613,6 +640,9 @@ function postProcessWorkflowData(
               ? { title: String((step as { type?: unknown }).type ?? "Step").replace(/_/g, " ").replace(/^\w/, (c) => c.toUpperCase()) }
               : {}),
             ...(asksAgeOrStatus((step as { description?: unknown }).description) ? { description: "" } : {}),
+            ...((step as { config?: unknown }).config && typeof (step as { config?: unknown }).config === "object"
+              ? { config: configWithoutAgeAsks((step as { config: Record<string, unknown> }).config) }
+              : {}),
           }
         : step
     ),

@@ -63,6 +63,9 @@ export function inject(shell, page) {
   const tags =
     `<meta name="description" content="${esc(page.description)}" />` +
     `<meta property="og:type" content="website" />` +
+    // The shell's site name is removed with its other share tags (the third
+    // growth review); Open jobs carries HireFlow's, the legal pages none.
+    (page.image ? `<meta property="og:site_name" content="HireFlow" />` : "") +
     `<meta property="og:title" content="${esc(page.title)}" />` +
     `<meta property="og:description" content="${esc(page.description)}" />` +
     `<meta property="og:url" content="${esc(url)}" />` +

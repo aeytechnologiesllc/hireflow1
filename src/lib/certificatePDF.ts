@@ -22,14 +22,14 @@ export async function generateCertificatePDF(
   let y = margin;
 
   // Header accent line
-  pdf.setDrawColor(34, 139, 34);
+  pdf.setDrawColor(138, 100, 32);
   pdf.setLineWidth(1);
   pdf.line(margin, y, pageWidth - margin, y);
   y += 8;
 
   // Header
   pdf.setFontSize(20);
-  pdf.setTextColor(34, 139, 34);
+  pdf.setTextColor(20, 18, 14);
   pdf.setFont("helvetica", "bold");
   pdf.text("CERTIFICATE OF COMPLETION", pageWidth / 2, y, { align: "center" });
   y += 8;
@@ -43,7 +43,7 @@ export async function generateCertificatePDF(
   // Compliance tagline
   pdf.setFontSize(8);
   pdf.setTextColor(60);
-  pdf.text("This document was electronically signed and verified in compliance with the U.S. ESIGN Act and applicable state laws.", pageWidth / 2, y, { align: "center" });
+  pdf.text("Signed electronically by both parties. Every signing event is kept in an audit trail.", pageWidth / 2, y, { align: "center" });
   
   y += 12;
 
@@ -90,7 +90,7 @@ export async function generateCertificatePDF(
   y += 5;
   pdf.text("Signature Method: Electronic Signature (Draw/Type)", margin, y);
   y += 5;
-  pdf.text("Jurisdiction: U.S. ESIGN Act (15 U.S.C. § 7001) and UETA compliant", margin, y);
+  pdf.text("Integrity: SHA-256 fingerprints of each version, and an audit trail that cannot be edited", margin, y);
   
   y += 12;
 
@@ -102,15 +102,15 @@ export async function generateCertificatePDF(
 
   // Candidate Signer
   if (cert.candidate_signature) {
-    pdf.setFillColor(240, 255, 240);
+    pdf.setFillColor(250, 247, 241);
     pdf.rect(margin, y, pageWidth - 2 * margin, 28, 'F');
-    pdf.setDrawColor(34, 139, 34);
+    pdf.setDrawColor(138, 100, 32);
     pdf.rect(margin, y, pageWidth - 2 * margin, 28, 'S');
     
     y += 6;
     pdf.setFontSize(10);
     pdf.setFont("helvetica", "bold");
-    pdf.setTextColor(34, 139, 34);
+    pdf.setTextColor(20, 18, 14);
     pdf.text("CANDIDATE (Signing Position: 1)", margin + 5, y);
     
     y += 6;
@@ -131,15 +131,15 @@ export async function generateCertificatePDF(
 
   // Employer Signer
   if (cert.employer_signature) {
-    pdf.setFillColor(240, 248, 255);
+    pdf.setFillColor(246, 242, 234);
     pdf.rect(margin, y, pageWidth - 2 * margin, 28, 'F');
-    pdf.setDrawColor(70, 130, 180);
+    pdf.setDrawColor(138, 100, 32);
     pdf.rect(margin, y, pageWidth - 2 * margin, 28, 'S');
     
     y += 6;
     pdf.setFontSize(10);
     pdf.setFont("helvetica", "bold");
-    pdf.setTextColor(70, 130, 180);
+    pdf.setTextColor(138, 100, 32);
     pdf.text("EMPLOYER (Signing Position: 2)", margin + 5, y);
     
     y += 6;

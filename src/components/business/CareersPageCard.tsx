@@ -170,7 +170,8 @@ export function CareersPageCard() {
               Copy link
             </Button>
             <Button variant="outline" asChild>
-              <a href={link} target="_blank" rel="noreferrer">
+              {/* noopener only: the staff site as referrer keeps the team's own look out of the counts (the third growth review). */}
+              <a href={link} target="_blank" rel="noopener">
                 <ExternalLink className="mr-2 h-4 w-4" />
                 Open page
               </a>

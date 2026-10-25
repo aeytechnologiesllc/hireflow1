@@ -132,7 +132,7 @@ import { AvaGuidedSetupFields } from "@/components/AvaGuidedSetupFields";
 import { generateFullJobPosting, generateJobField, generateScreeningPlan, type AvaJobFormData } from "@/lib/avaJobGeneration";
 import { DEFAULT_GUIDED_JOB_SETUP, assessScreeningPlanRisk, buildScreeningPlanRationale, summarizeScreeningPlan, type GuidedJobSetup } from "@/lib/hiringPlan";
 import { geocodePlace } from "@/lib/geocode";
-import { isFullyRemoteText } from "@/lib/jobLocation";
+import { isFullyRemoteText, remoteAfterPlaceEdit } from "@/lib/jobLocation";
 import {
   buildApplicationQuestions,
   buildQuizQuestions,
@@ -1663,7 +1663,13 @@ export default function CreateJob() {
     setIsSubmitting(true);
     try {
       const locationText = formData.location.trim();
-      const isRemote = isFullyRemoteText(locationText, formData.job_type, formData.description);
+      // On an edit, a place that says neither remote nor on-site ("Cebu")
+      // keeps what the job was (remoteAfterPlaceEdit): a job made remote by the
+      // builder's Type field turned on-site when its city was edited (the third
+      // Phase 7 product audit). is_remote is written only when the place changes.
+      const isRemote = isEditMode && existingJob
+        ? remoteAfterPlaceEdit((existingJob as { is_remote?: boolean | null }).is_remote, locationText, formData.job_type, formData.description)
+        : isFullyRemoteText(locationText, formData.job_type, formData.description);
       // A location is for candidates. It used to also need a country "for Google
       // Jobs", which blocked publishing (and saving) a worldwide remote role;
       // Google Jobs was removed on 2026-10-05.
@@ -2523,7 +2529,7 @@ export default function CreateJob() {
                         (the second Phase 7 product audit: it said "Ava will draft the
                         role" and showed setup answers an edit never saves). */}
                     {isEditMode
-                      ? "Change the title, link, type, level and pass mark. Nothing changes for applicants until you press Save."
+                      ? "Change the title, link, type, level and pass mark. Applicants see the changes when you press Publish Job."
                       : "Share the essentials. Ava will draft the role, screening plan, and automation rules for you."}
                   </CardDescription>
                 </CardHeader>

@@ -190,7 +190,8 @@ export function JobPublishedDialog({ open, onClose, job }: JobPublishedDialogPro
                 Copy link
               </Button>
               <Button variant="outline" className="gap-2" asChild>
-                <a href={shareLink} target="_blank" rel="noopener noreferrer">
+                {/* noopener only: the staff site as referrer keeps the team's own look out of the counts (the third growth review). */}
+                <a href={shareLink} target="_blank" rel="noopener">
                   <ExternalLink className="h-4 w-4" />
                   View job page
                 </a>

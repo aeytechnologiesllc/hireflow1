@@ -215,9 +215,13 @@ export default [
       const detail = [];
       // The latest migration that defines remove_applicant, not the first (the
       // seventh review: a later redefinition without the checks passed).
+      // Comments stripped first: a rule kept only in a comment is no rule (the
+      // eighth review: a later remove_applicant without the owner check, the
+      // check mentioned in a comment, passed).
+      const noComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
       let sql = "";
       for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
-        const text = (await read(rel)) ?? "";
+        const text = noComments((await read(rel)) ?? "");
         if (/create or replace function public\.remove_applicant\(/i.test(text)) sql = text;
       }
       if (!/grant execute on function public\.remove_applicant\(uuid, uuid, text\) to service_role;/.test(sql) || !/revoke all on function public\.remove_applicant\(uuid, uuid, text\) from public, anon, authenticated;/.test(sql)) {

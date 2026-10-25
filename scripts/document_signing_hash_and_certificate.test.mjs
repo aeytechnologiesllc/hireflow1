@@ -184,7 +184,7 @@ check(
 );
 check(
   "compliance_statement is reused verbatim from the existing client copy, not redrafted",
-  cert.compliance_statement === COMPLIANCE_STATEMENT && cert.compliance_statement.includes("ESIGN Act"),
+  cert.compliance_statement === COMPLIANCE_STATEMENT && /signed this document electronically/.test(cert.compliance_statement) && !/ESIGN|UETA|in compliance with|legally binding/i.test(cert.compliance_statement),
 );
 
 {

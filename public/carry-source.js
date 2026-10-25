@@ -37,6 +37,10 @@
       ref = "";
     }
     if (ref && ref !== window.location.hostname && ref.indexOf("hireflownow.com") === -1 && plain.test(ref)) keep.ref = ref;
+    // A site the visitor came from, carried here from the page before (below):
+    // the referrer on this page is HireFlow's own.
+    var carriedRef = tidy(params.get("ref"));
+    if (!keep.ref && carriedRef && carriedRef.indexOf("hireflownow.com") === -1 && plain.test(carriedRef)) keep.ref = carriedRef;
     if (!Object.keys(keep).length) return;
     var broughtTags = Object.keys(keep).some(function (key) { return key !== "ref"; });
     var links = document.querySelectorAll('a[href*="staff.hireflownow.com/auth"]');
@@ -47,25 +51,36 @@
       // visit never reads "medium: bar" (the fifth Phase 6 review). A link's
       // own ref stays.
       if (broughtTags) ["utm_source", "utm_medium", "utm_campaign"].forEach(function (key) { url.searchParams.delete(key); });
+      // No tags but another site sent them (Quora, a search): that site is
+      // the source, and the page's own campaign says which button (the third
+      // growth review: "blog" hid where they came from).
+      else if (keep.ref) {
+        url.searchParams.set("utm_source", keep.ref);
+        url.searchParams.set("utm_medium", "referral");
+      }
       Object.keys(keep).forEach(function (key) {
         if (key !== "ref" || !url.searchParams.has(key)) url.searchParams.set(key, keep[key]);
       });
       a.href = url.toString();
     });
-    // …and onward through the site: the guides and the open jobs carry the
-    // visitor's tags to the next page, whose own sign-up links then get them
-    // (front page → Guides → a guide → sign-up used to read "blog").
-    if (broughtTags) {
-      var inside = document.querySelectorAll('a[href^="/blog"], a[href^="/open-jobs"], a[href*="://hireflownow.com/blog"], a[href*="://hireflownow.com/open-jobs"]');
-      Array.prototype.forEach.call(inside, function (a) {
-        var url = new URL(a.href, window.location.href);
-        if (url.hostname !== window.location.hostname && url.hostname !== "hireflownow.com") return;
+    // …and onward through the site: the guides, the open jobs and the front
+    // page (the logo) carry the visitor's tags, or the site they came from, to
+    // the next page, whose own sign-up links then get them (front page →
+    // Guides → a guide → sign-up used to read "blog"; the logo dropped them:
+    // the third growth review).
+    var inside = document.querySelectorAll('a[href="/"], a[href^="/?"], a[href^="/blog"], a[href^="/open-jobs"], a[href*="://hireflownow.com/blog"], a[href*="://hireflownow.com/open-jobs"]');
+    Array.prototype.forEach.call(inside, function (a) {
+      var url = new URL(a.href, window.location.href);
+      if (url.hostname !== window.location.hostname && url.hostname !== "hireflownow.com") return;
+      if (broughtTags) {
         ["utm_source", "utm_medium", "utm_campaign"].forEach(function (key) {
           if (keep[key]) url.searchParams.set(key, keep[key]);
         });
-        a.href = url.toString();
-      });
-    }
+      } else if (keep.ref) {
+        url.searchParams.set("ref", keep.ref);
+      }
+      a.href = url.toString();
+    });
   } catch (e) {
     // Never let this break the page.
   }

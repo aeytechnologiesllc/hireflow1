@@ -5,7 +5,9 @@ import {
   fetchResumeText,
   fetchResumeVisualInputs,
   isFileLikeUrl,
+  isOwnResumeObject,
   isResumeQuestion,
+  parseStorageUrl,
   type ResumeVisualInput,
 } from "../_shared/resume.ts";
 import {
@@ -666,7 +668,11 @@ async function runAvaAnalysis(ctx: AnalysisContext): Promise<AnalysisOutcome> {
     
     // CRITICAL BACKFILL: If resume_url is null but we detected one from answers, update the application
     // This ensures future analyses and the employer dashboard show the correct resume
-    if (!application.resume_url && detectedResumeUrl) {
+    // Only a file in the applicant's own resumes folder: the hiring team can
+    // write the form's answers, and this write is the server's, so a "Resume"
+    // answer pointing at another file had the server store it, and storage
+    // then let the team open it (the third Phase 7 security review).
+    if (!application.resume_url && detectedResumeUrl && isOwnResumeObject(parseStorageUrl(detectedResumeUrl), application.candidate_id)) {
       console.log("[trigger-ava-analysis] BACKFILLING applications.resume_url from detected value...");
       const { error: backfillError } = await supabaseAdmin
         .from("applications")
@@ -706,18 +712,18 @@ async function runAvaAnalysis(ctx: AnalysisContext): Promise<AnalysisOutcome> {
     // The answers are the applicant's words: fenced, so the judge reads them
     // as evidence and never as instructions (_shared/promptFence.ts).
     const textAnswersText = textAnswers.length > 0
-      ? fenceApplicantText("application answers", textAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n"))
+      ? fenceApplicantText("application answers", textAnswers.slice(0, 60).map((a: any) => `Q: ${String(a.question ?? "").slice(0, 500)}\nA: ${String(a.answer ?? "").slice(0, 4000)}`).join("\n\n"))
       : "Not provided";
     
     // Format custom file uploads with clear context so AVA doesn't analyze them as resumes
     const customFilesText = customFileAnswers.length > 0
       ? `\n\n=== CUSTOM FILE UPLOADS (NOT RESUMES - DO NOT ANALYZE AS RESUMES) ===
 These are supplementary files uploaded for specific questions. Evaluate them based on their stated purpose only.
-${customFileAnswers.map((a: any) => 
-  // The question is the business's; the "file" answer is the applicant's own
-  // words (anything mentioning ".pdf" lands here), so it is fenced too (the
-  // Phase 7 security review, round 2).
-  `Question: "${String(a.question ?? "").slice(0, 500)}"
+${customFileAnswers.slice(0, 20).map((a: any) => 
+  // The question text and the "file" answer are both written by the
+  // applicant's browser (anything mentioning ".pdf" lands here), so both are
+  // fenced (the Phase 7 security review, rounds 2 and 3).
+  `Question: ${fenceApplicantText("question", String(a.question ?? "").slice(0, 500))}
 File: ${fenceApplicantText("uploaded file answer", String(a.answer ?? "").slice(0, 1000))}
 Purpose: This is a supplementary document for the above question. It is NOT a resume.`
 ).join("\n\n")}`
@@ -999,7 +1005,7 @@ Cover Letter:
 ${fenceApplicantText("cover letter", application.cover_letter)}
 
 === RESUME (ONLY THIS IS THE CANDIDATE'S RESUME) ===
-Resume URL: ${detectedResumeUrl || "Not provided"}
+Resume file: ${detectedResumeUrl ? fenceApplicantText("resume file name", String(detectedResumeUrl).slice(0, 300)) : "Not provided"}
 NOTE: Only the file above is the resume. Any files in "CUSTOM FILE UPLOADS" section are NOT resumes.
 `;
 

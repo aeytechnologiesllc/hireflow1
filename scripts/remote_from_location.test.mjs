@@ -32,7 +32,7 @@ const bundle = await build({
   stdin: {
     contents:
       'export { briefFromForm } from "./src/lib/avaEngine/playbook.ts";\n' +
-      'export { inferCountryCode, isFullyRemoteText } from "./src/lib/jobLocation.ts";\n',
+      'export { inferCountryCode, isFullyRemoteText, placeSaysRemote, remoteAfterPlaceEdit } from "./src/lib/jobLocation.ts";\n',
     resolveDir: ROOT,
     loader: "ts",
   },
@@ -49,7 +49,7 @@ const brief = (location, type = "Full-time · On-site", workMode) =>
   M.briefFromForm({ role: "Customer Support Agent", location, type, workMode, pay: "$15/hr", start: "ASAP", work: "Answer customer chats for our dental office" });
 check("Location \"Remote\" with the Type field left on On-site is a remote job", brief("Remote").workMode === "remote");
 check("…and \"Work from home (Philippines)\", \"Fully remote\", \"WFH\"", ["Work from home (Philippines)", "Fully remote", "WFH - any timezone"].every((l) => brief(l).workMode === "remote"));
-check("a place that says hybrid stays hybrid or on-site, as the Type says", brief("Remote / hybrid in Makati").workMode === "onsite" && brief("Makati", "Full-time · Hybrid").workMode === "hybrid");
+check("a place that says hybrid is hybrid, never remote", brief("Remote / hybrid in Makati").workMode === "hybrid" && brief("Makati", "Full-time · Hybrid").workMode === "hybrid");
 check("an office place stays on-site", brief("Austin, TX").workMode === "onsite");
 check("the Type field still decides when it says remote", brief("Austin, TX", "Full-time · Remote").workMode === "remote");
 for (const [text, code] of [["Manila, Philippines", "PH"], ["Makati City", "PH"], ["Cebu", "PH"], ["Quezon City, Metro Manila", "PH"], ["Singapore", "SG"], ["Austin, TX", "US"], ["Lahore, Pakistan", "PK"]]) {
@@ -64,6 +64,27 @@ check("an office place is not remote", R("Austin, TX", "full-time", "Answer cust
 check("a description that says work from home makes an unplaced job remote", R("Philippines", "full-time", "Fully remote, work from home.") === true);
 check("hybrid in the place is never fully remote", R("Remote / hybrid in Makati", "full-time", "") === false && R("Work from home, hybrid", "full-time", "") === false);
 check("nothing written is not remote", R("", "", "") === false);
+
+// The third Phase 7 product audit: the common Philippine ways of saying it.
+for (const place of ["Home-based, Philippines", "Philippines (Remote)", "Anywhere", "Worldwide", "100% Remote", "Makati (WFH)", "Telecommute", "Manila - Remote", "Work-from-home", "Remote (worldwide)"]) {
+  check(`place ${JSON.stringify(place)} is a remote job`, brief(place).workMode === "remote", brief(place).workMode);
+}
+for (const type of ["Work from home", "WFH", "Full-time · Remote", "Part-time · Work from home"]) {
+  check(`Type ${JSON.stringify(type)} is a remote job`, brief("Cebu", type).workMode === "remote", brief("Cebu", type).workMode);
+}
+for (const place of ["Makati office", "On-site, Pasig", "Remote-friendly, Austin", "Not remote - Cebu", "Hybrid (Taguig)"]) {
+  check(`place ${JSON.stringify(place)} is not a remote job`, brief(place).workMode !== "remote", brief(place).workMode);
+}
+check("placeSaysRemote: remote / not_remote / neither", R && M.placeSaysRemote("Home-based") === "remote" && M.placeSaysRemote("No remote work") === "not_remote" && M.placeSaysRemote("Cebu") === null && M.placeSaysRemote("") === null);
+check("a description's \"on-site\" work is not where the agent sits (book on-site repair visits)", R("Work from home", "full-time", "Schedule on-site visits for our technicians and book on-site repair visits.") === true && R("100% remote", "full-time", "No onsite work.") === true && R("Remote", "full-time", "This is not an on-site role.") === true);
+check("…but an on-site role in the description is", R("Remote", "full-time", "This is an on-site role in Makati.") === false && R("Remote", "full-time", "You will work on-site three days a week.") === false);
+check("Edit job: a city edit keeps a remote job remote (made remote by the Type field)", M.remoteAfterPlaceEdit(true, "Cebu", "full-time", "Answer chats.") === true);
+check("…an on-site job stays on-site", M.remoteAfterPlaceEdit(false, "Cebu", "full-time", "") === false);
+check("…a place that says remote or office decides", M.remoteAfterPlaceEdit(false, "Remote (Philippines)", "full-time", "") === true && M.remoteAfterPlaceEdit(true, "Makati office", "full-time", "") === false);
+check("…a new job with no history reads the text", M.remoteAfterPlaceEdit(null, "Austin, TX", "full-time", "") === false);
+for (const [text, code] of [["Laguna Beach, CA", "US"], ["Laguna Niguel, California, USA", "US"], ["Laguna Hills", null], ["Santa Rosa, Laguna", "PH"], ["Albuquerque, New Mexico", "US"], ["Mexico City", "MX"], ["Makati, Metro Manila", "PH"]]) {
+  check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
+}
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

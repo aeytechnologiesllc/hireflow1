@@ -201,6 +201,18 @@ export default [
           }
         });
       }
+      // The app's own PDFs (the certificate, the audit export, the signature
+      // burner) draw with jsPDF's setTextColor(34, 139, 34) or pdf-lib's
+      // rgb(0.13, 0.55, 0.13): green there too (the third product audit).
+      const jspdf = /set(?:Text|Fill|Draw)Color\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)/g;
+      const pdflib = /\brgb\(\s*([01]?\.\d+|[01])\s*,\s*([01]?\.\d+|[01])\s*,\s*([01]?\.\d+|[01])\s*\)/g;
+      for (const rel of await walk("src", [".ts", ".tsx"])) {
+        const text = (await read(rel)) ?? "";
+        text.split("\n").forEach((line, i) => {
+          for (const m of line.matchAll(jspdf)) if (isGreen(m.slice(1, 4).map(Number))) detail.push(`${rel}:${i + 1}  green PDF colour ${m[0]}`);
+          for (const m of line.matchAll(pdflib)) if (isGreen(m.slice(1, 4).map((v) => Math.round(Number(v) * 255)))) detail.push(`${rel}:${i + 1}  green PDF colour ${m[0]}`);
+        });
+      }
       if ((await read("src/styles/candidate-jade.css")) != null) detail.push("src/styles/candidate-jade.css is back (it is candidate-theme.css)");
       return detail.length ? { ok: false, detail } : { ok: true };
     },

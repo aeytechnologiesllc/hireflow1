@@ -105,7 +105,7 @@ check("no shift typed, no shift line", !lib.offerLetterText({ ...base, shift: " 
 check("no trial period chosen, no trial section, and the notice applies from the start", (() => { const t = lib.offerLetterText({ ...base, trialDays: 0 }); return !t.includes("TRIAL PERIOD") && t.includes("- Either of us can end this arrangement with 14 days' notice."); })());
 check("an employee is not told about contractor taxes", (() => { const t = lib.offerLetterText({ ...base, workerType: "employee" }); return t.includes("Type: Full-time, employee") && !t.includes("contractor"); })());
 check("part-time reads as part-time", lib.offerLetterText({ ...base, schedule: "part" }).includes("Type: Part-time, independent contractor"));
-check("not remote, no remote line", !lib.offerLetterText({ ...base, remote: false }).includes("Where:"));
+check("not remote: the letter says the work is in person, at the business's place (the third product audit)", (() => { const t = lib.offerLetterText({ ...base, remote: false }); return !t.includes("Remote, working from home") && /Where: In person, at .+'s workplace/.test(t); })());
 check("their own computer and keeping things private are only there when chosen", (() => { const t = lib.offerLetterText({ ...base, ownEquipment: false, privateInfo: false }); return !t.includes("own computer") && !t.includes("private"); })());
 check("who they report to, when he says", lib.offerLetterText({ ...base, reportsTo: "Zack, Owner" }).includes("Reports to: Zack, Owner"));
 check("how they are paid is left out when he leaves it out", lib.offerLetterText({ ...base, payEvery: "", payMethod: "" }).includes("PAY\nUSD 500 a month."));

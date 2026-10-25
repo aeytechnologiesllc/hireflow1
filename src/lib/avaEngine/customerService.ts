@@ -65,19 +65,30 @@ const NOT_A_RULE = String.raw`(?!\s+(((or|and|&|\/)\s*)?\w+\s+){0,3}(experience|
 // Every channel word, for "only tickets and live chat" (a list goes on).
 const ANY_CHANNEL = String.raw`(live chats?|chats?|e-?mails?|tickets?|phones?|calls?|voice|texts?|sms|messages?)`;
 // How to apply ("Email your resume to hr@...", "How to apply:", "Interested
-// applicants may send their CV", "Apply via email or call us"), from that
-// phrase on; never a duty ("know when to apply discounts", "interested
-// applicants should be comfortable handling inbound calls"; the seventh to
-// ninth Phase 4 reviews).
+// applicants may send their CV", "Apply via email or call us", "Walk-in
+// applicants are welcome at our Makati office"), from that phrase on; never a
+// duty ("know when to apply discounts", "interested applicants should be
+// comfortable handling inbound calls"; the seventh to ninth Phase 4 reviews),
+// nor a customer who applies ("help customers apply online for our credit
+// card", "customers who apply by phone", "help customers submit an
+// application"), nor inquiries the agent handles ("the first point of contact
+// for inquiries, complaints and requests"): "for inquiries," is how to apply
+// only before a way to reach the business ("For inquiries, email us at …";
+// the tenth review). Each part starts after a space or a mark and checks its
+// first word before anything else, so a long run of spaces or a huge pasted
+// line costs linear time (the tenth review).
+const CUSTOMER_APPLIES = String.raw`(?<!\b(customers?|clients?|members?|patients?|policyholders?|borrowers?|callers?|users?|people|them|who|that)\s{1,2}(to\s{1,2})?)`;
 export const HOW_TO_APPLY = new RegExp(
-  String.raw`(^|[,;!\-–(]|\s)\s*(how to apply\s*[:\-–]|(interested|qualified) (applicants?|candidates?)\s+(may|can|are (invited|encouraged)|please|kindly|send|email|submit|apply|forward|message|call|text|contact|should (send|email|submit|apply|forward))\b|((please|kindly)\s+)?(send|email|e-mail|submit|forward|mail|upload|attach|drop)\s+(us\s+|in\s+)?(((your|their|an?|the)\s+)?((updated|latest|complete|detailed|recent)\s+)?(cv|resume|résumé)s?|(your|an)\s+(application|portfolio))\b|(?<!\b(how|when|where|what|why|whether)\s)to apply\b(?!\s+(discounts?|coupons?|promo\w*|codes?|credits?|refunds?|polic\w*|the|our|their|a|an|fixes|patches|updates|changes|rules|for (a |an |their |your )?(refunds?|loans?|credit|accounts?|cards?|warrant\w*|discounts?|benefits?|assistance|insurance|programs?))\b)|(?<!\b(discounts?|promos?|coupons?|codes?|fees?|charges?|rules?|policies|terms|rates?)\s)apply (now|today|here|by|via|through|at|online|in person)\b|for (job |more )?(inquiries|enquiries|questions|info|information|details)\s*,)[^.;\n!]*`,
+  String.raw`(?<![^\s,;!\-–(])(how to apply\s*[:\-–]|(interested|qualified) (applicants?|candidates?)\s+(may|can|are (invited|encouraged)|please|kindly|send|email|submit|apply|forward|message|call|text|contact|should (send|email|submit|apply|forward))\b|walk[- ]?in (applicants?|candidates?|interviews?|applications?|hiring)\b|walk[- ]?ins? (are )?(welcome|accepted) (for|to) (interviews?|apply|applications?)\b|walk in for (an |your )?interview\b|(shortlisted|qualified|successful|selected) (candidates?|applicants?) will be (contacted|called|notified|texted|emailed)\b|((please|kindly)\s+)?(?=(send|email|e-mail|submit|forward|mail|upload|attach|drop)\s)${CUSTOMER_APPLIES}(send|email|e-mail|submit|forward|mail|upload|attach|drop)\s+(us\s+|in\s+)?(((your|their|an?|the)\s+)?((updated|latest|complete|detailed|recent)\s+)?(cv|resume|résumé)s?|(your|an)\s+(application|portfolio))\b|(?<!\b(how|when|where|what|why|whether)\s)to apply\b(?!\s+(discounts?|coupons?|promo\w*|codes?|credits?|refunds?|polic\w*|the|our|their|your|a|an|this|that|these|it|them|fixes|patches|updates|changes|rules|what|troubleshooting|steps|solutions|knowledge|skills|for (a |an |their |your |our )?([\w-]+ )?(refunds?|loans?|credit|accounts?|cards?|warrant\w*|discounts?|benefits?|assistance|insurance|programs?|mortgages?|rewards?|financing|coverage))\b)|(?=apply )${CUSTOMER_APPLIES}(?<!\b(discounts?|promos?|coupons?|codes?|fees?|charges?|rules?|policies|terms|rates?|taxes)\s)apply (now|today|here|by|via|through|at|online|in person)\b|for (job |more )?(inquiries|enquiries|questions|info|information|details)\s*,\s*((please|kindly|just|you (can|may))\s+)?(e-?mail|call|contact|message|text|reach|send|visit|dm|pm|ring|whatsapp|viber|chat with)\b)[^.;\n!]*`,
   "g",
 );
 // "Blended", "omnichannel", "multichannel": the agent works every channel,
 // unless the word is about a product or the business ("blended coffees", "a
-// multichannel e-commerce brand"; the eighth and ninth reviews).
+// multichannel e-commerce brand"; the eighth and ninth reviews), or a
+// blended work setup, which is office and home ("Blended work setup: 3 days
+// onsite, 2 days WFH"; the tenth).
 const MIXED_WORDS = String.raw`\b(blended|omni-?channel|multi-?channel)\b`;
-const NOT_MIXED_WORK = String.raw`(?!\s+([\w-]+\s+)?(coffees?|drinks?|beverages?|smoothies?|teas?|juices?|flavou?rs?|fabrics?|yarns?|oils?|wines?|whiske?ys?|brands?|retail\w*|business(es)?|compan(y|ies)|stores?|shops?|sellers?|e-?commerce|marketing|marketplaces?|platforms?|software|tools?|solutions?|products?|learning|famil(y|ies)|courses?|classes?|rates?)\b)`;
+const NOT_MIXED_WORK = String.raw`(?!\s+([\w-]+\s+)?(coffees?|drinks?|beverages?|smoothies?|teas?|juices?|flavou?rs?|fabrics?|yarns?|oils?|wines?|whiske?ys?|brands?|retail\w*|business(es)?|compan(y|ies)|stores?|shops?|sellers?|e-?commerce|marketing|marketplaces?|platforms?|software|tools?|solutions?|products?|learning|famil(y|ies)|courses?|classes?|rates?|setups?|set-ups?|arrangements?|schedules?)\b)`;
 // "We don't take calls on weekends", "no calls after 8pm": a rule about when, not whether.
 const NOT_WHEN = String.raw`(?!\s+(calls?\s+)?(on|at|after|before|during|over|outside|between)\s+(weekends?|nights?|holidays?|sundays?|saturdays?|hours|business hours|office hours|the weekend|lunch|\d))`;
 // A channel handled by someone else: the channel word starts its clause
@@ -152,7 +163,12 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const hardNoPhone = /\bnon[- ]?\s?voice\b|\bnon[- ]?phone\b|\bnever on the phone|\bnot (on the )?phones?\b|\bwithout (phone )?calls\b/.test(s) || onlyWritten;
   const softNoPhone = no(PHONE).test(s);
   const strongNoPhone = hardNoPhone || softNoPhone;
-  const onlyPhone = only(`${PHONE}|inbound( calls?)?`).test(s);
+  // "Inbound only" is about which way the calls or chats go, not the channel:
+  // it rules nothing out ("Chat Support Agent / Inbound only, no outbound
+  // sales" is chat), and it is phone only when nothing written is named
+  // ("Inbound only, no sales"; the ninth and tenth reviews).
+  const onlyPhone = only(`${PHONE}|inbound calls?`).test(s);
+  const inboundOnly = only("inbound").test(s);
   const noChat = no(CHAT).test(work) || onlyPhone || (only(EMAIL).test(s) && !only(CHAT).test(s));
   const noEmail = no(`e-?mails?`).test(work) || onlyPhone || (only(CHAT).test(s) && !only(EMAIL).test(s));
 
@@ -179,7 +195,11 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // ninth review). Phone orders or inquiries are work when a verb takes them
   // ("take phone orders"), not a topic ("answer emails about phone orders").
   const phoneWork = new RegExp(
-    String.raw`\b(answer|answering|take|taking|handle|handling|field|fielding|make(?!\s+sure)|making(?!\s+sure)|receive|receiving|return|returning|place|placing)\b((?!e-?mails?|chats?|messages?|tickets?|texts?|\b(for|about|regarding|on|with|to|into|from)\b)[^.;\n]){0,25}\b(calls?(?!\s+for\s+(patience|excellent|strong|good|great|someone|people|skills?|experience|attention))|phones|the phones?)\b${NOT_A_PRODUCT}|\b(answer|answering|take|taking|handle|handling|field|fielding|process|processing|receive|receiving|manage|managing|respond to|responding to|reply to|replying to)\s+((?!e-?mails?\b|chats?\b|messages?\b|tickets?\b|texts?\b|about\b|regarding\b|for\b|on\b|of\b)[\w-]+\s+){0,2}(?<!\b(mobile|cell|cellular|smart)\s)phone\s+(inquir\w*|enquir\w*|orders?|requests?|questions?|bookings?|reservations?|and walk-?in)\b|\b(help|helping|assist|assisting|serve|serving|support|supporting)\s+callers\b|\b(from|with|of) (our |the )?callers\b|\b(who|that)\s+(call|phone|ring)( us)?( in)?\b|\b(inbound|incoming) (customer |client |patient )?(calls?|voice)\b|\b(on|at|over) the (phones?|line)\b|\bon the phone\b|\b(by|via|over|through|thru) (tele)?phones?( calls?)?\b${NOT_A_PRODUCT}|\bcalls? (from|with) (our |the )?(customers|clients|patients|callers|guests|members|players)\b|\b(customer|client|patient|guest|member|player|caller) calls?\b|\b\d+\+? calls\b|\b(phone|calls?)\s+(too|as well|also)\b|\b(some|occasional|also|plus|light) (phones?|calls?(?!\s+for\b)|phone calls)\b|\bphone[- ]based\b|\bpick(ing)? up the phones?\b|\b(customers|clients|patients|callers|people) (phone|call|ring) (us|in)\b`,
+    String.raw`\b(answer|answering|take|taking|handle|handling|field|fielding|make(?!\s+sure)|making(?!\s+sure)|receive|receiving|return|returning|place|placing)\b((?!e-?mails?|chats?|messages?|tickets?|texts?|\b(for|about|regarding|on|with|to|into|from)\b)[^.;\n]){0,25}\b(calls?(?!\s+for\s+(patience|excellent|strong|good|great|someone|people|skills?|experience|attention))|phones|the phones?)\b${NOT_A_PRODUCT}|\b(answer|answering|take|taking|handle|handling|field|fielding|process|processing|receive|receiving|manage|managing|respond to|responding to|reply to|replying to)\s+((?!e-?mails?\b|chats?\b|messages?\b|tickets?\b|texts?\b|about\b|regarding\b|for\b|on\b|of\b)[\w-]+\s+){0,2}(?<!\b(mobile|cell|cellular|smart)\s)phone\s+(inquir\w*|enquir\w*|orders?|requests?|questions?|bookings?|reservations?|and walk-?in)\b|\b(help|helping|assist|assisting|serve|serving|support|supporting)\s+callers\b|\b(from|with|of) (our |the )?callers\b|\b(who|that)\s+(call|phone|ring)( us)?( in)?\b|\b(inbound|incoming) (customer |client |patient )?(calls?|voice)\b|\b(on|at|over) the (phones?|line)\b|\bon the phone\b|\b(by|via|over|through|thru) (tele)?phones?( calls?)?\b${NOT_A_PRODUCT}|\bcalls? (from|with) (our |the )?(customers|clients|patients|callers|guests|members|players)\b|\b(customer|client|patient|guest|member|player|caller) calls?\b|\b\d+\+? calls\b|\b(phone|calls?)\s+(too|as well|also)\b|\b(some|occasional|also|plus|light) (phones?|calls?(?!\s+for\b)|phone calls)\b|\bphone[- ]based\b|\bpick(ing)? up the phones?\b|\b(customers|clients|patients|callers|people) (phone|call|ring) (us|in)\b` +
+      // ...and calls the verb reaches through "to" or a number, or customers on calls ("answer and
+      // respond to calls", "handle up to sixty calls a day", "take care of customers on calls", "calls
+      // are answered within 3 rings", "make sure every call is logged"; the tenth review).
+      String.raw`|\b(respond|responding|reply|replying|attend|attending|tend|tending|listen|listening)\s+to\s+((the|all|our|incoming|inbound|customer|client|patient|every|their)\s+){0,2}calls\b|\b(up to|over|about|around|at least)?\s*(\d+\+?|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundreds of|dozens of)\s+((inbound|incoming|customer|phone)\s+)?calls\b|\b(on|during|over|through|thru|via) (customer |client |live |phone |inbound |incoming )?calls\b|\bcalls? (are|is|get|gets) (answered|picked up|returned)\b(?!\s+(by|elsewhere|separately|in-house)\b)|\b(every|each) (customer |inbound |incoming )?call\b`,
   ).test(positiveWork);
   const phoneMention = new RegExp(String.raw`\b(phone (support|agent|rep|csr|calls?)|voice (agent|csr|support|account)|outbound calls?|telephone|bpo)\b${NOT_A_RULE}|\bcall cent(er|re)\b${NOT_A_PRODUCT}${NOT_A_RULE}`).test(work);
   // Call-centre, BPO or phone support experience, asked for or not ("no call
@@ -187,10 +207,13 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // job's word (the eighth review), unless a written channel is in the words
   // ("Reply to customer emails and chats. No call center experience required."
   // is a chat job; the ninth).
-  const phoneExperience = /\b(call cent(er|re)|contact cent(er|re)|bpo|voice( account)?|phone( support)?)\s+((\w+\s+){0,2})(experience|background)\b/.test(work);
+  // ("Telephone customer service experience", "telephone sales or service experience", "experience
+  // working in a contact center"; the tenth review.)
+  const phoneExperience = /\b(call cent(er|re)|contact cent(er|re)|bpo|voice( account)?|(tele)?phone( support)?)\s+((\w+\s+){0,3})(experience|background)\b|\b(experience|background)\s+(working\s+)?(in|at|with|from)\s+(an?\s+|the\s+)?((call|contact) cent(er|re)|bpo)\b/.test(work);
   // A voice account is phone work whatever else the words rule out ("Voice account. No calls and no sales quotas").
   const voiceAccount = /\b(voice (account|campaign|queue)|inbound voice)\b(?!\s+(\w+\s+)?(experience|background))/.test(s) && !/\bnon[- ]?\s?voice\b/.test(s);
-  const chatIn = /\b(chats?|live chat|messages|messaging|messenger|whatsapp)\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b/.test(work);
+  // (Intercom is a chat tool: "support customers via Intercom"; the tenth review.)
+  const chatIn = /\b(chats?|live chat|messages|messaging|messenger|whatsapp|intercom)\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b/.test(work);
   const emailIn = new RegExp(String.raw`\b(e-?mails?)\b(?!\s+(accounts?|address(es)?|settings))${NOT_A_PRODUCT}|\b(answer|answering|resolve|resolving|respond to|responding to|reply to|replying to|handle|handling|work|working)\b[^.;]{0,25}\btickets?\b|\btickets? only\b|\bonly tickets\b|\bticket(ing)? support\b|\bsupport tickets\b|\bzendesk\b|\bfreshdesk\b`).test(work);
 
   const titleNames = tChat || tEmail || tPhone || tWritten;
@@ -198,7 +221,7 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const chatOut = noChat || (elsewhere(CHAT).test(work) && !/\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\bchats?\b/.test(work));
   const emailOut = noEmail || (elsewhere(`e-?mails?|email`).test(work) && !/\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\be-?mails?\b/.test(work));
   // With a channel in the title, the description adds one only by the agent's work or a list.
-  const phone = !phoneOut && (tPhone || phoneWork || list || onlyPhone || (!titleNames && (phoneMention || (phoneExperience && !chatIn && !emailIn))));
+  const phone = !phoneOut && (tPhone || phoneWork || list || onlyPhone || (!titleNames && (phoneMention || ((phoneExperience || inboundOnly) && !chatIn && !emailIn))));
   // A title that only says "non-voice" leaves chat or email to the description.
   const titleSays = tChat || tEmail || tPhone;
   const chat = !chatOut && (tChat || (chatIn && (!titleSays || list || /\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\b(live )?chats?\b/.test(work))));
@@ -344,13 +367,21 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
       // for your manager?"; the ninth).
       const CALLER = /\b(they|them|their|he|she|him|her|(a|an|the|this|that|your|our)\s+([\w-]+\s+)?(caller|customer|patient|player|person|guest|member|client|shopper|buyer|user))\b/i;
       const ASKS_FOR_A_BOSS = /\b(ask\w*|demand\w*|want\w*|request\w*|insist\w*|speak(ing)?|talk(ing)?|transfer\w*|escalat\w*|pass\w*|hand\w*|check(ing)?|get(ting)?)\s+((them|it|the call|the caller|over|on)\s+)*((for|to|with)\s+)?((a|an|the|your|their|his|her|our)\s+)?(manager|supervisor|boss|team ?lead(er)?)\b/gi;
-      const aboutColleague = (sentence: string) => /\b(coworker|co-worker|colleague|manager|boss|supervisor|team ?mate|team ?lead(er)?|project|training)\b/i.test(sentence.replace(ASKS_FOR_A_BOSS, " "));
+      // (A sentence whose subject is the customer is about the customer, whatever else it names: "A customer
+      // says the training video you sent was useless and gets angry"; the tenth review.)
+      const CUSTOMER_SUBJECT = /^\s*(a|an|the|this|that|your|our)\s+([\w-]+\s+)?(caller|customer|patient|player|guest|member|client|shopper|buyer|user)s?\b/i;
+      const aboutColleague = (sentence: string) => !CUSTOMER_SUBJECT.test(sentence) && /\b(coworker|co-worker|colleague|manager|boss|supervisor|team ?mate|team ?lead(er)?|project|training)\b/i.test(sentence.replace(ASKS_FOR_A_BOSS, " "));
+      // A question pairs only with a call set up as a statement ("You take calls all day."), never with
+      // another question ("How many calls a day did you handle? How would you handle a rude customer?"),
+      // and never about someone in person ("...an angry customer in our store?", "...walked into the
+      // office?"; the tenth review).
+      const IN_PERSON_Q = /\b(in person|face[- ]to[- ]face|walk\w*\s+(in|into|up to)|at the (counter|desk|front desk|register)|in (our|the) (store|shop|office|clinic|lobby|branch|restaurant|waiting room))\b/i;
       const sentences = (prompt: string) => {
         const parts = prompt.split(/(?<=[.?!])(?<!\b(?:Mr|Mrs|Ms|Dr|St|No|vs|etc)\.)\s+/);
         const pairs = parts
           .slice(1)
           .map((part, i) => [parts[i], part])
-          .filter(([a, b]) => !WRITTEN_CHANNEL.test(a) && !WRITTEN_CHANNEL.test(b) && !aboutColleague(b) && (!/\?\s*$/.test(b) || (onCall(a) && CALLER.test(b))));
+          .filter(([a, b]) => !WRITTEN_CHANNEL.test(a) && !WRITTEN_CHANNEL.test(b) && !aboutColleague(b) && !IN_PERSON_Q.test(b) && (!/\?\s*$/.test(b) || (!/\?\s*$/.test(a) && onCall(a) && CALLER.test(b))));
         return [...parts, ...pairs.map(([a, b]) => `${a} ${b}`)];
       };
       const asksAngryCaller = (prompt: string) =>

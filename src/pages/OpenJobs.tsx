@@ -8,7 +8,7 @@ import { usePageHead } from "@/components/seo/usePageHead";
 import { Wordmark } from "@/cockpit/components/Wordmark";
 import { jobPagePath } from "@/lib/jobSlug";
 import { payWords } from "@/lib/jobPost";
-import { hiringLink } from "@/lib/hiringLink";
+import { hiringLink, withVisitorTags } from "@/lib/hiringLink";
 
 /**
  * Open jobs: hireflownow.com/open-jobs (the owner approved the mock-up,
@@ -96,7 +96,7 @@ export default function OpenJobs() {
     <main className="min-h-[100dvh] bg-background px-4 py-8 sm:py-12" data-open-jobs>
       <div className="mx-auto max-w-2xl">
         <div className="flex items-center justify-between gap-3">
-          <a href="/" aria-label="HireFlow home" className="text-foreground">
+          <a href={withVisitorTags("/", window.location.href)} aria-label="HireFlow home" className="text-foreground">
             <Wordmark size={28} />
           </a>
           {signedInApplicant ? (
@@ -195,8 +195,9 @@ export default function OpenJobs() {
 
         <footer className="mt-8 text-xs text-muted-foreground">
           Hiring?{" "}
-          {/* Tagged like the other pages' links, so Admin → Growth sees what this page brings (the Phase 7 growth audit). */}
-          <a href={hiringLink("open_jobs")} className="font-semibold text-primary hover:underline">
+          {/* Tagged like the other pages' links, so Admin → Growth sees what this page brings (the Phase 7 growth audit);
+              a visitor's own tags, carried here, win (withVisitorTags; the third growth review). */}
+          <a href={withVisitorTags(hiringLink("open_jobs"), window.location.href)} className="font-semibold text-primary hover:underline">
             Post a job free
           </a>
         </footer>

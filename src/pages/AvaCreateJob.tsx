@@ -831,7 +831,10 @@ export default function AvaCreateJob() {
                       <a
                         href={jobPageUrl({ id: publishedRoleId, slug: publishedSlug, business_slug: ownBusiness?.slug ?? null })}
                         target="_blank"
-                        rel="noreferrer"
+                        // noopener, not noreferrer: the team's own look must
+                        // say it came from the staff site, which the page
+                        // counts leave out (the third growth review).
+                        rel="noopener"
                         className="ck-btn ck-btn-primary w-full !text-[13px]"
                       >
                         See your job in action <ExternalLink className="h-3.5 w-3.5" />

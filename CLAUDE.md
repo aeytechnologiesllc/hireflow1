@@ -229,7 +229,7 @@ these either; each has a guard or a test that CI runs:
   already handed in) and is limited to 6 an hour per account and 10 a day per
   application; Ava's scoring from an applicant's call, 20 an hour and 40 a
   day per application, fingerprinted on the stored phase; performance
-  reports, 6 a day per application. On a manual-mode job an applicant's call
+  reports, 6 a day per application for the team and 6 for the applicant. On a manual-mode job an applicant's call
   is scoring only (no move, no preview). Guard
   `portfolio-review-checks-before-spending`; `scripts/ava_analysis_applicant_limits.test.mjs`.
 - What a signed-in account writes into someone else's bell or inbox is
@@ -262,6 +262,17 @@ these either; each has a guard or a test that CI runs:
   and last 5–240 minutes (`20261025360000`). A browser's notification gets
   the database's time (`20261025370000`). Applicant text is fenced in every
   scoring prompt, ai-analyze included.
+- (Round 3.) What an applicant signs is what they were shown: at signing
+  the server hashes the letter's text or the uploaded file's bytes, refuses
+  unless the applicant's screen hashed the same (`viewedHash`), makes that
+  v1, and keeps an uploaded file at `documents/<id>/original.pdf`, which only
+  the server writes; the countersign uses only that copy
+  (`_shared/documentShown.ts`). A browser's document is sent now, by the
+  signed-in account. An applicant's resume link is a file in their own
+  folder and locks with the answers (`20261025430000_security_round3.sql`).
+  The server's "told today" alerts are its own record, never a card in a
+  bell (`claim_daily_alert`, `20261025400000`). Guards
+  `alerts-reach-the-right-people`; `scripts/own_document_file.test.mjs`.
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

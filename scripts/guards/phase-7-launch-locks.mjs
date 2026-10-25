@@ -27,6 +27,9 @@
  *   - product-audit-fixes-hold: the product audit's fixes that no test
  *     reads: posts that print each list once, a fallback post in sentences,
  *     the first-step email that says what is left, the legal page's Back.
+ *   - alerts-reach-the-right-people: the business is told when its AI day is
+ *     used (the new-business card says how to get the full day), and the
+ *     server's "told today" records are its own, never a card in a bell.
  *   - product-audit-round-2-holds: the second product audit's wording and
  *     defaults: what applicants are told is shared, no warnings on the form,
  *     email switches that do something, the editor's own first screen, the
@@ -183,8 +186,19 @@ export default [
       if (!/me uuid := auth\.uid\(\);/.test(a)) detail.push(`${allowed.rel}: client_send_allowed must count for the signed-in account only`);
       const all = [];
       for (const rel of (await ctx.walk("supabase/migrations", [".sql"])).sort()) all.push(plain((await ctx.read(rel)) ?? ""));
-      for (const trig of ["CREATE TRIGGER notifications_client_limits BEFORE INSERT ON public.notifications", "CREATE TRIGGER messages_client_limits BEFORE INSERT ON public.messages"]) {
-        if (!all.some((text) => text.includes(trig))) detail.push(`supabase/migrations: missing ${trig}`);
+      // Made, and not dropped or switched off by a later migration (the eighth
+      // Phase 5 review: a later DROP TRIGGER passed).
+      for (const [name, table] of [["notifications_client_limits", "notifications"], ["messages_client_limits", "messages"]]) {
+        const made = all.map((text, i) => (text.includes(`CREATE TRIGGER ${name} BEFORE INSERT ON public.${table}`) ? i : -1)).filter((i) => i >= 0);
+        if (made.length === 0) {
+          detail.push(`supabase/migrations: missing CREATE TRIGGER ${name} BEFORE INSERT ON public.${table}`);
+          continue;
+        }
+        const lastMade = made[made.length - 1];
+        const undone = new RegExp(`DROP TRIGGER (?:IF EXISTS )?${name}\\b[^;]*;(?![\\s\\S]*CREATE TRIGGER ${name}\\b)|ALTER TABLE (?:ONLY )?public\\.${table} DISABLE TRIGGER (?:${name}|ALL|USER)\\b`, "i");
+        all.forEach((text, i) => {
+          if (i >= lastMade && undone.test(text)) detail.push(`supabase/migrations: ${name} is dropped or switched off after it was made`);
+        });
       }
       if (!/NEW\.created_at := now\(\);/.test(n)) detail.push(`${notif.rel}: notifications_client_limits no longer gives a browser's card the database's own time`);
       for (const def of [notif, msg]) {
@@ -313,6 +327,12 @@ export default [
       say("src/pages/CreateJob.tsx", !/Minimum Ava score to auto-advance/.test(editor) && !/moves those who pass on/.test(editor) && /isEditMode \? "Job basics" : "Ava Setup"/.test(editor) && /\{!isEditMode && \(\s*<AvaGuidedSetupFields/.test(editor), "the passing score claims to move people on again, or Edit job shows the setup it never saves");
       const offer = (await read("src/cockpit/components/OfferLetterDialog.tsx")) ?? "";
       say("OfferLetterDialog.tsx", /person\.jobType === "part-time" \? "part" : "full"/.test(offer) && !/The usual terms for a remote role are filled in/.test(offer) && /help=\{remote \? "Twice a month/.test(offer), "full or part time no longer comes from the job, or remote wording shows on on-site jobs");
+      // No certificate, audit export or burner in the app or the server claims a law is complied with (the third product audit).
+      const claim = /in compliance with the U\.S\.|ESIGN Act|\bUETA\b|legally binding|UETA compliant/;
+      const codeLines = (t) => t.split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join("\n");
+      for (const rel of ["src/components/documents/AuditCertificate.tsx", "src/lib/auditExport.ts", "src/lib/completionCertificate.ts", "src/lib/certificatePDF.ts", "src/lib/pdfSignatureBurner.ts", "supabase/functions/_shared/completionCertificateServer.ts"]) {
+        say(rel, !claim.test(codeLines((await read(rel)) ?? "")), "claims ESIGN/UETA compliance or a \"legally binding\" record again");
+      }
       const cert = (await read("supabase/functions/_shared/renderFinalPdf.ts")) ?? "";
       say("_shared/renderFinalPdf.ts", !/ESIGN/.test(cert) && !/in compliance with/i.test(cert) && /\$\{VERIFY_ORIGIN\}\/verify\/\$\{cert\.documentCode\}/.test(cert), "the certificate claims legal compliance again, or its check link lost the document's code");
       for (const rel of ["src/components/candidate/NextStepCard.tsx", "src/pages/CandidateApplicationDetail.tsx"]) {
@@ -327,6 +347,40 @@ export default [
         const props = at < 0 ? "" : auth.slice(at, auth.indexOf("/>", at));
         say("src/pages/CandidateAuth.tsx", new RegExp(`autoComplete="${ac}"`).test(props), `#${id} lost autoComplete="${ac}"`);
       }
+      // …and the business's own sign-in and reset fields (the third product audit).
+      const bizAuth = (await read("src/pages/Auth.tsx")) ?? "";
+      for (const [id, ac] of [["signin-email", "email"], ["signin-password", "current-password"], ["forgot-email", "email"], ["new-password", "new-password"], ["confirm-password", "new-password"], ["signup-email", "email"], ["signup-password", "new-password"]]) {
+        const at = bizAuth.indexOf(`id="${id}"`);
+        const props = at < 0 ? "" : bizAuth.slice(at, bizAuth.indexOf("/>", at));
+        say("src/pages/Auth.tsx", new RegExp(`autoComplete="${ac}"`).test(props), `#${id} lost autoComplete="${ac}"`);
+      }
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "alerts-reach-the-right-people",
+    why:
+      "A business on a busy day saw applicants stop part-way and never learned why (the second product audit): " +
+      "ai_budget_take now tells it once a day, and a new business is told that confirming its email gives the full " +
+      "day (the eighth Phase 5 review). document-cleanup's \"told today\" was a card in the admins' bells, which an " +
+      "applicant to HireFlow's own job could write to silence the ID-deletion alerts: it is the server's own record " +
+      "now (claim_daily_alert, service role only).",
+    run: async ({ read, walk }) => {
+      const detail = [];
+      const noComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
+      let take = "";
+      let claim = "";
+      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
+        const text = noComments((await read(rel)) ?? "");
+        if (/create or replace function public\.ai_budget_take\(/i.test(text)) take = text;
+        if (/create or replace function public\.claim_daily_alert\(/i.test(text)) claim = text;
+      }
+      if (!/values \(v_today, 'business-told:' \|\| v_business::text\)/.test(take) || !/if not v_own then/.test(take)) detail.push("ai_budget_take no longer tells the business (once a day, never HireFlow's own) when its AI day is used");
+      if (!/if v_new_business then[\s\S]*Confirm your email[\s\S]*else[\s\S]*paused until tomorrow/.test(take)) detail.push("ai_budget_take's card no longer tells a new business that confirming its email gives the full day");
+      if (!/exception\s+when others then\s+raise log 'ai_budget_take: telling business/.test(take)) detail.push("ai_budget_take's business card must never turn the budget's answer into an error");
+      if (!/revoke all on function public\.claim_daily_alert\(text\) from public, anon, authenticated;/.test(claim) || !/grant execute on function public\.claim_daily_alert\(text\) to service_role;/.test(claim)) detail.push("claim_daily_alert must be the server's only");
+      const cleanup = (await read("supabase/functions/document-cleanup/index.ts")) ?? "";
+      if (!/admin\.rpc\("claim_daily_alert"/.test(cleanup) || /from\("notifications"\)\s*\.select/.test(cleanup)) detail.push("document-cleanup must decide \"told today\" with claim_daily_alert, never by reading the admins' bells");
       return { ok: detail.length === 0, detail };
     },
   },

@@ -1556,6 +1556,10 @@ check("slow replies alone: below the bar, and the receipt says why", typedSlowRe
 const ownBars = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: 44, medianReplySeconds: 50, bar: { minWpm: 45, maxMedianReplySeconds: 60 } })));
 check("the chat step's own bars decide (44 under 45)", ownBars.tone === "amber" && ownBars.detail.typing.below.join(",") === "speed" && ownBars.receipt === "80/100 · 44 WPM", ownBars.receipt);
 
+// The third product audit: an on-site job's chat may be done on a phone, so its
+// typing is no measure there: not amber, no WPM receipt (Ava leaves it out too).
+const typedOnSite = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: 22, medianReplySeconds: 140 }), { job: { ...NO_TYPING_JOB, is_remote: false } }));
+check("on an on-site job, slow phone typing is no bar: not amber, no WPM receipt, the line still shown", typedOnSite && typedOnSite.tone !== "amber" && !/WPM/.test(typedOnSite.receipt ?? "") && typedOnSite.detail.typing?.jobMeasure === false, JSON.stringify({ tone: typedOnSite?.tone, receipt: typedOnSite?.receipt }));
 const typedThin = typedChatEntry(typedChatApp(chatTypingBlock({ wpm: null, correctionsPct: null, repliesTimed: 2 })));
 check("fewer than 3 timed replies: 'not enough typing to time', never a fail",
   typedThin.detail.typing?.line === "Typing: not enough typing to time · replies in 38 s (median)" && typedThin.tone === "good" && typedThin.receipt === "80/100",

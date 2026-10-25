@@ -23,6 +23,7 @@ import {
 import { computeV2Hash, computeV3Hash, sha256HexOfBytes, signatureHashInput } from "../_shared/documentHashChain.ts";
 import { reconcileCandidateSignatureChain } from "../_shared/countersignReconciliation.ts";
 import { ownDocumentsPath } from "../_shared/ownDocumentFile.ts";
+import { sealedOriginalPath, shownMatches, writtenDocumentHash } from "../_shared/documentShown.ts";
 import { buildCompletionCertificate, type CertificateAuditEntry } from "../_shared/completionCertificateServer.ts";
 import { renderSignedUploadedPdf, renderTextDocumentPdf, type SignatureOverlay } from "../_shared/renderFinalPdf.ts";
 import { bestEffortIp } from "../_shared/bestEffortIp.ts";
@@ -190,6 +191,9 @@ Deno.serve(async (req) => {
       /** sign/countersign: the device and the place it was signed from
        *  (_shared/signerContext.ts); cleaned, never trusted as-is. */
       signerContext?: unknown;
+      /** sign: the hash of what the applicant's screen showed (the letter's
+       *  text, or the file's bytes); _shared/documentShown.ts. */
+      viewedHash?: unknown;
     };
     try {
       payload = await req.json();
@@ -391,10 +395,41 @@ Deno.serve(async (req) => {
       if (!sigCheck.ok) {
         return errorResponse(sigCheck.error, ERROR_MESSAGE[sigCheck.error], ERROR_STATUS[sigCheck.error]);
       }
+      // What the applicant was shown is what they sign (_shared/documentShown.ts;
+      // the third Phase 7 security review). The server hashes the letter's text
+      // or the uploaded file's bytes, the applicant's screen must have hashed
+      // the same, and that hash becomes v1: never the one the sender's browser
+      // chose. An uploaded file is copied where only the server writes, and
+      // the countersign reads that copy.
+      const shownBody = parseDocumentData(document.file_url ?? "");
+      let shownHash: string;
+      let shownBytes: Uint8Array | null = null;
+      if (shownBody.uploadedFileUrl) {
+        const ownPath = ownDocumentsPath(shownBody.uploadedFileUrl, Deno.env.get("SUPABASE_URL") ?? "");
+        if (!ownPath || !document.sender_id || !ownPath.startsWith(`${document.sender_id}/`)) {
+          return errorResponse("not_pending", "This document's file can't be signed here. Ask the hiring team to send it again.", 409);
+        }
+        const { data: shownFile, error: shownError } = await admin.storage.from("documents").download(ownPath);
+        if (shownError || !shownFile) return errorResponse("internal_error", "Could not read the document. Please try again.", 500);
+        shownBytes = new Uint8Array(await shownFile.arrayBuffer());
+        shownHash = await sha256HexOfBytes(shownBytes);
+      } else {
+        shownHash = await writtenDocumentHash(shownBody.content ?? "");
+      }
+      if (!shownMatches(payload.viewedHash, shownHash)) {
+        return errorResponse("document_changed", "This document changed while it was open. Open it again, read it, then sign.", 409);
+      }
+      if (shownBytes) {
+        const { error: sealError } = await admin.storage
+          .from("documents")
+          .upload(sealedOriginalPath(documentId), shownBytes, { contentType: "application/pdf", upsert: true });
+        if (sealError) return errorResponse("internal_error", "Could not keep a copy of the document. Please try again.", 500);
+      }
+
       const signature = payload.signature!;
       const signatureValue = await signatureHashInput({ method: signature.method!, value: signature.value! });
       const v2Hash = await computeV2Hash({
-        v1Hash: document.v1_hash ?? "",
+        v1Hash: shownHash,
         signatureValue,
         candidateEmail: callerEmail,
         timestampUtc: nowIso,
@@ -417,6 +452,11 @@ Deno.serve(async (req) => {
         .update({
           candidate_signature_data: signatureData,
           candidate_signed_at: nowIso,
+          // The letter exactly as shown, and its hash: a change the business
+          // made while the applicant was signing is written over, and after
+          // this the database keeps both as they are (protect_document_columns).
+          file_url: document.file_url,
+          v1_hash: shownHash,
           v2_hash: v2Hash,
           document_hash: v2Hash,
           ip_address: ip,
@@ -449,11 +489,17 @@ Deno.serve(async (req) => {
         consentConfirmed: true,
         documentHash: v2Hash,
         documentVersion: 2,
-        preSignatureHash: document.v1_hash,
+        preSignatureHash: shownHash,
         postSignatureHash: v2Hash,
         signingOrderPosition: 1,
         place: signer.place,
-        details: { event: "Candidate signed document", version_transition: "v1 -> v2", ...signerDetails },
+        details: {
+          event: "Candidate signed document",
+          version_transition: "v1 -> v2",
+          // When the hash the sender's browser stored was not what was shown.
+          ...(document.v1_hash && document.v1_hash !== shownHash ? { sender_v1_replaced: document.v1_hash } : {}),
+          ...signerDetails,
+        },
       });
 
       if (job.employer_id) {
@@ -682,28 +728,25 @@ Deno.serve(async (req) => {
         };
 
         let finalBytes: Uint8Array;
+        if (!reserved.v1_hash) throw new ChainReconciliationError("the document has no v1 fixed when the applicant signed");
         if (contentData.uploadedFileUrl) {
-          // From this project's own documents bucket only, and only the file
-          // that was sent: its bytes must hash to the v1_hash fixed when it
-          // was sent (_shared/ownDocumentFile.ts). A business could otherwise
-          // swap the file, or serve another one, and have the applicant's
-          // signature burned into a PDF they never saw.
-          const ownPath = ownDocumentsPath(contentData.uploadedFileUrl, Deno.env.get("SUPABASE_URL") ?? "");
-          if (!ownPath) throw new ChainReconciliationError("the uploaded file is not in this project's document storage");
-          // The sender's own upload (DocumentWizard stores it under their id),
-          // with its hash fixed when it was sent: never another business's file.
-          if (!reserved.sender_id || !ownPath.startsWith(`${reserved.sender_id}/`)) {
-            throw new ChainReconciliationError("the uploaded file is not the sender's own upload");
-          }
-          if (!reserved.v1_hash) throw new ChainReconciliationError("the uploaded file has no hash fixed when it was sent");
-          const { data: original, error: originalError } = await admin.storage.from("documents").download(ownPath);
-          if (originalError || !original) throw new Error("Could not read the original uploaded PDF");
+          // The copy the server kept when the applicant signed
+          // (_shared/documentShown.ts), never the sender's own folder, where
+          // the file could be swapped after the signature (the third Phase 7
+          // security review). Its bytes must still hash to v1.
+          const { data: original, error: originalError } = await admin.storage.from("documents").download(sealedOriginalPath(documentId));
+          if (originalError || !original) throw new ChainReconciliationError("there is no copy of the file the applicant signed");
           const originalBytes = await original.arrayBuffer();
           if ((await sha256HexOfBytes(new Uint8Array(originalBytes))) !== reserved.v1_hash) {
-            throw new ChainReconciliationError("the uploaded file is not the one that was sent (its hash is not v1)");
+            throw new ChainReconciliationError("the kept file is not the one the applicant signed (its hash is not v1)");
           }
           finalBytes = await renderSignedUploadedPdf(originalBytes, candidateOverlay, employerOverlay, certificateData);
         } else {
+          // The letter is still the one the applicant signed (v1 is the
+          // server's hash of it since the third security review).
+          if ((await writtenDocumentHash(contentData.content ?? "")) !== reserved.v1_hash) {
+            throw new ChainReconciliationError("the letter is not the one the applicant signed (its hash is not v1)");
+          }
           finalBytes = await renderTextDocumentPdf(contentData.content ?? "", candidateOverlay, employerOverlay, certificateData);
         }
 

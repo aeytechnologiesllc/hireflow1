@@ -171,7 +171,14 @@ const ALLOWED_TAGS = new Set([
 const SAFE_HREF = /^(?:https?:|mailto:|tel:|\/|#)/i;
 
 export function sanitizeFeedHtml(html) {
+  // The tags kept are written with a mark no input can carry (\u0000, removed
+  // first), and only that mark becomes "<" at the end: every other "<" is
+  // text. Restoring "&lt;a href=…>" by pattern (round 2) also turned a
+  // business's own entity-encoded "&lt;a href="javascript:…" …>" into a real
+  // link (the Phase 7 security review, round 3).
+  const OPEN = "\u0000";
   return String(html ?? "")
+    .replace(/\u0000/g, "")
     // Drop dangerous elements and everything inside them first.
     .replace(/<(script|style|iframe|object|embed|form|svg|math)[\s\S]*?<\/\1\s*>/gi, "")
     .replace(/<(script|style|iframe|object|embed|form|svg|math)[^>]*>/gi, "")
@@ -181,20 +188,20 @@ export function sanitizeFeedHtml(html) {
       const name = m ? m[1].toLowerCase() : "";
       if (!ALLOWED_TAGS.has(name)) return "";
       const closing = /^<\//.test(tag);
-      if (closing) return `</${name}>`;
+      if (closing) return `${OPEN}/${name}>`;
       if (name === "a") {
         const hrefMatch = /href\s*=\s*"([^"]*)"|href\s*=\s*'([^']*)'/i.exec(tag);
         const href = hrefMatch ? (hrefMatch[1] ?? hrefMatch[2] ?? "") : "";
         return SAFE_HREF.test(href.trim())
-          ? `<a href="${escapeHtml(href)}" rel="noopener noreferrer">`
-          : "<a>";
+          ? `${OPEN}a href="${escapeHtml(href)}" rel="noopener noreferrer">`
+          : `${OPEN}a>`;
       }
-      return `<${name}>`;
+      return `${OPEN}${name}>`;
     })
     // What is left of a tag that never closed ("<img src=x onerror=…" at the
     // end) is text, never markup (the Phase 7 security review, round 2).
     .replace(/</g, "&lt;")
-    .replace(/&lt;(\/?(?:p|br|strong|b|em|i|u|s|strike|ul|ol|li|h1|h2|h3|h4|blockquote|code|pre|hr)>|a href="[^"<>]*" rel="noopener noreferrer">|a>|\/a>)/g, "<$1");
+    .replace(/\u0000/g, "<");
 }
 
 const BULLET = /^[•\-*·]\s*/;

@@ -130,6 +130,7 @@ check("an RSS feed of the posts", feed.includes(`<link>https://hireflownow.com/b
 const missing = readFileSync(path.join(out, "blog", "not-found.html"), "utf8");
 check("an address under /blog that is no guide gets a plain page that search engines skip (noindex), with the list", /<meta name="robots" content="noindex, follow">/.test(missing) && !/content="index, follow/.test(missing) && missing.includes(`href="/blog/${GOOD.slug}"`) && /That guide is not here/.test(missing));
 check("the not-found page has no canonical and no og:url of its own", !/rel="canonical"/.test(missing) && !/og:url/.test(missing));
+check("…and no page counter: a mistyped address is no guide visit (the third growth review)", !/beacon\.js/.test(missing) && /carry-source\.js/.test(missing));
 check("a post's top-bar button carries the post too (it said only 'bar')", page.includes(`utm_medium=bar&amp;utm_campaign=${GOOD.slug}`) || page.includes(`utm_medium=bar&utm_campaign=${GOOD.slug}`));
 check("the not-found page shows the latest guides and links the full list (it said 'every guide' and showed five)", /The latest guides are below/.test(missing) && /aria-label="Latest guides"/.test(missing) && missing.includes('href="/blog"'));
 check("the feed dates a post at the start of its day, never hours ahead", feed.includes(`<pubDate>${new Date("2026-10-20T00:00:00Z").toUTCString()}</pubDate>`));
@@ -139,7 +140,15 @@ check("two posts with one slug stop the build", throws(() => B.loadPosts(content
 rmSync(path.join(content, "d.md"));
 writeFileSync(path.join(content, "e.md"), post({ ...GOOD, title: "Links to a draft", slug: "links-to-a-draft" }, "## A\n\nSee [this](/blog/not-ready) for more words here.\n"));
 check("a link to a draft or a missing guide stops the build", throws(() => B.loadPosts(content), /not a published guide/));
+// The sixth Phase 6 review: draft markers below the front matter, and the GitHub copy of a draft.
+for (const [what, top] of [["a blank line before the rule", "draft: true\n\n---\n\n"], ["no rule under it", "draft: true\n\n"], ["a capital D", "Draft: true\n---\n\n"]]) {
+  check(`a "draft:" line below the front matter stops the build (${what})`, throws(() => B.parsePost(post(GOOD, `${top}## A section\n\nSome words here, enough of them to read.\n`), "x.md"), /draft:|after the closing ---/i));
+}
+check("…while the word draft in a sentence is fine", B.parsePost(post(GOOD, "## A section\n\nWrite a draft: then send it to the team.\n"), "x.md").draft === false);
 rmSync(path.join(content, "e.md"));
+writeFileSync(path.join(content, "g.md"), post({ ...GOOD, title: "Links its source", slug: "links-its-source" }, "## A\n\nSee [the source](https://github.com/aeytechnologiesllc/hireflow1/blob/main/content/blog/not-ready.md) for more words here.\n"));
+check("a link to a guide's source on GitHub stops the build (a draft can be read there)", throws(() => B.loadPosts(content), /source on GitHub/));
+rmSync(path.join(content, "g.md"));
 // The second Phase 6 review: a #part, a ?query, a full address or capitals got past the check.
 for (const link of ["/blog/not-ready#intro", "/blog/not-ready?x=1", "https://hireflownow.com/blog/not-ready", "https://www.hireflownow.com/blog/not-ready", "/blog/typo#a", "/Blog/an-older-guide", "/BLOG", "/%62log/not-ready", "https://hireflownow.com./blog/not-ready"]) {
   writeFileSync(path.join(content, "e.md"), post({ ...GOOD, title: "Links", slug: "links-to-a-draft" }, `## A\n\nSee [this](${link}) for more words here.\n`));

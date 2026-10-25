@@ -33,6 +33,6 @@ export function applicationClosedMessage(error: unknown): string | null {
   if (/deadline has passed/i.test(message)) return "Applications for this job have closed.";
   // A withdrawn, sent application starts over only after 30 days
   // (20261025350000_applicant_writes_round2.sql).
-  if (/withdrew_recently/.test(message)) return "You withdrew from this job recently, so you can apply to it again 30 days after that. Message the hiring team if this was a mistake.";
+  if (/withdrew_recently/.test(message)) return "You withdrew from this job recently, so you can apply to it again 30 days after that. If this was a mistake, write to us from Contact us in your account menu.";
   return null;
 }

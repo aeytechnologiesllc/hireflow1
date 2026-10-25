@@ -25,12 +25,15 @@ export interface SignupSource {
 
 const KEYS: (keyof SignupSource)[] = ["utm_source", "utm_medium", "utm_campaign", "ref"];
 
-/** A tag value we keep, or null: plain characters only, lower case, at most 60. */
+/** A tag value we keep, or null: lower case, anything but plain characters
+ *  a dash, at most 60. The same tidy value public/beacon.js counts and
+ *  public/carry-source.js carries: "Spring Sale" is "spring-sale", never
+ *  dropped (the third growth review: a link straight to the sign-up page
+ *  lost it here while the visit was counted). */
 export function cleanTag(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const v = value.trim().toLowerCase();
-  if (!v || v.length > 60 || !/^[a-z0-9._-]+$/.test(v)) return null;
-  return v;
+  const v = value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60);
+  return v || null;
 }
 
 /** The source carried in an address, or null when it carries none. */

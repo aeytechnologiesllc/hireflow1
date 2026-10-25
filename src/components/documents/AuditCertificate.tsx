@@ -56,7 +56,7 @@ export function AuditCertificate({
         <h1 className="text-2xl font-bold text-foreground">Certificate of Completion</h1>
         <p className="text-muted-foreground mt-2">Electronic Signature Audit Trail</p>
         <p className="text-xs text-muted-foreground mt-1">
-          This document was electronically signed and verified in compliance with the U.S. ESIGN Act and applicable state laws.
+          Signed electronically by both parties. Each version is fingerprinted with SHA-256, and every signing event is kept in an audit trail that cannot be edited.
         </p>
       </div>
 
@@ -183,11 +183,12 @@ export function AuditCertificate({
       <Card className="bg-muted/50 border-primary/20">
         <CardContent className="pt-6">
           <div className="text-center text-sm text-muted-foreground space-y-2">
-            <p className="font-semibold text-foreground">Compliance Statement</p>
+            {/* What was done, not a claim that it "complies with" a law: whether an
+                e-signature holds depends on the document and the place (the
+                second and third Phase 7 product audits). */}
+            <p className="font-semibold text-foreground">How this was signed</p>
             <p>
-              This document was electronically signed and verified in compliance with the U.S. ESIGN Act 
-              and applicable state laws. This audit trail is generated in compliance with the Electronic 
-              Signatures in Global and National Commerce Act (ESIGN) and the Uniform Electronic Transactions Act (UETA).
+              Signed electronically by both parties. Each version is fingerprinted with SHA-256, and every signing event is kept in an audit trail that cannot be edited.
             </p>
             <p className="text-xs">
               All entries are immutable and cannot be modified or deleted after creation.

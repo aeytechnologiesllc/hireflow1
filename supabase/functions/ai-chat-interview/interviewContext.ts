@@ -33,7 +33,8 @@
  * practice are read the one way every scorer reads them) and
  * _shared/reviewText.ts (import-free; the same fencing and quote checks the
  * chat practice uses) and _shared/counterpart.ts (import-free; "customer",
- * or "player" for the owner's own gaming jobs).
+ * or "player" for the owner's own gaming jobs) and _shared/ageWording.ts
+ * (import-free; a grader's line on age, family or marital status is left out).
  */
 import {
   inferJobFamily,
@@ -44,11 +45,14 @@ import {
 } from "../_shared/autopilot.ts";
 import { clampScore, cleanText, flattenForReview, quoteIsApplicants, readFlag, textList } from "../_shared/reviewText.ts";
 import type { Counterpart } from "../_shared/counterpart.ts";
+import { marksAgeOrFamily, textWithoutAgeMarks } from "../_shared/ageWording.ts";
 
 /** Named in session.grading.prompt_version; bump when the evaluation prompt changes.
  *  4 (2026-10-25): a lead's marks name the business's own word ("customer",
- *  or "player" for the owner's own business; _shared/counterpart.ts). */
-export const INTERVIEW_EVAL_PROMPT_VERSION = "chat-interview-eval-4";
+ *  or "player" for the owner's own business; _shared/counterpart.ts).
+ *  5 (2026-10-25): never a mark on age, family or marital status (the sixth
+ *  Phase 6 review: only the interviewer was told). */
+export const INTERVIEW_EVAL_PROMPT_VERSION = "chat-interview-eval-5";
 
 /**
  * Where the server-built context is pinned on the attempt
@@ -532,6 +536,9 @@ It is in the next message inside <transcript> tags, one numbered line per messag
 STEP 1 - INCONSISTENCY ANALYSIS: cross-reference what they claimed against what the record shows. Did their claimed experience match their results? Any contradictions, weak or evasive explanations when probed, or signs of exaggeration?
 STEP 2 - CREDIBILITY: "High" (claims align with results, specific examples, no red flags), "Medium" (minor discrepancies with reasonable explanations), "Low" (significant gaps between claims and results, evasive answers, several red flags).
 STEP 3 - HONEST EVALUATION: be blunt. If someone claims years of experience but their results say otherwise, say so. If they were evasive or could not give specifics, flag it.
+
+=== NEVER MARK ===
+Age, birth date, marital or civil status, children, pregnancy or family plans, even when the candidate mentions them ("as a mother of three"): they count neither for nor against, and never appear in the strengths, concerns, inconsistencies or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)
 ${input.leadRole ? `\n${leadEvaluationInstructions(input.counterpart ?? "customer")}\n` : ""}
 Return ONLY valid JSON with this structure:
 {
@@ -624,17 +631,19 @@ export function interviewEvaluationFrom(
         .filter((x): x is Record<string, unknown> => !!x)
         .map((x) => ({ claim: cleanText(x.claim, 400) ?? "", evidence: cleanText(x.evidence, 400) ?? "", assessment: cleanText(x.assessment, 400) ?? "" }))
         .filter((x) => x.claim || x.evidence || x.assessment)
+        // The grader is told never to mark age, family or marital status; a line that still does is left out (the sixth Phase 6 review).
+        .filter((x) => !marksAgeOrFamily(`${x.claim}. ${x.evidence}. ${x.assessment}`))
         .slice(0, 6)
     : [];
   const evaluation: InterviewEvaluation = {
     graded: true,
     score: modelScore,
-    strengths: textList(e.strengths, 5),
-    concerns: textList(e.concerns, 5),
+    strengths: textList(e.strengths, 5).filter((line) => !marksAgeOrFamily(line)),
+    concerns: textList(e.concerns, 5).filter((line) => !marksAgeOrFamily(line)),
     inconsistencies,
     credibilityRating: oneOf(e.credibilityRating, CREDIBILITY),
     recommendation: oneOf(e.recommendation, RECOMMENDATIONS),
-    summary: cleanText(e.summary, 800),
+    summary: (textWithoutAgeMarks(cleanText(e.summary, 800)) as string | null) || null,
   };
   if (!options.leadRole) return evaluation;
 

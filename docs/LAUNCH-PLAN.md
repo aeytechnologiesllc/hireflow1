@@ -943,6 +943,101 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (night) — Phase 7 security, product and growth, round 3; Phase 5 round 8; Phase 6 round 6; Phase 4 round 10
+
+Six fresh reviewers read 3344aa6b (live). Fixed:
+
+- **Security, round 3** (1 high, 4 medium, the rest low):
+  - *High:* the sender's browser still chose v1, and an uploaded file stayed
+    in the sender's own folder, so a business could show one file and
+    countersign another. Now, when the applicant signs, the server hashes
+    what is being signed (the letter's text, or the file's bytes), refuses
+    unless the applicant's screen hashed the same (`viewedHash`; the file is
+    framed from the very bytes it hashed), makes that v1, writes the letter
+    back exactly as shown, and copies an uploaded file to
+    `documents/<id>/original.pdf`, which only the server writes; the
+    countersign reads only that copy and checks a letter against v1 again
+    (`_shared/documentShown.ts`). An uploaded PDF sent without a hash can
+    now be countersigned.
+  - *Medium:* an applicant's resume link must be a file in their own
+    folder (300 characters, no line breaks) and locks with the answers, as
+    do the form's file answers (`security_round3`, live as 20261025150114); the resume
+    name and the form's question text are fenced and capped in both scoring
+    prompts, and the server backfills a resume only from the applicant's
+    own folder. The ID-deletion alerts could still be silenced by an
+    applicant to HireFlow's own job: "told today" is the server's own
+    record now (`daily_alert_claims`, live as 20261025150051). Interview reminders are
+    looked for in each reminder's own window, so not-yet-due rows never
+    fill the pick.
+  - *Low:* the feed cleaner turned an entity-encoded `javascript:` link
+    into markup (only the tags it keeps become "<" now); delete-account
+    reads every list a page at a time and stops if the hand-over cannot be
+    read; a browser's document is sent now, by the signed-in account
+    (created_at and sender_id); near-copies of the fence marker are
+    removed; a big file costs the AI budget by its size.
+  - Left: HireFlow certifies the email a signer signed up with, and email
+    confirmation is off (the owner's call; Turnstile and confirmation are
+    owner inputs).
+- **Phase 5, round 8:** the business's "AI day used" card tells a new
+  business that confirming its email gives the full day, and neither card
+  counts "calls" (`phase5_review8`, live as 20261025150059); a withdrawal note goes with
+  the account (`withdrawals_go_with_account`, live as 20261025150106); a failed read is
+  told as a failed read, the two retry queues' reads are told too; the
+  Privacy Policy says the spoken interview records the camera, that the
+  applicant sees the result some steps keep, that work samples go to the AI,
+  what the removal and withdrawal notes are, and no longer that applicants
+  can turn emails off; the Terms' pause rule names a document to sign; the
+  report's refusal no longer says "your answers are saved"; a shared file
+  named with an accent survives a stray "%" elsewhere; the removal guard
+  reads no comments, and new guards hold the business card, the alert
+  record and the limit triggers against a later DROP.
+- **Product, round 3** (2 high from round 2's own fixes): remote work is
+  read from the place and the Type field the way businesses write it
+  ("Home-based, Philippines", "Philippines (Remote)", "Makati (WFH)",
+  "Anywhere", "WFH"), one rule for the builder and Edit job
+  (`placeSaysRemote`), and Edit job keeps a job remote when only its city
+  changes; a remote job's place picks no currency (it showed PHP); "Laguna
+  Beach, CA" is in the US and "New Mexico" is no Mexico; an on-site job's
+  chat typing is no bar in the team's record either; the certificate,
+  audit export and signature PDFs in the app say how the document was
+  signed (no ESIGN/UETA claim) in ink and brass, and the guards read PDF
+  colours and those claims; Edit job says Publish Job, not Save; the
+  withdraw dialog and its refusal match the 30-day rule; an on-site offer
+  letter says where the work is; the business sign-in fields carry
+  autocomplete. Left for the owner: the offer letter's trial and notice
+  terms for an employee (a lawyer's read), paste on the application form
+  (blocked on purpose), phone jobs tested by chat.
+- **Growth, round 3:** a visitor's tags, or the site that sent them, ride
+  on through the logo, the guides and Open jobs; an untagged visitor's
+  referring site is the source of the sign-up, the page's own campaign
+  kept; sign-up tidies a tag as the counter does ("Spring Sale" is
+  "spring-sale"); the team's own "see your job" clicks carry the staff site
+  as referrer and stay out of the counts; the 404 page counts nothing;
+  Open jobs keeps HireFlow's site name in its first HTML; the Admin note
+  says what "unknown" covers.
+- **Phase 6, round 6** (the age filter fixed in its own session, merged):
+  494 checks; age limits, birth-year, marital and family questions and
+  options are dropped, ordinary customer-service text about older customers,
+  score targets, product age limits and "24/7" is kept; the written
+  interview's grader, the workflow's prompts, scenarios and quiz keys and the
+  interview guide are filtered too. The build refuses a "draft:" line below
+  the front matter however it is written, and a link to a guide's source on
+  GitHub; the 404 function never calls itself; one guide says "tries to
+  paste".
+- **Phase 4, round 10** (6 high regressions from round 9, fixed in its own
+  session and merged): a store part in the title is a call-centre account
+  when the words show a client ("a US retail account", night shift, a
+  hotline); a support line keeps its qualified front-line people ("Billing
+  Specialist", "Healthcare Account Agents", "Representative II", "Help Desk
+  - Analyst"); the usual US benefits list no longer leaves "dental" behind,
+  and a plan the work is about stays; "inbound only" means phone only when
+  no written channel is named; telephone experience reads as phone; the
+  how-to-apply filter keeps real duties and now also drops walk-in and
+  shortlist lines; a negated remote word, freight brokers' and models'
+  bookings and in-store help read right; the filters are linear (90 KB in
+  10 ms, it was 4.4 s). 52 of 52 report cases, 1601 checks; the 13,500-title
+  support-line sweep reads 11,667 as customer service (6,819 before).
+
 ### 2026-10-25 (evening) — Phase 7 security review, round 2; Phase 5 round 7; Phase 6 round 5; staff columns round 3; growth round 2
 
 - **Security, round 2** (a fresh reviewer; 4 high, 10 medium, ~15 low). Fixed:
@@ -1074,7 +1169,7 @@ session stops mid-phase (say exactly where).
   - *High:* one applicant could black out AI for a business or the platform.
     The portfolio review checks the step first and is limited; Ava's scoring
     from an applicant is capped by the day and fingerprinted on the stored
-    phase; performance reports, 6 a day per application; HireFlow's own jobs
+    phase; performance reports, 6 a day per application for the team and 6 for the applicant; HireFlow's own jobs
     have their own day (`ai_budget_own_jobs`, 20261025121138).
   - *Medium:* notification and message floods (`notification_and_message_limits`,
     20261025121142); an applicant's call on a manual-mode job is scoring only;

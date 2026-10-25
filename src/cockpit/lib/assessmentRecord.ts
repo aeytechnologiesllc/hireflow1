@@ -2049,7 +2049,12 @@ function buildChatSimulation(ctx: BuildContext, step: CandidateJourneyStep): Bui
   // a typing test under its WPM does. A job that still has a typing step is
   // unchanged: the line is shown, the step's tone is its mark's.
   const jobHasTypingStep = ctx.rawSteps.some((s) => s.type === "typing_test");
-  const typing = chatTypingOf(r?.typing, !jobHasTypingStep);
+  // Nor on an on-site job: its chat may be done on a phone, which no
+  // computer-keyboard bar fits, and Ava's score leaves it out for that job too
+  // (trigger-ava-analysis chatTypingInUse; the third product audit: the list
+  // still marked phone applicants amber).
+  const onSite = (ctx.app.jobs as { is_remote?: unknown } | null | undefined)?.is_remote === false;
+  const typing = chatTypingOf(r?.typing, !jobHasTypingStep && !onSite);
   const typingBelow = chatTypingBelowBar(typing);
   const typingReceipt = typing ? chatTypingReceipt(typing) : null;
   const scoreReceipt = score != null ? `${Math.round(score)}/100` : null;

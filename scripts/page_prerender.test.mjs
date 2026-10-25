@@ -68,9 +68,9 @@ for (const key of Object.keys(PAGES)) {
   check(`/${key}: its own description, once, for search and share previews`, count(b, /<meta name="description"/g) === 1 && !b.includes("Apply for jobs online") && count(b, /og:title/g) === 1);
   check(`/${key}: the app still boots`, b.includes('<div id="root"></div>'));
 }
-check("Open jobs carries the share picture", (await run({ page: "open-jobs" })).body.includes('og:image" content="https://hireflownow.com/share/hireflow.jpg"'));
+check("Open jobs carries the share picture and HireFlow's site name (the third growth review)", (await run({ page: "open-jobs" })).body.includes('og:image" content="https://hireflownow.com/share/hireflow.jpg"') && (await run({ page: "open-jobs" })).body.includes('og:site_name" content="HireFlow"'));
 const privacy = (await run({ page: "privacy" })).body;
-check("…the legal pages carry none (they show no brand)", !/og:image/.test(privacy) && /twitter:card" content="summary"/.test(privacy));
+check("…the legal pages carry none (they show no brand)", !/og:image/.test(privacy) && !/og:site_name/.test(privacy) && /twitter:card" content="summary"/.test(privacy));
 check("an unknown page is the plain shell", (await run({ page: "admin" })).body === SHELL && (await run({ page: "__proto__" })).body === SHELL);
 shellStatus = 500;
 const broken = await run({ page: "privacy" });

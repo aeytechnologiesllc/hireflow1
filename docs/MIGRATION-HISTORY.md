@@ -434,6 +434,10 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025370000_notifications_server_time.sql` | `20261025140346` | `notifications_server_time` |
 | `20261025380000_ai_budget_tell_business.sql` | `20261025140354` | `ai_budget_tell_business` |
 | `20261025390000_admin_growth_channels.sql` | `20261025140402` | `admin_growth_channels` |
+| `20261025400000_daily_alert_claims.sql` | `20261025150051` | `daily_alert_claims` |
+| `20261025410000_phase5_review8.sql` | `20261025150059` | `phase5_review8` |
+| `20261025420000_withdrawals_go_with_account.sql` | `20261025150106` | `withdrawals_go_with_account` |
+| `20261025430000_security_round3.sql` | `20261025150114` | `security_round3` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.

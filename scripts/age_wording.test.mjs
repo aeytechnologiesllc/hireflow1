@@ -9,7 +9,9 @@
  * builder, ai-generate-workflow and ai-generate-job-content for the classic
  * editor) carry the rule in their instructions and drop any line that still
  * asks for age, a birth date, the year someone was born or graduated, or
- * marital status, or that sets an age limit.
+ * marital status, or that sets an age limit. Since the sixth Phase 6 review
+ * the same goes for what the written interview's grader and the interview
+ * guide write about an applicant (marksAgeOrFamily).
  *
  * Run with: node scripts/age_wording.test.mjs
  */
@@ -100,16 +102,100 @@ for (const [q, options] of [
 ]) check(`a question with number options stays: ${JSON.stringify(q)}`, !A.questionAsksAge(q, options));
 check("…while an option that names an age still drops it", A.questionAsksAge("Which group are you in?", ["18-25 years old", "26-35 years old"]) && A.questionAsksAge("How old are you?", ["Under 25", "25+"]));
 check("a list read by position keeps its positions (an age note is emptied, not dropped)", JSON.stringify(A.blankAgeAsks(["Why the form", "Agents aged 21-35 preferred", "Why the chat"])) === JSON.stringify(["Why the form", "", "Why the chat"]));
+
+// The sixth Phase 6 review: ordinary ad wordings, numbers as words, titles
+// and ranking factors still set an age limit; birth-year, marital and family
+// questions (and their answer options) still passed; and a 40-character
+// window, score targets and product age limits dropped ordinary
+// customer-service text.
+console.log("\nThe sixth review's cases\n");
+for (const line of [
+  // Age limits and preferences in ad wording.
+  "Candidates under 30 preferred", "Agents under 30 preferred", "No applicants over 35", "Applicants over 35 need not apply", "Those above 40 need not apply",
+  "Applicants who are 35 or younger", "Candidates who are under 30", "Preferably 30 and below", "30 and below preferred", "21 and above only", "Between 21 and 35 only",
+  "Age preference: 21-35", "Age cap: 35", "Ideally 22-30 years", "Ideal candidate: 25-30 yrs", "Below 30 yrs", "Applicants under 35 years, with BPO experience",
+  "We are hiring 21-35-year-olds", "Under-30s preferred", "Preferably fresh graduates", "Ideal candidate is in his 20s", "Ideal candidate is in her twenties",
+  "Looking for a young professional", "Must be at least eighteen years old", "Not older than thirty-five",
+  // Titles (generate-flow keeps the title the model writes).
+  "Chat Support Agent (Under 30)", "Phone Agent (21-30)", "Phone Agent (21-30 yrs)", "Night Shift Agent, 35 and below", "Young Customer Service Agent", "Customer Service Rep (Gen Z)",
+  // Ranking factors (generate-flow's shortlistWeights and voiceDimensions).
+  "Age fit (21-35)", "Rank applicants under 30 first", "No children (more flexible)", "Age under 30", "Youthfulness", "Fresh graduate status", "Family commitments (fewer is better)",
+  // Birth date, marital status and family plans.
+  "Can you tell us how old you are?", "Tell us how old you are", "How old are u?", "Year you were born", "Born after 1995", "Applicants born after 1990 only", "Graduated 2020 or later",
+  "Do you have young children at home?", "Do you have small kids?", "Do you have any dependents?", "How many dependents do you have?", "Are you a parent?", "Are you planning to have kids soon?",
+  "Do you plan on starting a family?", "Are you expecting a baby?", "Must not be pregnant", "Must not be married", "Preferably single", "Single only", "Not married",
+]) check(`(6th review) asks for age or sets a limit: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+for (const line of [
+  // An older customer named in a question to the applicant, however long the sentence.
+  "Are you comfortable helping patients aged 65 and older?", "Are you able to help a caller aged 80 who keeps losing track of the steps?", "You should be patient with callers aged 70 and above.",
+  "You must help a caller aged 85 reset a password.", "Must be patient with callers who are 70 years old or older", "Must be comfortable talking with customers 60 years old and above",
+  // Score targets.
+  "Your QA score must be 85 or above", "QA scores should be 90 and above", "CSAT should be 90 and above every month", "Should be 90 or above on the English test",
+  // An age limit that is a product's, or a customer's.
+  "A parent asks about the minimum age for a kid's savings account. What do you say?", "Explain the age requirements for our travel insurance plans.", "Answer questions about age limits on our insurance plans.",
+  "A caller asks which age range your family plan covers.", "Check that the customer is of legal age before opening the account.", "Verify the borrower is of legal age.",
+  // The customers described.
+  "Our customers are mostly in their 30s.", "Our patients are mostly mid-30s parents.", "Many of our patients are not digital natives; walk them through the portal slowly.",
+  "Most of our customers are Gen Z, so our agents keep replies short.", "We're hiring agents to help young professionals find apartments.", "We're looking for someone to support young people applying for student loans.",
+  // Other numbers.
+  "Resolve tickets aged 72 hours or more first.", "Keep the maximum age of open tickets under 24 hours.", "Are you at least 18 months into your current role?", "Must be 24/7 reachable on Slack during launch week",
+  "Are you 24/7 available during peak season?", "Female callers make up 60-70% of our line.", "Young brand, friendly team.",
+]) check(`(6th review) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+for (const [q, options] of [
+  ["Status", ["Single", "Married", "Separated", "Widowed"]],
+  ["Which describes you?", ["Single", "Married", "Married with kids"]],
+  ["Which range do you fall into?", ["18-24", "25-34", "35-44", "45+"]],
+  ["Dependents", ["None", "1-2", "3+"]],
+  ["Which generation are you?", ["Gen Z", "Millennial", "Gen X"]],
+  ["Which applies to you?", ["Born before 1990", "Born 1990-2000", "Born after 2000"]],
+]) check(`(6th review) a question whose options are an age, a birth year, a generation or a marital status goes: ${JSON.stringify(q)} ${JSON.stringify(options)}`, A.questionAsksAge(q, options));
+check("…while a customer's filing status, hours and typing ranges stay", !A.questionAsksAge("A customer just married. Which status should the caller's tax form show?", ["Single", "Married filing jointly", "Married filing separately"]) && !A.questionAsksAge("How many hours a week can you work?", ["Under 20", "20-30", "30-40", "40+"]) && !A.questionAsksAge("Which range is your typing speed in?", ["30-40", "40-50", "50+"]));
+check("(6th review) a paid day off on your birthday is a benefit, not a question", A.commaListWithoutAgeAsks("HMO from day one, 13th month pay, a paid day off on your birthday, paid training") === "HMO from day one, 13th month pay, a paid day off on your birthday, paid training" && A.asksAgeOrStatus("Please share your birthday"));
+check("(6th review) generate-flow's ranking factors keep only what is not an age, a youth or a family", JSON.stringify(A.withoutAgeAsks(["Age fit (21-35)", "Rank applicants under 30 first", "No children (more flexible)", "Empathy", "Age under 30", "Youthfulness", "Fresh graduate status", "Family commitments (fewer is better)", "Patience with older patients"])) === JSON.stringify(["Empathy", "Patience with older patients"]));
+check("(6th review) the doc comment on answer options says what the code does", /"Born before 1990"\) drops the question/.test(read("supabase/functions/_shared/ageWording.ts")) && !/an\s+\* option only when it names an age/.test(read("supabase/functions/_shared/ageWording.ts")));
+for (const line of ["She mentioned being a mother of three, so nights may be hard.", "Seems too young to lead a team.", "Her children may limit her availability.", "The candidate is 45 years old.", "Single mom, may need day shifts.", "Has small kids at home, so weekends are a risk.", "She is pregnant."]) check(`(6th review) a reviewer's remark on age or family is dropped: ${JSON.stringify(line)}`, A.marksAgeOrFamily(line));
+for (const line of ["Verified the caller's date of birth before sharing the record.", "Kind to the parent who has small kids on the line.", "Handled the 80-year-old caller with patience.", "Strong with older customers.", "Their laptop is too old for the job.", "Specific examples with numbers.", "Explained the kids' account rules correctly.", "Rightly refused to share the results with her husband."]) check(`(6th review) a reviewer's remark about the work stays: ${JSON.stringify(line)}`, !A.marksAgeOrFamily(line));
+check("a reviewer's paragraph loses only that sentence", A.textWithoutAgeMarks("Clear, specific answers. She mentioned being a mother of three. Ready for nights.") === "Clear, specific answers. Ready for nights.");
 console.log("\nThe three job writers\n");
 const flow = read("supabase/functions/generate-flow/index.ts");
 check("generate-flow tells the model the rule", /from "\.\.\/_shared\/ageWording\.ts"/.test(flow) && /for phone work, include interview questions about handling calls\. " \+\s*AGE_RULE;/.test(flow));
 check("…and drops them from the title, summary, quiz and written interview too (the third review)", /title: textWithoutAgeAsks\(content\.jobPost\.title\)/.test(flow) && /summary: textWithoutAgeAsks\(content\.jobPost\.summary\)/.test(flow) && /quiz: take\(withoutAgeAsks\(content\.quiz/.test(flow) && /voiceQuestions: take<string>\(withoutAgeAsks\(content\.voiceQuestions\)/.test(flow));
 check("…and drops age questions and requirements it still writes", /application: take<string>\(withoutAgeAsks\(content\.application\), spec\.app\)/.test(flow) && /requirements: withoutAgeAsks\(content\.jobPost\.requirements\)/.test(flow) && /niceToHaves: withoutAgeAsks\(content\.jobPost\.niceToHaves\)/.test(flow) && /jobPost,\n\s*application:/.test(flow));
 const workflow = read("supabase/functions/ai-generate-workflow/index.ts");
-check("ai-generate-workflow tells the model and drops age questions, quiz questions included, after its guided questions too", /Always return valid JSON only\. \$\{AGE_RULE\}/.test(workflow) && /application_questions: \(Array\.isArray\(workflowData\.application_questions\)[^\n]*\.filter\(\(q\) => !questionAsksAge\(q\?\.question, q\?\.options\)\)/.test(workflow) && /quiz_questions: \(Array\.isArray\(workflowData\.quiz_questions\)[^\n]*\.filter\(\(q\) => !questionAsksAge\(q\?\.question, q\?\.options\)\)/.test(workflow) && /data\.application_questions = withoutAgeAsks\(enrichApplicationQuestions\(/.test(workflow));
+check("ai-generate-workflow tells the model and drops age questions, quiz questions included, after its guided questions too", /Always return valid JSON only\. \$\{AGE_RULE\}/.test(workflow) && /application_questions: \(Array\.isArray\(workflowData\.application_questions\)[^\n]*\.filter\(\(q\) => !questionAsksAge\(q\?\.question, q\?\.options\)\)/.test(workflow) && /quiz_questions: \(Array\.isArray\(workflowData\.quiz_questions\)[^\n]*\n\s*\.filter\(\(q\) => !questionAsksAge\(q\?\.question, q\?\.options\)\)/.test(workflow) && /data\.application_questions = withoutAgeAsks\(enrichApplicationQuestions\(/.test(workflow));
+// The sixth review: what an applicant reads inside a step, and a quiz question's grading key.
+check("(6th review) ai-generate-workflow also drops an age prompt or practice situation inside a step, and an age sentence from a quiz question's grading key", /\.\.\.\(\(step as \{ config\?: unknown \}\)\.config && typeof \(step as \{ config\?: unknown \}\)\.config === "object"\s*\?\s*\{ config: configWithoutAgeAsks\(/.test(workflow) && /if \(asksAgeOrStatus\(out\.prompt\)\) delete out\.prompt;/.test(workflow) && /out\.scenarios = kept;\s*else delete out\.scenarios;/.test(workflow) && /\.map\(\(q\) => \(asksAgeOrStatus\(q\?\.fit_context\) \? \{ \.\.\.q, fit_context: \(textWithoutAgeAsks\(q\.fit_context\) as string\) \|\| undefined \} : q\)\)/.test(workflow));
+check("…and a video step with its prompt removed still gets the role's own (the step below reads the config this leaves)", /const prompt =\s*typeof existingConfig\.prompt === "string" && existingConfig\.prompt\.trim\(\)\.length > 0 && !asksAgeOrStatus\(existingConfig\.prompt\)\s*\? existingConfig\.prompt\s*: defaultConfig\.prompt;/.test(workflow) && /portfolioStep\?\.config\?\.prompt \|\| "Upload samples/.test(read("src/pages/PortfolioUploadPhase.tsx")));
+check("…and a practice left with no situations of its own uses the built-in ones, on the page and in the grader", /return normalized\.length > 0 \? normalized : defaultScenarios;/.test(read("src/pages/ChatSimulationPhase.tsx")) && /step && step\.scenarios\.length > 0 \? step\.scenarios : DEFAULT_PRACTICE_SCENARIOS/.test(read("supabase/functions/ai-chat-simulation/prompts.ts")));
 const content = read("supabase/functions/ai-generate-job-content/index.ts");
 check("ai-generate-job-content tells the model (both calls) and drops age lines from every field it writes", (content.match(/Write in clean, plain text only\. " \+ AGE_RULE,/g) ?? []).length === 2 && ["description", "requirements", "responsibilities"].every((f) => new RegExp(`parsed\\.${f} = textWithoutAgeAsks\\(parsed\\.${f}\\);`).test(content)) && /parsed\.skills = commaListWithoutAgeAsks/.test(content) && /parsed\.benefits = commaListWithoutAgeAsks/.test(content) && /commaListWithoutAgeAsks\(content\.trim\(\)\) : textWithoutAgeAsks\(content\.trim\(\)\)/.test(content));
 check("the rule says every application already asks 'Are you 18 or older?'", /Are you 18 or older\?/.test(A.AGE_RULE) && /marital status/.test(A.AGE_RULE));
+
+// The sixth review: the written interview's grader writes the score and the
+// concerns the business reads, and the interview guide writes the business's
+// questions; only the interviewer and the guide's prompt carried the rule.
+console.log("\nWhat the business reads about an applicant\n");
+const C = await import("../supabase/functions/ai-chat-interview/interviewContext.ts");
+const graderPrompt = C.buildInterviewGraderMessages({ jobTitle: "Chat Support Agent", jobDescription: "Answer customers.", jobDetails: "", context: null, leadRole: false, requiredWpm: null }, [{ role: "assistant", content: "Tell me about you." }, { role: "user", content: "As a mother of three I am patient." }])[0].content;
+check("(6th review) the written interview's grader is told never to mark age, family or marital status", /=== NEVER MARK ===\nAge, birth date, marital or civil status, children, pregnancy or family plans/.test(graderPrompt) && C.INTERVIEW_EVAL_PROMPT_VERSION === "chat-interview-eval-5");
+const graded = C.interviewEvaluationFrom({
+  score: 70, recommendation: "Maybe", credibilityRating: "Medium",
+  strengths: ["Specific examples with numbers", "Young and energetic"],
+  concerns: ["As a mother of three, nights may be hard", "Vague about the refund steps"],
+  inconsistencies: [{ claim: "Said she is single", evidence: "Mentioned a husband", assessment: "Her marital status is unclear" }, { claim: "Claimed 5 years", evidence: "Form says 1-2 years", assessment: "Exaggeration" }],
+  summary: "Clear writer. Seems too young to lead a team. Needs coaching on refunds.",
+}, { leadRole: false, messages: [] });
+check("(6th review) …and a strength, concern, inconsistency or summary sentence that still does is left out", JSON.stringify(graded.strengths) === JSON.stringify(["Specific examples with numbers"]) && JSON.stringify(graded.concerns) === JSON.stringify(["Vague about the refund steps"]) && graded.inconsistencies.length === 1 && graded.inconsistencies[0].claim === "Claimed 5 years" && graded.summary === "Clear writer. Needs coaching on refunds." && graded.score === 70);
+const M = await import("../supabase/functions/interview-guide/guideMaterial.ts");
+const guideRecord = { job: C.interviewJobFrom({ title: "Chat Support Agent", description: "Answer customers.", quiz_questions: [] }), family: "support", notes: { applicationAnswers: [] }, interview: [], practiceLines: [] };
+const guideQ = (question, why = "From their form.") => ({ question, why, listenFor: "A concrete example.", redFlag: "No example.", source: "application", quote: "" });
+const guide = M.personalGuideFrom({
+  atAGlance: ["Says 3 years in chat support.", "Single mom of two."],
+  questions: [guideQ("Walk me through the last refund you handled."), guideQ("When did you graduate from college?"), guideQ("How do you plan your week around your kids?", "She has small kids at home."), guideQ("Tell me about a customer who stayed angry.")],
+  confirm: ["Confirm they can start on 1 November.", "Confirm they are 21 or older.", "Confirm their marital status."],
+}, guideRecord);
+check("(6th review) the interview guide leaves out an age or family question, confirm line and at-a-glance line", guide && guide.questions.map((q) => q.question).join(" | ") === "Walk me through the last refund you handled. | Tell me about a customer who stayed angry." && JSON.stringify(guide.confirm) === JSON.stringify(["Confirm they can start on 1 November."]) && JSON.stringify(guide.atAGlance) === JSON.stringify(["Says 3 years in chat support."]), JSON.stringify(guide));
+check("…and an answer left with fewer than two questions is no guide, as any other unusable answer", M.personalGuideFrom({ atAGlance: [], questions: [guideQ("How old are you?"), guideQ("Are you married?"), guideQ("Tell me about a refund.")], confirm: [] }, guideRecord) === null);
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

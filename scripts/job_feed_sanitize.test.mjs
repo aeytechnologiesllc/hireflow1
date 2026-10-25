@@ -30,6 +30,11 @@ for (const [input, want] of [
   ['<p>Go <a href="https://x.com">here</a></p>', '<p>Go <a href="https://x.com" rel="noopener noreferrer">here</a></p>'],
   ["<script>alert(1)</script><p>ok</p>", "<p>ok</p>"],
   ["<ul><li>One</li></ul>", "<ul><li>One</li></ul>"],
+  // The third security review: a business's own entity-encoded tag stays text.
+  ['&lt;a href="javascript:alert(1)" rel="noopener noreferrer">x&lt;/a>', '&lt;a href="javascript:alert(1)" rel="noopener noreferrer">x&lt;/a>'],
+  ["&lt;p>&lt;strong>hi&lt;/strong>&lt;/p>", "&lt;p>&lt;strong>hi&lt;/strong>&lt;/p>"],
+  ["a\u0000p>b", "ap>b"],
+  ['<p>One</p>&lt;img src=x onerror=alert(1)>', '<p>One</p>&lt;img src=x onerror=alert(1)>'],
 ]) {
   const got = sanitizeFeedHtml(input);
   check(`${JSON.stringify(input)} → ${JSON.stringify(want)}`, got === want, JSON.stringify(got));

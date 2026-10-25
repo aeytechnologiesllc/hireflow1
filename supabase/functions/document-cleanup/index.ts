@@ -66,7 +66,10 @@ Deno.serve(async (req) => {
   // second Phase 5 review: it returned before them).
   if (error) console.error("[document-cleanup] could not read requests:", error.message);
 
-  const counts = { due: error ? 0 : due.length, deleted: 0, failed: error ? 1 : 0 };
+  // A failed read is told as a failed read, never counted as a failed delete
+  // (the eighth review: it also sent "could not delete 1 ID file", which used
+  // up that alert for the day).
+  const counts = { due: error ? 0 : due.length, deleted: 0, failed: 0 };
   for (const request of error ? [] : due) {
     const path = String(request.file_url);
     // Only ever a file in that applicant's own folder.
@@ -169,43 +172,47 @@ Deno.serve(async (req) => {
   // and when files could not be deleted (the fifth: an ID past 24 hours, or a
   // file of a deleted request; the sixth keeps the two apart, so one never
   // hides the other).
-  // "Told today" is read from the admins' own bells only, with a time the
-  // database set: anyone may write a card to themself, and a card dated 2099
-  // with the same title switched these alerts off for good (the seventh
-  // Phase 5 review; notifications' created_at is the database's own since
-  // 20261025370000).
+  // "Told today" is the server's own record (claim_daily_alert,
+  // 20261025400000), never a card in a bell: anyone may write a card to
+  // themself, and an applicant to HireFlow's own job may write one to its
+  // owner, so a card with the same title switched these alerts off (the
+  // seventh and eighth Phase 5 reviews).
   const { data: admins } = await admin.from("platform_admins").select("user_id");
   const adminIds = (admins ?? []).map((a: { user_id: string }) => a.user_id);
-  const tell = async (title: string, message: string) => {
+  const tell = async (key: string, title: string, message: string) => {
     if (adminIds.length === 0) return;
-    const since = new Date(Date.now() - 86_400_000).toISOString();
-    const { count: told } = await admin
-      .from("notifications")
-      .select("id", { count: "exact", head: true })
-      .eq("title", title)
-      .in("user_id", adminIds)
-      .gte("created_at", since)
-      .lte("created_at", new Date(Date.now() + 60_000).toISOString());
-    if (told) return;
+    const { data: first, error: claimError } = await admin.rpc("claim_daily_alert", { p_alert: `cleanup:${key}` });
+    if (claimError) {
+      console.error(`[document-cleanup] could not record the "${key}" alert:`, claimError.message);
+      return;
+    }
+    if (first !== true) return;
     for (const id of adminIds) {
       await admin.from("notifications").insert({ user_id: id, type: "system", title, message, is_read: false });
     }
   };
   // Each failure is told on its own: a failed read never hides a failed
-  // delete, and files left in the retry queue are told too (the seventh review).
-  if (error) {
-    await tell("ID papers are not being deleted", `document-cleanup could not read the ID-paper requests: ${String(error.message ?? error).slice(0, 200)}. No ID is deleted until it can; it tries again every hour.`);
+  // delete, and files left in the retry queue are told too (the seventh
+  // review). A list that could not be read is told as well (the eighth: the
+  // two retry queues' reads were only logged).
+  const unread = [
+    error ? `the ID-paper requests (${String(error.message ?? error).slice(0, 160)}): no ID is deleted until they can be` : "",
+    trashError ? `the files of deleted requests (${String(trashError.message).slice(0, 120)})` : "",
+    leftoverError ? `the files left by "Delete their information" (${String(leftoverError.message).slice(0, 120)})` : "",
+  ].filter(Boolean);
+  if (unread.length > 0) {
+    await tell("read", "ID papers are not being deleted", `document-cleanup could not read ${unread.join("; ")}. It tries again every hour.`);
   }
   if (counts.failed > 0 || orphansFailed > 0) {
     const parts = [
       counts.failed > 0 ? `${counts.failed} ID file${counts.failed === 1 ? "" : "s"} past 24 hours` : "",
       orphansFailed > 0 ? `${orphansFailed} file${orphansFailed === 1 ? "" : "s"} of deleted requests` : "",
     ].filter(Boolean);
-    await tell("ID papers were not deleted on time", `document-cleanup could not delete ${parts.join(" and ")} (see its logs). It tries again on every run.`);
+    await tell("delete", "ID papers were not deleted on time", `document-cleanup could not delete ${parts.join(" and ")} (see its logs). It tries again on every run.`);
   }
   if (leftoversFailed > 0) {
-    await tell("Removed applicants' files are not all deleted", `document-cleanup could not delete ${leftoversFailed} file${leftoversFailed === 1 ? "" : "s"} left by "Delete their information" (see its logs). It tries again every hour.`);
+    await tell("leftovers", "Removed applicants' files are not all deleted", `document-cleanup could not delete ${leftoversFailed} file${leftoversFailed === 1 ? "" : "s"} left by "Delete their information" (see its logs). It tries again every hour.`);
   }
-  if (error) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed }, 500);
+  if (unread.length > 0) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed }, 500);
   return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed });
 });

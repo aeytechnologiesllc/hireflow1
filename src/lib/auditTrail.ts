@@ -228,7 +228,7 @@ export async function logSigningSessionStarted(
 }
 
 /**
- * Log electronic consent confirmed (ESIGN Act compliance)
+ * Log electronic consent confirmed (each signer agrees to sign electronically)
  */
 export async function logElectronicConsentConfirmed(
   documentId: string,

@@ -21,10 +21,16 @@ export const FALLBACK_PAGE =
   '<body style="font-family: system-ui, sans-serif; max-width: 40rem; margin: 3rem auto; padding: 0 1rem;">' +
   '<h1>That guide is not here</h1><p><a href="/blog">Every guide is on the list.</a></p></body></html>';
 
+const SELF = "hireflow-blog-not-found";
+
 export default async function handler(req, res) {
   let body = "";
-  try {
-    const reply = await fetch(`${ORIGIN}/blog/not-found.html`, { headers: { "user-agent": "hireflow-blog-not-found" } });
+  // Its own fetch of /blog/not-found.html, if that page were ever missing,
+  // would be rewritten back here: answer it with the plain page, never fetch
+  // again (the sixth Phase 6 review).
+  const selfCall = String((req.headers && req.headers["user-agent"]) || "") === SELF;
+  if (!selfCall) try {
+    const reply = await fetch(`${ORIGIN}/blog/not-found.html`, { headers: { "user-agent": SELF } });
     body = reply.ok ? await reply.text() : "";
   } catch {
     body = "";

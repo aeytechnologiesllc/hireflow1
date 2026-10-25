@@ -48,25 +48,39 @@ const storageBuckets = [
 
 const STORAGE_REMOVE_BATCH_SIZE = 100;
 
+// Supabase answers at most 1,000 rows a read, so every list is read a page at
+// a time, and a long list of ids goes in 200 at a time (the Phase 7 security
+// review, round 3: past 1,000 applications the rest were never handed over
+// or deleted). `strict` throws on a failed read instead of carrying on with
+// what was read: the hand-over must never quietly hand over too little.
+const PAGE = 1000;
+
 async function fetchIds(
   supabaseAdmin: AdminClient,
   table: string,
   column: string,
   value: string,
+  strict = false,
 ) {
-  const { data, error } = await supabaseAdmin
-    .from(table)
-    .select('id')
-    .eq(column, value);
+  const ids: string[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from(table)
+      .select('id')
+      .eq(column, value)
+      .order('id')
+      .range(from, from + PAGE - 1);
 
-  if (error) {
-    console.log(`Note: Could not load ids from ${table}.${column}:`, error.message);
-    return [];
+    if (error) {
+      if (strict) throw new Error(`Could not load ids from ${table}.${column}: ${error.message}`);
+      console.log(`Note: Could not load ids from ${table}.${column}:`, error.message);
+      return ids;
+    }
+    ids.push(...(data ?? [])
+      .map((row: { id?: string | null }) => row.id)
+      .filter((id: string | null | undefined): id is string => Boolean(id)));
+    if (!data || data.length < PAGE) return ids;
   }
-
-  return (data ?? [])
-    .map((row: { id?: string | null }) => row.id)
-    .filter((id: string | null | undefined): id is string => Boolean(id));
 }
 
 async function fetchIdsIn(
@@ -74,22 +88,31 @@ async function fetchIdsIn(
   table: string,
   column: string,
   values: string[],
+  strict = false,
 ) {
-  if (!values.length) return [];
+  const ids: string[] = [];
+  for (let i = 0; i < values.length; i += 200) {
+    const chunk = values.slice(i, i + 200);
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabaseAdmin
+        .from(table)
+        .select('id')
+        .in(column, chunk)
+        .order('id')
+        .range(from, from + PAGE - 1);
 
-  const { data, error } = await supabaseAdmin
-    .from(table)
-    .select('id')
-    .in(column, values);
-
-  if (error) {
-    console.log(`Note: Could not load ids from ${table}.${column}[]:`, error.message);
-    return [];
+      if (error) {
+        if (strict) throw new Error(`Could not load ids from ${table}.${column}[]: ${error.message}`);
+        console.log(`Note: Could not load ids from ${table}.${column}[]:`, error.message);
+        return ids;
+      }
+      ids.push(...(data ?? [])
+        .map((row: { id?: string | null }) => row.id)
+        .filter((id: string | null | undefined): id is string => Boolean(id)));
+      if (!data || data.length < PAGE) break;
+    }
   }
-
-  return (data ?? [])
-    .map((row: { id?: string | null }) => row.id)
-    .filter((id: string | null | undefined): id is string => Boolean(id));
+  return ids;
 }
 
 async function deleteRowsByIds(
@@ -278,7 +301,16 @@ serve(async (req) => {
       // person who had left a team (a revoked row is the newest too) handed
       // their other chats to the business they left (the Phase 7 security
       // review, round 2).
-      const ownerApplicationIds = await fetchIdsIn(supabaseAdmin, 'applications', 'job_id', await fetchIds(supabaseAdmin, 'jobs', 'employer_id', teamOwner));
+      let ownerApplicationIds: string[];
+      try {
+        ownerApplicationIds = await fetchIdsIn(supabaseAdmin, 'applications', 'job_id', await fetchIds(supabaseAdmin, 'jobs', 'employer_id', teamOwner, true), true);
+      } catch (readError) {
+        console.error('Handover before deleting a team member could not read the business (nothing deleted):', (readError as Error).message);
+        return new Response(
+          JSON.stringify({ error: 'Failed to delete account' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       const handover = [];
       for (let i = 0; i < ownerApplicationIds.length; i += 200) {
         const chunk = ownerApplicationIds.slice(i, i + 200);

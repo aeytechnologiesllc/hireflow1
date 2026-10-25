@@ -30,6 +30,17 @@ export function budgetUnitsForText(chars: number, attachments = 0): number {
   return Math.min(100, text + Math.max(0, attachments));
 }
 
+/** A file or image counts one unit, plus one for every 1.5 million
+ *  characters of its data (about 1.1 MB): ten 8 MB PDFs were 11 units, the
+ *  same as ten small pictures (the Phase 7 security review, round 3). */
+export const ATTACHMENT_CHARS_PER_UNIT = 1_500_000;
+
+function attachmentUnits(part: unknown): number {
+  const p = part as { image_url?: { url?: unknown }; file?: { file_data?: unknown }; input_audio?: { data?: unknown } } | null;
+  const data = p?.image_url?.url ?? p?.file?.file_data ?? p?.input_audio?.data;
+  return 1 + Math.floor((typeof data === "string" ? data.length : 0) / ATTACHMENT_CHARS_PER_UNIT);
+}
+
 /** budgetUnitsForText over chat messages (string content, or text / image / file parts). */
 export function budgetUnitsFor(messages: readonly { content: unknown }[] | null | undefined): number {
   let chars = 0;
@@ -40,7 +51,7 @@ export function budgetUnitsFor(messages: readonly { content: unknown }[] | null 
     else if (Array.isArray(content)) {
       for (const part of content as Array<{ type?: unknown; text?: unknown }>) {
         if (part && part.type === "text" && typeof part.text === "string") chars += part.text.length;
-        else if (part) attachments += 1;
+        else if (part) attachments += attachmentUnits(part);
       }
     }
   }
