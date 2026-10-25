@@ -851,8 +851,19 @@ customer-service hiring searches to the sign-up button.
    - **Applicants stop reading internal job columns** once they have applied
      (`passing_score`, `processing_mode`, `ai_bias_feedback`, step configs):
      same constraint (embedded selects on applications), same kind of fix.
+     *(Reviewed 2026-10-25, deferred to "Later": the applicant's own step
+     pages read `processing_mode` and `passing_score` (15 pages: auto-mode
+     moving on, the pass mark), and the step configs are what those pages
+     render, so hiding them means reworking every step page for little gain;
+     `ai_bias_feedback` is a note on the post's own wording. No score of
+     theirs or the team's view is among them.)*
    - **The RLS performance advisor**: 117 `auth_rls_initplan` and 143
-     `multiple_permissive_policies` warnings (task 2 above).
+     `multiple_permissive_policies` warnings (task 2 above). *(Deferred to
+     "Later" 2026-10-25: at 155 applications the rewrite saves nothing
+     measurable, and re-making 117 policies at launch is the kind of change
+     that can lock real users out. Do it as one self-checking migration
+     (each rewritten expression, with `(select auth.uid())` read back as
+     `auth.uid()`, must equal the old one) when traffic makes it matter.)*
 
 ---
 
@@ -866,6 +877,13 @@ exists and is gated to `platform_admins`), scored on tone, clarity, handling
 and hold/transfer behaviour, with the recording and transcript kept for the
 hiring team. Each call costs real money, so it is priced into the $99/job and
 $299/mo, and it lands with Stripe.
+
+### Internal job columns and the RLS performance rewrite (deferred 2026-10-25)
+
+See Phase 7, task 6: hiding `passing_score`, `processing_mode` and
+`ai_bias_feedback` from applicants needs the applicant step pages reworked;
+the 117-policy `(select auth.uid())` rewrite waits for traffic that makes it
+worth the risk.
 
 ### Stripe (order of work from the 2026-10-24 audit)
 
