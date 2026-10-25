@@ -135,9 +135,10 @@ Deno.serve(async (req: Request) => {
     // check and chat cases come from the pack on the page, so the model writes
     // the post, the application and the interview for that industry.
     const csPack = scenarioPack(body?.customerService?.pack);
-    const csChannel = CS_CHANNELS[body?.customerService?.channel as keyof typeof CS_CHANNELS] ?? null;
+    const channelAsked = body?.customerService?.channel;
+    const csChannel = typeof channelAsked === "string" && Object.hasOwn(CS_CHANNELS, channelAsked) ? CS_CHANNELS[channelAsked as keyof typeof CS_CHANNELS] : null;
     const csCtx = csPack
-      ? `Customer service role: a front-line agent for a ${csPack.label.toLowerCase()}, answering by ${csChannel ?? "chat"}. ` +
+      ? `Customer service role: a front-line agent for ${csPack.business}, answering by ${csChannel ?? "chat"}. ` +
         `Call the person they help a "${csPack.counterpart}" everywhere.`
       : "";
 

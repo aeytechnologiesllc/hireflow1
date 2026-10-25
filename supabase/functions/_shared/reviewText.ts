@@ -51,8 +51,18 @@ const SPEAKER_LABEL = /\b(LEAD|PLAYER|AGENT|CUSTOMER|PATIENT|CALLER|INTERVIEWER|
  */
 export function flattenForReview(content: string): string {
   return String(content ?? "")
+    // Look-alikes first (the Phase 4 review): a full-width colon or letter is
+    // folded to its plain form, and invisible characters (zero-width, bidi
+    // controls) go, so "PATIENT 3：" or "PA\u200BTIENT 3:" cannot slip by.
+    .normalize("NFKC")
+    .replace(/[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g, "")
     .replace(/\[RESOLVED\]/gi, "")
     .replace(/[<>]/g, " ")
+    // Anything shaped like a line label, in any script: a word and a number
+    // and a colon ("PАTIENT 3:" with a Cyrillic A, "PATIENT-3:"), or a word
+    // in capitals and a colon. The colon becomes " -".
+    .replace(/(\p{L}{3,24})(\s*[#\-\u2013\u2014]?\s*\d{1,4})\s*:(?!\d)/gu, "$1$2 -")
+    .replace(/(?<!\p{L})(\p{Lu}{3,24})\s*:/gu, "$1 -")
     .replace(SPEAKER_LABEL, "$1 -")
     .replace(/\s*[\r\n]+\s*/g, " ")
     .replace(/[ \t]{2,}/g, " ")

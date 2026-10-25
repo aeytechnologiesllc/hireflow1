@@ -14,6 +14,7 @@
 // Relative, with the extension, so plain Node (scripts/job_benefits_mapping.test.mjs) can load playbook.ts too.
 import { SCENARIO_PACKS, type ScenarioPack, type ScenarioPackId } from "../../content/scenarioPacks/packs.ts";
 import type { JobBrief, QuizConfig, ScreeningPhase, SimulationConfig, VoiceConfig } from "./types";
+import { bankForFamily } from "./questionBanks.ts";
 
 /** The "What kind of business is it?" chips, in order, and the pack each picks. */
 export const CS_INDUSTRY_CHIPS: ReadonlyArray<readonly [string, ScenarioPackId]> = [
@@ -37,7 +38,8 @@ export function industryFromText(text: string): ScenarioPackId {
   if (/\b(shopify|online (store|shop)|e-?commerce|web ?shop|etsy|amazon seller|orders? (status|tracking)|returns? and refunds?)/.test(s)) return "store";
   if (/\b(software|saas|apps?\b|subscriptions?|platform|log ?in|technical support|tech support|it support|help ?desk)/.test(s)) return "software";
   if (/\b(plumb|electric|hvac|cleaning (company|service|business)|pest|repairs?\b|handyman|roof|landscap|movers|moving company|locksmith|home services?)/.test(s)) return "home_services";
-  if (/\b(gam(e|es|ing)|players?\b|esports)/.test(s)) return "gaming";
+  // A game company says so: not "team player" or "bring your A game" (the Phase 4 review).
+  if (/\b(game (studio|company|developer|publisher|app)|gaming (company|studio|platform)|video games?|mobile games?|online games?|our games?\b|in-game|esports|player support)/.test(s)) return "gaming";
   return "general";
 }
 
@@ -58,7 +60,9 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const index = CS_CHANNEL_CHIPS.findIndex((label) => label === chosen);
   if (index >= 0) return CHANNELS[index];
   const s = `${brief.roleTitle ?? ""} ${brief.whatTheyDo ?? ""}`.toLowerCase();
-  if (/\b(phone|calls?|call cent(er|re)|inbound|outbound|voice|csr)\b/.test(s)) return "phone";
+  // "Chat only, no phone calls" is not a phone job (the Phase 4 review).
+  const notPhone = /\b(no (phone|calls?)|chat only|written only|never on the phone|not (on the )?phone)\b/.test(s);
+  if (!notPhone && /\b(phone (support|agent|rep|csr|calls?)|calls? (from|with) (customers|clients|patients)|call cent(er|re)|inbound calls?|csr|answer(ing)? (the )?phones?|by phone|on the phone)\b/.test(s)) return "phone";
   if (/\bemail\b/.test(s) && !/\bchat\b/.test(s)) return "email";
   return "chat";
 }
@@ -93,7 +97,7 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
     kind: "quiz",
     title: CS_SKILLS_TITLE,
     candidateDescription: CS_SKILLS_DESCRIPTION,
-    rationale: `Five ${pack.label.toLowerCase()} situations with one right answer each, written so a careful second-language reader can answer in time. The answers stay on the server.`,
+    rationale: `Five situations from ${pack.business}, each with one right answer, written so a careful second-language reader can answer in time.`,
     config: {
       kind: "quiz",
       timeLimitSec: quizSeconds,
@@ -128,12 +132,13 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
     candidateDescription: CS_CHAT_DESCRIPTION,
     rationale:
       channel === "phone"
-        ? `One real ${pack.counterpart} conversation from a ${pack.label.toLowerCase()}, typed, with typing speed measured as they reply. A practice call is coming; until then the written interview asks how they handle calls.`
-        : `One real ${pack.counterpart} chat from a ${pack.label.toLowerCase()}, with typing speed and reply time measured as they write.`,
+        ? `One real ${pack.counterpart} conversation from ${pack.business}, typed, with typing speed measured as they reply. A practice call is coming; until then the written interview asks how they handle calls.`
+        : `One real ${pack.counterpart} chat from ${pack.business}, with typing speed and reply time measured as they write.`,
     config: {
       kind: "simulation",
       pack: pack.id,
       counterpart: pack.counterpart,
+      channel,
       scenarios: pack.cases.map((c) => ({ id: c.id, title: "", prompt: c.scenario, customerName: c.customerName })),
     } satisfies SimulationConfig,
     rubric: {
@@ -153,23 +158,23 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
     out.splice(interview >= 0 ? interview : out.length, 0, chat);
   }
 
-  // A phone job's written interview asks how they handle calls (two
-  // questions, in place of the last two) until the practice call exists.
+  // The written interview: never empty (a model that returned no questions
+  // gets the customer-service bank's), and a phone job's always starts with
+  // the two questions about calls, in place of its last two, until the
+  // practice call exists.
   const interviewIndex = out.findIndex((p) => p.kind === "voice_interview");
-  if (channel === "phone" && interviewIndex >= 0) {
+  if (interviewIndex >= 0) {
     const interview = out[interviewIndex];
     const cfg = interview.config as VoiceConfig;
-    const questions = cfg.questions ?? [];
-    if (!questions.some((q) => /\b(call|calls|phone)\b/i.test(q.prompt))) {
-      const kept = questions.slice(0, Math.max(0, questions.length - PHONE_INTERVIEW_QUESTIONS.length));
-      out[interviewIndex] = {
-        ...interview,
-        config: {
-          ...cfg,
-          questions: [...PHONE_INTERVIEW_QUESTIONS.map((prompt, i) => ({ id: `vphone${i}`, prompt })), ...kept],
-        } satisfies VoiceConfig,
-      };
+    let questions = (cfg.questions ?? []).filter((q) => q && typeof q.prompt === "string" && q.prompt.trim() && !/^vphone\d$/.test(q.id));
+    if (questions.length === 0) {
+      questions = bankForFamily("customer_service").interview.slice(0, 6).map((prompt, i) => ({ id: `v${i}`, prompt }));
     }
+    if (channel === "phone") {
+      const phone = PHONE_INTERVIEW_QUESTIONS.map((prompt, i) => ({ id: `vphone${i}`, prompt }));
+      questions = [...phone, ...questions.slice(0, Math.max(0, questions.length - phone.length))];
+    }
+    out[interviewIndex] = { ...interview, config: { ...cfg, questions } satisfies VoiceConfig, countLabel: `${questions.length} questions` };
   }
 
   return out.map((p, order) => ({ ...p, order }));

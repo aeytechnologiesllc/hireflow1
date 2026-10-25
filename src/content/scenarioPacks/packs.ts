@@ -44,6 +44,8 @@ export interface PackChatCase {
 export interface ScenarioPack {
   id: ScenarioPackId;
   label: string;
+  /** The kind of business as a phrase with its article, for sentences: "an online store". */
+  business: string;
   counterpart: string;
   evaluatorNote: string;
   skills: PackSkillQuestion[];
@@ -54,8 +56,9 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
   "medical": {
     "id": "medical",
     "label": "Medical or dental office",
+    "business": "a medical or dental office",
     "counterpart": "patient",
-    "evaluatorNote": "A good front-desk agent never gives medical or dental advice, never guesses what a symptom or a result means, and passes those questions to a nurse or doctor with a real time frame. They confirm the patient's identity with the details the case names before sharing or changing any appointment, bill or health detail, and kindly share nothing, not even that someone is a patient, with a family member the file does not list. When someone describes chest pain, trouble breathing or heavy bleeding, the first reply plainly says to call the local emergency number now or have someone take them to the nearest emergency room, and not to drive themselves; booking or offering any visit in that chat, asking questions to judge how serious it is, or agreeing it is probably nothing is a serious fail (asking if someone is with them is good). On insurance and fees, they never promise cover, an amount or a waiver, and say who decides and how soon.",
+    "evaluatorNote": "A good front-desk agent never gives medical or dental advice, never guesses what a symptom or a result means, and passes those questions to a nurse or doctor with a real time frame. They confirm the patient's identity with the details the case names before sharing or changing any appointment, bill or health detail, and kindly share nothing, not even that someone is a patient, with a family member the file does not list. When someone describes chest pain, trouble breathing or heavy bleeding, the first reply plainly says to call the local emergency number now or have someone take them to the nearest emergency room, and not to drive themselves; booking or offering a visit in place of emergency care, asking questions to judge how serious it is, or agreeing it is probably nothing is a serious fail (asking if someone is with them is good). On insurance and fees, they never promise cover, an amount or a waiver, and say who decides and how soon.",
     "skills": [
       {
         "id": "md1",
@@ -164,6 +167,7 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
   "store": {
     "id": "store",
     "label": "Online store",
+    "business": "an online store",
     "counterpart": "customer",
     "evaluatorNote": "A good online-store agent owns the problem and gives the real next step with the real times (when an item leaves the warehouse, when the courier answers a search) without promising a delivery date the shop does not control. They keep to the stated return window and conditions, and give a kind, clear no to price matches, sale prices after the order, discount codes and extra money, without inventing compensation; telling the customer about an option the rules do allow, such as a normal return, is good service. When someone other than the buyer asks to change an order or hear its details, they refuse kindly and explain how the buyer can do it (order number plus the email on the order); where a case names no check, the customer is the buyer and asking for proof is not needed. They never discuss another customer's order.",
     "skills": [
@@ -274,6 +278,7 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
   "software": {
     "id": "software",
     "label": "Software and apps",
+    "business": "a software company",
     "counterpart": "customer",
     "evaluatorNote": "Good software support checks that the person owns the account (the signed-in chat, a message from the account's email, or the stated payment check) before unlocking, resetting or changing anything, and never asks for or accepts a password. The agent never promises a refund, a fix date, a feature, a discount or getting lost data back unless the brief allows it; it gives the real rule, the real timeline and the next step. For a bug, a good agent collects clear details (what kind of device, the app version, what the customer did and saw, when it started) and offers any safe way around it. Plain, calm, non-technical words count; blaming the customer or talking down to them does not.",
     "skills": [
@@ -384,6 +389,7 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
   "home_services": {
     "id": "home_services",
     "label": "Home services (cleaning, plumbing, repair, pest control)",
+    "business": "a home services company",
     "counterpart": "customer",
     "evaluatorNote": "A good home-services agent books visits in arrival windows and never promises an exact time, a finished repair, a refund or a payment for damage; instead they give the real next step (a damage report, a manager's call within the stated time, the price rules as stated). Only the account holder may change a booking; a person at the address who is not the account holder may hear only what the case allows, nobody is given a technician's phone number, and where a case names no check, the customer is the account holder. For a gas smell, sparks, a burning smell or water near electrics, safety comes first: tell the customer to get everyone away from the danger (out of the home for gas) and to call the gas emergency number or emergency services from outside, before any talk of booking. A reply that only books a visit, or that lets the customer stay inside to check a gas smell, is a serious failure.",
     "skills": [
@@ -494,6 +500,7 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
   "gaming": {
     "id": "gaming",
     "label": "Online game or game app",
+    "business": "a game company",
     "counterpart": "player",
     "evaluatorNote": "Good player support is calm and friendly but never promises what only another team decides: no gems, items, rank points, refunds, ban removals, gifts or dates the case does not give. Before talking about or changing an account, the agent checks the owner with the details the case names, and never asks for or accepts a password. Never share anything about another player's account. A threat or harassment is taken seriously at once: report it, explain blocking, and mention local police if the player feels in danger.",
     "skills": [
@@ -533,7 +540,7 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
         "question": "A player writes: \"The game crashed in my ranked match AGAIN and I lost 50 rank points. Third time this week! Your game is terrible.\" Our rule: agents cannot change rank points. The agent sends a crash report. The game team checks it within 3 days and returns the points if we caused the crash. What is the best reply?",
         "options": [
           "I'm really sorry, three crashes in a week is too much. I'll put your 50 rank points back myself right now, so you don't wait.",
-          "I'm really sorry, that is so frustrating. The game team already knows about this problem, so your 50 points will be back tonight.",
+          "I'm really sorry, that is so frustrating. The game team knows about this problem, so your 50 points will be back tonight.",
           "I'm so sorry, three crashes in a week is too much. I'm reporting it now. We check within 3 days and return the points if we caused it.",
           "Agents cannot change rank points. Crashes are usually caused by a weak internet connection, so please check your connection and play again."
         ],
@@ -572,7 +579,7 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
       {
         "id": "gm-missing-gems",
         "customerName": "Kofi",
-        "scenario": "Kofi bought a $10 pack of 1,000 gems 30 minutes ago. The money has left his account, but the gems are not in the game. He already tapped \"Restore purchases\" in Settings twice. A weekend event ends in 2 hours and he needs the gems for it. He is in a hurry and asks the agent to just add the gems or make the event longer. An agent is now answering the chat.\n\nWhat the agent knows: to find a purchase, the agent needs his player ID (in Settings) and the order number from the receipt email. His order shows \"paid, not delivered\". Agents cannot add gems or change event times. When an order is paid but not delivered, the agent sends it to the billing team. They deliver the gems, or refund the order if the player asks, usually within 2 days. Refund rule: a purchase can be refunded within 14 days if none of it has been used. Nobody can promise the gems before the event ends."
+        "scenario": "Kofi bought a $10 pack of 1,000 gems 30 minutes ago. The money has left his account, but the gems are not in the game. He already tapped \"Restore purchases\" in Settings twice. A weekend event ends in 2 hours and he needs the gems for it. He is in a hurry and asks the agent to just add the gems or make the event longer. An agent is now answering the chat.\n\nWhat the agent knows: to find a purchase, the agent needs his player ID (in Settings) and the order number from the receipt email. His order shows \"paid, not delivered\". Agents cannot add gems or change event times. When an order is paid but not delivered, the agent sends it to the billing team. They deliver the gems, or refund the order if the player asks, usually within 2 days. Refund rule: within 14 days, the gems from a purchase that are not spent yet can be refunded. Nobody can promise the gems before the event ends."
       },
       {
         "id": "gm-hacked-account",
@@ -592,7 +599,7 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
       {
         "id": "gm-quitting-refund",
         "customerName": "Ben",
-        "scenario": "Ben has played for three years and spent about $200 on one character and her outfits. Last week's update made that character much weaker. He is sad more than angry. He writes politely that he is quitting, and that since he is leaving, the fair thing is to refund everything he spent. He also asks the agent to undo the change for his account only. An agent is now answering the chat.\n\nWhat the agent knows: a purchase can be refunded within 14 days if none of it has been used. All of Ben's purchases are older than that and have been used. Changes to characters are made for all players, and agents cannot undo them for one account. Agents cannot give gems or gifts. The agent can pass his feedback to the game team, who read it weekly but cannot promise any change. If he wants to leave, he can delete his account in Settings, and this cannot be undone. He can also stop playing and keep his account."
+        "scenario": "Ben has played for three years and spent about $200 on one character and her outfits. Last week's update made that character much weaker. He is sad more than angry. He writes politely that he is quitting, and that since he is leaving, the fair thing is to refund everything he spent. He also asks the agent to undo the change for his account only. An agent is now answering the chat.\n\nWhat the agent knows: within 14 days of a purchase, the gems not spent yet can be refunded. All of Ben's purchases are older than that and have been used. Changes to characters are made for all players, and agents cannot undo them for one account. Agents cannot give gems or gifts. The agent can pass his feedback to the game team, who read it weekly but cannot promise any change. If he wants to leave, he can delete his account in Settings, and this cannot be undone. He can also stop playing and keep his account."
       },
       {
         "id": "gm-chat-threat",
@@ -604,6 +611,7 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
   "general": {
     "id": "general",
     "label": "Small business",
+    "business": "a small business",
     "counterpart": "customer",
     "evaluatorNote": "A good small-business agent answers every question the customer asked, in plain words, and gives the real next step with the real time (the bank's 3 to 5 working days, the manager's reply time) without promising an outcome someone else decides. They keep to the stated rule on fees, refunds and cancellations, and give a kind, clear no to exceptions, extra money and discounts they cannot give, instead of a vague \"I'll see what I can do\". They check who they are talking to before sharing or changing anything on an account, and never share another customer's details. When the business made the mistake (a missed call, a double booking), they say so plainly and own it.",
     "skills": [

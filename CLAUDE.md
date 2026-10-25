@@ -139,7 +139,8 @@ these either; each has a guard or a test that CI runs:
 - "player" is the owner's own gaming customers. It is a property of the
   business (`business_pages.home_alias`, `_shared/homeBusiness.ts` →
   `_shared/counterpart.ts`), never guessed from a job's text; every other
-  business, and not knowing, reads "customer". Same for the team-lead
+  business, and not knowing, reads "customer" (a customer-service job built
+  from Phase 4's gaming pack says "player" too: docs/CUSTOMER-SERVICE-HIRING.md). Same for the team-lead
   interview script (`interviewPlanFor`: the owner's only when
   `homeBusiness === true`). Guard `no-player-wording-outside-home-business`.
 - A business confirms its sign-in email with a 6-digit code before its first

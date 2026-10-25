@@ -88,6 +88,8 @@ export interface SimulationConfig {
    *  its word for the other person and its note (docs/CUSTOMER-SERVICE-HIRING.md). */
   pack?: string;
   counterpart?: string;
+  /** How they talk to customers (chat, phone, email, mixed): the interview guide's phone version reads it. */
+  channel?: string;
 }
 
 /**

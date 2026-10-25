@@ -69,7 +69,7 @@ export default [
       }
       const jobFromFlow = (await read("src/lib/jobFromFlow.ts")) ?? "";
       if (!/type: "multiple_choice",[\s\S]{0,120}correct_answer: it\.correctAnswer/.test(jobFromFlow)) detail.push("jobFromFlow.ts: a pack question is no longer saved as multiple choice with its answer");
-      if (!/\{ pack: cfg\.pack \}/.test(jobFromFlow)) detail.push("jobFromFlow.ts: the chat step no longer carries its pack");
+      if (!/\{ pack: cfg\.pack[ ,]/.test(jobFromFlow) || !/channel: cfg\.channel/.test(jobFromFlow)) detail.push("jobFromFlow.ts: the chat step no longer carries its pack and channel");
       const prompts = (await read("supabase/functions/ai-chat-simulation/prompts.ts")) ?? "";
       if (!/What the \(\?:team leader\|agent\) knows/.test(prompts)) detail.push("prompts.ts: splitBrief no longer reads \"What the agent knows\"");
       const fn = (await read("supabase/functions/ai-chat-simulation/index.ts")) ?? "";

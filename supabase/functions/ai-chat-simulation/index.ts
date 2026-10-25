@@ -438,14 +438,14 @@ serve(async (req) => {
       // as a support agent (whatever the job's level says).
       const rubric = rubricForCase(gradedScenario);
       const focus = practiceJob.step?.focus ?? [];
-      // The owner's own business (its gaming jobs) is graded in players'
-      // words (_shared/counterpart.ts); a customer-service pack's step in its
-      // pack's word ("patient") with its note on what good looks like, read
-      // from the server's own copy of the pack (_shared/scenarioPacks.ts),
-      // never from the step's text; every other step in customers'. A
-      // property of the business and the step, never a guess from the cases.
+      // A customer-service pack's step is graded in its pack's word ("patient")
+      // with its note on what good looks like, read from the server's own copy
+      // of the pack (_shared/scenarioPacks.ts), never from the step's text,
+      // whoever's business it is; a step with no pack in the business's word:
+      // the owner's own (its gaming jobs, no pack) says "player", every other
+      // "customer" (_shared/counterpart.ts). Never a guess from the cases.
       const pack = scenarioPack(practiceJob.step?.pack);
-      const counterpart = practiceJob.homeBusiness ? counterpartFor(true) : pack?.counterpart ?? counterpartFor(false);
+      const counterpart = pack?.counterpart ?? counterpartFor(practiceJob.homeBusiness);
 
       try {
         // Graded here, server-side, every time, by a REVIEWER (prompts.ts
