@@ -349,13 +349,15 @@ deployed, so pinning changed nothing that is live. Eleven functions
 deliberately stay on older pins (2.45.0, 2.49.1; listed in the guard): move
 one only with that function's own tests.
 
-## Still Needs Setup (updated 2026-09-16)
+## Still Needs Setup (updated 2026-10-25)
 
-- [ ] Stripe live keys — checkout is deliberately disabled (fails loudly, takes no money) until pay-per-job billing ships; see "Distribution & billing state" above
-- [ ] One real, complete, published job on production — the feed and Google indexing pipeline are wired and valid but currently serve 0 jobs because the live database has 0 rows in `jobs`/`applications`
-  (the 7 `enforce_*` trusted-result migrations plus `enforce_phase_lock` are already applied live — re-verified 2026-09-16; do not re-add them here without re-running the query in "Security posture" first)
-- [ ] Verify `ONESIGNAL_*` push-notification secrets are current in Supabase Edge Function secrets — the wrong-project-ref bug that silently broke every push was fixed (`20260826221000_fix_push_notification_wrong_project_url`), but re-confirm a live send before relying on it
-- [ ] Custom domain settings beyond `hireflownow.com`, if any additional domain is wanted on Vercel
+- [ ] Stripe live keys — billing is built new with pricing v9 and lands last; nothing is gated while it is off (see "Distribution & billing state").
+- [ ] Owner inputs for the legal pages: the LLC's state of registration (governing law) and a contact email for legal and privacy (docs/LAUNCH-PLAN.md, Phase 5). Until then the pages send people to Contact us / Help in the account.
+- [ ] www → apex redirect: change it from 307 to 308 in Vercel's domain settings (owner).
+- [ ] Turnstile keys for the sign-up forms (owner), and an OpenAI spending cap (owner, later).
+- [ ] Enforce the Content-Security-Policy after a day of real traffic reports nothing that should be allowed (docs/LAUNCH-PLAN.md, Phase 7; reporting was proven live 2026-10-25).
+
+Done since the 2026-09-16 list: the owner's own job is live with 155 real applications (the feeds list a job only when it has a country); push notifications need no OneSignal keys any more (Web Push with the site's own key pair, `20261021220000_web_push.sql`; no `ONESIGNAL_*` secret is set, checked 2026-10-25).
 
 Already configured and working, despite older notes here: `OPENAI_API_KEY`
 (every AI feature — job writing, scoring, chat/voice interviews, documents,

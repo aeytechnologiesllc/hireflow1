@@ -48,7 +48,7 @@ On 2026-10-09, against the repo and the live project.
 | A blocked account cannot apply again | `block_applicants` migration |
 | Who sees an applicant | live policies on `profiles`: the person themselves, the hiring team for their application, and a developer role held by 0 accounts |
 | Applicants cannot see scoring or recorded events | `docs/ASSESSMENT-RECORD.md` |
-| The companies named | Supabase, Vercel, OpenAI, Resend are in use; OneSignal only inside the mobile app; the built-in video call needs a key that may not be set (said as "if") |
+| The companies named | Supabase, Vercel, OpenAI, Resend are in use; notifications go through the browser's own push service (Web Push, `20261021220000_web_push.sql`; no OneSignal keys are set, checked 2026-10-25 with `supabase secrets list`); the built-in video call needs a key (`DAILY_API_KEY`, set) and is said as "if" the team uses it |
 | Most things are not deleted on a timer | the only scheduled deletion is `document-cleanup` (below) |
 | Identity papers asked for are deleted 24 hours after someone on the hiring team first opens them, or 7 days after they were sent if nobody does; openings are recorded; no bank numbers asked | `supabase/functions/document-cleanup` (pg_cron `document-cleanup`, every hour since 2026-10-10; `20261011130000_id_papers_deleted_after_opening.sql`), `supabase/functions/requested-document-url`, `src/lib/documentRequests.ts`; re-checked 2026-10-25 (this row said 30 days, the rule before 2026-10-10), see `docs/DOCUMENT-REQUESTS.md` |
 | The company that runs the site | Southern Digital Technologies LLC (the owner, 2026-10-24), named in both openings; 2026-10-25 |

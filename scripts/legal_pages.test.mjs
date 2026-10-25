@@ -99,7 +99,9 @@ check("it says most things are not deleted on a timer, and names what stays afte
 }
 check("it tells people how to delete their account, by the button's own name", /open Settings and choose Delete Account/.test(privacy) && /Delete Account/.test(read("src/pages/Settings.tsx")));
 check("it says a profile photo sits at a public address", /A photo you add is stored at a public web address/.test(privacy));
-check("it names the companies that handle the information", ["Supabase", "Vercel", "OpenAI", "Resend", "OneSignal", "Google Fonts"].every((name) => privacy.includes(name)));
+check("it names the companies that handle the information", ["Supabase", "Vercel", "OpenAI", "Resend", "Google Fonts"].every((name) => privacy.includes(name)));
+// Notifications go through the browser's own push service (20261021220000_web_push.sql); OneSignal keys were never set.
+check("notifications: the browser's push service, not OneSignal (never configured)", /Your browser's own push service/.test(privacy) && !/OneSignal/.test(privacy));
 check("it does not claim a provider the site does not use", !/Stripe|ElevenLabs|Google Analytics|Facebook|Meta Pixel|Mixpanel|Segment/.test(privacy));
 check("it says we do not sell information and show no advertising", /We do not sell your information\. We do not use it for advertising\./.test(privacy) && /no advertising cookies/.test(privacy));
 check(

@@ -156,7 +156,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             "Vercel: hosting the site.",
             "OpenAI: the AI scoring, the chat practice and the written interview.",
             "Resend: sending email.",
-            "OneSignal: notifications, if you use the mobile app.",
+            "Your browser's own push service (Google, Apple, Mozilla or Microsoft, depending on your browser): phone and desktop notifications, if you turn them on. Notifications travel through it encrypted.",
             "A video-call provider, if the hiring team uses the site's built-in call for your interview.",
           ],
         },
