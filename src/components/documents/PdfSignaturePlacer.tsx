@@ -19,6 +19,7 @@ import {
   RotateCcw,
   FileText,
 } from "lucide-react";
+import { externalHref, openExternal } from "@/lib/safeLink";
 
 // Set up PDF.js worker using CDN for reliability
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -408,12 +409,12 @@ export function PdfSignaturePlacer({
               <AlertCircle className="h-8 w-8" />
               <p className="text-center text-sm">{error}</p>
               <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => window.open(pdfUrl, "_blank")}>Open PDF</Button>
+                <Button variant="outline" size="sm" onClick={() => openExternal(pdfUrl, { allowBlob: true })}>Open PDF</Button>
               </div>
               {/* Fallback preview */}
               <div className="w-full rounded-lg overflow-hidden border border-border bg-background">
                 <iframe
-                  src={pdfUrl}
+                  src={externalHref(pdfUrl, { allowBlob: true }) ?? undefined}
                   title="PDF Preview"
                   className="w-full h-[420px] border-0"
                 />

@@ -29,6 +29,7 @@ import { useImprovementBlueprint } from "@/hooks/useImprovementBlueprint";
 import { ImprovementBlueprintView } from "@/components/ImprovementBlueprintView";
 import { getErrorMessage } from "@/lib/utils";
 import { getTimezoneName } from "@/lib/timezone";
+import { externalHref, openExternal } from "@/lib/safeLink";
 
 /* ── Shared pieces ──────────────────────────────────────────────────────
    Every state is the same shell: a quiet icon mark, one Fraunces headline
@@ -98,11 +99,11 @@ function InterviewDetailsCard({
             </span>
           </div>
         )}
-        {details.meetingLink && (
+        {externalHref(details.meetingLink) && (
           <Button
             variant="outline"
             className="mt-1 w-full gap-2"
-            onClick={() => window.open(details.meetingLink, "_blank")}
+            onClick={() => openExternal(details.meetingLink)}
           >
             <ExternalLink className="h-4 w-4" />
             Join meeting

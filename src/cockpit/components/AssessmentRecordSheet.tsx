@@ -40,6 +40,7 @@ import {
   useSessionEvents,
 } from "../hooks/useAssessmentSessions";
 import { EntryIcon, LiveDot } from "./AssessmentRecordList";
+import { externalHref } from "@/lib/safeLink";
 
 /**
  * The full record behind one row of "What they submitted": every answer,
@@ -490,7 +491,7 @@ function FileAttachment({ applicationId, path, pages, label }: { applicationId: 
   return (
     <div className="mt-1.5">
       {previewPath && previewUrl && !broken && (
-        <a href={full.data?.url ?? previewUrl} target="_blank" rel="noopener noreferrer" className="block w-fit max-w-full">
+        <a href={externalHref(full.data?.url ?? previewUrl, { allowBlob: true }) ?? undefined} target="_blank" rel="noopener noreferrer" className="block w-fit max-w-full">
           <img
             src={previewUrl}
             alt={`${label} — what they uploaded`}
@@ -522,7 +523,7 @@ function FileAttachment({ applicationId, path, pages, label }: { applicationId: 
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         {full.data?.url ? (
           <a
-            href={full.data.url}
+            href={externalHref(full.data.url, { allowBlob: true }) ?? undefined}
             target="_blank"
             rel="noopener noreferrer"
             className="ck-btn ck-btn-outline !py-1.5 !text-[12px]"
@@ -1444,9 +1445,9 @@ function VoiceBody({ detail, candidate }: { detail: Extract<AssessmentDetail, { 
           ...(detail.minutes != null ? [{ label: "Length", value: `${detail.minutes} min` }] : []),
         ]}
       />
-      {detail.recordingUrl && (
+      {externalHref(detail.recordingUrl) && (
         <a
-          href={detail.recordingUrl}
+          href={externalHref(detail.recordingUrl) ?? undefined}
           target="_blank"
           rel="noopener noreferrer"
           className="ck-btn ck-btn-outline mt-3 inline-flex !py-2 !text-[12.5px]"

@@ -44,6 +44,7 @@ import { buildJourneyPipeline, mapActivityFeed, type JourneyPipelineStage } from
 import { firstHireStage, type GuideApplicant } from "../lib/firstHireStage";
 import { gemPosition } from "../lib/gemRail";
 import type { Candidate } from "../data";
+import { openExternal } from "@/lib/safeLink";
 
 /**
  * The morning read.
@@ -891,8 +892,7 @@ export default function CockpitDashboard() {
                     onOpen={() => navigate("/interviews")}
                     onAction={() => {
                       if (joinable) navigate(`/interviews/${r.id}/room`);
-                      else if (external) window.open(r.meetingLink as string, "_blank", "noopener,noreferrer");
-                      else navigate("/interviews");
+                      else if (!(external && openExternal(r.meetingLink))) navigate("/interviews");
                     }}
                     index={i++}
                   />

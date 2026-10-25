@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Play, Pause, Volume2, VolumeX, Loader2, AlertCircle, ExternalLink } from "lucide-react";
+import { openExternal } from "@/lib/safeLink";
 
 interface MediaPlayerProps {
   src: string;
@@ -228,7 +229,7 @@ export function MediaPlayer({ src, type = "audio", className }: MediaPlayerProps
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open(src, '_blank')}
+            onClick={() => openExternal(src, { allowBlob: true })}
             className="gap-2"
           >
             <ExternalLink className="h-4 w-4" />

@@ -3,6 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
 import { removeThisDeviceBeforeSignOut } from "@/lib/webPush";
+import { inAppPath } from "@/lib/safeLink";
 
 type AppRole = "employer" | "candidate" | "team_member" | "developer";
 
@@ -267,8 +268,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Where they were going (a job's Apply): if the project ever asks people
     // to confirm their email, the link in that email still brings them back
     // to that same job (AuthCallback honours ?redirect=, same-site paths only).
-    if (redirectPath && redirectPath.startsWith("/") && !redirectPath.startsWith("//")) {
-      redirectUrl.searchParams.set("redirect", redirectPath);
+    const safeRedirectPath = inAppPath(redirectPath);
+    if (safeRedirectPath) {
+      redirectUrl.searchParams.set("redirect", safeRedirectPath);
     }
 
     const trimmedCompanyName = companyName?.trim();

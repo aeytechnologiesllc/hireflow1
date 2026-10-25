@@ -43,6 +43,7 @@ import {
 import { InterviewSeal, InterviewSurface } from "@/components/candidate/InterviewCelebration";
 import { markOwnInterviewChange } from "@/lib/ownInterviewChange";
 import type { Json } from "@/integrations/supabase/types";
+import { openExternal } from "@/lib/safeLink";
 
 /**
  * The applicant's side of an interview with the hiring team: the times they
@@ -314,7 +315,7 @@ export function CandidateInterviewConfirmationCard({
       return;
     }
     if (hasBuiltInRoom) navigate(`/applications/${applicationId}/interview-room`);
-    else if (ownLink) window.open(ownLink, "_blank", "noopener,noreferrer");
+    else if (ownLink) openExternal(ownLink);
   };
 
   // Changing a confirmed time: swap to another offered time while well out,

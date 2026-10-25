@@ -25,6 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
 import { applicationStatusColors, getApplicationStatusLabel } from "@/lib/terminology";
+import { externalHref, openExternal } from "@/lib/safeLink";
 
 interface ApplicantDetailsDialogProps {
   application: ApplicationWithCandidate | null;
@@ -165,17 +166,17 @@ export default function ApplicantDetailsDialog({
 
               {/* Links */}
               <div className="flex gap-3">
-                {profile?.linkedin_url && (
+                {externalHref(profile?.linkedin_url) && (
                   <Button variant="outline" size="sm" asChild>
-                    <a href={profile.linkedin_url} target="_blank" rel="noopener noreferrer">
+                    <a href={externalHref(profile?.linkedin_url) ?? undefined} target="_blank" rel="noopener noreferrer">
                       <Linkedin className="h-4 w-4 mr-2" />
                       LinkedIn
                     </a>
                   </Button>
                 )}
-                {profile?.portfolio_url && (
+                {externalHref(profile?.portfolio_url) && (
                   <Button variant="outline" size="sm" asChild>
-                    <a href={profile.portfolio_url} target="_blank" rel="noopener noreferrer">
+                    <a href={externalHref(profile?.portfolio_url) ?? undefined} target="_blank" rel="noopener noreferrer">
                       <Globe className="h-4 w-4 mr-2" />
                       Portfolio
                     </a>
@@ -187,7 +188,7 @@ export default function ApplicantDetailsDialog({
                     size="sm"
                     onClick={async () => {
                       const signed = await resolveResumeUrl(application.resume_url);
-                      if (signed) window.open(signed, "_blank", "noopener,noreferrer");
+                      if (signed) openExternal(signed);
                     }}
                   >
                     <FileText className="h-4 w-4 mr-2" />

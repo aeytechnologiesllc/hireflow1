@@ -35,6 +35,7 @@ import {
   type ChatFilter,
   type ChatMark,
 } from "../lib/chatMarks";
+import { externalHref } from "@/lib/safeLink";
 
 /**
  * Messages — every thread with the person on the other side, in one place.
@@ -252,6 +253,9 @@ function Bubble({
   // text so a client with no file rendering had something to print. Once the
   // file itself is on screen that line is just the filename twice.
   const showText = !!text && !(file && /^Sent a file:/i.test(text));
+  // The signed address, or nothing: a bare storage path (signing failed) or
+  // anything that is not http(s) never becomes a link (src/lib/safeLink.ts).
+  const fileHref = file ? externalHref(file.url) : null;
   return (
     <div
       className="max-w-[86%] rounded-[18px] px-4 py-3 text-[14.5px] leading-[1.55] sm:max-w-[72%]"
@@ -277,19 +281,19 @@ function Bubble({
         {time ? ` · ${time}` : ""}
       </span>
       {file &&
-        (isImageFile(file) ? (
+        (isImageFile(file) && fileHref ? (
           <a
-            href={file.url}
+            href={fileHref}
             target="_blank"
             rel="noreferrer"
             aria-label={`Open ${file.name}`}
             className={`block overflow-hidden rounded-lg ${showText ? "mb-1.5" : ""}`}
           >
-            <img src={file.url} alt={file.name} loading="lazy" className="block max-h-[240px] w-auto max-w-full" />
+            <img src={fileHref} alt={file.name} loading="lazy" className="block max-h-[240px] w-auto max-w-full" />
           </a>
         ) : (
           <a
-            href={file.url}
+            href={fileHref ?? undefined}
             target="_blank"
             rel="noreferrer"
             className={`inline-flex max-w-full items-center gap-1.5 underline underline-offset-2 ${showText ? "mb-1" : ""}`}

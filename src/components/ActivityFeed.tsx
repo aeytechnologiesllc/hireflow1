@@ -14,6 +14,7 @@ import {
 import { formatDistanceToNow } from "date-fns";
 import { useActivityFeed, type ActivityItem } from "@/hooks/useActivityFeed";
 import { cn } from "@/lib/utils";
+import { inAppPath } from "@/lib/safeLink";
 
 const activityConfig: Record<ActivityItem["type"], { icon: React.ElementType; color: string; bgColor: string }> = {
   application: { icon: UserPlus, color: "text-primary", bgColor: "bg-primary/10" },
@@ -29,9 +30,10 @@ function ActivityItemRow({ activity }: { activity: ActivityItem }) {
   const config = activityConfig[activity.type];
   const Icon = config.icon;
 
+  const link = inAppPath(activity.link);
   const handleClick = () => {
-    if (activity.link) {
-      navigate(activity.link);
+    if (link) {
+      navigate(link);
     }
   };
 
@@ -40,7 +42,7 @@ function ActivityItemRow({ activity }: { activity: ActivityItem }) {
       onClick={handleClick}
       className={cn(
         "flex items-start gap-3 p-3 rounded-lg transition-colors",
-        activity.link && "cursor-pointer hover:bg-muted/50"
+        link && "cursor-pointer hover:bg-muted/50"
       )}
     >
       <div className={cn("p-2 rounded-lg shrink-0", config.bgColor)}>

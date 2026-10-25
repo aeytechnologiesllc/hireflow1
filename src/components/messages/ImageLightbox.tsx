@@ -7,6 +7,7 @@ import {
 import { motion } from "framer-motion";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { openExternal } from "@/lib/safeLink";
 
 interface ImageLightboxProps {
   open: boolean;
@@ -34,7 +35,7 @@ export function ImageLightbox({ open, onOpenChange, imageUrl, fileName }: ImageL
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Download error:", error);
-      window.open(imageUrl, "_blank");
+      openExternal(imageUrl, { allowBlob: true });
     }
   };
 

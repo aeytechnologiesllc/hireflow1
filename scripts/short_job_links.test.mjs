@@ -469,7 +469,7 @@ console.log("\nPer business: the same name at two businesses never collides (202
   check("the sign-in screen looks the job up by its business and name", /base\.eq\("business_slug", applyingFor\.business\)\.eq\("slug", applyingFor\.slug\)/.test(auth) && /base\.eq\("slug", applyingFor\.slug\)\.eq\("root_link", true\)/.test(auth));
   check("sign-up carries the job into the confirmation email's link too", /signUp\(signUpEmail, signUpPassword, signUpName, "candidate", undefined, safeRedirectTarget\)/.test(auth));
   const useAuth = await read("src/hooks/useAuth.tsx");
-  check("…which AuthCallback honours (same-site paths only)", /redirectUrl\.searchParams\.set\("redirect", redirectPath\)/.test(useAuth) && /redirectPath\.startsWith\("\/"\) && !redirectPath\.startsWith\("\/\/"\)/.test(useAuth));
+  check("…which AuthCallback honours (same-site paths only, src/lib/safeLink.ts)", /const safeRedirectPath = inAppPath\(redirectPath\);/.test(useAuth) && /redirectUrl\.searchParams\.set\("redirect", safeRedirectPath\)/.test(useAuth));
   const avail = await read("src/lib/jobSlugAvailability.ts");
   check("a name is checked within the business only", /takenSlugs\(names: string\[\], exceptJobId: string \| null \| undefined, employerId: string\)/.test(avail) && (avail.match(/\.eq\("employer_id", employerId\)/g) ?? []).length === 2);
   // Clear at a glance (the owner: "no confusion"): the screens every

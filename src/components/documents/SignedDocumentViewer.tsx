@@ -53,6 +53,7 @@ import {
   formatSignerRole
 } from "@/lib/auditFormatting";
 import { candidateOrigin } from "@/lib/hosts";
+import { externalHref } from "@/lib/safeLink";
 
 interface AuditLog {
   id: string;
@@ -724,11 +725,15 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
 
   const renderDocumentWithSignatures = () => {
     // Handle uploaded PDFs with positioned signatures
-    if (documentData?.uploadedFileUrl) {
+    // uploadedFileUrl comes from the document's own body, which the sender
+    // wrote: only an http(s) address may become a frame (a javascript: frame
+    // would run inside this page). src/lib/safeLink.ts.
+    const uploadedSrc = externalHref(documentData?.uploadedFileUrl);
+    if (uploadedSrc) {
       return (
         <div className="space-y-4">
           <iframe 
-            src={documentData.uploadedFileUrl} 
+            src={uploadedSrc} 
             className="w-full h-[500px] border border-border rounded-lg bg-background"
             title="Signed Document"
           />

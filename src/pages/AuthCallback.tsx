@@ -6,6 +6,7 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
 import { isStaffHost } from "@/lib/hosts";
 import { AFTER_SIGN_IN_STATE } from "@/lib/resumeOnComputer";
+import { inAppPath } from "@/lib/safeLink";
 
 /**
  * Supabase reports a failed link in the URL, not as an exception:
@@ -40,9 +41,9 @@ function describeAuthError(code: string | null, description: string | null): str
   return "We couldn't finish signing you in. Please try again.";
 }
 
-/** Only same-origin paths; anything that could leave the site is ignored. */
+/** Only same-origin paths; anything that could leave the site is ignored (src/lib/safeLink.ts). */
 function safeRedirect(value: string | null): string | null {
-  return value && value.startsWith("/") && !value.startsWith("//") ? value : null;
+  return inAppPath(value);
 }
 
 export default function AuthCallback() {

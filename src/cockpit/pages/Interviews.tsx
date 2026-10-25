@@ -27,6 +27,7 @@ import { NoShowDialog } from "../components/NoShowDialog";
 import { noShowDoneWords, secondChanceNote, type NoShowChoice } from "../lib/noShow";
 import { ShareJobCompact } from "../components/ShareJobCard";
 import type { CandidateStage } from "../data";
+import { externalHref } from "@/lib/safeLink";
 
 /**
  * Scheduling v2 (employer_windows / meeting_provider / meeting_room_*) landed
@@ -879,10 +880,10 @@ export default function CockpitInterviews() {
                           {when?.tone === "now" ? "Join now" : "Join interview"}
                         </button>
                       )}
-                      {s.response === "confirmed" && s.meetingProvider !== "daily" && s.meetingLink && (
+                      {s.response === "confirmed" && s.meetingProvider !== "daily" && externalHref(s.meetingLink) && (
                         <a
                           className="ck-btn ck-btn-primary !py-2 !text-[12px]"
-                          href={s.meetingLink}
+                          href={externalHref(s.meetingLink) ?? undefined}
                           target="_blank"
                           rel="noopener noreferrer"
                         >

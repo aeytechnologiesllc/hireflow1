@@ -141,7 +141,7 @@ console.log("\nWiring: every email time goes through the helper\n");
   check("a link is only kept for a video interview", /let meetingLink = interviewType === "video" \? manualMeetingLink\.trim\(\) : "";/.test(wizard));
   check("the link is remembered on this browser only, and only if it is a meeting link", wizard.includes('const OWN_LINK_KEY = "interview_own_meeting_link";') && /if \(!remembered \|\| !isValidMeetingLink\(remembered\)\) return;/.test(wizard));
   check("the applicant's card already opens a link that is not the built-in room", /const ownLink = !hasBuiltInRoom && interview\.meeting_link \? interview\.meeting_link : null;/.test(await read("src/components/CandidateInterviewConfirmationCard.tsx")));
-  check("…and so does the staff Interviews page", /s\.meetingProvider !== "daily" && s\.meetingLink/.test(interviews));
+  check("…and so does the staff Interviews page (http(s) only, src/lib/safeLink.ts)", /s\.meetingProvider !== "daily" && externalHref\(s\.meetingLink\)/.test(interviews));
   check("a first conversation is half an hour unless changed", wizard.includes('const DEFAULT_DURATION = "30";') && !/setDuration\("(15|60)"\)/.test(wizard));
 
   const doc = await read("docs/INTERVIEWS.md");

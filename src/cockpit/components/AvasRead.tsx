@@ -7,6 +7,7 @@ import { weighedPhrase, type AssessmentRecord } from "../lib/assessmentRecord";
 import { avaProse, clip, firstName, interviewMinutes, pullQuote, transcriptOf } from "../lib/avaProse";
 import { scorecardWhy } from "../lib/applicantProfile";
 import { ProfileSection } from "./ProfileSection";
+import { externalHref } from "@/lib/safeLink";
 
 /**
  * Ava's letterhead: brass rule, her mark, the score, and her working — the
@@ -92,7 +93,8 @@ export function AvasRead({
   const turns = transcriptOf(app);
   const minutes = interviewMinutes(turns);
   const quote = pullQuote(turns);
-  const recording = app?.voice_interview_recording_url ?? null;
+  // A stored address: only ever an http(s) one (src/lib/safeLink.ts).
+  const recording = externalHref(app?.voice_interview_recording_url);
   const prose = avaProse(candidate.readFull) || candidate.read;
   const [allFlags, setAllFlags] = useState(false);
   // The form saves as they type (wave 2): what they have written is already readable.

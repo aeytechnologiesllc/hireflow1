@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
 import type { Notification } from "@/hooks/useNotifications";
 import { parseIntegrityCard } from "@/cockpit/lib/integrityCards";
+import { inAppPath } from "@/lib/safeLink";
 
 const notificationIcons: Record<string, React.ElementType> = {
   message: MessageSquare,
@@ -34,7 +35,9 @@ function NotificationCard({ notification, onMarkAsRead }: NotificationCardProps)
   // running tally as separate marks, and a link straight to that test's
   // timeline. Its created_at is the time of the latest event ("updated").
   const integrity = notification.type === "integrity" ? parseIntegrityCard(notification) : null;
-  const link = integrity?.link ?? notification.link;
+  // Someone else may have written `link` (an applicant can notify the
+  // business they applied to): only ever an in-app path (src/lib/safeLink.ts).
+  const link = inAppPath(integrity?.link ?? notification.link);
 
   const content = (
     <Card 

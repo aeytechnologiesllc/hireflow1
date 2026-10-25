@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 import type { DocRow, DocStatus } from "../data";
+import { openExternal } from "@/lib/safeLink";
 
 /**
  * The drawer.
@@ -105,11 +106,26 @@ function statusLine(row: DocRow) {
 /**
  * Browsers refuse top-level navigation to a `data:` URL, so a document stored
  * inline never opened at all. Hand the bytes over as a blob instead; remote
- * URLs still open the way they always did.
+ * URLs open only when they are http(s) (src/lib/safeLink.ts).
+ *
+ * The sender wrote `file_url`. A blob made from it is served from this
+ * site's own origin, so an inline `text/html` or `image/svg+xml` "document"
+ * would run as HireFlow in the new tab: only the kinds the app itself stores
+ * inline, and plain files, are opened.
  */
+const INLINE_DOCUMENT_TYPES = new Set([
+  "application/json",
+  "application/pdf",
+  "text/plain",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/gif",
+]);
+
 function openDocument(fileUrl: string) {
   if (!fileUrl.startsWith("data:")) {
-    window.open(fileUrl, "_blank", "noopener");
+    openExternal(fileUrl);
     return;
   }
   const comma = fileUrl.indexOf(",");
@@ -117,7 +133,8 @@ function openDocument(fileUrl: string) {
   const meta = fileUrl.slice(5, comma);
   const payload = fileUrl.slice(comma + 1);
   const base64 = /;base64$/i.test(meta);
-  const mime = meta.replace(/;base64$/i, "") || "application/octet-stream";
+  const mime = (meta.replace(/;base64$/i, "").split(";")[0] || "application/octet-stream").trim().toLowerCase();
+  if (!INLINE_DOCUMENT_TYPES.has(mime)) return;
 
   let blob: Blob;
   try {

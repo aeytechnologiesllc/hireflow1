@@ -54,6 +54,7 @@ import type { EmailStatus } from "@/utils/emailNotifications";
 import { candidateOrigin } from "@/lib/hosts";
 import { PASSED_TIME_WORDS, applicantEmailTime, clockGapWords, inviteEmailWords, isPassedTimeError, localTimeZone, shortTimeIn, timeStillAhead, zonePlace } from "@/lib/interviewTimes";
 import { fetchApplicantTimeZone, useApplicantTimeZone } from "@/hooks/useApplicantTimeZone";
+import { externalHref } from "@/lib/safeLink";
 
 interface InterviewSchedulingWizardProps {
   applicationId: string | null;
@@ -1138,7 +1139,7 @@ export default function InterviewSchedulingWizard({
                 <div className="flex items-center gap-2 max-w-full">
                   <div className="flex-1 min-w-0 overflow-hidden p-3 bg-muted/50 rounded-lg border border-border text-left">
                     <a 
-                      href={createdMeetLink} 
+                      href={externalHref(createdMeetLink) ?? undefined} 
                       target="_blank" 
                       rel="noopener noreferrer"
                       className="text-primary hover:underline text-sm block truncate"

@@ -21,6 +21,7 @@ import { GlyphLetter } from "@/components/candidate/glyphs";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { staffSignInHref } from "@/lib/hosts";
 import { jobPageFromRedirect, jobRefFromPagePath, refLookupKey } from "@/lib/jobSlug";
+import { inAppPath } from "@/lib/safeLink";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -54,8 +55,10 @@ const nameSchema = z.string().min(2, "Name must be at least 2 characters");
 const RESET_REDIRECT_KEY = "hf-candidate-reset-redirect";
 const RESET_REDIRECT_TTL_MS = 2 * 60 * 60 * 1000;
 
+// A path starting "/" then a backslash counts as off-site too (browsers read the backslash as a
+// slash): one rule for every redirect, src/lib/safeLink.ts.
 function isSafeInAppPath(path: unknown): path is string {
-  return typeof path === "string" && path.startsWith("/") && !path.startsWith("//");
+  return inAppPath(path) === path;
 }
 
 function stashResetRedirect(target: string | null) {
@@ -156,10 +159,7 @@ export default function CandidateAuth() {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
   const redirectTarget = searchParams.get("redirect");
-  const safeRedirectTarget =
-    redirectTarget && redirectTarget.startsWith("/") && !redirectTarget.startsWith("//")
-      ? redirectTarget
-      : null;
+  const safeRedirectTarget = inAppPath(redirectTarget);
   // Came here from a job's Apply button: the way back is that job, not the
   // portal landing (whose first button asks for a job code).
   const backToJob = jobPageFromRedirect(safeRedirectTarget);

@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { createIntegrityToastGate, parseIntegrityCard, type IntegrityCardRow, type IntegrityToast } from "@/cockpit/lib/integrityCards";
+import { inAppPath } from "@/lib/safeLink";
 
 /**
  * One per tab, shared by every mount: decides which writes of the owner's
@@ -70,7 +71,10 @@ export function GlobalNotificationToasts() {
         description: t.description,
         action: {
           label: "View",
-          onClick: () => navigateRef.current(t.link),
+          onClick: () => {
+            const path = inAppPath(t.link);
+            if (path) navigateRef.current(path);
+          },
         },
         duration: 8000,
       });
@@ -123,9 +127,10 @@ export function GlobalNotificationToasts() {
           // Determine toast type based on notification type
           const toastType = notification.type === "interview" ? "info" : "default";
 
-          // Show toast with action if link exists
-          if (notification.link) {
-            const targetLink = notification.link;
+          // Show toast with action if link exists. Someone else may have
+          // written it: only ever an in-app path (src/lib/safeLink.ts).
+          const targetLink = inAppPath(notification.link);
+          if (targetLink) {
 
             const handleViewClick = () => {
               navigateRef.current(targetLink);
