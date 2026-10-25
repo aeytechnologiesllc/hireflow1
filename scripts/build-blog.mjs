@@ -413,6 +413,36 @@ ${endBlock("blog-index")}
   );
 }
 
+/**
+ * What an address under /blog that is not a guide shows (vercel.json sends
+ * every other /blog/... here): a plain page, noindex, back to the list.
+ * Without it the app's own page shell answered, which search engines read as
+ * a page that exists.
+ */
+export function notFoundPage(posts) {
+  const canonical = `${SITE}/blog`;
+  return (
+    head({
+      title: "Guide not found | HireFlow",
+      description: "That guide is not here. Every guide to hiring customer service agents is on the list.",
+      canonical,
+      type: "website",
+      extraMeta: '<meta name="robots" content="noindex, follow">\n',
+      graph: [ORG],
+    }).replace('<meta name="robots" content="index, follow, max-image-preview:large">\n', "") +
+    `<div class="head"><div>
+  <p class="crumbs"><a href="/blog">Guides</a></p>
+  <h1>That guide is not here</h1>
+  <p class="dek">It may have moved, or the address may have a typo. Every guide is on the list.</p>
+</div></div>
+<main>
+<section class="list" aria-label="Every guide">${posts.slice(0, 5).map(card).join("")}</section>
+</main>
+` +
+    foot()
+  );
+}
+
 export function sitemap(posts) {
   const latest = posts.reduce((max, p) => ((p.updated || p.date) > max ? p.updated || p.date : max), "");
   const urls = [
@@ -469,6 +499,7 @@ export function buildBlog({ contentDir = path.join(ROOT, "content", "blog"), out
   write("blog/index.html", indexPage(posts));
   for (const post of posts) write(`blog/${post.slug}/index.html`, postPage(post, posts));
   write("blog/feed.xml", feed(posts));
+  write("blog/not-found.html", notFoundPage(posts));
   write("blog-sitemap.xml", sitemap(posts));
   return { posts, written };
 }

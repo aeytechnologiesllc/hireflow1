@@ -69,7 +69,10 @@ new. The Markdown library is `marked`, pinned to an exact version.
 
 - `vercel.json` sends `/blog` to `/blog/index.html` and `/blog/<slug>` to
   `/blog/<slug>/index.html`, before the crawler-only `/:slug` job rule and
-  the app's catch-all. No `cleanUrls` (the prerender functions fetch
+  the app's catch-all. Any other address under `/blog` (a draft, a typo) gets
+  `/blog/not-found.html`, a plain page marked noindex that lists the guides;
+  before, the app's page shell answered, which search engines read as a page
+  that exists (seen live 2026-10-25). No `cleanUrls` (the prerender functions fetch
   `/index.html`).
 - `blog` and `blog-sitemap.xml` are reserved short-link names in
   `src/lib/jobSlug.ts` and its crawler copy in `api/job-prerender.mjs`, so no

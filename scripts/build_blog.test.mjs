@@ -96,6 +96,8 @@ const sitemap = readFileSync(path.join(out, "blog-sitemap.xml"), "utf8");
 check("the sitemap lists /blog and both posts, with last-changed dates", sitemap.includes("<loc>https://hireflownow.com/blog</loc><lastmod>2026-10-20</lastmod>") && sitemap.includes(`<loc>https://hireflownow.com/blog/${GOOD.slug}</loc><lastmod>2026-10-20</lastmod>`) && sitemap.includes("<loc>https://hireflownow.com/blog/an-older-guide</loc><lastmod>2026-10-02</lastmod>") && !sitemap.includes("not-ready"));
 const feed = readFileSync(path.join(out, "blog", "feed.xml"), "utf8");
 check("an RSS feed of the posts", feed.includes(`<link>https://hireflownow.com/blog/${GOOD.slug}</link>`) && feed.includes("<title>Hiring &quot;chat&quot; agents &amp; phone agents</title>"));
+const missing = readFileSync(path.join(out, "blog", "not-found.html"), "utf8");
+check("an address under /blog that is no guide gets a plain page that search engines skip (noindex), with the list", /<meta name="robots" content="noindex, follow">/.test(missing) && !/content="index, follow/.test(missing) && missing.includes(`href="/blog/${GOOD.slug}"`) && /That guide is not here/.test(missing));
 writeFileSync(path.join(content, "d.md"), post({ ...GOOD, title: "Same slug" }));
 check("two posts with one slug stop the build", throws(() => B.loadPosts(content), /already used/));
 rmSync(work, { recursive: true, force: true });
