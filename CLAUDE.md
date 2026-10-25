@@ -167,7 +167,22 @@ these either; each has a guard or a test that CI runs:
   `legal-pages-name-entity-and-contact`, `applicant-signup-shows-privacy-notice`.
 - "Delete their information" (⋯ menu) deletes one application and its files
   through `remove-applicant` → `remove_applicant` (service role only, logged).
-  Guard `applicant-data-can-be-removed`.
+  A document's files are found by its id only (`documents/<id>/`), never by
+  its file address (a business writes that; the first version would have
+  deleted another business's signed copy); a teammate only on jobs they are
+  assigned to; files storage refuses are queued in `storage_file_trash` and
+  retried hourly by `document-cleanup`. Guard `applicant-data-can-be-removed`.
+- The way to reach the company is **Contact us** (an applicant's own Help
+  thread, `20261025200000_help_for_applicants.sql`) or Help (a hiring team);
+  Messages reach the hiring business, so the legal pages never send a privacy
+  request there.
+- When a day's AI budget is reached, applicants are told to come back in a
+  few hours (`wait: "long"`, `aiUnavailableExtra`), never "a couple of
+  minutes"; a refused step stays open (chat, interview, sales), and a refused
+  portfolio analysis records no score. Practice turns are also capped at 200
+  per application per day, all practices together. A call the platform
+  budget refuses gives the business its unit back
+  (`20261025190000_ai_budget_count_only_taken.sql`).
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

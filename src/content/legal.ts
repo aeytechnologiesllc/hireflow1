@@ -18,7 +18,9 @@
  *    2026-10-24, "that's the main one"). Still no postal address, no email
  *    address and no governing-law state until the owner gives them
  *    (docs/LAUNCH-PLAN.md, Phase 5, owner inputs). The way to reach the
- *    people who run the site is Messages, as everywhere else.
+ *    company is Help in the account ("Contact us" for an applicant,
+ *    20261025200000_help_for_applicants.sql): the platform admin reads it,
+ *    the hiring business never does. Messages reach the hiring business.
  *    scripts/legal_pages.test.mjs holds both.
  *
  * Plain words on purpose: an applicant reads this on a phone, often in a
@@ -105,11 +107,11 @@ export const PRIVACY_POLICY: LegalDocument = {
             "Your IP address, kept by some features to stop abuse, such as too many requests in a short time.",
             "If the site crashes on your device: a report of the error, the page it happened on, your browser family and your account.",
             "Page counts: which page was opened, the site that sent you here (its name only), campaign tags in the link, and whether the device was a phone or a computer. This uses no cookie and no visitor number, stores no IP address, and is switched off if your browser sends Do Not Track or Global Privacy Control.",
+            "When you make an account: the campaign tags of the link that brought you to the site (for example, which post or advert) and the name of the site you came from, kept with your account so that we know which ones work.",
           ],
         },
         { sub: "If you are on a hiring team" },
         "Your name, email address and password; your company's name, logo and details as you enter them; the jobs you post; your notes, ratings and decisions about applicants; the documents you send and sign; and the name and email address of anyone you invite to your team.",
-        "When you make a hiring account, we keep the campaign tags of the link that brought you to the site (for example, which post or advert), so that we know which ones work.",
       ],
     },
     {
@@ -136,7 +138,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         "AI software reads your test answers, your chat practice, your written interview and, if you upload one, your resume. It produces scores, a summary and notes for the hiring team. The person you chat with in the chat practice and the interviewer in the written interview are AI, not people.",
         "When you finish a step, the site may move you to the next step automatically.",
         "No application is declined by software alone. A person on the hiring team makes that decision. The one automatic refusal is this: if the hiring team has blocked an account, that account cannot apply again.",
-        "AI can be wrong. If you think a result is wrong, message the hiring team in your account.",
+        "AI can be wrong. If you think a result is wrong, message the hiring team in your account, or write to us from Contact us.",
       ],
     },
     {
@@ -191,7 +193,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             "Turn emails off: open Settings.",
             "Withdraw an application: open Applications.",
             "Delete your account: open Settings and choose Delete Account.",
-            "Ask for a copy of your information, for a correction, or to object to how it is used: message us in your account.",
+            "Ask for a copy of your information, for a correction, or to object to how it is used: write to us from Contact us in your account menu. We usually reply within a day.",
           ],
         },
         "Depending on where you live, the law may give you more rights than these, for example in the European Union, the United Kingdom, the Philippines or California. Tell us which right you want to use and we will handle it. You can also complain to the data protection authority where you live.",
@@ -211,7 +213,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       title: "Keeping it safe",
       body: [
         "The connection to the site is encrypted. Files such as resumes are kept in private storage and opened through links that expire after a few minutes. Access rules limit who can read each record.",
-        "No system is perfectly secure. If you think someone else has used your account, change your password and message us.",
+        "No system is perfectly secure. If you think someone else has used your account, change your password and write to us from Contact us (Help, for a hiring team).",
       ],
     },
     {
@@ -228,8 +230,8 @@ export const PRIVACY_POLICY: LegalDocument = {
       id: "contact",
       title: "How to reach us",
       body: [
-        "Message us in your account: open Messages and write to the hiring team. We do not read replies to the emails the site sends.",
-        "To reach us directly: applicants can report a job from its page or their application; a hiring team can open Help in its account.",
+        "Write to us, Southern Digital Technologies LLC, from your account: an applicant opens the account menu and chooses Contact us; a hiring team opens Help. Only we read it, never the business you applied to. We usually reply within a day.",
+        "To ask a hiring business something about your application, use Messages. To report a job, use Report on its page. We do not read replies to the emails the site sends.",
       ],
     },
   ],
@@ -379,8 +381,8 @@ export const TERMS: LegalDocument = {
       id: "contact",
       title: "How to reach us",
       body: [
-        "Message us in your account: open Messages and write to the hiring team.",
-        "To reach us directly: applicants can report a job from its page or their application; a hiring team can open Help in its account.",
+        "Write to us, Southern Digital Technologies LLC, from your account: an applicant opens the account menu and chooses Contact us; a hiring team opens Help.",
+        "To ask a hiring business about your application, use Messages. To report a job, use Report on its page.",
       ],
     },
   ],

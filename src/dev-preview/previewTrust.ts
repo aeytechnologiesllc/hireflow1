@@ -111,7 +111,7 @@ export function previewTrustHandlers(
     send_help_message: (args) => {
       const { p_body } = (args ?? {}) as { p_body?: string };
       if (!p_body?.trim()) throw new Error("empty_message");
-      if (user.user_metadata?.role === "candidate") throw new Error("not_a_business");
+      // An applicant writes in a thread of their own (20261025200000_help_for_applicants.sql).
       const id = `help-${Math.random().toString(36).slice(2)}`;
       rows("help_messages").push({ id, employer_id: me, from_admin: false, author_id: me, body: p_body.trim(), created_at: new Date().toISOString(), read_at: null });
       return id;

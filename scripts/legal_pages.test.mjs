@@ -44,7 +44,8 @@ for (const [name, doc, text] of [["privacy policy", PRIVACY_POLICY, privacy], ["
   check(`${name}: no other company name`, !/\b(LLC|L\.L\.C|Inc\.?|Ltd\.?|Limited|Corp\.?|Corporation|GmbH|AEY|Zulu|HireFlow)\b/.test(others), (others.match(/\b(LLC|Inc\.?|Ltd\.?|AEY|Zulu|HireFlow)\b/) ?? [""])[0]);
   check(`${name}: no postal address`, !/\b\d{1,5}\s+[A-Z][a-z]+\s+(Street|St\.?|Avenue|Ave\.?|Road|Rd\.?|Boulevard|Blvd\.?|Drive|Suite)\b/.test(text) && !/\bP\.?\s?O\.?\s+Box\b/i.test(text));
   check(`${name}: no email address and no phone number to write to`, !/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/.test(text) && !/\+?\d[\d\s().-]{8,}\d/.test(text));
-  check(`${name}: the way to reach us is Messages in the account`, /Message us in your account: open Messages/.test(doc.sections.at(-1).body.join(" ")) && doc.sections.at(-1).id === "contact");
+  // The company, not the hiring business (the Phase 5 review: "write to the hiring team" reached the business).
+  check(`${name}: the way to reach us is Contact us (an applicant) or Help (a hiring team), never Messages to the hiring team`, /Write to us, Southern Digital Technologies LLC, from your account: an applicant opens the account menu and chooses Contact us; a hiring team opens Help\./.test(doc.sections.at(-1).body.join(" ")) && !/write to the hiring team/i.test(text) && doc.sections.at(-1).id === "contact");
   // --- the page can be built and linked to ------------------------------------------
   check(`${name}: dated, and dated the same as the other`, doc.updated === LEGAL_UPDATED && /^[A-Z][a-z]+ \d{1,2}, \d{4}$/.test(doc.updated));
   const ids = doc.sections.map((s) => s.id);
@@ -70,7 +71,7 @@ check(
   /the approximate place your internet connection is in/.test(privacy) && /an ID your browser keeps for this site/.test(privacy) &&
     /location_city: entry\.place\?\.city/.test(read("supabase/functions/document-signing/index.ts")) && /hf-device-id/.test(read("src/lib/signerContext.ts")),
 );
-check("it says a new hiring account keeps the campaign tags it arrived with, which sign-up does", /campaign tags of the link that brought you to the site/.test(privacy) && /signup_source/.test(read("src/hooks/useAuth.tsx")));
+check("it says a new account (any kind: an applicant's sign-up keeps them too, the Phase 5 review) keeps the campaign tags and the site it came from", /When you make an account: the campaign tags of the link that brought you to the site/.test(privacy) && !/When you make a hiring account/.test(privacy) && /signup_source/.test(read("src/hooks/useAuth.tsx")));
 check("it says the page counter uses no cookie and honours Do Not Track", /no cookie and no visitor number, stores no IP address/.test(privacy) && /Do Not Track or Global Privacy Control/.test(privacy));
 check("…which the beacon still does", /doNotTrack/.test(read("public/beacon.js")) && /globalPrivacyControl/.test(read("public/beacon.js")) && !/document\.cookie\s*=/.test(read("public/beacon.js")));
 check("it says most things are not deleted on a timer, and names what stays after an account is deleted", /Most things are not deleted on a timer\./.test(privacy) && /a count of your test attempts, the start times of typing tests, a block-list entry/.test(privacy));
