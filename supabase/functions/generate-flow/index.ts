@@ -9,6 +9,7 @@
  * NOTE (pre-launch): deployed with verify_jwt=false for demo. Gate behind auth + rate-limit before launch.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
+import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
 
 type RigorKey = "easy" | "medium" | "hard";
 
@@ -116,6 +117,9 @@ Deno.serve(async (req: Request) => {
 
     const key = Deno.env.get("OPENAI_API_KEY");
     if (!key) return json({ error: "OPENAI_API_KEY not configured" }, 500);
+    // Today's platform-wide AI budget (fails open; _shared/aiBudget.ts). The
+    // page falls back to its built-in plan on any error.
+    if (!(await takeDailyAiBudget())) return json({ error: "ai_unavailable", reason: "budget_reached" }, 503);
     const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.6-luna";
 
     const followUpCtx =

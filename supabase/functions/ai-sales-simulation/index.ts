@@ -6,6 +6,7 @@ import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
 import { computerOnlyGate, recordingTargetFrom, type AssessmentAdmin } from "../_shared/assessmentSession.ts";
+import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -78,11 +79,47 @@ serve(async (req) => {
   const limited = await guardPublicAiCall(req, "ai-sales-simulation", corsHeaders, 60, 3600);
   if (limited) return limited;
 
+  // Nothing bigger than a practice turn is read at all (_shared/practiceTurnGuard.ts).
+  if (Number(req.headers.get("content-length") ?? "0") > MAX_PRACTICE_BODY_BYTES) {
+    return new Response(JSON.stringify({ error: "Request too large", code: "too_large" }), {
+      status: 413,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const request: SalesSimulationRequest = await req.json();
     const { mode, scenario, prospectName, prospectCompany, productService, jobTitle, candidateName = "the sales representative", messages = [], salesRepMessage, messageCount = 0 } = request;
 
     console.log("Sales simulation request:", { mode, scenario, prospectName, candidateName, messageCount });
+    const oversized = oversizedPracticeField(request);
+    if (oversized) {
+      return new Response(JSON.stringify({ error: `${oversized} is too long`, code: "too_large" }), {
+        status: 413,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (mode === "start" || mode === "respond") {
+      const target = recordingTargetFrom(request);
+      const turnUserId = target ? await resolveCallerId(req) : null;
+    // Served only for a signed-in applicant's own application: a turn with no
+    // application, or from nobody, was a free AI call for anyone
+    // (_shared/practiceTurnGuard.ts; docs/LAUNCH-PLAN.md, Phase 1, task 3).
+      {
+      const reader = gateClient();
+      const verdict = await practiceTurnVerdict({
+        target,
+        userId: turnUserId,
+        loadCandidateId: reader ? candidateIdLoader(reader as never) : async () => null,
+      });
+      if (!verdict.ok) {
+        return new Response(JSON.stringify({ error: verdict.error, code: verdict.code }), {
+          status: verdict.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+    }
 
     // The sales practice is taken on a computer (docs/COMPUTER-ONLY-TESTS.md),
     // from the request's headers AND the page's own reading in its body (a

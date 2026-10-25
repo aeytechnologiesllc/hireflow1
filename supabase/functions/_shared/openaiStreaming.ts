@@ -1,5 +1,6 @@
 import { AiUnavailableError, classifyOpenAIHttpFailure, modelSupportsTemperature } from "./openai.ts";
 import type { OpenAIMessage } from "./openai.ts";
+import { takeDailyAiBudget } from "./aiBudget.ts";
 
 const OPENAI_STREAM_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
@@ -64,6 +65,11 @@ export async function streamOpenAIChatCompletion(options: StreamOpenAIChatOption
   } = options;
   const tries = Math.max(1, attempts);
   const headerWaitMs = Number.isFinite(headerTimeoutMs) && headerTimeoutMs > 0 ? headerTimeoutMs : DEFAULT_HEADER_TIMEOUT_MS;
+
+  // Today's platform-wide budget first (fails open; _shared/aiBudget.ts).
+  if (!(await takeDailyAiBudget())) {
+    throw new AiUnavailableError("budget_reached", "The daily AI budget is used up", null);
+  }
 
   for (let attempt = 1; ; attempt++) {
     let response: Response;

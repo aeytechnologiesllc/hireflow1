@@ -2,6 +2,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { signedInUserId } from "../_shared/signedIn.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_WORKFLOW_MODEL") || "gpt-5.6-luna";
@@ -747,6 +748,17 @@ serve(async (req) => {
   // Public endpoint that spends money per call — cap how fast one caller can spend it.
   const limited = await guardPublicAiCall(req, "ai-generate-workflow", corsHeaders, 15, 3600);
   if (limited) return limited;
+
+  // Only a signed-in business may spend an AI call writing a job: both
+  // callers (src/lib/avaJobGeneration.ts, src/pages/CreateJob.tsx) sit behind
+  // sign-in, and an open endpoint was a free AI writer for anyone
+  // (docs/LAUNCH-PLAN.md, Phase 1, task 3).
+  if (!(await signedInUserId(req))) {
+    return new Response(JSON.stringify({ error: "Sign in to write a job.", code: "sign_in_required" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   try {
     const request: WorkflowRequest = await req.json();

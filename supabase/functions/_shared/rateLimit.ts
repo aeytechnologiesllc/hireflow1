@@ -22,11 +22,21 @@ export type RateLimitResult = {
   retryAfter: number;
 };
 
-/** Best-effort caller identity: the real client IP behind Supabase's proxy. */
+/**
+ * Who is calling, for counting: CF-Connecting-IP first. Cloudflare sets it
+ * in front of every edge function and refuses a request that sends its own
+ * (proved live 2026-10-11, _shared/bestEffortIp.ts). The first
+ * X-Forwarded-For entry, which this used to take, is whatever the caller
+ * wrote: a fresh made-up address on every request reset every limit here
+ * (2026-10-24 audit; docs/LAUNCH-PLAN.md, Phase 1, task 3). X-Forwarded-For
+ * is only the fallback when Cloudflare's header is missing.
+ */
 export function callerId(req: Request): string {
+  const cf = req.headers.get("cf-connecting-ip")?.trim();
+  if (cf) return cf;
   const fwd = req.headers.get("x-forwarded-for");
   if (fwd) return fwd.split(",")[0].trim();
-  return req.headers.get("cf-connecting-ip") ?? req.headers.get("x-real-ip") ?? "unknown";
+  return req.headers.get("x-real-ip") ?? "unknown";
 }
 
 export async function checkRateLimit(

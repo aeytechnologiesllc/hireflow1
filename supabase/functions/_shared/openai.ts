@@ -1,3 +1,4 @@
+import { takeDailyAiBudget } from "./aiBudget.ts";
 export type OpenAIMessageContent =
   | string
   | Array<
@@ -81,7 +82,9 @@ export type AiUnavailableReason =
   | "provider_error"
   | "provider_refused"
   | "provider_unreachable"
-  | "provider_timeout";
+  | "provider_timeout"
+  // The platform's own daily ceiling on AI calls (_shared/aiBudget.ts).
+  | "budget_reached";
 
 /** How long an applicant is asked to wait before trying again ("a couple of minutes"). */
 export const AI_UNAVAILABLE_RETRY_AFTER_SECONDS = 120;
@@ -251,6 +254,11 @@ export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAI
     retries = 3,
     timeoutMs = 60000,
   } = options;
+
+  // Today's platform-wide budget first (fails open; _shared/aiBudget.ts).
+  if (!(await takeDailyAiBudget())) {
+    throw new AiUnavailableError("budget_reached", "The daily AI budget is used up", null);
+  }
 
   let lastError: unknown;
 

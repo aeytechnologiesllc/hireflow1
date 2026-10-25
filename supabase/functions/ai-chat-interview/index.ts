@@ -83,6 +83,7 @@ import {
   type InterviewJob,
 } from "./interviewContext.ts";
 import { parseNotesObject } from "../_shared/trustedResults.ts";
+import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -271,6 +272,14 @@ serve(async (req) => {
   const limited = await guardPublicAiCall(req, "ai-chat-interview", corsHeaders, 60, 3600);
   if (limited) return limited;
 
+  // Nothing bigger than a practice turn is read at all (_shared/practiceTurnGuard.ts).
+  if (Number(req.headers.get("content-length") ?? "0") > MAX_PRACTICE_BODY_BYTES) {
+    return new Response(JSON.stringify({ error: "Request too large", code: "too_large" }), {
+      status: 413,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   // An attempt this request claimed for grading: if anything below throws,
   // it is marked failed (the result is still owed), not left "grading".
   let heldClaim: { admin: AssessmentAdmin; sessionId: string } | null = null;
@@ -294,6 +303,13 @@ serve(async (req) => {
     } = request;
 
     console.log("Chat interview request:", { mode, jobTitle, candidateName: requestCandidateName, messageCount: messages.length });
+    const oversized = oversizedPracticeField(request);
+    if (oversized) {
+      return new Response(JSON.stringify({ error: `${oversized} is too long`, code: "too_large" }), {
+        status: 413,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // The old "evaluate" mode is gone. No page has called it since the
     // trusted "submit" replaced it, and it ran the employer-facing grader
@@ -396,6 +412,23 @@ serve(async (req) => {
     // start / respond: the turn record (docs/ASSESSMENT-RECORD.md §5.1).
     const target = mode === "start" || mode === "respond" ? recordingTargetFrom(request) : null;
     const callerId = target ? await resolveCallerId(req) : null;
+    // Served only for a signed-in applicant's own application: a turn with no
+    // application, or from nobody, was a free AI call for anyone
+    // (_shared/practiceTurnGuard.ts; docs/LAUNCH-PLAN.md, Phase 1, task 3).
+    if (mode === "start" || mode === "respond") {
+      const reader = recordClient();
+      const verdict = await practiceTurnVerdict({
+        target,
+        userId: callerId,
+        loadCandidateId: reader ? candidateIdLoader(reader as never) : async () => null,
+      });
+      if (!verdict.ok) {
+        return new Response(JSON.stringify({ error: verdict.error, code: verdict.code }), {
+          status: verdict.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
     // A phone or tablet never starts the interview, never opens its attempt
     // and never holds it without a record: a start or an answer goes on only
     // for the signed-in candidate's own attempt that a computer started (a

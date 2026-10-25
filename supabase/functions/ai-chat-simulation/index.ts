@@ -85,6 +85,7 @@ import {
   scenarioToPin,
   type PracticeStepConfig,
 } from "./prompts.ts";
+import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -235,9 +236,24 @@ serve(async (req) => {
   const limited = await guardPublicAiCall(req, "ai-chat-simulation", corsHeaders, 60, 3600);
   if (limited) return limited;
 
+  // Nothing bigger than a practice turn is read at all (_shared/practiceTurnGuard.ts).
+  if (Number(req.headers.get("content-length") ?? "0") > MAX_PRACTICE_BODY_BYTES) {
+    return new Response(JSON.stringify({ error: "Request too large", code: "too_large" }), {
+      status: 413,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
     const request: ChatSimulationRequest = await req.json();
     const { mode, scenario, customerName, messages = [], agentMessage, messageCount = 0, applicationId, stepId, violations = [] } = request;
+    const oversized = oversizedPracticeField(request);
+    if (oversized) {
+      return new Response(JSON.stringify({ error: `${oversized} is too long`, code: "too_large" }), {
+        status: 413,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     console.log("Chat simulation request:", { mode, scenario, customerName, messageCount });
 
@@ -617,6 +633,23 @@ serve(async (req) => {
     // plus applicationId and stepId; anything else is served as before.
     const target = recordingTargetFrom(request);
     const callerId = target ? await resolveCallerId(req) : null;
+    // Served only for a signed-in applicant's own application: a turn with no
+    // application, or from nobody, was a free AI call for anyone
+    // (_shared/practiceTurnGuard.ts; docs/LAUNCH-PLAN.md, Phase 1, task 3).
+    {
+      const reader = recordClient();
+      const verdict = await practiceTurnVerdict({
+        target,
+        userId: callerId,
+        loadCandidateId: reader ? candidateIdLoader(reader as never) : async () => null,
+      });
+      if (!verdict.ok) {
+        return new Response(JSON.stringify({ error: verdict.error, code: verdict.code }), {
+          status: verdict.status,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
     // A phone or tablet never starts the chat practice, never opens its
     // attempt and never holds it without a record: a start or a reply goes
     // on only for the signed-in candidate's own attempt that a computer

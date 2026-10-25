@@ -5,6 +5,7 @@ import {
   requireJsonKeys,
 } from "../_shared/openai.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { signedInUserId } from "../_shared/signedIn.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -310,6 +311,17 @@ serve(async (req) => {
   // Public endpoint that spends money per call — cap how fast one caller can spend it.
   const limited = await guardPublicAiCall(req, "ai-job-content", corsHeaders, 15, 3600);
   if (limited) return limited;
+
+  // Only a signed-in business may spend an AI call writing a job: both
+  // callers (src/lib/avaJobGeneration.ts, src/pages/CreateJob.tsx) sit behind
+  // sign-in, and an open endpoint was a free AI writer for anyone
+  // (docs/LAUNCH-PLAN.md, Phase 1, task 3).
+  if (!(await signedInUserId(req))) {
+    return new Response(JSON.stringify({ error: "Sign in to write a job.", code: "sign_in_required" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   let body: JobContentRequest | null = null;
 
