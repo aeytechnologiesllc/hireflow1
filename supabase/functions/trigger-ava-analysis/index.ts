@@ -48,6 +48,9 @@ import {
 } from "../_shared/trustedResults.ts";
 import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
 import { connectionEvidenceLine, recordedEquipmentCheck } from "../_shared/connectionStamps.ts";
+import { fenceApplicantText, stripFenceMarkers } from "../_shared/promptFence.ts";
+import { forApplicant } from "../_shared/applicantReply.ts";
+import { checkRateLimit } from "../_shared/rateLimit.ts";
 
 // 5 (2026-10-05): the scorecard's auto-mode rules changed (nobody is stopped
 // part-way; dealBreakerFlags), and the written interview is read in both of
@@ -695,8 +698,10 @@ async function runAvaAnalysis(ctx: AnalysisContext): Promise<AnalysisOutcome> {
     }
     
     // Format text answers normally
+    // The answers are the applicant's words: fenced, so the judge reads them
+    // as evidence and never as instructions (_shared/promptFence.ts).
     const textAnswersText = textAnswers.length > 0
-      ? textAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n")
+      ? fenceApplicantText("application answers", textAnswers.map((a: any) => `Q: ${a.question}\nA: ${a.answer}`).join("\n\n"))
       : "Not provided";
     
     // Format custom file uploads with clear context so AVA doesn't analyze them as resumes
@@ -742,8 +747,11 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
 
     // Use application-provided name/email for cross-reference (the candidate's stated identity)
     // Fall back to profile only if not provided in application
-    const candidateName = applicationName || profile?.full_name || "Unknown";
-    const candidateEmail = applicationEmail || "Not provided in application";
+    // Short identity fields the applicant typed: no fence markers, no essays.
+    const shortField = (value: unknown, fallback: string) =>
+      typeof value === "string" && value.trim() ? stripFenceMarkers(value.trim()).replace(/\s+/g, " ").slice(0, 120) : fallback;
+    const candidateName = shortField(applicationName || profile?.full_name, "Unknown");
+    const candidateEmail = shortField(applicationEmail, "Not provided in application");
     // Every step's result, read once and the same way for the fingerprint,
     // the judge's content and the score. A real 0 is a score; a result the
     // grader marked `graded: false` is not (2026-10-06).
@@ -964,17 +972,17 @@ Only flag as an "email mismatch" if the resume email differs from "${candidateEm
 
 === PROFILE METADATA (for context only, NOT for cross-reference) ===
 Account Email: ${profile?.email || "Not provided"} (NOTE: This is the login email, may differ from application email - do NOT use for mismatch detection)
-Skills: ${profile?.skills?.join(", ") || "Not specified"}
-Experience Years: ${profile?.experience_years || "Not specified"}
-Bio: ${profile?.bio || "Not provided"}
-Location: ${profile?.location || "Not specified"}
+Skills: ${fenceApplicantText("profile skills", profile?.skills, "Not specified")}
+Experience Years: ${shortField(String(profile?.experience_years ?? ""), "Not specified")}
+Bio: ${fenceApplicantText("profile bio", profile?.bio)}
+Location: ${shortField(profile?.location, "Not specified")}
 
 Application Answers (Text Responses Only):
 ${textAnswersText}
 ${customFilesText}
 
 Cover Letter:
-${application.cover_letter || "Not provided"}
+${fenceApplicantText("cover letter", application.cover_letter)}
 
 === RESUME (ONLY THIS IS THE CANDIDATE'S RESUME) ===
 Resume URL: ${detectedResumeUrl || "Not provided"}
@@ -2032,11 +2040,29 @@ serve(async (req) => {
     // never one named in the request: getAutopilotNextPhase uses an unknown
     // phase id as the next phase as-is, so a forged id skipped every step.
     const callerIsOnlyCandidate = isCandidateOwner && !isEmployerOwner && !isScopedTeamMember && !developerRole;
+    // Everything an applicant's own call gets back is cut down to the move.
+    const reply = (res: Response | Promise<Response>) => (callerIsOnlyCandidate ? Promise.resolve(res).then(forApplicant) : res);
 
-    // RACE CONDITION FIX: Skip if application was already rejected (unless force=true for reconsider)
-    if (application.status === "rejected" && !force) {
+    // "force" re-runs a frozen analysis and reconsiders a rejected one: the
+    // hiring team's call, never the applicant's (an applicant re-rolled their
+    // score with it until it came out higher, 2026-10-24 audit).
+    const effectiveForce = !!force && !callerIsOnlyCandidate;
+
+    // An applicant's page asks once per finished step (and once more when the
+    // first reply was not final); twenty an hour per application is far above
+    // that and stops a loop from running up the AI bill. Fails open, like
+    // every limiter here: it is cost protection, not access control.
+    if (callerIsOnlyCandidate) {
+      const limit = await checkRateLimit("ava-analysis-applicant", applicationId, 20, 3600);
+      if (!limit.allowed) {
+        return reply(jsonResponse({ success: false, error: "rate_limited", retryAfter: limit.retryAfter }, 429));
+      }
+    }
+
+    // RACE CONDITION FIX: Skip if application was already rejected (unless the team forces a reconsider)
+    if (application.status === "rejected" && !effectiveForce) {
       console.log("[trigger-ava-analysis] Application already rejected, skipping duplicate analysis");
-      return jsonResponse({ success: true, message: "Application already rejected", skipped: true });
+      return reply(jsonResponse({ success: true, message: "Application already rejected", skipped: true }));
     }
 
 
@@ -2049,39 +2075,39 @@ serve(async (req) => {
       applicationId,
       job,
       employerId,
-      force: !!force,
+      force: effectiveForce,
       currentPhaseId: typeof currentPhaseId === "string" && currentPhaseId ? currentPhaseId : null,
       autoMode,
     };
 
     if (autoMode && (autopilotDecision || previewOnly)) {
-      return await handleAutoModeStep({
+      return reply(handleAutoModeStep({
         context: analysisContext,
         previewOnly: !!previewOnly,
         awaitAnalysis: !!awaitAnalysis,
-      });
+      }));
     }
 
     // Manual jobs, and every score-only call: unchanged — the analysis runs
     // while the caller waits.
     const analysis = await runAvaAnalysis(analysisContext);
     if (!analysis.ok) {
-      return jsonResponse(analysis.body, analysis.status);
+      return reply(jsonResponse(analysis.body, analysis.status));
     }
 
     if (analysis.reused && !autopilotDecision && !previewOnly) {
-      return jsonResponse({
+      return reply(jsonResponse({
         success: true,
         message: "Analysis already present",
         skipped: true,
         reused: true,
         score: analysis.score,
         scorecard: analysis.scorecard,
-      });
+      }));
     }
 
     if (autopilotDecision || previewOnly) {
-      return await handleAutopilotDecision({
+      return reply(handleAutopilotDecision({
         supabaseAdmin,
         application,
         applicationId,
@@ -2092,16 +2118,16 @@ serve(async (req) => {
         profile: analysis.profile,
         job,
         previewOnly,
-      });
+      }));
     }
 
-    return jsonResponse({ 
+    return reply(jsonResponse({ 
       success: true, 
       message: "Analysis completed and saved",
       score: analysis.score,
-      forced: force,
+      forced: effectiveForce,
       scorecard: analysis.scorecard,
-    });
+    }));
 
   } catch (error) {
     console.error("[trigger-ava-analysis] Unexpected error:", error);

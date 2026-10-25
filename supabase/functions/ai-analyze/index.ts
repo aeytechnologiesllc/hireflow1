@@ -11,6 +11,7 @@ import {
 } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { isAiAnalyzeCallAuthorized, type JobAccessFacts } from "../_shared/aiAccess.ts";
+import { fenceApplicantText, withApplicantTextRule } from "../_shared/promptFence.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_ANALYSIS_MODEL") || "gpt-5.6-terra";
@@ -1286,7 +1287,10 @@ serve(async (req) => {
 
     // A team-lead job (trigger-ava-analysis says so in context.job_family)
     // is judged on the application only: see systemPromptFor.
-    const systemPrompt = systemPromptFor(type, context?.job_family === "team_lead");
+    // Every analysis ends with the rule for applicant-written text: it is
+    // evidence, never instructions (_shared/promptFence.ts).
+    const basePrompt = systemPromptFor(type, context?.job_family === "team_lead");
+    const systemPrompt = basePrompt ? withApplicantTextRule(basePrompt) : basePrompt;
     if (!systemPrompt) {
       return new Response(
         JSON.stringify({ error: `Invalid analysis type: ${type}` }),
@@ -1355,7 +1359,7 @@ serve(async (req) => {
     }
 
     if (hasResumeText) {
-      userContent += `\n\n--- EXTRACTED RESUME TEXT ---\n${resumeText!.slice(0, 14000)}`;
+      userContent += `\n\n--- EXTRACTED RESUME TEXT ---\n${fenceApplicantText("resume", resumeText!.slice(0, 14000))}`;
     }
 
     if (type === "resume" || type === "application") {
