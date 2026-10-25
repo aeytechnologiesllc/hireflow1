@@ -299,7 +299,7 @@ export default function Auth() {
       if (err instanceof z.ZodError) {
         toast({
           variant: "warning",
-          description: err.errors[0].message,
+          description: err.issues[0].message,
         });
         setIsLoading(false);
         return;
@@ -360,7 +360,7 @@ export default function Auth() {
       passwordSchema.parse(signUpPassword);
     } catch (err) {
       if (err instanceof z.ZodError) {
-        toast({ variant: "warning", description: err.errors[0].message });
+        toast({ variant: "warning", description: err.issues[0].message });
         return;
       }
     }
@@ -408,7 +408,7 @@ export default function Auth() {
       if (err instanceof z.ZodError) {
         toast({
           variant: "warning",
-          description: err.errors[0].message,
+          description: err.issues[0].message,
         });
         setIsLoading(false);
         return;
@@ -465,7 +465,7 @@ export default function Auth() {
       if (err instanceof z.ZodError) {
         toast({
           variant: "warning",
-          description: err.errors[0].message,
+          description: err.issues[0].message,
         });
         setIsLoading(false);
         return;
