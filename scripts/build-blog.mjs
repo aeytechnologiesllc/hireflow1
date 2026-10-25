@@ -44,6 +44,11 @@ const SHARE_IMAGE = `${SITE}/share/hireflow.jpg`;
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const FIELDS = ["title", "description", "date", "slug", "author"];
+// Every key a post may have: a misspelt one ("darft: true") stops the build
+// rather than publishing a draft (the Phase 6 review).
+const KNOWN_KEYS = new Set([...FIELDS, "updated", "draft"]);
+// The longest campaign tag the sign-up page keeps (src/lib/signupSource.ts, carry-source.js).
+const MAX_SLUG = 60;
 
 export function escapeHtml(value) {
   return String(value ?? "")
@@ -82,15 +87,20 @@ export function parsePost(source, file = "post") {
     if (!line.trim()) continue;
     const kv = /^([a-z_]+):\s*(.*)$/.exec(line);
     if (!kv) throw new Error(`${file}: front matter line is not "key: value": ${JSON.stringify(line)}`);
+    if (!KNOWN_KEYS.has(kv[1])) throw new Error(`${file}: unknown front matter key "${kv[1]}" (known: ${[...KNOWN_KEYS].join(", ")})`);
     let value = kv[2].trim();
     if (/^(["']).*\1$/.test(value)) value = value.slice(1, -1);
+    // No control character in a title or a description (it makes feed.xml invalid XML).
+    if (/[\u0000-\u001F\u007F-\u009F\u2028\u2029]/.test(value)) throw new Error(`${file}: "${kv[1]}" has a control character`);
     meta[kv[1]] = value;
   }
   for (const key of FIELDS) {
     if (!meta[key]) throw new Error(`${file}: front matter needs "${key}"`);
   }
-  if (!SLUG.test(meta.slug) || meta.slug.length > 80) throw new Error(`${file}: slug "${meta.slug}" must be lowercase words and hyphens`);
+  if (!SLUG.test(meta.slug) || meta.slug.length > MAX_SLUG) throw new Error(`${file}: slug "${meta.slug}" must be lowercase words and hyphens, at most ${MAX_SLUG} characters`);
   if (!realDate(meta.date)) throw new Error(`${file}: date "${meta.date}" must be a real YYYY-MM-DD`);
+  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  if (meta.date > tomorrow || (meta.updated && meta.updated > tomorrow)) throw new Error(`${file}: a date in the future`);
   if (meta.updated && (!realDate(meta.updated) || meta.updated < meta.date)) throw new Error(`${file}: updated "${meta.updated}" must be a real YYYY-MM-DD, not before the date`);
   if (meta.title.length > 90) throw new Error(`${file}: title is ${meta.title.length} characters (90 at most)`);
   if (meta.description.length < 50 || meta.description.length > 160) throw new Error(`${file}: description is ${meta.description.length} characters (50 to 160)`);
@@ -158,7 +168,12 @@ export function renderMarkdown(markdown, file = "post") {
       },
     },
   });
-  return md.parse(markdown);
+  try {
+    return md.parse(markdown);
+  } catch (error) {
+    // The library adds "Please report this to …marked" to every error; these are the post's.
+    throw new Error(String(error?.message ?? error).replace(/\s*Please report this to https:\/\/github\.com\/markedjs\/marked\.?\s*/i, "").trim());
+  }
 }
 
 export function wordCount(markdown) {
@@ -179,12 +194,19 @@ export function loadPosts(dir = path.join(ROOT, "content", "blog"), { includeDra
     post.minutes = Math.max(1, Math.round(wordCount(post.body) / 220));
     if (includeDrafts || !post.draft) posts.push(post);
   }
+  // A link to another guide must reach a published one (never a draft, never a typo).
+  const published = new Set(posts.filter((p) => !p.draft).map((p) => p.slug));
+  for (const post of posts.filter((p) => !p.draft)) {
+    for (const m of post.html.matchAll(/href="\/blog\/([^"#?]+)"/g)) {
+      if (!published.has(m[1])) throw new Error(`${post.file}: links to /blog/${m[1]}, which is not a published guide`);
+    }
+  }
   return posts.sort((a, b) => (a.date === b.date ? a.slug.localeCompare(b.slug) : a.date < b.date ? 1 : -1));
 }
 
 /** The sign-up button's address, tagged with the page it was pressed on. */
-export function ctaHref(campaign) {
-  return `${SIGNUP}&utm_source=blog&utm_medium=article&utm_campaign=${encodeURIComponent(campaign)}`;
+export function ctaHref(campaign, medium = "article") {
+  return `${SIGNUP}&utm_source=blog&utm_medium=${encodeURIComponent(medium)}&utm_campaign=${encodeURIComponent(campaign)}`;
 }
 
 const MARK =
@@ -299,7 +321,7 @@ ${extraMeta}<meta name="twitter:card" content="summary_large_image">
 <body>
 <header class="bar">
   <a class="brand" href="/">${MARK}HireFlow</a>
-  <nav aria-label="Main"><a class="plain" href="/blog">Guides</a><a class="plain wide" href="/open-jobs">Open jobs</a><a class="btn" href="${ctaHref("bar")}">Post a job free</a></nav>
+  <nav aria-label="Main"><a class="plain" href="/blog">Guides</a><a class="plain wide" href="/open-jobs">Open jobs</a><a class="btn" href="${ctaHref("bar", "bar")}">Post a job free</a></nav>
 </header>
 `;
 }
@@ -325,17 +347,21 @@ function card(post) {
   return `<a class="card" href="/blog/${post.slug}"><b>${escapeHtml(post.title)}</b><span>${escapeHtml(post.description)}</span><small><time datetime="${post.date}">${longDate(post.date)}</time> · ${post.minutes} min read</small></a>`;
 }
 
-function endBlock(campaign) {
+function endBlock(campaign, medium = "article") {
   return `<aside class="end" aria-label="Post a job">
-  <div><h2>Hiring a customer service agent?</h2><p>Post the role tonight. By morning every applicant has handled a real customer conversation, been scored and ranked.</p></div>
-  <span class="go"><a class="btn" href="${ctaHref(campaign)}">Post your first job free</a><small>First job free. No card.</small></span>
+  <div><h2>Hiring a customer service agent?</h2><p>Post the role tonight. By morning every applicant has handled a realistic customer conversation, been scored and ranked.</p></div>
+  <span class="go"><a class="btn" href="${ctaHref(campaign, medium)}">Post your first job free</a><small>First job free. No card.</small></span>
 </aside>`;
 }
 
 export function postPage(post, all) {
   const canonical = `${SITE}/blog/${post.slug}`;
   const modified = post.updated || post.date;
-  const others = all.filter((p) => p.slug !== post.slug).slice(0, 3);
+  // The next three guides after this one in the list, round the end: every
+  // guide is linked from three others (with one date for all, the first three
+  // were linked from every page and the rest from none; the Phase 6 review).
+  const at = all.findIndex((p) => p.slug === post.slug);
+  const others = [1, 2, 3].map((k) => all[(at + k) % all.length]).filter((p, i, list) => p && p.slug !== post.slug && list.indexOf(p) === i);
   const graph = [
     ORG,
     {
@@ -406,7 +432,7 @@ export function indexPage(posts) {
 </div></div>
 <main>
 <section class="list" aria-label="Every guide">${posts.length ? posts.map(card).join("") : "<p>The first guides are on their way.</p>"}</section>
-${endBlock("blog-index")}
+${endBlock("blog-index", "list")}
 </main>
 ` +
     foot()
@@ -429,7 +455,11 @@ export function notFoundPage(posts) {
       type: "website",
       extraMeta: '<meta name="robots" content="noindex, follow">\n',
       graph: [ORG],
-    }).replace('<meta name="robots" content="index, follow, max-image-preview:large">\n', "") +
+    })
+      .replace('<meta name="robots" content="index, follow, max-image-preview:large">\n', "")
+      // No canonical and no og:url: it is no page of its own (the Phase 6 review: they pointed at /blog).
+      .replace(`<link rel="canonical" href="${canonical}">\n`, "")
+      .replace(`<meta property="og:url" content="${canonical}">\n`, "") +
     `<div class="head"><div>
   <p class="crumbs"><a href="/blog">Guides</a></p>
   <h1>That guide is not here</h1>

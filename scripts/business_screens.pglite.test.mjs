@@ -297,5 +297,37 @@ check("0. it applies, and applies again", applied);
   }
 }
 
+// 5. The live Help functions: every later migration, in date order (the third
+// Phase 5 review: 20261025220000 had lost section 4's team bell, and this file
+// re-applied the October-11 version after it, so the loss never showed).
+{
+  const helpPart = (sql) => sql.slice(sql.indexOf("CREATE OR REPLACE FUNCTION public."));
+  const later = [
+    await migration(/_help_for_applicants\.sql$/),
+    await migration(/_remove_applicant_help_review2\.sql$/),
+    await migration(/_phase5_review3\.sql$/),
+  ];
+  check("5. the later Help migrations exist once each", later.every(Boolean));
+  await db.exec(later[0]);
+  await db.exec(helpPart(later[1].slice(later[1].indexOf("CREATE OR REPLACE FUNCTION public.send_help_message"))));
+  await db.exec(later[2].slice(later[2].indexOf("CREATE OR REPLACE FUNCTION public.admin_reply_help")));
+  await pg(`delete from public.notifications`);
+  const reply = await as(ZACK, "authenticated", `select public.admin_reply_help($1, 'Latest version answering.') as id`, [LUCKY]);
+  const told = (await pg(`select user_id, link from public.notifications where title = 'HireFlow replied' order by user_id`));
+  check("5. with every migration applied, the bell still rings for the owner and the team member who asked, linked to Help", reply.ok && told.length === 2 && told.some((t) => t.user_id === LUCKY) && told.some((t) => t.user_id === TESS) && told.every((t) => t.link === "/help"), show(told));
+  await pg(`delete from public.notifications`);
+  const toAna = await as(ZACK, "authenticated", `select public.admin_reply_help($1, 'For Ana.') as id`, [ANA]);
+  const anaTold = await pg(`select user_id, link from public.notifications where title = 'HireFlow replied'`);
+  check("5. an applicant's answer links to Contact us (/contact), to her alone", toAna.ok && anaTold.length === 1 && anaTold[0].user_id === ANA && anaTold[0].link === "/contact", show(anaTold));
+  const RAE = "20000000-0000-4000-8000-000000000099";
+  await pg(`insert into auth.users values ($1, 'rae@x.example')`, [RAE]);
+  await pg(`insert into public.profiles (user_id, full_name) values ($1, 'Rae')`, [RAE]);
+  const fromRae = await as(RAE, "authenticated", `select public.send_help_message('I left my old team.') as id`);
+  const threads = await as(ZACK, "authenticated", `select employer_id, company_name from public.admin_help_threads()`);
+  const raeThread = threads.ok ? threads.rows.find((r) => r.employer_id === RAE) : null;
+  const anaThread = threads.ok ? threads.rows.find((r) => r.employer_id === ANA) : null;
+  check("5. a thread from an account with no business and no applicant role reads '(account)', an applicant's '(applicant)'", fromRae.ok && raeThread?.company_name === "Rae (account)" && anaThread?.company_name === "Ana (applicant)", show(threads));
+}
+
 console.log(`\nbusiness screens (pglite): ${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

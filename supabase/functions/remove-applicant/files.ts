@@ -29,7 +29,7 @@ export function resumeFilesToRemove(candidateId: string, resumeUrl: unknown, not
   const own = storagePathIn(resumeUrl, "resumes");
   if (own && own.startsWith(`${candidateId}/`)) found.add(own);
   const escaped = candidateId.replace(/[-]/g, "\\-");
-  for (const m of String(notes ?? "").matchAll(new RegExp(`${escaped}/[A-Za-z0-9._\\-/]+`, "g"))) found.add(m[0]);
+  for (const m of String(notes ?? "").matchAll(new RegExp(`${escaped}/[A-Za-z0-9._\\-/]{1,400}`, "g"))) found.add(m[0]);
   // Only a plain path inside their own folder: never "..", an empty segment
   // or another folder, whatever the notes (partly their own writing) say.
   const safe = (path: string) => path.startsWith(`${candidateId}/`) && !path.includes("..") && !path.includes("//") && !path.endsWith("/");
@@ -47,4 +47,9 @@ const DOCUMENT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{1
 export function documentIdsOf(documents: unknown): string[] {
   if (!Array.isArray(documents)) return [];
   return [...new Set(documents.map((d) => (d && typeof d === "object" ? (d as { id?: unknown }).id : null)).filter((id): id is string => typeof id === "string" && DOCUMENT_ID.test(id)))];
+}
+
+/** A path the retry queue accepts (storage_file_trash's own check): plain, 3 to 500 characters. */
+export function queueablePath(path: unknown): boolean {
+  return typeof path === "string" && path.length >= 3 && path.length <= 500 && !path.startsWith("/") && !path.includes("..") && !path.includes("//");
 }

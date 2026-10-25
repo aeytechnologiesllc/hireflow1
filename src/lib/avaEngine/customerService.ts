@@ -64,44 +64,57 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const s = `${title} ${work}`;
   // "Voice and non-voice": both.
   if (/\bvoice\s*(and|&|\/|or)\s*non[- ]?\s?voice\b|\bnon[- ]?\s?voice\s*(and|&|\/|or)\s*voice\b/.test(s)) return "mixed";
-  // Never phone: "non-voice" (or "non voice"), "chat only", "no phone calls",
-  // "without calls", "phone calls are not required" (the Phase 4 reviews).
-  const negated = /\b(non[- ]?\s?voice|chat only|email only|written only|no (phone|calls?|voice)|without (phone )?calls|never on the phone|not (on the )?phones?|phone calls? (are|is) not (required|needed|part))\b/;
+  // Phones ruled out: "non-voice", "chat only", "no phone calls", "without
+  // calls", "phone calls are not required", "we don't do phone support",
+  // "phone support is handled by another team" (the Phase 4 reviews).
+  const noPhone = /\b(non[- ]?\s?voice|chat only|email only|written only|no (phones?|calls?|voice)|without (phone )?calls|never on the phone|not (on the )?phones?|phone calls? (are|is) not (required|needed|part)|(don'?t|do not|doesn'?t|does not|won'?t|will not) (do |offer |handle |take |answer )?(any )?(phones?|calls?|voice)( support)?)\b|\b(phones?|calls?|voice)( support)?\b[^.]{0,30}\b(handled by|another team|elsewhere|someone else|separate team)\b/;
+  // Written channels ruled out: "no chats or emails".
+  const noWritten = /\bno (chats?|e-?mails?|messages?)( or (chats?|e-?mails?|messages?))?\b|\b(chats?|e-?mails?)( support)?\b[^.]{0,30}\b(handled by|another team|elsewhere|someone else|separate team)\b/;
   // A list of channels with phones in it ("phone, email and chat", "calls and
-  // emails", "SMS and phone"); not a list of what customers own ("their phone
-  // and email accounts").
+  // emails", "SMS and phone"); not what customers own or are billed for
+  // ("their phone and email accounts", "calls and texts on their plan").
   const LIST = String.raw`(\s*(,|&|\band\b|\/|\+|\bor\b)\s*(and\s+)?)`;
   const WRITTEN = String.raw`(live chats?|chats?|e-?mails?|texts?|sms|messages?)`;
   const PHONE = String.raw`(phones?|calls?|voice)`;
   const list = new RegExp(
-    String.raw`\b(${PHONE}(${LIST}${WRITTEN})+|${WRITTEN}(${LIST}(${WRITTEN}|${PHONE}))*${LIST}${PHONE})\b(?!\s+(accounts?|numbers?|settings|plans?|apps?|devices?|bills?|lines?))`,
+    String.raw`\b(${PHONE}(${LIST}${WRITTEN})+|${WRITTEN}(${LIST}(${WRITTEN}|${PHONE}))*${LIST}${PHONE})\b(?!\s+(accounts?|numbers?|settings|plans?|apps?|devices?|bills?|lines?|on (their|your|the|our) (plan|bill|account|phone)))`,
   );
-  const phoneWords = /\b(phone (support|agent|rep|csr|calls?)|voice (agent|csr|support|account)|(customer|client|patient|inbound|outbound) calls?|calls? (from|with) (our |the )?(customers|clients|patients)|call cent(er|re)|answer(ing)? (the )?phones?|(on|at) the phones?|by phone|on the phone|bpo)\b/;
-  const writtenIn = (text: string) => ({ chat: /\b(chats?|live chat|messages|messaging|texts?|sms)\b/.test(text), email: /\b(e-?mails?)\b/.test(text) });
+  const phoneWords = /\b(phone (support|agent|rep|csr|calls?)|voice (agent|csr|support|account)|(customer|client|patient|inbound|outbound|incoming) calls?|calls? (from|with) (our |the )?(customers|clients|patients)|call cent(er|re)|answer(ing)? (the )?phones?|(on|at|over) the phones?|(by|via|over) (tele)?phone|on the phone|telephone|\d+\+? calls|bpo)\b/;
+  // Texts count as chat when they are the channel ("by text", "SMS support"), not a topic ("texts on their plan").
+  const writtenIn = (text: string) => ({
+    chat: /\b(chats?|live chat|messages|messaging|messenger|whatsapp)\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b/.test(text),
+    email: /\b(e-?mails?)\b/.test(text),
+  });
   const writtenChannel = (text: string): CsChannel => (writtenIn(text).email && !writtenIn(text).chat ? "email" : "chat");
 
-  // The title names the channel the agent works in; it leads (the fourth
-  // Phase 4 review: "Chat CSR — for a call center" is a chat job).
-  const titleNoVoice = title.replace(/\bnon[- ]?\s?voice\b/g, " ");
-  const titleWritten = /\b(chat|e-?mail|non[- ]?\s?voice|text|sms|ticket|written)\b/.test(title);
-  // A bare "CSR" title reads as phone (the Philippine meaning), "Chat CSR" as chat.
-  const titlePhone = /\b(phone|voice|calls?|caller|telephone)\b/.test(titleNoVoice) || (/\bcsr\b/.test(title) && !titleWritten);
-  if (titleWritten && titlePhone) return "mixed";
-  if (titleWritten) return list.test(work) && !negated.test(s) ? "mixed" : writtenChannel(`${title} ${work}`);
+  // The title's own channel, read from its role phrase: a channel word right
+  // before a role noun ("Chat Agent", "Phone Support", "Email CSR"). A product
+  // or business word is not ("Phone Repair Store Chat Agent" is a chat job,
+  // "Call Center Software Support" answers by email; the fourth and fifth
+  // Phase 4 reviews).
+  const ROLE = String.raw`(support|agent|rep|representative|csr|specialist|associate|operator|officer|advisor|moderator|executive|team|account)s?`;
+  const titleWritten = new RegExp(String.raw`\b(chat|live chat|e-?mail|text|sms|ticket|written|non[- ]?\s?voice)[- ]${ROLE}\b|\bnon[- ]?\s?voice\b|\b${ROLE}\s*[(\-–—]\s*(chat|e-?mail|non[- ]?\s?voice)\b`).test(title);
+  const titlePhone = new RegExp(String.raw`\b(phone|voice|telephone|calls?|inbound)[- ]${ROLE}\b|\bcall cent(er|re) (agent|rep|representative|csr|specialist|associate|operator|advisor)s?\b|\b${ROLE}\s*[(\-–—]\s*(phone|voice)\b`).test(title.replace(/\bnon[- ]?\s?voice\b/g, " "));
+  // "Phone & Email Support Rep", "Phone and Chat Support Agent": both, in the title.
+  if ((titleWritten && titlePhone) || list.test(title)) return "mixed";
+  if (titleWritten) return list.test(work) && !noPhone.test(s) ? "mixed" : writtenChannel(`${title} ${work}`);
   if (titlePhone) {
-    // Chats or emails "handled by another team" are not this agent's.
-    const elsewhere = /\b(chats?|e-?mails?|messages?)\b[^.]{0,40}\b(handled by|another team|elsewhere|someone else)\b/.test(work);
-    const written = writtenIn(work).chat || writtenIn(work).email;
-    return (list.test(s) || written) && !elsewhere && !negated.test(s) ? "mixed" : "phone";
+    const written = (writtenIn(work).chat || writtenIn(work).email) && !noWritten.test(work);
+    return (list.test(s) || written) && !noPhone.test(s) && !noWritten.test(work) ? "mixed" : "phone";
   }
 
-  // The title says nothing about the channel: the description does.
-  if (negated.test(s)) return writtenChannel(s);
-  if (list.test(s)) return "mixed";
-  const phone = phoneWords.test(s) || /\bcsr\b/.test(title);
+  // The title says nothing about the channel (a bare "CSR" included): the
+  // description does. A bare "CSR" with no channel in its words reads as
+  // phone (the Philippine meaning); with words, the words decide.
+  if (noPhone.test(s)) return writtenChannel(s);
+  if (list.test(s) && !noWritten.test(work)) return "mixed";
+  // Phone words in the description (a title's "call center" names the business, not the channel).
+  const phone = phoneWords.test(work);
   const { chat, email } = writtenIn(s);
-  if (phone && (chat || email)) return "mixed";
+  const written = (chat || email) && !noWritten.test(work);
+  if (phone && written) return "mixed";
   if (phone) return "phone";
+  if (/\bcsr\b/.test(title) && !written) return "phone";
   if (email && !chat) return "email";
   return "chat";
 }
@@ -216,19 +229,27 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
       // accountable", the third Phase 4 review), and always at least one of
       // the model's own (the second).
       // Read sentence by sentence (the fourth Phase 4 review: "Have you used a
-      // phone system? Tell us about an upset customer by email." is neither).
-      const sentences = (prompt: string) => prompt.split(/(?<=[.?!])\s+/);
+      // phone system? Tell us about an upset customer by email." is neither),
+      // and a sentence with the one after it ("A patient is shouting. They are
+      // on the phone."); "Mr." and "Dr." end no sentence (the fifth).
+      const sentences = (prompt: string) => {
+        const parts = prompt.split(/(?<!\b(?:Mr|Mrs|Ms|Dr|St|No|vs|etc))(?<=[.?!])\s+/);
+        return parts.map((part, i) => (i + 1 < parts.length ? `${part} ${parts[i + 1]}` : part));
+      };
       const onCall = (sentence: string) => /\b(calls?|callers?|phones?|on the line)\b/i.test(sentence) && !/\bby (e-?mail|chat)\b/i.test(sentence);
       const asksAngryCaller = (prompt: string) =>
         sentences(prompt).some((x) => onCall(x) && /\b(angry|upset|furious|irate|rude|abusive|shout\w*|yell\w*|scream\w*|swear\w*|talk\w* over)\b/i.test(x));
       const asksHoldOrTransfer = (prompt: string) =>
         sentences(prompt).some(
           (x) =>
-            /\b(put|putting|place|placing|keep|keeping)\s+(them|him|her|someone|people|a caller|the caller|callers|a customer|the customer|customers)\s+on hold\b/i.test(x) ||
+            /\b(put|putting|place|placing|keep|keeping)\s+(\w+\s+){0,2}on hold\b(?!\s+times?)/i.test(x) ||
             (onCall(x) && /\b(on hold(?!\s+times?)|transfer(s|red|ring)? (the |a |their )?(call|caller|them|it)|pass\w* (them|the call|the caller|it) (on|to))\b/i.test(x)),
         );
       const prompts = questions.map((q) => q.prompt);
-      const phone = PHONE_INTERVIEW_QUESTIONS.map((prompt, i) => ({ id: `vphone${i}`, prompt })).filter((_q, i) =>
+      // In the pack's own word: "a patient is angry" at a clinic (the fifth Phase 4 review).
+      const noun = pack.counterpart;
+      const inPackWords = (text: string) => (noun === "customer" ? text : text.replace(/\bcustomer\b/g, noun));
+      const phone = PHONE_INTERVIEW_QUESTIONS.map((prompt, i) => ({ id: `vphone${i}`, prompt: inPackWords(prompt) })).filter((_q, i) =>
         i === 0 ? !prompts.some(asksAngryCaller) : !prompts.some(asksHoldOrTransfer),
       );
       const keep = questions.length > 0 ? Math.max(1, questions.length - phone.length) : 0;

@@ -82,14 +82,25 @@ const CS_TITLE = new RegExp(
     String.raw`\bpatient (coordinator|services?|scheduler|access|liaison)\b`,
     String.raw`\bappointment (scheduler|coordinator)\b`,
     String.raw`\b(answering service|telephone) operator\b`,
+    String.raw`\b(reservations?|bookings?)( and bookings?)? (agent|rep|representative|specialist|associate|coordinator|officer)s?\b`,
   ].join("|"),
 );
+// Selling or collecting by phone is sales, whatever support words the title
+// also has ("Outbound CSR", "Telesales CSR", "Voice Account - Sales").
+const SALES_TITLE = /\b(outbound|telesales|tele-sales|sales|cold[- ]?call\w*|collections?|appointment setter|telemarket\w*|lead generation)\b/;
+// A professional's role noun: customer service only with real support work
+// in the description ("Support Engineer — answer customer tickets"), never
+// from the title's words alone ("Live Chat Software Developer").
+const PROFESSIONAL_HEAD = /^(engineers?|developers?|programmers?|designers?|analysts?|architects?|scientists?|recruiters?|accountants?|bookkeepers?|marketers?|copywriters?|writers?|testers?|consultants?|lawyers?|attorneys?|paralegals?|veterinarians?|therapists?|coaches?|preparers?)$/;
 // A support title whose people are colleagues, not customers.
+// (Unless the work is answering customers by a channel: a game's "Community
+// Support Specialist" who answers player tickets is; an admin's "client calls" are not enough.)
+const CUSTOMERS_BY_CHANNEL = /\b(customer|player|patient|guest|member|shopper|buyer|user)s?'?\b[^.]{0,30}\b(chats?|calls?|tickets?|e-?mails?|messages?)\b/;
 const NON_CUSTOMER_SUPPORT = /\b(hr|human resources|payroll|finance|financial|accounting|accounts payable|logistics|operations|ops|sales|peer|mental health|admin|administrative|office|clinical|field|production|facilities|marketing|engineering|legal|classroom|learning|student|family|child|youth|behavioral|behavioural|community|residential|disability|direct care|personal care|home care) support\b/;
 // A clinic's front office is customer service (patients); its clinical
 // assistants (vitals, chairside) are not, unless the job is virtual.
 const FRONT_DESK = /\b(reception(ist)?|front office|front desk|medical office assistant|office assistant)\b/;
-const PATIENT_CONTEXT = /\b(patients?|clinic|dental|dentist|orthodont|medical|doctor'?s?|physician|hospital|optometr|chiropract|physio)\b/;
+const PATIENT_CONTEXT = /\b(patients?|clinic|dental|dentist|orthodont|medical|doctor'?s?|physician|hospital|optometr|chiropract|physio|vet|veterinar\w*|animal hospital|pets?)\b/;
 // Patient admin roles count only when the work is patients' calls and bookings.
 const PATIENT_ADMIN = /\b(medical secretary|scheduling coordinator|patient care coordinator|care coordinator|intake coordinator|appointment setter|(virtual|remote|online) (medical|dental|healthcare|health care) (assistant|receptionist|secretary)|(medical|dental|healthcare) virtual assistant)\b/;
 const PATIENT_CALLS = /\bpatients?\b[\s\S]*\b(calls?|phones?|schedul\w*|book\w*|appointments?|reminders?)\b|\b(calls?|phones?|schedul\w*|book\w*|appointments?|reminders?)\b[\s\S]*\bpatients?\b/;
@@ -104,7 +115,7 @@ const CS_WORK = new RegExp(
     String.raw`\b(answer|answering|help|helping|assist|assisting|support|supporting|serve|serving|respond to|reply to)\b[^.]{0,25}\b${CUSTOMER_WORD}\b[^.]{0,30}\b(by|via|over|through|on|in|using)\s+(live chat|chat|chats|phone|phones|calls?|e-?mails?|tickets?|messages?|messenger|whatsapp|our website|the website)\b`,
     String.raw`\bchat(ting)? with (our |the )?(customers|clients|patients|visitors|shoppers|users|players|guests)\b`,
     String.raw`\b(answer|answering|handle|handling|take|taking|field|fielding)\b[^.]{0,15}\b(incoming|inbound)\b[^.]{0,10}\b(calls?|chats?|messages?)\b`,
-    String.raw`\binbound (calls?|chats?|customer|support)\b`,
+    String.raw`\binbound (calls?|chats?|support|customer (calls?|chats?|questions?|enquir\w+|inquir\w+|service|support))\b`,
     String.raw`\b(answer|answering|handle|handling|reply to|replying to|respond to|responding to)\b[^.]{0,20}\b(live )?chats?\b`,
     String.raw`\b(work|working|staff|staffing|man|manning|cover|covering|run|running)\b[^.]{0,15}\b(live chat|help ?desk|support (inbox|queue|chat)|chat support)\b`,
     String.raw`\bcalls from (our |the )?(customers|clients|patients|players|guests)\b`,
@@ -120,15 +131,19 @@ const CLINIC_PHONES = /\banswer(ing)? (the )?(phones?|calls)\b/;
 const OUTBOUND = /\b(cold[- ]?call\w*|outbound (calls?|calling|sales|dial\w*)|lead generation|telemarket\w*|door[- ]to[- ]door|book(ing)? (demos|sales meetings))\b/;
 // Work done in person, with nothing remote about it.
 const IN_PERSON = /\b(in[- ]store|in[- ]person|on the (shop |sales )?floor|at the (register|counter|till|front counter)|returns counter|walk[- ]in|face[- ]to[- ]face)\b/;
-const REMOTE_CHANNEL = /\b(chats?|e-?mails?|phones?|calls?|remote|virtual|online|work from home|wfh)\b/;
+const REMOTE_CHANNEL = /\b(chats?|e-?mails?|phones?|calls?|tickets?|zendesk|freshdesk|help ?desk|inbox|messages?|remote|virtual|online|work from home|wfh)\b/;
 // Role nouns of the shop floor, the kitchen, the road, the trades and the gym.
-const MAIN_STREET_HEAD = /^(baristas?|cashiers?|servers?|waiters?|waitress(es)?|waitstaff|bartenders?|cooks?|chefs?|dishwashers?|janitors?|housekeepers?|maids?|cleaners?|drivers?|couriers?|pickers?|packers?|clerks?|tellers?|plumbers?|electricians?|mechanics?|nurses?|caregivers?|pharmacists?|lifeguards?|attendants?|instructors?|trainers?|stockers?|merchandisers?|baggers?|bussers?|hosts?|hostess(es)?|valets?|porters?|guards?|carpenters?|painters?|landscapers?|gardeners?|phlebotomists?)$/;
+const MAIN_STREET_HEAD = /^(baristas?|cashiers?|servers?|waiters?|waitress(es)?|waitstaff|bartenders?|cooks?|chefs?|dishwashers?|janitors?|housekeepers?|maids?|cleaners?|drivers?|couriers?|pickers?|packers?|tellers?|plumbers?|electricians?|mechanics?|nurses?|caregivers?|pharmacists?|lifeguards?|instructors?|trainers?|stockers?|merchandisers?|baggers?|bussers?|valets?|porters?|guards?|carpenters?|painters?|landscapers?|gardeners?|phlebotomists?)$/;
+// Clerks, attendants and hosts: shop floor unless the role phrase is a support one ("Customer Service Clerk", "Live Chat Host").
+const MAIN_STREET_HEAD_WEAK = /^(clerks?|attendants?|hosts?|hostess(es)?)$/;
 const MAIN_STREET_PHRASE = /\b((store|retail|shop|sales|warehouse|stock|floor) (associate|assistant|worker|operative)|pharmacy (tech|technician|assistant))\b/;
+// An online shop's assistant answers customers from a screen, not a counter.
+const ONLINE_SHOP = /\b(online|shopify|etsy|amazon|ebay|e-?commerce|lazada|shopee|web ?shop|virtual|remote)\b/;
 const CLINICAL_ASSISTANT = /\b(dental|medical|veterinary|vet|nursing|physical therapy|pt|optometric|ophthalmic|chiropractic) (assistant|aide|technician|tech)\b/;
 // Other roles named in the title win over support WORDS in the description
 // (an engineer whose service must "support 10k requests", an executive
 // assistant who answers the phones), but not over a support title.
-const OTHER_ROLE_TITLE = /\b(developer|engineer|programmer|coder|sales|sdr|bdr|account executive|closer|telemarket\w*|cold caller|lead generation|appointment setter|real estate|insurance agent|collections?|aide|designer|accountant|book-?keeper|manager|analyst|tester|qa|writer|copywriter|technician|receptionist|secretary|administrat\w*|admin|executive assistant|personal assistant|legal assistant|office assistant|paralegal|coordinator|marketer|recruiter|photographer)\b/;
+const OTHER_ROLE_TITLE = /\b(developer|engineer|programmer|coder|sales|sdr|bdr|account executive|closer|telemarket\w*|cold caller|lead generation|appointment setter|real estate|insurance agent|collections?|aide|designer|accountant|book-?keeper|manager|analyst|tester|qa|writer|copywriter|technician|receptionist|secretary|administrat\w*|admin|executive assistant|personal assistant|legal assistant|office assistant|paralegal|coordinator|marketer|marketing|seo|recruiter|photographer|coach|advisor|adviser|officer|preparer|consultant|veterinarian|vet|doctor|dentist|therapist|lawyer|attorney|tutor|teacher|nutritionist)\b/;
 
 /** The title's role phrase: before " for ...", " at ...", " - ...", brackets or a comma. */
 function headPhrase(title: string): string {
@@ -142,20 +157,27 @@ function isMainStreet(title: string): boolean {
   const head = headPhrase(title);
   const noun = head.split(/\s+/).pop() ?? "";
   if (MAIN_STREET_HEAD.test(noun)) return true;
-  if (MAIN_STREET_PHRASE.test(head)) return true;
+  if (MAIN_STREET_HEAD_WEAK.test(noun) && !CS_TITLE.test(head)) return true;
+  if (MAIN_STREET_PHRASE.test(head) && !ONLINE_SHOP.test(title)) return true;
   return CLINICAL_ASSISTANT.test(head) && !/\b(virtual|remote|online)\b/.test(title);
 }
 
 function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): boolean {
   const title = (brief.roleTitle ?? "").toLowerCase();
   const work = (brief.whatTheyDo ?? "").toLowerCase();
+  // The title's role phrase (before "for …", " - …", brackets): "Recruiter - BPO" is a recruiter.
+  const head = headPhrase(title);
+  const noun = head.split(/\s+/).pop() ?? "";
   if (isMainStreet(title)) return false;
-  if (NON_CUSTOMER_SUPPORT.test(title)) return false;
+  if (NON_CUSTOMER_SUPPORT.test(title) && !CUSTOMERS_BY_CHANNEL.test(work)) return false;
   if (IN_PERSON.test(`${title} ${work}`) && !REMOTE_CHANNEL.test(`${title} ${work}`)) return false;
-  if (CS_TITLE.test(title)) return true;
+  // A clinic's appointment setter books patients; any other is selling.
+  if (PATIENT_ADMIN.test(title) && PATIENT_CALLS.test(work)) return true;
+  if (SALES_TITLE.test(title)) return false;
+  if (PROFESSIONAL_HEAD.test(noun)) return /\bsupport\b/.test(head) && CS_WORK.test(work);
+  if (CS_TITLE.test(head)) return true;
   if (OUTBOUND.test(work)) return false;
   if (FRONT_DESK.test(title) && PATIENT_CONTEXT.test(`${title.replace(FRONT_DESK, " ")} ${work}`)) return true;
-  if (PATIENT_ADMIN.test(title) && PATIENT_CALLS.test(work)) return true;
   if (/\bsupport\b/.test(title) && CS_WORK.test(work)) return true;
   if (OTHER_ROLE_TITLE.test(title)) return false;
   return CS_WORK.test(work) || (CLINIC_PHONES.test(work) && PATIENT_CONTEXT.test(work));

@@ -6,7 +6,7 @@ slug: five-chat-tests-before-hiring-a-support-agent
 author: HireFlow
 ---
 
-The best way to learn how someone will chat with your customers is to watch them chat with a customer. A resume tells you where a person worked. A short test tells you how they write, what they do when they are stuck, and whether they stay kind when a customer is not.
+The best way to learn how someone will chat with your customers is to watch them chat with a customer. A résumé tells you where a person worked. A short test tells you how they write, what they do when they are stuck, and whether they stay kind when a customer is not.
 
 Below are five tests. Each one takes a few minutes. Give all five to every applicant, in the same way, so you compare people on the same work.
 
@@ -142,7 +142,7 @@ Score each point from 1 to 3. Look at speed after quality: a fast wrong answer i
 
 If you can, hide names while you score. That way you judge the writing, not the person's background.
 
-Tests also let you start with the strongest few instead of reading every application in full. When HireFlow's own team hired a team lead, 153 people applied in the first four days, 71 finished the written interview, and 3 were worth a call. They hired from those three.
+Tests also let you start with the strongest few instead of reading every application in full. When the people behind HireFlow hired a support team lead for their own business, 153 people applied in the first four days, 71 finished the written interview, and 3 were worth a call. They hired from those three.
 
 If you would rather not build tests by hand, HireFlow builds a realistic customer chat from your kind of business and measures typing speed and reply time as people write. A person on your team still makes every decision.
 

@@ -148,6 +148,14 @@ check("the streaming helper does too", /takeDailyAiBudget\(1, business\)/.test(r
 const flowFn = read("supabase/functions/generate-flow/index.ts");
 check("generate-flow does too: a hiring account only, its business pays, 40 calls an hour per account", /const business = await jobWritingBusiness\(user\.id\);\s*if \(!business\) return json\(\{ error: "not_a_business" \}, 403\);/.test(flowFn) && /takeDailyAiBudget\(1, business\)/.test(flowFn) && /guardAuthenticatedAiCall\("job-writing", user\.id, CORS, 40, 3600\)/.test(flowFn));
 const signedInTs = read("supabase/functions/_shared/signedIn.ts");
+// The third Phase 5 review: the document endpoints, the plan writer per connection, empty interview answers.
+for (const fn of ["ai-generate-document", "ai-analyze-document-fields"]) {
+  const text = read(`supabase/functions/${fn}/index.ts`);
+  check(`${fn}: a hiring account only (owner or team member), billed to its business`, /const business = await hiringBusiness\(caller\.userId\);\s*if \(!business\)/.test(text) && /\n\s*business,\n/.test(text) && !/business: caller\.userId/.test(text));
+}
+check("a hiring business is the owner, or the business of any active team member (never an applicant)", /export async function hiringBusiness/.test(read("supabase/functions/_shared/signedIn.ts")));
+check("generate-flow is also limited per connection, like the other job writers", /guardPublicAiCall\(req, "generate-flow", CORS, 15, 3600\)/.test(read("supabase/functions/generate-flow/index.ts")));
+check("the written interview refuses an empty answer before any model call", /if \(mode === "respond" && !\(typeof userMessage === "string" && userMessage\.trim\(\)\)\)/.test(read("supabase/functions/ai-chat-interview/index.ts")));
 check("a hiring account is a business owner, or a teammate allowed to create jobs (never an applicant)", /r\.role === "employer"\)\) return userId;/.test(signedInTs) && /\.eq\("can_create_jobs", true\)/.test(signedInTs) && /return typeof team\?\.employer_id === "string" \? team\.employer_id : null;/.test(signedInTs));
 const turnsCap = read("supabase/functions/_shared/rateLimit.ts");
 check("the per-application day cap answers with the calm 'come back later' 503, nothing stored (not a 429)", /export const PRACTICE_TURNS_PER_APPLICATION_PER_DAY = 200;/.test(turnsCap) && /aiUnavailableResponse\(corsHeaders, \{ wait: "long", retryAfterSeconds: secondsToNextUtcDay\(\), message: AI_BUDGET_WAIT_MESSAGE, turnSaved: false \}\)/.test(turnsCap));
@@ -211,6 +219,8 @@ await db.exec(`
 `);
 await db.exec(read("supabase/migrations/20261025160000_ai_business_budget.sql"));
 await db.exec(read("supabase/migrations/20261025190000_ai_budget_count_only_taken.sql"));
+await db.exec(`create table if not exists public.jobs (id uuid primary key default gen_random_uuid(), employer_id uuid, status text);`);
+await db.exec(read("supabase/migrations/20261025230000_phase5_review3.sql").split("CREATE OR REPLACE FUNCTION public.admin_reply_help")[0]);
 const b_bcap = await db.query(`select value #>> '{}' as v from public.app_settings where key = 'ai_business_daily_call_cap'`);
 check("a business's budget starts at 2,000 calls a day", b_bcap.rows[0]?.v === "2000");
 await db.exec(`update public.app_settings set value = '3'::jsonb where key = 'ai_business_daily_call_cap'`);
@@ -262,6 +272,21 @@ try {
 }
 check("the per-business usage is not readable over the API", b_businessTableBlocked);
 check("the old one-argument function is gone (one budget function, no way round the business count)", (await db.query(`select count(*)::int as n from pg_proc where proname = 'ai_budget_take'`)).rows[0].n === 1);
+// The third Phase 5 review: a business that never had a job past draft gets a smaller day.
+{
+  const B_NEW = "30000000-0000-4000-8000-000000000009";
+  await db.exec(`update public.app_settings set value = '100000'::jsonb where key = 'ai_daily_call_cap'; update public.app_settings set value = '2000'::jsonb where key = 'ai_business_daily_call_cap'; insert into public.app_settings (key, value) values ('ai_new_business_daily_call_cap', '2'::jsonb) on conflict (key) do update set value = excluded.value;`);
+  const fresh = [await b_take(B_NEW), await b_take(B_NEW), await b_take(B_NEW)];
+  check("a business with no job past draft gets the smaller day (here 2), not the full 2,000", JSON.stringify(fresh) === JSON.stringify([true, true, false]), JSON.stringify(fresh));
+  await db.exec(`insert into public.jobs (employer_id, status) values ('${B_NEW}', 'draft');`);
+  check("…a draft does not lift it", (await b_take(B_NEW)) === false);
+  await db.exec(`insert into public.jobs (employer_id, status) values ('${B_NEW}', 'published');`);
+  check("…its first live job does (the full day)", (await b_take(B_NEW)) === true);
+  await db.exec(`update public.jobs set status = 'closed' where employer_id = '${B_NEW}' and status = 'published';`);
+  check("…and closing the job keeps it (its applicants are still being scored)", (await b_take(B_NEW)) === true);
+  const owner = [await b_take(B_OWNER), await b_take(B_OWNER), await b_take(B_OWNER)];
+  check("…a platform admin's business is never capped", owner.every(Boolean));
+}
 const b_aiBudgetTs = read("supabase/functions/_shared/aiBudget.ts");
 check("the helper sends the business only when it is a uuid", /UUID\.test\(business\) \? \{ p_calls: calls, p_business: business \} : \{ p_calls: calls \}/.test(b_aiBudgetTs));
 

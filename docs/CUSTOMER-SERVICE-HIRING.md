@@ -12,26 +12,39 @@ own words. docs/LAUNCH-PLAN.md, Phase 4, is the plan this follows.
 (Answering customers by chat, phone or email / Another kind of job), starting
 on her guess (`jobKindFollowUp`, `src/lib/avaEngine/playbook.ts`). The answer
 decides the family (`detectFamily` reads it from the brief, in both plan
-builders), so a wrong guess costs one click. It was added after the fourth
+builders), so a wrong guess costs one click. After a voice brief the builder
+asks it too (with the channel, for customer service) before building, and the
+answer never appears in the published post. It was added after the fourth
 Phase 4 review: four rounds of word rules still misread some titles, both
 ways.
 
 The guess (`isCustomerService`) reads the title's role phrase (its last word
-before "for …", "at …", " - …", brackets or a comma), then the description,
+before "for …", "at …", " - …", brackets or a comma: "Recruiter - BPO" is a
+recruiter, "Quality Analyst - Call Center" an analyst), then the description,
 in this order:
 
 1. the role noun is a shop-floor, kitchen, road, trade or gym one (barista,
-   cashier, server, cook, driver, clerk, teller, mechanic, instructor,
-   trainer, attendant…), a store or warehouse associate, a pharmacy
-   technician, or a clinical assistant who is not virtual or remote: not
-   customer service. "Online Store Chat Agent", "Driver Support Agent" and
+   cashier, server, cook, driver, teller, mechanic, instructor, trainer…;
+   a clerk, attendant or host unless the role phrase is a support one,
+   "Customer Service Clerk", "Live Chat Host"), a store or warehouse associate
+   (not an online shop's), a pharmacy technician, or a clinical assistant who
+   is not virtual or remote: not customer service. "Online Store Chat Agent", "Driver Support Agent" and
    "Maid Service Customer Service Representative" name the business, not the
    role, and are;
 2. a support title whose people are colleagues (HR, payroll, finance,
    operations, logistics, sales, clinical, field, facilities, peer or mental
-   health support): not;
+   health support): not, unless the work is customers' chats, calls or
+   tickets (a game's community support answering player tickets);
 3. work done in person with nothing remote about it (in-store, on the floor,
-   at the register, a returns counter): not;
+   at the register, a returns counter; tickets or a help desk count as
+   remote): not;
+3a. a clinic's appointment setter or patient admin role whose work is
+   patients' calls or bookings: customer service; then selling or collecting
+   in the title (outbound, telesales, sales, collections, cold caller,
+   appointment setter): not; then a professional's role noun (engineer,
+   developer, designer, analyst, recruiter, accountant, coach…): only a
+   support title with real support work ("Support Engineer — answer customer
+   tickets");
 4. a support title is customer service: customer / client service(s),
    support, care, success, relations; support, chat, service-desk or voice
    agents, reps, specialists; customer, chat, technical or IT support
@@ -189,9 +202,13 @@ as a support agent (`rubricForCase`), with:
   becomes a space (so no colon look-alike survives in any script: a closed
   list of what stays, after four reviews kept extending the list of what
   goes), line and paragraph separators become spaces, and any colon after a
-  word becomes a dash ("Note: I checked" reads "Note - I checked"). Times
-  ("10:30"), ratios and "John 3:16" keep their colon, except right after a
-  speaker label. Quotes are checked on the same folded words;
+  word becomes a dash ("Note: I checked" reads "Note - I checked"). A
+  combining mark stays only after a letter of its own script (Hindi and
+  Hebrew read as written; a Myanmar or Devanagari mark after a Latin,
+  Cyrillic or Cherokee letter goes), angle brackets of every width go, and
+  everyday symbols stay (°, ×, ¿, ¡, the Arabic comma, emoji, skin tones,
+  flags). Times ("10:30"), ratios and "John 3:16" keep their colon, except
+  after a speaker label or a word that reads as one (capitals, two scripts). Quotes are checked on the same folded words;
 - WHAT THE AGENT KNOWS as the only true facts, and anything promised or stated
   that they do not allow counting heavily against the mark;
 - the pack's note, WHAT GOOD LOOKS LIKE IN THIS KIND OF BUSINESS.

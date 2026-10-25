@@ -178,6 +178,10 @@ export default function AvaCreateJob() {
   // (The offline preview can still show the voice screen: ?__previewInputMode=voice.)
   const inputMode: "voice" | "form" = canTalk ? chosenMode ?? "voice" : import.meta.env.DEV && chosenMode === "voice" ? "voice" : "form";
   const [fuIndex, setFuIndex] = useState(0);
+  // After a voice brief: only "What kind of job is it?" (and, for customer
+  // service, the channel), then straight to building (the fifth Phase 4
+  // review: the voice path never asked, so the guess was final).
+  const [voiceConfirm, setVoiceConfirm] = useState(false);
   const [chipAnswers, setChipAnswers] = useState<Record<string, number>>(saved?.chipAnswers ?? {});
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
   const [rigorTouched, setRigorTouched] = useState(saved?.rigorTouched ?? false);
@@ -250,7 +254,13 @@ export default function AvaCreateJob() {
   const playbook = PLAYBOOKS[family];
   const workMode = formBrief.workMode;
   // The brief lets a follow-up start on what the business's own words point to (a dental office starts on "Medical or dental office").
-  const followUps = useMemo(() => [jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode)], [jobKind, playbook, chipAnswers, workMode, formBrief]);
+  const followUps = useMemo(
+    () =>
+      voiceConfirm
+        ? [jobKind, ...(family === "customer_service" ? playbook.followUps(chipAnswers, formBrief).filter((f) => f.id === "cs-channel") : [])]
+        : [jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode)],
+    [voiceConfirm, family, jobKind, playbook, chipAnswers, workMode, formBrief],
+  );
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
 
   const setBrief = (k: string, v: string) => setBriefFields((b) => ({ ...b, [k]: v }));
@@ -471,6 +481,12 @@ export default function AvaCreateJob() {
       setFuIndex((i) => i + 1);
       return;
     }
+    if (step === 1 && voiceConfirm) {
+      // The voice path chose its screening level already: build now.
+      setVoiceConfirm(false);
+      setStep(3);
+      return;
+    }
     if (step < STEPS.length - 1) setStep((s) => s + 1);
   };
 
@@ -491,6 +507,8 @@ export default function AvaCreateJob() {
 
   useEffect(() => {
     if (step === 1) setFuIndex(0);
+    // Back at the brief, the full set of questions applies again.
+    if (step === 0) setVoiceConfirm(false);
   }, [step]);
 
   const nextLabel = useMemo(() => {
@@ -583,7 +601,9 @@ export default function AvaCreateJob() {
                 const fam = detectFamily(briefFromForm({ ...merged, followUps: [] }));
                 setRigor(PLAYBOOKS[fam].rigor.recommended);
                 setRigorTouched(true);
-                setStep(3);
+                // Confirm the kind of job (and the channel) with a click before building.
+                setVoiceConfirm(true);
+                setStep(1);
               }}
               onPreferType={() => setInputMode("form")}
               onEditPhase={onEditPhase}

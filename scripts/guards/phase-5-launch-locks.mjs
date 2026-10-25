@@ -68,9 +68,12 @@ export default [
             detail.push(`${rel}:${text.slice(0, m.index).split("\n").length}: takeDailyAiBudget(${m[1]}) does not say which business the call is for`);
           }
         }
-        // Each direct OpenAI request needs its own take from the budget.
-        const direct = (text.match(/fetch\(\s*[`"']https:\/\/api\.openai\.com/g) ?? []).length;
-        const takes = (text.match(/\btakeDailyAiBudget\(/g) ?? []).length;
+        // Each OpenAI address in code (comments aside; a URL kept in a const
+        // counts too, the third Phase 5 review) needs a take from the budget
+        // that is not itself in a comment.
+        const code = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
+        const direct = (code.match(/api\.openai\.com/g) ?? []).length;
+        const takes = (code.match(/\btakeDailyAiBudget\(/g) ?? []).length;
         if (direct > takes && rel !== "supabase/functions/_shared/openai.ts" && rel !== "supabase/functions/_shared/openaiStreaming.ts") {
           detail.push(`${rel}: ${direct} direct OpenAI requests but ${takes} takes from the daily budget`);
         }

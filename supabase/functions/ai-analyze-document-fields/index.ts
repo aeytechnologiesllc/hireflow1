@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 import { requireSignedInUser } from "../_shared/signedInUser.ts";
+import { hiringBusiness } from "../_shared/signedIn.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
@@ -135,6 +136,16 @@ serve(async (req) => {
     if (caller.refusal) return caller.refusal;
     const limited = await guardAuthenticatedAiCall("ai-analyze-document-fields", caller.userId, corsHeaders);
     if (limited) return limited;
+    // A hiring account only (owner or team member), billed to its business:
+    // an applicant's account spent here on its own daily budget (the third
+    // Phase 5 review).
+    const business = await hiringBusiness(caller.userId);
+    if (!business) {
+      return new Response(JSON.stringify({ error: "Only a hiring account can do this.", code: "not_a_business" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     const { pdfUrl, totalPages } = await req.json() as AnalyzeRequest;
 
@@ -164,7 +175,7 @@ Position each field on the actual blank line/space provided, not overlapping the
         apiKey: OPENAI_API_KEY,
         model: OPENAI_DOC_FIELDS_MODEL,
         // The asking account's business pays from its daily AI budget (a team member's, their business's).
-        business: caller.userId,
+        business,
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           { role: "user", content: userPrompt },

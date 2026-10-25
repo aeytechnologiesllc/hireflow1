@@ -115,7 +115,7 @@ For remote work, the computer and internet connection matter, and so does a quie
 
 Tell people the steps up front. It shows you are organized, and it tells people what to prepare for.
 
-Expect the steps to narrow the list. When HireFlow's own team hired a team lead, 153 people applied in the first four days, 71 finished the written interview, and 3 were worth a call. They hired from those three.
+Expect the steps to narrow the list. When the people behind HireFlow hired a support team lead for their own business, 153 people applied in the first four days, 71 finished the written interview, and 3 were worth a call. They hired from those three.
 
 For ideas on what to put in the skills check, see [five chat tests to give before you hire a support agent](/blog/five-chat-tests-before-hiring-a-support-agent). If the job is on the phone, add written questions about calls and a short practice call; [phone agent vs. chat agent](/blog/phone-agent-vs-chat-agent) explains how.
 

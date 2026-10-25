@@ -26,7 +26,10 @@ Text...
 ```
 
 The build stops on a post that breaks a rule, so a mistake never ships
-quietly: a missing field, a slug that is not lowercase-and-hyphens or is used
+quietly: an unknown front-matter key (a misspelt "draft" would otherwise
+publish the draft), a control character in a field, a link to a guide that is
+not published (a draft or a typo), a date in the future, a slug over 60
+characters (the longest campaign tag sign-up keeps), a missing field, a slug that is not lowercase-and-hyphens or is used
 twice, a date that is not a real day, a description outside 50-160
 characters, a `# ` heading in the body (the title is the page's only h1),
 raw HTML, an image (not supported yet), or a link that is not a site path,
@@ -64,6 +67,13 @@ links the law's text.
 These files are not committed (`.gitignore`): the Markdown is the source.
 No page runs an inline script, so the Content-Security-Policy needs nothing
 new. The Markdown library is `marked`, pinned to an exact version.
+
+Each post links the next three guides in the list (round the end), so every
+guide is linked from three others. The list's button is tagged
+`utm_medium=list`, the top bar's `bar`, a post's `article`.
+
+The repository is public: a draft is not on the site, but anyone can read it
+on GitHub. Keep anything private out of a draft until it is meant to be read.
 
 ## Routing
 

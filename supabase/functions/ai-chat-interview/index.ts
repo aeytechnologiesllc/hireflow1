@@ -449,6 +449,14 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      // An answer with no words is never a model call, recorded or not (the
+      // third Phase 5 review: the chat practice had this; the interview not).
+      if (mode === "respond" && !(typeof userMessage === "string" && userMessage.trim())) {
+        return new Response(JSON.stringify({ error: "Type an answer first.", code: "no_message" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       // One application's turns a day, all practices together (_shared/rateLimit.ts).
       const perApplication = target ? await guardPracticeTurnsForApplication(req, target.applicationId, corsHeaders) : null;
       if (perApplication) return perApplication;

@@ -114,7 +114,7 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "cand-app-detail", group: "Candidate", label: "Application detail", role: "candidate", path: `/applications/${APP_VOICE_ID}` },
   { id: "cand-app-rejected", group: "Candidate", label: "Application detail — rejected + coaching card", role: "rejected_candidate", path: `/applications/${APP_REJECTED_ID}` },
   { id: "cand-my-documents", group: "Candidate", label: "My documents", role: "candidate", path: "/my-documents" },
-  { id: "cand-help", group: "Candidate", label: "Contact us (their own Help thread with the company)", role: "candidate", path: "/help" },
+  { id: "cand-help", group: "Candidate", label: "Contact us (their own Help thread with the company)", role: "candidate", path: "/contact" },
   { id: "cand-gate-not-yet", group: "Candidate", label: 'Phase gate — "not quite time yet"', role: "candidate", path: `/applications/${APP_NOT_YET_ID}/typing-test/${STEP_TYPING}` },
 
   // ------------------------------------------------------- candidate phase pages

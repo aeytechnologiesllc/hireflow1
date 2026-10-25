@@ -3,7 +3,7 @@
  * account (2026-10-25; docs/LAUNCH-PLAN.md, Phase 5, task 3; the Terms ask
  * every business to act on a request to delete it).
  *
- *   POST { applicationId, reason? }  ->  { ok: true, removedFiles }
+ *   POST { applicationId, reason? }  ->  { ok: true, removedFiles, filesQueued, filesLeft }
  *
  * Who is asking comes from their sign-in, never the request. The database
  * (public.remove_applicant, service role only) decides whether they may (the
@@ -27,7 +27,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { requireSignedInUser } from "../_shared/signedInUser.ts";
-import { documentIdsOf, resumeFilesToRemove } from "./files.ts";
+import { documentIdsOf, queueablePath, resumeFilesToRemove } from "./files.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,13 +140,22 @@ serve(async (req) => {
       removeAll(storage, "documents", await listNames(storage, "documents", `documents/${id}`, "", leftovers), leftovers));
   }
 
+  // Each leftover is queued on its own (up to three tries), so one the
+  // queue's checks refuse never keeps the others out (the third Phase 5
+  // review); only plain paths the queue accepts are sent at all.
   let filesQueued = 0;
-  if (leftovers.length > 0) {
-    const rows = leftovers.map((l) => ({ ...l, application_id: applicationId }));
-    for (let attempt = 1; attempt <= 3 && filesQueued === 0; attempt += 1) {
-      const { error: queueError } = await admin.from("storage_file_trash").insert(rows);
-      if (!queueError) filesQueued = leftovers.length;
-      else console.error(`[remove-applicant] could not queue ${leftovers.length} files for the retry (try ${attempt} of 3):`, queueError.message, JSON.stringify(rows));
+  for (const leftover of leftovers) {
+    if (!queueablePath(leftover.path ?? leftover.folder) || (leftover.starts_with && !/^[^/]{1,200}$/.test(leftover.starts_with))) {
+      console.error("[remove-applicant] a file left behind cannot be queued (not a plain path):", JSON.stringify(leftover));
+      continue;
+    }
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const { error: queueError } = await admin.from("storage_file_trash").insert({ ...leftover, application_id: applicationId });
+      if (!queueError) {
+        filesQueued += 1;
+        break;
+      }
+      console.error(`[remove-applicant] could not queue a file for the retry (try ${attempt} of 3):`, queueError.message, JSON.stringify(leftover));
     }
   }
 

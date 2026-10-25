@@ -58,14 +58,38 @@ const SMALL_CAP = new RegExp(`[${Object.keys(SMALL_CAPS).join("")}]`, "gu");
  * reviews kept extending (the Phase 4 reviews). Currency signs, letters,
  * numbers and emoji stay as written.
  */
-const PLAIN_MARK = /^[.,!?;:'"()[\]{}\-\u2013\u2014\u2026\u2018\u2019\u201C\u201D/&%$@#+=*_~^`|\\<>]$/u;
+const PLAIN_MARK = /^[.,!?;:'"()[\]{}\-\u2013\u2014\u2026\u2018\u2019\u201C\u201D/&%$@#+=*_~^`|\\<>\u00B0\u00D7\u00F7\u00BF\u00A1\u00AB\u00BB\u2039\u203A\u2044\u060C\u061B\u061F]$/u;
+// Emoji pieces that are symbols but no punctuation: skin tones and flag letters.
+const EMOJI_PART = /[\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}]/u;
 const ODD_MARK = /[\p{P}\p{Sm}\p{So}\p{Sk}\p{Lm}\p{Zl}\p{Zp}\u0085\u000B\u000C\u2800]/gu;
-// Modifier and length marks of scripts that write with them (Japanese ー and 々, Thai ๆ, Korean): letters there.
-const SCRIPT_MODIFIER = /[\u0E00-\u0EFF\u3000-\u30FF\u3400-\u9FFF\uAC00-\uD7AF\uFF00-\uFFEF]/u;
-// A combining mark after a Latin letter, a digit, punctuation or a space is
-// decoration (P̲ATIENT, 4⃣, a visarga used as a colon); after a letter of a
-// script that writes with marks (Devanagari, Thai...) it is part of the word.
-const DECORATING_MARKS = /(?<=[\p{Script=Latin}\p{N}\p{P}\p{S}\p{Z}\s])\p{M}+/gu;
+// Modifier and length LETTERS of scripts that write with them (Japanese ー
+// and 々, Thai ๆ): letters there. Their punctuation (〈〉《》「」) is not kept:
+// an angle bracket of any width could seem to close a fenced block.
+const SCRIPT_MODIFIER = /^[\u0E00-\u0EFF\u3005\u3031-\u3035\u309D\u309E\u30FC-\u30FE\uFF70\uFF9E\uFF9F]$/u;
+// A combining mark is part of a word only after a letter of its own script
+// (a Devanagari vowel sign after a Devanagari letter, Hebrew points after a
+// Hebrew letter). Any other is decoration (P̲ATIENT, 4⃣, a visarga or a
+// Myanmar mark used as a colon after a Latin, Cyrillic or Cherokee letter;
+// the fourth and fifth Phase 4 reviews) and goes.
+const MARK_SCRIPTS = [
+  "Devanagari", "Bengali", "Gurmukhi", "Gujarati", "Oriya", "Tamil", "Telugu", "Kannada", "Malayalam", "Sinhala",
+  "Thai", "Lao", "Tibetan", "Myanmar", "Khmer", "Hebrew", "Arabic", "Syriac", "Thaana", "Hangul", "Hiragana",
+  "Katakana", "Han", "Ethiopic", "Mongolian", "Tagalog", "Javanese", "Balinese", "Sundanese", "Tai_Tham",
+].map((name) => new RegExp(`^\\p{Script=${name}}$`, "u"));
+function keepMarks(base: string, marks: string): string {
+  const script = MARK_SCRIPTS.find((re) => re.test(base));
+  return script ? [...marks].filter((m) => script.test(m)).join("") : "";
+}
+const MARK_RUN = /(\P{M})(\p{M}+)/gu;
+const LEADING_MARKS = /^\p{M}+/u;
+// A word that reads as a line label before a number ("PАTIENT 4:30", "PATIENT_4:5"):
+// capitals, a speaker word, or letters of two scripts.
+const LABEL_BEFORE_TIME = /(?<!\p{L})(\p{L}{3,24})([\s_.#\-\u2010-\u2015]{0,3})(\p{Nd}{1,4}):(?=\p{Nd})/gu;
+const SPEAKER_WORD = /^(lead|player|agent|customer|patient|caller|interviewer|candidate)$/i;
+function readsAsLabel(word: string): boolean {
+  if (/^\p{Lu}+$/u.test(word) || SPEAKER_WORD.test(word)) return true;
+  return /\p{Script=Latin}/u.test(word) && /[^\p{Script=Latin}]/u.test(word);
+}
 
 /**
  * The same text a reviewer is shown, before any label rule: look-alike
@@ -82,10 +106,9 @@ export function foldForReview(content: string): string {
     .normalize("NFKC")
     .replace(/[\u00AD\p{Default_Ignorable_Code_Point}\p{Cf}]/gu, "")
     .replace(SMALL_CAP, (c) => SMALL_CAPS[c] ?? c)
-    .replace(DECORATING_MARKS, "")
-    .replace(ODD_MARK, (c) =>
-      PLAIN_MARK.test(c) || /\p{Extended_Pictographic}/u.test(c) || SCRIPT_MODIFIER.test(c) ? c : " ",
-    );
+    .replace(LEADING_MARKS, "")
+    .replace(MARK_RUN, (_all, base: string, marks: string) => base + keepMarks(base, marks))
+    .replace(ODD_MARK, (c) => (PLAIN_MARK.test(c) || EMOJI_PART.test(c) || SCRIPT_MODIFIER.test(c) ? c : " "));
 }
 
 /**
@@ -103,6 +126,7 @@ export function flattenForReview(content: string): string {
     .replace(/\[RESOLVED\]/gi, "")
     .replace(/[<>]/g, " ")
     .replace(SPEAKER_LABEL, "$1$2 -")
+    .replace(LABEL_BEFORE_TIME, (whole, word: string, sep: string, digits: string) => (readsAsLabel(word) ? `${word}${sep}${digits} -` : whole))
     .replace(/(\p{Nd}):(?=\p{Nd})/gu, "$1\uE000")
     .replace(/\s*:\s*/g, " - ")
     .replace(/\uE000/g, ":")
