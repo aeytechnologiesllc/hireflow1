@@ -943,6 +943,92 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (small hours) — round 5 of security, product and growth; Phase 5 round 10; Phase 6 round 8; Phase 4 round 12
+
+Six fresh reviewers read bd5c5e98 (live). No reviewer made a request to the
+live site: Vercel's automatic bot check was answering every non-browser
+request to the apex with a challenge, so live checks went through the browser
+pane only. Fixed:
+
+- **Security, round 5** (1 confirmed containment bypass, the rest low):
+  - A document's file address double-encoded (`%252e%252e`) passed the
+    one decode, kept the sender's folder at the front, and was downloaded with
+    the service key from another folder. Every stored path must now be plain:
+    no `%`, backslash or control character, no dot segment
+    (`isPlainObjectPath`). The resume reader holds a resume to the same rule.
+    The document wizard names an upload with plain letters only (an accented
+    name failed to upload).
+  - Each function's fence word differed, so ai-analyze's rule named a
+    marker trigger-ava-analysis's content never used. The rule now names every
+    fence in what it scores (`fenceTokensIn`; a word an applicant manages to
+    add would only fence more).
+  - One business's control character made every XML feed invalid: every feed
+    now goes out XML-safe (`xmlSafe` in `sendXml`).
+  - Left: reminders crowded by interviews changed in the last 30 minutes
+    (plausible only, as before).
+- **Product, round 5:**
+  - On an on-site job, the chat practice's typing (taken on a phone) still
+    marked the applicant in Ava's scorecard, the team-lead blend and the
+    shortfalls. All three now skip it.
+  - A job with no currency is never read out as USD: not in the written
+    interview's pay answer, the spoken interview's context, or the offer
+    letter. The letter starts on no currency, takes the job's own even for a
+    range, and asks for one before it can go.
+  - The letter's "Where" is a place someone goes to, never "Work from home"
+    or a bare country, and the business can type it.
+  - On an uploaded PDF, the applicant sees the finished copies and the audit
+    trail only once it is signed. "Before you sign" and the PDF-only message
+    are said to the right person, and on Android the opened file carries the
+    document's name.
+  - A hybrid job is saved as not remote, as it is built.
+  - Left: /login, /signin and /signup go to the business door, which points a
+    job seeker to their own portal and hands over an applicant who signs in
+    there. The unlinked /jobs/create-legacy still starts on USD.
+- **Phase 5, round 10:**
+  - A deleted application queues its recordings, video introduction and work
+    samples every time, with the function's own rights
+    (`application_files_go_with_it`, live as 20261025165914). Before, a
+    withdrawal ("removes your application for good") left the video and work
+    samples, and a recording uploaded before its link was saved was never
+    queued.
+  - The guards now catch the weakenings the reviewer's harness found:
+    - the business branch's own `return false`, and its card claim;
+    - `GRANT ALL` and plain `CREATE FUNCTION` remakes;
+    - `ALTER FUNCTION … SECURITY DEFINER` on the limit triggers;
+    - `ALTER TABLE IF EXISTS … DISABLE TRIGGER`;
+    - a trigger remade on another table;
+    - `or (true)`.
+
+    A new check holds the file-queue trigger (each of 12 weakenings was tried
+    and caught). Its test now deletes as the applicant, so it fails without
+    SECURITY DEFINER.
+  - The Privacy Policy no longer says typing-test starts stay after Delete
+    Account (they go with the applications).
+  - The Terms and the request screen say only the three ID choices are deleted
+    after opening, and warn when an ID is named under "Something else".
+  - The cleanup alerts say "files queued for removal" and name every source.
+  - Left: a spoken-interview session is one budget unit whatever its length
+    (voice is HireFlow's own only, bounded by the step's minutes and its own
+    6,000 a day).
+- **Phase 6, round 8 (blog part):**
+  - The guides no longer say a person makes "every decision": on an
+    auto-mode job Ava moves strong applicants on by itself. They now say a
+    person makes every decline and every hire.
+  - A guide may name its own feed.
+  - The 404 page's plain fallback is never cached.
+  - Left: the GitHub-source link rule can be got around through jsdelivr
+    (the repo is public anyway). The launch figures need the owner's word: live
+    rows show 155 applications and 2 hires.
+- **Growth, round 5:**
+  - App referrers (Gmail, YouTube, Facebook, Instagram, LinkedIn, TikTok,
+    WhatsApp, Telegram) are named as their channel (`growth_app_sources`,
+    live as 20261025165906), and "google" is search only.
+  - A link with its own source keeps it as the campaign when the visitor's
+    tags carry none, and a hiring link from inside the site still counts.
+  - Open jobs and careers pages carry the visitor's tags onto a job.
+  - A short way in typed at a job's address goes where the short way does.
+  - The staff sign-in links back to the front page.
+
 ### 2026-10-25 (late night) — round 4 of security, product and growth; Phase 5 round 9; Phase 6 round 7; Phase 4 round 11
 
 Six fresh reviewers read 84688c10 (live). Fixed:

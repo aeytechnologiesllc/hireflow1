@@ -155,7 +155,7 @@ for (const link of ["/blog/not-ready#intro", "/blog/not-ready?x=1", "https://hir
   check(`a link to no published guide stops the build: ${link}`, throws(() => B.loadPosts(content), /not a published guide/));
   rmSync(path.join(content, "e.md"));
 }
-writeFileSync(path.join(content, "e.md"), post({ ...GOOD, title: "Links", slug: "links-to-a-guide" }, "## A\n\nSee [this](/blog/an-older-guide#a), [the list](/blog), [the feed](/blog/feed.xml) and [that](https://hireflownow.com/blog/an-older-guide?x=1).\n"));
+writeFileSync(path.join(content, "e.md"), post({ ...GOOD, title: "Links", slug: "links-to-a-guide" }, "## A\n\nSee [this](/blog/an-older-guide#a), [the list](/blog), [the feed](/blog/feed.xml), [the feed again](https://hireflownow.com/blog/feed.xml) (hireflownow.com/blog/feed.xml) and [that](https://hireflownow.com/blog/an-older-guide?x=1).\n"));
 check("…while a real guide, the list and the feed, written any of those ways, build", (() => { try { B.loadPosts(content); return true; } catch { return false; } })());
 rmSync(path.join(content, "e.md"));
 {
@@ -208,6 +208,9 @@ for (const p of all) {
   // years or a bracket, an age preference.
   for (const p of all) check(`${p.slug}: never "never ask for age" or "leave age … out of the application" beside HireFlow's own 18+ question`, !/\bnever ask (for |about )?(age|an applicant's age)\b|\bnothing asks for age\b|\bleave age and birth date out of the (post and the )?application\b|\btakes applications from people 18 and over\b/i.test(p.body));
   for (const p of all) check(`${p.slug}: "a person makes every decision" names the built-in 18-or-older check`, !/makes every decision/.test(p.body) || /18 or older\?" question every application starts with, a person on your team makes every decision/.test(p.body));
+  // …and never says a person makes every decision: on an auto-mode job Ava moves strong applicants on by itself (the eighth review).
+  for (const p of all) check(`${p.slug}: says a person makes every decline and hire, and what Ava does alone`, !/makes every decision/.test(p.body) && (!/a person on your team makes every decline/.test(p.body) || /18 or older\?" question every application starts with, a person on your team makes every decline and every hire; Ava can only move a strong applicant on to the next step\./.test(p.body)));
+  for (const p of all) check(`${p.slug}: no "every applicant goes through the same steps" (Ava holds weaker ones back)`, !/Every applicant goes through the same steps/.test(p.body));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

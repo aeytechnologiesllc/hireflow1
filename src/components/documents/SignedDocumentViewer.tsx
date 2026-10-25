@@ -216,6 +216,13 @@ const DOCUMENT_STATUS_META: Record<
   },
 };
 
+
+/** "Offer letter.pdf": the name a phone saves the document under. */
+function pdfFileName(title: string | null | undefined): string {
+  const name = (title ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w .()-]+/g, "").trim().slice(0, 80);
+  return `${name || "Document"}.pdf`;
+}
+
 export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDocumentViewerProps) {
   const [showAuditTrail, setShowAuditTrail] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
@@ -802,8 +809,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       if (!shownPdf) {
         return (
           <span className="text-muted-foreground">
+            {/* Said to whoever is looking (the fifth product review: the team
+                was told to ask the hiring team). */}
             {shownPdfFailed
-              ? "This document could not be opened here. If it is not a PDF, ask the hiring team to send it as a PDF; otherwise close it and open it again."
+              ? role === "candidate"
+                ? "This document could not be opened here. If it is not a PDF, ask the hiring team to send it as a PDF; otherwise close it and open it again."
+                : "This document could not be opened here. Only a PDF can be signed: if it is another kind of file, send it again as a PDF; otherwise close it and open it again."
               : "Loading document..."}
           </span>
         );
@@ -815,16 +826,21 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
             className="w-full h-[500px] border border-border rounded-lg bg-background"
             title="Signed Document"
           />
-          {/* A phone may not show a PDF in a frame: the same bytes open in their own tab. */}
+          {/* A phone may not show a PDF in a frame: the same bytes open in their
+              own tab, or, where the phone saves a PDF instead (Android), as a
+              file with the document's own name (the fifth product review: an
+              unnamed download). Elsewhere "download" would stop the tab opening. */}
           <p className="text-center text-sm">
-            <a href={shownPdf.src} target="_blank" rel="noopener" className="font-medium underline underline-offset-2">
+            <a href={shownPdf.src} target="_blank" rel="noopener" download={/Android/i.test(navigator.userAgent) ? pdfFileName(document?.name) : undefined} className="font-medium underline underline-offset-2">
               Open the document
             </a>
           </p>
           <p className="text-sm text-muted-foreground text-center">
             {document?.status === "signed"
               ? "Signatures have been applied to this document. Download the signed PDF to view the final version."
-              : "Read it here, or open it in its own tab, before you sign."}
+              : canSignAsCandidate
+                ? "Read it here, or open it in its own tab, before you sign."
+                : "Read it here, or open it in its own tab."}
           </p>
         </div>
       );
@@ -1189,7 +1205,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   on a phone, they would only squeeze the place to sign. */}
               <div className="p-3 sm:p-4 border-t border-border bg-card shrink-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className={`flex-wrap items-center gap-2 [&>button]:whitespace-nowrap ${document.status === "signed" ? "flex" : "hidden sm:flex"}`}>
+                  {/* …and to the applicant only once it is finished, on any screen (the
+                      fifth product review: before signing they saw Signed PDF,
+                      Certificate, Audit PDF and the audit trail). */}
+                  <div className={`flex-wrap items-center gap-2 [&>button]:whitespace-nowrap ${document.status === "signed" ? "flex" : role === "candidate" ? "hidden" : "hidden sm:flex"}`}>
                     <Button variant="outline" size="sm" onClick={handleDownload}>
                       <Download className="h-4 w-4 mr-2" />
                       Signed PDF
@@ -1203,10 +1222,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       Audit PDF
                     </Button>
                   </div>
-                  <Button onClick={() => setShowAuditTrail(true)} variant={document.status === "signed" ? "default" : "outline"} size="sm" className="gap-2 whitespace-nowrap">
-                    <History className="h-4 w-4" />
-                    View Audit Trail
-                  </Button>
+                  {(document.status === "signed" || role !== "candidate") && (
+                    <Button onClick={() => setShowAuditTrail(true)} variant={document.status === "signed" ? "default" : "outline"} size="sm" className="gap-2 whitespace-nowrap">
+                      <History className="h-4 w-4" />
+                      View Audit Trail
+                    </Button>
+                  )}
                   {/* The place to sign is at the end of the letter. On a phone
                       that is a long way down: one press takes them there. */}
                   {(canSignAsCandidate || canCountersignAsEmployer) && (

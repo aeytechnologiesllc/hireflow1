@@ -48,5 +48,17 @@ for (const [input, want] of [
   check("the feeds never guess USD, and print pay only with its currency", !/salary_currency \|\| "USD"/.test(feedSrc + adzunaSrc) && /if \(!job\.salary_currency\) return "";/.test(feedSrc) && /hasStructuredSalary: \(job\.salary_min != null \|\| job\.salary_max != null\) && !!job\.salary_currency,/.test(feedSrc));
 }
 
+// The fifth security review: one business's control character made every feed invalid XML.
+{
+  const { xmlSafe, sendXml, cdata } = await import("../api/job-feed.mjs");
+  const bad = `<jobs><job><title>${cdata("Chat agent\u0001\u0008\u000B\u001F\uFFFF \uD800ok")}</title></job></jobs>`;
+  const cleaned = xmlSafe(bad);
+  check("XML-illegal characters are taken out", !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF\uD800-\uDFFF]/.test(cleaned), JSON.stringify(cleaned));
+  check("…and the rest is kept: tabs, newlines, emoji, accents", xmlSafe("a\tb\nc\r😀 Niño") === "a\tb\nc\r😀 Niño");
+  let sent = "";
+  sendXml({ setHeader() {}, status() { return { send(x) { sent = x; } }; } }, bad);
+  check("every feed sends only XML-safe text (jobs, Adzuna and Jooble all go through sendXml)", sent === cleaned);
+}
+
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

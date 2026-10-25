@@ -56,7 +56,7 @@ const graded = (await db.query(`insert into public.applications (candidate_id, v
 const plain = (await db.query(`insert into public.applications (candidate_id) values ($1) returning id`, [ANA])).rows[0].id;
 
 await db.exec(`delete from public.applications where id = '${plain}'`);
-check("an application with no spoken interview queues nothing", (await db.query(`select count(*)::int as n from public.storage_file_trash`)).rows[0].n === 0);
+check("(20261025460000) an application with no spoken interview queued nothing", (await db.query(`select count(*)::int as n from public.storage_file_trash`)).rows[0].n === 0);
 
 await db.exec(`delete from public.applications where id = '${recorded}'`);
 let q = (await db.query(`select bucket, folder, starts_with, application_id from public.storage_file_trash where application_id = $1`, [recorded])).rows;
@@ -66,6 +66,20 @@ await db.exec(`delete from auth.users where id = '${ANA}'`);
 q = (await db.query(`select folder from public.storage_file_trash where application_id = $1`, [graded])).rows;
 check("Delete Account's cascade queues the recordings of every application it removes", q.length === 1 && q[0].folder === graded, JSON.stringify(q));
 
+// The tenth Phase 5 review (20261025490000): every deleted application queues
+// its recordings, video introduction and work samples, even with no link saved,
+// and the queueing works for the applicant's own delete (a withdrawal), which
+// needs the function's own rights.
+const allFiles = readFileSync(path.join(ROOT, "supabase/migrations/20261025490000_application_files_go_with_it.sql"), "utf8");
+await db.exec(allFiles);
+await db.exec(allFiles);
+await db.exec(`grant usage on schema public to authenticated; grant select, delete on public.applications to authenticated;`);
+const BEA = "20000000-0000-4000-8000-000000000002";
+await db.exec(`insert into auth.users values ('${BEA}')`);
+const bare = (await db.query(`insert into public.applications (candidate_id) values ($1) returning id`, [BEA])).rows[0].id;
+await db.exec(`set role authenticated; delete from public.applications where id = '${bare}'; reset role;`);
+const queued = (await db.query(`select bucket, folder, starts_with from public.storage_file_trash where application_id = $1 order by bucket`, [bare])).rows;
+check("a withdrawal (the applicant's own delete) queues the recordings, the video introduction and the work samples, even with no link saved", queued.length === 3 && queued.some((q) => q.bucket === "voice-interview-recordings" && q.folder === bare) && queued.some((q) => q.bucket === "videos" && q.folder === BEA && q.starts_with === `${bare}-`) && queued.some((q) => q.bucket === "portfolios" && q.folder === BEA && q.starts_with === `${bare}-`), JSON.stringify(queued));
 const cleanup = readFileSync(path.join(ROOT, "supabase/functions/document-cleanup/index.ts"), "utf8");
 check("document-cleanup empties that bucket's queued folders", /const REMOVAL_BUCKETS = new Set\(\[[^\]]*"voice-interview-recordings"/.test(cleanup) && /\.from\("storage_file_trash"\)/.test(cleanup));
 

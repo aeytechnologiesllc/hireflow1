@@ -45,7 +45,7 @@ function outsideHost(referrer: string | null | undefined): string | null {
  * public/carry-source.js does on the static pages (the app's page shell has
  * no carry-source.js):
  *   - campaign tags in the page's address (tidied as the counter does) replace
- *     the link's own;
+ *     the link's own, which stays as the campaign when they bring none;
  *   - with none, the site that sent them (a carried `ref`, or the page's own
  *     referrer) is the source, as `utm_medium=referral`, and the link's own
  *     source is kept as the campaign, so "job_page" still shows (the third
@@ -66,8 +66,14 @@ export function withVisitorTags(base: string, here: string, referrer?: string | 
   const carriedRef = tidyTag(carried.get("ref"));
   const ref = carriedRef && !carriedRef.includes("hireflownow.com") ? carriedRef : outsideHost(referrer);
   if (tags.length > 0) {
+    const own = url.searchParams.get("utm_source");
     for (const key of ["utm_source", "utm_medium", "utm_campaign"]) url.searchParams.delete(key);
     for (const [key, v] of tags) url.searchParams.set(key, v as string);
+    // Tags with no campaign keep the link's own source as the campaign, so a
+    // business that found HireFlow through another's shared job still shows
+    // as "job_page" (the fifth growth review: it read as plain "facebook",
+    // the same row as the owner's own posts).
+    if (own && !url.searchParams.get("utm_campaign")) url.searchParams.set("utm_campaign", own);
   } else if (ref) {
     const own = url.searchParams.get("utm_source");
     if (own) {

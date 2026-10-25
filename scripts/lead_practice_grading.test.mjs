@@ -768,6 +768,8 @@ check("the posted pay reads '500 USD a month'", postedPay(job) === "500 USD a mo
 check("a pay question is answered from the posted pay", payAnswerLine(job).includes('"The posted pay for this role is 500 USD a month."'));
 check("no posted pay: the old redirect", /discuss compensation with candidates who move forward/.test(payAnswerLine({ salaryMin: null, salaryMax: null })));
 check("a range reads 'x to y'", postedPay({ salaryMin: 400, salaryMax: 600, salaryCurrency: "usd", salaryPeriod: "MONTH" }) === "400 to 600 USD a month");
+// The fifth product review: a job saved with no currency was read out as USD.
+check("no currency on the job: none is said ('25,000 a month', as its page shows)", postedPay({ salaryMin: 25000, salaryMax: null, salaryCurrency: null, salaryPeriod: "month" }) === "from 25,000 a month" && postedPay({ salaryMin: 25000, salaryMax: 25000, salaryCurrency: "", salaryPeriod: "month" }) === "25,000 a month" && payAnswerLine({ salaryMin: 25000, salaryMax: 25000, salaryCurrency: null, salaryPeriod: "month" }).includes('"The posted pay for this role is 25,000 a month."'), postedPay({ salaryMin: 25000, salaryMax: 25000, salaryCurrency: null, salaryPeriod: "month" }));
 const details = jobDetailsSection(job);
 check("job information names the level, the typing bar and the pay", /Experience Level: lead/.test(details) && /Typing speed this job needs: 45 words a minute/.test(details) && /Posted pay: 500 USD a month/.test(details));
 const leadFields = leadInterviewFields({ leadership: { score: 82, quote: "I led six agents" }, adaptability: 64, workingLead: { score: "71", quote: "I answer chats on every shift" } });

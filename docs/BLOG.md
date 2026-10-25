@@ -58,8 +58,10 @@ Anything about the law says it is general information, not legal advice, and
 links the law's text. Nothing in a post may tell a business to doubt what
 HireFlow itself does: every application starts with "Are you 18 or older?"
 and a "No" is not taken (RA 9231 bars anyone under 18 from working 10 p.m. to
-6 a.m.), so "a person on your team makes every decision" always names that
-check.
+6 a.m.), so a line about who decides always names that check. And it says
+"a person on your team makes every decline and every hire; Ava can only move a
+strong applicant on to the next step", never "every decision": on an
+auto-mode job Ava moves applicants on by itself (the eighth review).
 
 ## What the build writes
 

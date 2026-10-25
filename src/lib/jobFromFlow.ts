@@ -427,7 +427,11 @@ export async function createJobFromFlow(
   // page shows it properly. No country is required: that was for Google Jobs, which was
   // removed on 2026-10-05, and it blocked publishing a worldwide remote role.
   const locationText = (brief.location ?? "").trim();
-  const isRemote = brief.workMode === "remote" || isFullyRemoteText(brief.location, brief.employmentType, description);
+  // A hybrid job is built as one (no connection check), so it is saved as one,
+  // whatever its place says (the fifth product review: "Full-time · Hybrid" at
+  // "Remote, US" was saved remote, its chat practice computer-only, with no
+  // check before it).
+  const isRemote = brief.workMode !== "hybrid" && (brief.workMode === "remote" || isFullyRemoteText(brief.location, brief.employmentType, description));
   if ((opts.status ?? "published") === "published" && !locationText) {
     throw new Error("Add a location before publishing, like \"Remote (worldwide)\" or \"London, United Kingdom\".");
   }

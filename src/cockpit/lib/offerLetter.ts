@@ -33,6 +33,8 @@
  * Pure: no React, no Supabase.
  */
 
+import { placeSaysRemote } from "../../lib/jobLocation";
+
 export type WorkerType = "contractor" | "employee";
 export type WorkSchedule = "full" | "part";
 export type PayPer = "month" | "week" | "hour";
@@ -89,7 +91,9 @@ export interface OfferLetterFields {
 
 /** The usual choices for a remote chat support role; every one can be changed on the screen. */
 export const OFFER_DEFAULTS = {
-  payCurrency: "USD",
+  // No currency is guessed: the job's own, or the business chooses one (the
+  // fifth product review: a no-currency or peso-range job opened on USD).
+  payCurrency: "",
   payPer: "month" as PayPer,
   payEvery: "twice-monthly" as PayEvery,
   workerType: "contractor" as WorkerType,
@@ -212,12 +216,12 @@ export function payAmountWords(amount: string): string {
   return value.toLocaleString("en-US", { minimumFractionDigits: raw.includes(".") ? 2 : 0, maximumFractionDigits: 2 });
 }
 
-/** "USD 500 a month". Empty without a usable amount. */
+/** "USD 500 a month". Empty without a usable amount; never a currency it was not given. */
 export function payWords(fields: Pick<OfferLetterFields, "payAmount" | "payCurrency" | "payPer">): string {
   const amount = payAmountWords(fields.payAmount);
   if (!amount) return "";
-  const currency = oneLine(fields.payCurrency, 8).toUpperCase() || "USD";
-  return `${currency} ${amount} ${PER_WORDS[fields.payPer] ?? PER_WORDS.month}`;
+  const currency = oneLine(fields.payCurrency, 8).toUpperCase();
+  return `${currency ? `${currency} ` : ""}${amount} ${PER_WORDS[fields.payPer] ?? PER_WORDS.month}`;
 }
 
 /** "Zack" for a name typed all in small letters; anything else as typed. */
@@ -284,6 +288,26 @@ export function payFromJob(job: { salary_min?: number | null; salary_max?: numbe
   return `${currency} ${amount.toLocaleString("en-US")} ${per}`;
 }
 
+/** The job's currency, when it has one, even when its pay is a range or yearly
+ *  (the fifth product review: "PHP 20,000 to 25,000" opened the letter on USD). */
+export function currencyFromJob(job: { salary_currency?: string | null } | null | undefined): string {
+  return oneLine(job?.salary_currency ?? "", 8).toUpperCase();
+}
+
+const ONLY_A_COUNTRY = /^(?:the\s+)?(?:philippines|ph|usa?|u\.s\.a?\.?|united states(?: of america)?|united kingdom|uk|canada|australia|new zealand|india|pakistan|singapore|uae|united arab emirates|mexico|colombia|south africa|kenya|nigeria)\.?$/i;
+
+/** The job's place as the letter's "Where", when it names a place someone goes
+ *  to: not a remote or hybrid place, and not just a country (the fifth product
+ *  review: "In person, at Work from home (Philippines)", "In person, at
+ *  Philippines"). Otherwise empty, and the letter says the business's own
+ *  workplace until the business types the address. */
+export function placeForLetter(location: string | null | undefined): string {
+  const place = oneLine(location ?? "", OFFER_LIMITS.line);
+  // Any remote word at all, even beside a negated on-site one ("Remote (no onsite)").
+  if (!place || placeSaysRemote(place) === "remote" || /\b(?:hybrid|remote|wfh|work(?:ing)?[-\s]?(?:from|at)[-\s]?home|home[-\s]?based)\b/i.test(place) || ONLY_A_COUNTRY.test(place)) return "";
+  return place;
+}
+
 /** The job's pay as the screen's three boxes, when the job states one figure a month, a week or an hour. */
 export function payPartsFromJob(job: { salary_min?: number | null; salary_max?: number | null; salary_currency?: string | null; salary_period?: string | null } | null | undefined): { payAmount: string; payCurrency: string; payPer: PayPer } | null {
   if (!job || !payFromJob(job)) return null;
@@ -308,12 +332,13 @@ export function offerProblems(fields: OfferLetterFields): OfferProblem[] {
   if (!clean.companyName) problems.push({ field: "companyName", text: "Add your company name." });
   if (!clean.signerName) problems.push({ field: "signerName", text: "Add your own name, as you will sign it." });
   if (!clean.payAmount) problems.push({ field: "payAmount", text: (fields.payAmount ?? "").trim() ? "Write the pay as a number, like 500." : "Add the pay." });
+  else if (!clean.payCurrency) problems.push({ field: "payCurrency", text: "Choose the currency." });
   if (!clean.startDate) problems.push({ field: "startDate", text: "Pick a start date." });
   else if (clean.today && clean.startDate < clean.today) problems.push({ field: "startDate", text: "The start date is in the past." });
   if (!clean.replyBy) problems.push({ field: "replyBy", text: "Choose how long they have to sign." });
   else if (clean.today && clean.replyBy < clean.today) problems.push({ field: "replyBy", text: "The offer would already have ended." });
   else if (clean.startDate && !(clean.today && clean.startDate < clean.today) && clean.replyBy > clean.startDate) problems.push({ field: "replyBy", text: "They must sign on or before the start date. Give them fewer days, or start later." });
-  for (const field of ["roleTitle", "companyName", "signerTitle", "payMethod", "hours", "shift", "reportsTo"] as const) {
+  for (const field of ["roleTitle", "companyName", "signerTitle", "payMethod", "hours", "shift", "reportsTo", "place"] as const) {
     if (unprintable(String(fields[field] ?? ""))) problems.push({ field, text: "Use plain letters there: the signed copy cannot print some of them." });
   }
   if (unprintable(fields.extra)) problems.push({ field: "extra", text: "Something in the extra lines cannot be printed on the signed copy. Use plain letters." });

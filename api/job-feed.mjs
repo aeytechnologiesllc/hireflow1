@@ -398,7 +398,17 @@ export async function loadFeedJobs() {
 }
 
 /** Serve valid XML no matter what — a crawler must never see a broken URL. */
+/** Characters XML 1.0 never allows, even inside CDATA: one in a single
+ *  business's job title made the whole feed invalid for every business
+ *  (the fifth security review). Lone surrogate halves too. */
+const NOT_XML = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+export function xmlSafe(xml) {
+  return String(xml).replace(NOT_XML, "");
+}
+
 export function sendXml(res, xml) {
+  xml = xmlSafe(xml);
   res.setHeader("Content-Type", "application/xml; charset=utf-8");
   // Cache at the edge for 15 min; aggregators poll on their own schedule anyway.
   res.setHeader("Cache-Control", "public, s-maxage=900, stale-while-revalidate=3600");

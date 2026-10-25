@@ -40,7 +40,21 @@ export function ownDocumentsPath(url: unknown, projectUrl: string): string | nul
   } catch {
     return null;
   }
-  const parts = path.split("/");
-  if (parts.some((p) => p === "" || p === "." || p === "..")) return null;
-  return path;
+  return isPlainObjectPath(path) ? path : null;
+}
+
+/**
+ * A storage object path whose every part is a plain name: never "." or "..",
+ * and nothing a later fetch turns into one or into another folder: a "%"
+ * (a URL reads "%2e%2e" as ".."; the fifth security review: a double-encoded
+ * "%252e%252e" passed the one decode above, kept the sender's folder at the
+ * front and was downloaded, with the service key, from another one), a
+ * backslash (read as "/"), or a tab, newline or other control character
+ * (dropped). Storage refuses all of these in a file's name anyway, so no real
+ * upload is turned away.
+ */
+export function isPlainObjectPath(path: string): boolean {
+  if (typeof path !== "string" || !path || path.length > 1024) return false;
+  if (/[%\\\u0000-\u001f\u007f]/.test(path)) return false;
+  return path.split("/").every((p) => p !== "" && p !== "." && p !== "..");
 }

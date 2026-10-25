@@ -1417,7 +1417,8 @@ No resume was uploaded for this application.
 
       // Build salary range string for context
       const salaryRange = application.jobs.salary_min && application.jobs.salary_max 
-        ? `${application.jobs.salary_currency || 'USD'} ${application.jobs.salary_min.toLocaleString()} - ${application.jobs.salary_max.toLocaleString()}`
+        // No currency on the job: none said, never a guessed USD (the fifth product review).
+        ? `${application.jobs.salary_currency ? `${application.jobs.salary_currency} ` : ''}${application.jobs.salary_min.toLocaleString()} - ${application.jobs.salary_max.toLocaleString()}`
         : 'Not disclosed - tell candidate this will be discussed in later stages';
 
       // Build comprehensive candidate context from ALL phases

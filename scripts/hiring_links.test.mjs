@@ -39,6 +39,7 @@ check("the front page carries the tags on to sign-up (so Admin → Growth sees t
 
 // The third growth review: Open jobs carries a visitor's own tags on.
 check("Open jobs' links keep a visitor's own tags (they replace the page's)", H.withVisitorTags(H.hiringLink("open_jobs"), "https://hireflownow.com/open-jobs?utm_source=youtube&utm_campaign=v1") === "https://hireflownow.com/?utm_source=youtube&utm_campaign=v1");
+check("…tags with no campaign keep the page's own name as the campaign (a business found through a shared job still shows as job_page)", H.withVisitorTags(H.hiringLink("job_page"), "https://hireflownow.com/front-desk?utm_source=facebook&utm_medium=job_share") === "https://hireflownow.com/?utm_source=facebook&utm_medium=job_share&utm_campaign=job_page");
 check("…the logo too, as a path", H.withVisitorTags("/", "https://hireflownow.com/open-jobs?utm_source=youtube&utm_medium=video") === "/?utm_source=youtube&utm_medium=video");
 // The fourth growth review: the site that sent them is the source, the page kept as the campaign.
 check("…an untagged visitor's site is the source, the page's own tag kept as the campaign", H.withVisitorTags(H.hiringLink("open_jobs"), "https://hireflownow.com/open-jobs?ref=www.quora.com") === "https://hireflownow.com/?utm_source=www.quora.com&utm_medium=referral&utm_campaign=open_jobs&ref=www.quora.com");
@@ -46,6 +47,7 @@ check("…the page's own referrer counts when nothing was carried (a site linkin
 check("…HireFlow's own pages are no referrer", H.withVisitorTags("/", "https://hireflownow.com/open-jobs", "https://hireflownow.com/") === "/");
 check("…capitals and spaces are tidied as the counter does, never dropped", H.withVisitorTags("/", "https://hireflownow.com/open-jobs?utm_source=Facebook&utm_campaign=Group%20Post") === "/?utm_source=facebook&utm_campaign=group-post");
 check("…nothing carried: the link as it was", H.withVisitorTags("/", "https://hireflownow.com/open-jobs") === "/" && H.withVisitorTags("/", "https://hireflownow.com/open-jobs?utm_source=%3C%3E") === "/" && H.withVisitorTags("/", "https://hireflownow.com/open-jobs?ref=staff.hireflownow.com") === "/");
+check("Open jobs' and careers pages' job cards carry the channel to the job page (the fifth growth review)", /to=\{withVisitorTags\(jobPagePath\(job\), window\.location\.href, document\.referrer\)\}/.test(read("src/pages/OpenJobs.tsx")) && /to=\{withVisitorTags\(jobPagePath\(role\), window\.location\.href, document\.referrer\)\}/.test(read("src/pages/BusinessCareers.tsx")) && H.withVisitorTags("/c/acme/front-desk", "https://hireflownow.com/open-jobs?ref=www.youtube.com") === "/c/acme/front-desk?ref=www.youtube.com");
 check("…job pages and careers pages carry it too", /withVisitorTags\(hiringLink\("job_page"\), window\.location\.href, document\.referrer\)/.test(read("src/pages/JobDetails.tsx")));
 check("Open jobs uses it for its logo and its Post a job free", /href=\{withVisitorTags\("\/", window\.location\.href, document\.referrer\)\}/.test(read("src/pages/OpenJobs.tsx")) && /href=\{withVisitorTags\(hiringLink\("open_jobs"\), window\.location\.href, document\.referrer\)\}/.test(read("src/pages/OpenJobs.tsx")));
 

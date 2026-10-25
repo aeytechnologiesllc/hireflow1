@@ -161,20 +161,23 @@ export function isLeadRole(job: { title?: string | null; description?: string | 
   return inferJobFamily(job.title ?? null, job.description ?? null) === "team_lead";
 }
 
-/** "500 USD a month", "400 to 600 USD a month", or null when no pay is posted. */
+/** "500 USD a month", "400 to 600 USD a month", or null when no pay is posted.
+ *  A job saved with no currency says none: "25,000 a month", as its page does
+ *  (the fifth product review: the interviewer was told to say "25,000 USD a
+ *  month" for an online store's peso pay). */
 export function postedPay(job: Pick<InterviewJob, "salaryMin" | "salaryMax" | "salaryCurrency" | "salaryPeriod"> | null | undefined): string | null {
   if (!job) return null;
   const min = job.salaryMin && job.salaryMin > 0 ? job.salaryMin : null;
   const max = job.salaryMax && job.salaryMax > 0 ? job.salaryMax : null;
   if (!min && !max) return null;
-  const currency = (job.salaryCurrency || "USD").toUpperCase();
+  const currency = job.salaryCurrency?.trim() ? ` ${job.salaryCurrency.trim().toUpperCase()}` : "";
   const period = (job.salaryPeriod || "").toLowerCase();
   const per = ["hour", "day", "week", "month", "year"].includes(period) ? ` a ${period}` : "";
   const fmt = (n: number) => n.toLocaleString("en-US");
-  if (min && max && min !== max) return `${fmt(min)} to ${fmt(max)} ${currency}${per}`;
-  if (min && max) return `${fmt(min)} ${currency}${per}`;
-  if (min) return `from ${fmt(min)} ${currency}${per}`;
-  return `up to ${fmt(max!)} ${currency}${per}`;
+  if (min && max && min !== max) return `${fmt(min)} to ${fmt(max)}${currency}${per}`;
+  if (min && max) return `${fmt(min)}${currency}${per}`;
+  if (min) return `from ${fmt(min)}${currency}${per}`;
+  return `up to ${fmt(max!)}${currency}${per}`;
 }
 
 /** A link or a stored file is not something to read out to an interviewer. */

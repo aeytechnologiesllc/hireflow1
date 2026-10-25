@@ -38,6 +38,9 @@ export default async function handler(req, res) {
   res.statusCode = 404;
   res.setHeader("Content-Type", "text/html; charset=utf-8");
   res.setHeader("X-Robots-Tag", "noindex");
-  res.setHeader("Cache-Control", "public, s-maxage=300");
-  res.end(/<title>Guide not found/.test(body) ? body : FALLBACK_PAGE);
+  const built = /<title>Guide not found/.test(body);
+  // The plain page only for this request: a fetch the site's own bot check
+  // turned away kept every visitor on it for five minutes (the eighth Phase 6 review).
+  res.setHeader("Cache-Control", built ? "public, s-maxage=300" : "no-store");
+  res.end(built ? body : FALLBACK_PAGE);
 }

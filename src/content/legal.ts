@@ -182,7 +182,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 24 hours after someone on the hiring team first opens it, or 7 days after you send it if nobody opens it. Any other paper the team asks for by its own name is kept until it, the application or your account is deleted.",
         "In that time the hiring team may download a copy. A copy they keep is theirs to look after, under their own duties to protect it.",
         "When you delete your account, your profile, your applications, your test records and your files are deleted with it.",
-        "A few technical records stay behind: a count of your test attempts, the start times of typing tests, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), how many minutes a spoken interview used, and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account. Signed documents and their records may also be kept where both sides may still need them or the law requires it.",
+        "A few technical records stay behind: a count of your test attempts, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), how many minutes a spoken interview used, and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account. Signed documents and their records may also be kept where both sides may still need them or the law requires it.",
       ],
     },
     {
@@ -298,7 +298,7 @@ export const TERMS: LegalDocument = {
             "You are responsible for the people you invite to your team and for what they do here.",
             "Documents you send, such as offer letters, are yours. The site gives you the tool, not legal advice.",
             "Never charge applicants. You may not ask an applicant for money for anything: applying, training, equipment or papers.",
-            "Ask applicants only for the ID papers you need to hire them. ID papers are deleted 24 hours after you first open them.",
+            "Ask applicants only for the ID papers you need to hire them. A government ID, NBI clearance or proof of address asked for with its own choice is deleted 24 hours after you first open it. A paper you name yourself (under \"Something else\") is kept until you delete it or the application, even if it is an ID.",
             "One account is one business. Team members join only by your invitation.",
           ],
         },

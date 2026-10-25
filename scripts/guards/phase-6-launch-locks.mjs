@@ -47,6 +47,7 @@ export default [
       // Phase 7 growth audit: the static file answered 200, a soft 404).
       const notFound = (await read("api/blog-not-found.mjs")) ?? "";
       if (!/res\.statusCode = 404;/.test(notFound) || !/\/blog\/not-found\.html/.test(notFound)) detail.push("api/blog-not-found.mjs: a missing guide must answer 404 with /blog/not-found.html");
+      if (!/res\.setHeader\("Cache-Control", built \? "public, s-maxage=300" : "no-store"\);/.test(notFound)) detail.push("api/blog-not-found.mjs: the plain fallback page must never be cached (the eighth Phase 6 review)");
       if (crawler >= 0 && (at("/blog") > crawler || at("/blog/:slug") > crawler)) detail.push("vercel.json: the blog rules must come before the crawler-only /:slug rule");
       if (rewrites.some((r) => r.source === "/:path+" && at("/blog") > rewrites.indexOf(r))) detail.push("vercel.json: the blog rules must come before the app's catch-all");
       const config = (await read("vercel.json")) ?? "";

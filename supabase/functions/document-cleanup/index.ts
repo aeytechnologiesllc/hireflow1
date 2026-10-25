@@ -15,8 +15,11 @@
 // (file_deleted_at), and the deletion is recorded in document_request_events.
 // Typed answers and other kinds of files are kept.
 //
-// It also retries the files an applicant's removal could not delete at the
-// time (storage_file_trash, filled by remove-applicant).
+// It also empties the files queued for removal (storage_file_trash): those
+// "Delete their information" could not delete at the time (remove-applicant),
+// and every deleted application's recordings, video introduction and work
+// samples (a withdrawal, Delete Account, a deleted job; the database's own
+// applications_queue_voice_recordings trigger).
 //
 // Called every hour by the database's own scheduler (pg_cron, the
 // `document-cleanup` job), never by a browser. The job sends a secret it reads
@@ -205,7 +208,7 @@ Deno.serve(async (req) => {
     await tell("read-trash", "Files of deleted requests are not being deleted", `document-cleanup could not read the files of deleted requests (${String(trashError.message).slice(0, 160)}). It tries again every hour.`);
   }
   if (leftoverError) {
-    await tell("read-leftovers", "Removed applicants' files are not being deleted", `document-cleanup could not read the files left by "Delete their information" (${String(leftoverError.message).slice(0, 160)}). It tries again every hour.`);
+    await tell("read-leftovers", "Files queued for removal are not being deleted", `document-cleanup could not read the files queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash) (${String(leftoverError.message).slice(0, 160)}). It tries again every hour.`);
   }
   const unread = [error, trashError, leftoverError].filter(Boolean);
   if (counts.failed > 0 || orphansFailed > 0) {
@@ -216,7 +219,7 @@ Deno.serve(async (req) => {
     await tell("delete", "ID papers were not deleted on time", `document-cleanup could not delete ${parts.join(" and ")} (see its logs). It tries again on every run.`);
   }
   if (leftoversFailed > 0) {
-    await tell("leftovers", "Removed applicants' files are not all deleted", `document-cleanup could not delete ${leftoversFailed} file${leftoversFailed === 1 ? "" : "s"} left by "Delete their information" (see its logs). It tries again every hour.`);
+    await tell("leftovers", "Files queued for removal are not all deleted", `document-cleanup could not delete ${leftoversFailed} file${leftoversFailed === 1 ? "" : "s"} queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; see its logs). It tries again every hour.`);
   }
   if (unread.length > 0) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed }, 500);
   return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed });

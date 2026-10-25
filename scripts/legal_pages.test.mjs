@@ -74,7 +74,12 @@ check(
 check("it says a new account (any kind: an applicant's sign-up keeps them too, the Phase 5 review) keeps the campaign tags and the site it came from", /When you make an account: the campaign tags of the link that brought you to the site/.test(privacy) && !/When you make a hiring account/.test(privacy) && /signup_source/.test(read("src/hooks/useAuth.tsx")));
 check("it says the page counter uses no cookie and honours Do Not Track", /no cookie and no visitor number, stores no IP address/.test(privacy) && /Do Not Track or Global Privacy Control/.test(privacy));
 check("…which the beacon still does", /doNotTrack/.test(read("public/beacon.js")) && /globalPrivacyControl/.test(read("public/beacon.js")) && !/document\.cookie\s*=/.test(read("public/beacon.js")));
-check("it says most things are not deleted on a timer, and names what stays after an account is deleted", /Most things are not deleted on a timer\./.test(privacy) && /a count of your test attempts, the start times of typing tests, a block-list entry/.test(privacy));
+check("it says most things are not deleted on a timer, and names what stays after an account is deleted", /Most things are not deleted on a timer\./.test(privacy) && /a count of your test attempts, a block-list entry/.test(privacy) && /how many minutes a spoken interview used/.test(privacy) &&
+  // Typing-test starts go with the applications (ON DELETE CASCADE): the tenth Phase 5 review.
+  !/start times of typing tests/.test(privacy));
+// Only the three ID choices are deleted after opening; a paper the team names is kept, and the Terms and the request screen say so (the tenth Phase 5 review).
+check("the Terms say which papers are deleted after opening, and that a named one is kept", /A government ID, NBI clearance or proof of address asked for with its own choice is deleted 24 hours after you first open it\. A paper you name yourself/.test(read("src/content/legal.ts")) && !/ID papers are deleted 24 hours after you first open them\./.test(read("src/content/legal.ts")));
+check("…and so does the request screen, with a warning when the named paper is an ID", /The ID papers above \(government ID, NBI clearance, proof of address\) are deleted/.test(read("src/cockpit/components/RequestDocumentsDialog.tsx")) && /\{looksLikeAnId\(other\) && \(/.test(read("src/cockpit/components/RequestDocumentsDialog.tsx")));
 {
   // The one timer (docs/DOCUMENT-REQUESTS.md): identity papers, deleted by the
   // document-cleanup function. The page's number and kinds must be the code's.

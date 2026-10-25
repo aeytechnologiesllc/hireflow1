@@ -180,5 +180,28 @@ eq("the first press names the person", lib.offerWords(base, false, false).arm, "
 eq("the second press says what it does", lib.offerWords(base, false, true).note, "This emails Ana the letter to sign, and moves them to Offer.");
 eq("before that, nothing is sent", lib.offerWords(base, false, false).note, "Nothing is sent until you confirm.");
 
+// The fifth product review: no currency is guessed, and "Where" is a place someone goes to.
+eq("the letter starts on no currency", lib.OFFER_DEFAULTS.payCurrency, "");
+eq("pay with no currency says none", lib.payWords({ ...base, payCurrency: "" }), "500 a month");
+check("…and the letter cannot go until the business chooses one", lib.offerProblems({ ...base, payCurrency: "" }).some((p) => p.field === "payCurrency") && !lib.offerProblems(base).some((p) => p.field === "payCurrency"));
+eq("a peso range still gives the letter its currency", lib.currencyFromJob({ salary_min: 20000, salary_max: 25000, salary_currency: "php", salary_period: "MONTH" }), "PHP");
+eq("a job with no currency gives none", lib.currencyFromJob({ salary_min: 25000, salary_max: 25000, salary_currency: null }), "");
+for (const [place, want] of [
+  ["Work from home (Philippines)", ""],
+  ["Remote (no onsite)", ""],
+  ["Philippines", ""],
+  ["United States", ""],
+  ["Hybrid - Makati", ""],
+  ["2F Ayala Tower, Makati", "2F Ayala Tower, Makati"],
+  ["Makati office", "Makati office"],
+  ["Cebu City", "Cebu City"],
+]) eq(`the letter's place for "${place}"`, lib.placeForLetter(place), want);
+{
+  const { readFileSync } = await import("node:fs");
+  const dialog = readFileSync(resolve(root, "src/cockpit/components/OfferLetterDialog.tsx"), "utf8");
+  check("the screen fills the place only with placeForLetter, and lets the business type it", /setPlace\(placeForLetter\(person\.jobLocation\)\);/.test(dialog) && /id="ck-offer-place"[^>]*onChange=\{\(e\) => edit\(setPlace\)\(e\.target\.value\)\}/.test(dialog));
+  check("the screen takes the job's currency even for a range, and never a default one", /setPayCurrency\(person\.jobCurrency\);/.test(dialog) && /problemFor\("payAmount"\) \?\? problemFor\("payCurrency"\)/.test(dialog));
+}
+
 console.log(`offer letter: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

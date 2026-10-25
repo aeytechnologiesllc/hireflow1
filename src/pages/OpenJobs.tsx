@@ -161,7 +161,7 @@ export default function OpenJobs() {
                   return (
                     <li key={job.id}>
                       <Link
-                        to={jobPagePath(job)}
+                        to={withVisitorTags(jobPagePath(job), window.location.href, document.referrer)}
                         className="grid grid-cols-[40px_minmax(0,1fr)] items-center gap-3 rounded-xl border border-border bg-card p-3.5 transition-colors hover:border-primary/50 sm:grid-cols-[44px_minmax(0,1fr)_auto] sm:gap-3.5 sm:p-4"
                         data-open-job={job.id}
                       >

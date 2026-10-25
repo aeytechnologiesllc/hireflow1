@@ -63,6 +63,8 @@ const NOT_THE_CHECK = {
   "20261025450000_phase5_review9.sql": "ai_budget_take gives refused units back and tells two cards apart; reads business_email_verified as before and changes nothing of the check",
   "20261025460000_voice_recordings_go_with_application.sql": "a deleted application's recordings are queued for removal; nothing of jobs, profiles or the check",
   "20261025470000_security_round4.sql": "a sent document's content is fixed and an applicant's resume link on insert; nothing of jobs, profiles or the check",
+  "20261025480000_growth_app_sources.sql": "Admin → Growth's channel names for app referrers; nothing of jobs, profiles or the check",
+  "20261025490000_application_files_go_with_it.sql": "a deleted application queues its own files for removal; nothing of jobs, profiles or the check",
   "20261025270000_phase5_review6.sql": "the AI budget's new-business day only when smaller (no change to the check)",
   "20261025250000_phase5_review5.sql": "the AI budget reads business_email_verified and live jobs (no change to either); nothing of jobs, profiles or the check's tables",
   "20261025260000_drop_evaluation_move_backup.sql": "drops the evaluations move's private backup; nothing of jobs, profiles or the check's tables",

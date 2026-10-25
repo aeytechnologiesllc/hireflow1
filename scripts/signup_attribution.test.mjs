@@ -29,6 +29,7 @@ function check(name, ok, detail = "") {
 const landing = read("public/landing.html");
 check("the front page loads the page counter", /<script src="\/beacon\.js" defer><\/script>/.test(landing));
 check("the front page passes its source to the sign-up links", /<script src="\/carry-source\.js" defer><\/script>/.test(landing));
+check("the front page names no og:url, so a shared card keeps the tagged address it was shared with; the canonical stays", !/property="og:url"/.test(landing) && /rel="canonical" href="https:\/\/hireflownow\.com\/"/.test(landing));
 
 // Run carry-source.js against a stand-in page.
 function runCarry({ search = "", referrer = "", dnt = null, links }) {

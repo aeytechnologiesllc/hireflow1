@@ -1,4 +1,5 @@
 import { extractText } from "https://esm.sh/unpdf@0.12.1";
+import { isPlainObjectPath } from "./ownDocumentFile.ts";
 
 export const RESUME_KEYWORDS = ["resume", "cv", "curriculum vitae", "curriculum", "résumé"];
 
@@ -103,8 +104,10 @@ export function parseStorageUrl(url: string): { bucket: string; path: string } |
 export function isOwnResumeObject(storageInfo: { bucket: string; path: string } | null, ownerId: string | null | undefined): boolean {
   if (!storageInfo || !ownerId) return false;
   if (storageInfo.bucket !== "resumes") return false;
+  // Every part a plain name (isPlainObjectPath): "%2e%2e" or a backslash
+  // would reach another folder once fetched (the fifth security review).
   const segments = storageInfo.path.split("/");
-  return segments.length >= 2 && segments[0] === ownerId && !segments.includes("..");
+  return segments.length >= 2 && segments[0] === ownerId && isPlainObjectPath(storageInfo.path);
 }
 
 async function fetchWithSignedFallback(url: string, adminClient: AdminStorageClient | undefined, ownerId: string): Promise<Response | null> {

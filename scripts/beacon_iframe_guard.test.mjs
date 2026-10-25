@@ -122,6 +122,8 @@ function countedFrom({ search, referrer, host = "hireflownow.com" }) {
   check("a visit that arrives tagged is counted with its tags", landed?.utmSource === "youtube" && landed?.utmCampaign === "v1", JSON.stringify(landed));
   const moved = countedFrom({ search: "?utm_source=youtube&utm_campaign=v1", referrer: "https://hireflownow.com/" });
   check("…the same visit moving on inside the site is not counted as another campaign visit", moved && moved.utmSource === null && moved.utmCampaign === null && moved.referrerHost === "hireflownow.com", JSON.stringify(moved));
+  const hiring = countedFrom({ search: "?utm_source=job_page&utm_medium=hiring_link", referrer: "https://hireflownow.com/team-lead" });
+  check("…but a \"Post a job free\" link's own tags count: that click is a new way in (the fifth growth review)", hiring?.utmSource === "job_page" && hiring?.utmMedium === "hiring_link", JSON.stringify(hiring));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

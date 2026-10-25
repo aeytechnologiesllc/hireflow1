@@ -41,6 +41,13 @@ for (const [who, src] of [["applicant", applicant], ["team", team]]) {
   check(`${who}: sends the device and place with the signature`, /collectSignerContext\(\)/.test(src) && /signerContext/.test(src));
   check(`${who}: the same consent words as the audit record`, src.includes("I acknowledge that I am signing this document electronically and that my electronic signature has the same legal effect as a handwritten signature."));
 }
+// An uploaded PDF still opens the old viewer: there the applicant sees the
+// finished copies and the audit trail only once it is signed, on any screen
+// (the fifth product review: on a computer they showed before signing).
+const viewer = read("src/components/documents/SignedDocumentViewer.tsx");
+check("PDF viewer: the applicant's copies only once signed", /\$\{document\.status === "signed" \? "flex" : role === "candidate" \? "hidden" : "hidden sm:flex"\}/.test(viewer));
+check("PDF viewer: the applicant's audit trail only once signed", /\{\(document\.status === "signed" \|\| role !== "candidate"\) && \(\s*<Button onClick=\{\(\) => setShowAuditTrail\(true\)\}/.test(viewer));
+check("PDF viewer: 'before you sign' only to the one who signs next", /: canSignAsCandidate\s*\? "Read it here, or open it in its own tab, before you sign\."/.test(viewer));
 check("applicant: 'Sign and accept the offer'", /Sign and accept the offer/.test(applicant));
 check("team: says it waits on the applicant when it does", /Nothing to do yet\.<\/strong> \{First\} signs first/.test(team));
 check("team: countersigns with the review confirmation", /action: "countersign"[\s\S]{0,200}reviewConfirmed: true/.test(team));

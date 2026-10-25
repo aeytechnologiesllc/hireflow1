@@ -39,10 +39,10 @@ const REVIEWED = {
   "src/cockpit/components/journey/GuideStepper.tsx": ["s.href"], // static guide steps
   "src/components/GettingStartedChecklist.tsx": ["item.link"], // static checklist
   "src/cockpit/components/ApplicantRow.tsx": ["applicantPath(row.id"], // built route
-  "src/pages/BusinessCareers.tsx": ["jobPagePath(role", 'hiringLink("careers_page"', 'withVisitorTags(hiringLink("careers_page"'], // hiringLink: a fixed hireflownow.com address; withVisitorTags adds only tidied a-z0-9._- tags
+  "src/pages/BusinessCareers.tsx": ["jobPagePath(role", 'hiringLink("careers_page"', 'withVisitorTags(hiringLink("careers_page"', "withVisitorTags(jobPagePath(role"], // hiringLink: a fixed hireflownow.com address; withVisitorTags adds only tidied a-z0-9._- tags
   "src/components/EvaluationScreen.tsx": ['hiringLink("application_done"'], // a fixed hireflownow.com address
   "src/pages/JobDetails.tsx": ['hiringLink("job_page"', 'withVisitorTags(hiringLink("job_page"'], // a fixed hireflownow.com address; withVisitorTags adds only tidied a-z0-9._- tags
-  "src/pages/OpenJobs.tsx": ["jobPagePath(job", "`${staffOrigin(", 'hiringLink("open_jobs"', 'withVisitorTags("/"', 'withVisitorTags(hiringLink("open_jobs"'], // withVisitorTags: a fixed HireFlow address with only plain a-z0-9._- tags added (src/lib/hiringLink.ts)
+  "src/pages/OpenJobs.tsx": ["jobPagePath(job", "`${staffOrigin(", 'hiringLink("open_jobs"', 'withVisitorTags("/"', 'withVisitorTags(hiringLink("open_jobs"', "withVisitorTags(jobPagePath(job"], // withVisitorTags: a fixed HireFlow address with only plain a-z0-9._- tags added (src/lib/hiringLink.ts)
   "src/pages/Index.tsx": ["CAREERS_PATH", "account.to", "jobPagePath(job", "staffSignInHref("],
   "src/pages/CandidateContinue.tsx": ["openRolesPath("],
   "src/pages/CandidatePortalLanding.tsx": ["openRolesPath("],

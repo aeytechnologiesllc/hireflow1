@@ -204,9 +204,16 @@ export default [
         // Any way a later migration undoes it: dropping the trigger (quoted or
         // not) or its function (CASCADE), switching it off or to replica only,
         // with or without the schema (the ninth Phase 5 review).
-        const undone = new RegExp(`DROP TRIGGER (?:IF EXISTS )?"?${name}"?[^;]*;(?![\\s\\S]*CREATE TRIGGER "?${name}"?\\b)|DROP FUNCTION (?:IF EXISTS )?(?:public\\.)?"?${name}"?[^;]*\\bCASCADE|ALTER TABLE (?:ONLY )?(?:public\\.)?${table} (?:DISABLE|ENABLE REPLICA|ENABLE ALWAYS) TRIGGER (?:"?${name}"?|ALL|USER)\\b`, "i");
+        // Made again only on its own table counts (the tenth Phase 5 review: one
+        // of the same name on messages passed), and ALTER TABLE IF EXISTS too.
+        const undone = new RegExp(`DROP TRIGGER (?:IF EXISTS )?"?${name}"?[^;]*;(?![\\s\\S]*CREATE (?:OR REPLACE )?TRIGGER "?${name}"?\\s+BEFORE INSERT ON public\\.${table}\\b)|DROP FUNCTION (?:IF EXISTS )?(?:public\\.)?"?${name}"?[^;]*\\bCASCADE|ALTER TABLE (?:IF EXISTS )?(?:ONLY )?(?:public\\.)?"?${table}"? (?:DISABLE|ENABLE REPLICA|ENABLE ALWAYS) TRIGGER (?:"?${name}"?|ALL|USER)\\b`, "i");
         all.forEach((text, i) => {
           if (i >= lastMade && undone.test(text)) detail.push(`supabase/migrations: ${name} is dropped or switched off after it was made`);
+        });
+        // Its function must keep the writer's own role: an ALTER FUNCTION … SECURITY
+        // DEFINER anywhere makes current_user the owner and skips every limit.
+        all.forEach((text) => {
+          if (new RegExp(`ALTER FUNCTION (?:public\\.)?"?${name}"?\\s*(?:\\([^)]*\\))?[^;]*\\bSECURITY\\s+DEFINER\\b`, "i").test(text)) detail.push(`supabase/migrations: ${name}() is made SECURITY DEFINER by an ALTER FUNCTION`);
         });
       }
       if (!/NEW\.created_at := now\(\);/.test(n)) detail.push(`${notif.rel}: notifications_client_limits no longer gives a browser's card the database's own time`);
@@ -381,8 +388,8 @@ export default [
       let claim = "";
       for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
         const text = noComments((await read(rel)) ?? "");
-        if (/create or replace function public\.ai_budget_take\(/i.test(text)) take = text;
-        if (/create or replace function public\.claim_daily_alert\(/i.test(text)) claim = text;
+        if (/create (?:or replace )?function public\.ai_budget_take\(/i.test(text)) take = text;
+        if (/create (?:or replace )?function public\.claim_daily_alert\(/i.test(text)) claim = text;
       }
       if (!/values \(v_today, 'business-told:' \|\| case when v_new_business then 'new:' else '' end \|\| v_business::text\)/.test(take) || !/if not v_own then/.test(take)) detail.push("ai_budget_take no longer tells the business (once a day for each card, never HireFlow's own) when its AI day is used");
       if (!/set refused = refused \+ 1,\s*calls = greatest\(0, calls - v_take\)\s*where business_id = v_business/.test(take)) detail.push("ai_budget_take: a refused call must give the business its units back (the ninth Phase 5 review)");
@@ -393,7 +400,7 @@ export default [
       // No later migration grants it to a browser (the ninth Phase 5 review).
       for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
         const text = noComments((await read(rel)) ?? "");
-        if (/grant\s+execute\s+on\s+function\s+public\.claim_daily_alert[^;]*\bto\s+[^;]*\b(authenticated|anon|public)\b/i.test(text) || /grant\s+execute\s+on\s+all\s+functions\s+in\s+schema\s+public\s+to\s+[^;]*\b(authenticated|anon)\b/i.test(text)) detail.push(`${rel}: claim_daily_alert (or every function) granted to a browser role`);
+        if (/grant\s+(?:execute|all)(?:\s+privileges)?\s+on\s+(?:function\s+)?public\.claim_daily_alert[^;]*\bto\s+[^;]*\b(authenticated|anon|public)\b/i.test(text) || /grant\s+(?:execute|all)(?:\s+privileges)?\s+on\s+all\s+functions\s+in\s+schema\s+public\s+to\s+[^;]*\b(authenticated|anon|public)\b/i.test(text)) detail.push(`${rel}: claim_daily_alert (or every function) granted to a browser role`);
       }
       const cleanup = (await read("supabase/functions/document-cleanup/index.ts")) ?? "";
       if (!/admin\.rpc\("claim_daily_alert"/.test(cleanup) || !/if \(first !== true\) return;/.test(cleanup) || /from\(\s*["'`]notifications["'`]\s*\)\s*\.select/.test(cleanup)) detail.push("document-cleanup must decide \"told today\" with claim_daily_alert and heed its answer, never by reading the admins' bells");

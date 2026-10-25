@@ -240,7 +240,8 @@ export function loadPosts(dir = path.join(ROOT, "content", "blog"), { includeDra
       throw new Error(`${post.file}: links to the guides' source on GitHub (a draft can be read there): link the published guide instead`);
     }
     // …and an address written as plain text names no draft either ("hireflownow.com/blog/<draft>").
-    for (const m of post.html.matchAll(/\b(?:https?:\/\/)?(?:www\.|staff\.)?hireflownow\.com\/blog\/([a-z0-9-]+)/gi)) {
+    // The feed is no guide (the eighth review: "hireflownow.com/blog/feed.xml" failed the build).
+    for (const m of post.html.matchAll(/\b(?:https?:\/\/)?(?:www\.|staff\.)?hireflownow\.com\/blog\/([a-z0-9-]+)(?![a-z0-9-]|\.xml\b)/gi)) {
       if (!published.has(m[1].toLowerCase())) throw new Error(`${post.file}: names hireflownow.com/blog/${m[1]}, which is not a published guide`);
     }
   }

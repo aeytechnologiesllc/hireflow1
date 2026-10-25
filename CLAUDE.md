@@ -262,6 +262,16 @@ these either; each has a guard or a test that CI runs:
   and last 5–240 minutes (`20261025360000`). A browser's notification gets
   the database's time (`20261025370000`). Applicant text is fenced in every
   scoring prompt, ai-analyze included.
+- (Round 5.) A storage path read with the service key must be plain: no
+  `%`, backslash, control character or dot segment (`isPlainObjectPath` in
+  `_shared/ownDocumentFile.ts`, for documents and resumes; a double-encoded
+  `%252e%252e` reached another folder). The fence rule names every fence word
+  in the text it goes with (`withApplicantTextRule(prompt, text)`: each
+  function makes its own word). Every XML feed goes out through `sendXml`,
+  which drops XML-illegal characters. A deleted application (withdrawal,
+  Delete Account, a deleted job) always queues its recordings, video
+  introduction and work samples in `storage_file_trash`
+  (`20261025490000`, SECURITY DEFINER).
 - (Round 3.) What an applicant signs is what they were shown: at signing
   the server hashes the letter's text or the uploaded file's bytes, refuses
   unless the applicant's screen hashed the same (`viewedHash`), makes that

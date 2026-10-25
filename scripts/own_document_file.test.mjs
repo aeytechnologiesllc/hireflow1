@@ -41,6 +41,15 @@ for (const [url, want] of [
   // …and climbing out of it is no documents file at all.
   [`${P}/storage/v1/object/sign/documents/../resumes/u1/x.pdf`, null],
   [`${P}/storage/v1/object/sign/documents/%2e%2e%2fresumes/x.pdf`, null],
+  // Encoded twice, the dots survive one decode and stay in the sender's
+  // folder on paper; a fetch then reads "%2e%2e" as ".." (the fifth security
+  // review). A backslash is read as "/", and a tab or newline is dropped.
+  [`${P}/storage/v1/object/sign/documents/u1/%252e%252e/u2/final.pdf`, null],
+  [`${P}/storage/v1/object/sign/documents/u1/%252e%252e/%252e%252e/resumes/u2/cv.pdf`, null],
+  [`${P}/storage/v1/object/sign/documents/u1/.%252e/u2/final.pdf`, null],
+  [`${P}/storage/v1/object/sign/documents/u1/..%5Cu2%5Cfinal.pdf`, null],
+  [`${P}/storage/v1/object/sign/documents/u1/.%09./u2/final.pdf`, null],
+  [`${P}/storage/v1/object/sign/documents/u1/a%0Ab.pdf`, null],
   ["javascript:alert(1)", null],
   ["", null],
   [null, null],
@@ -48,6 +57,7 @@ for (const [url, want] of [
   const got = ownDocumentsPath(url, P);
   check(`${JSON.stringify(url)} → ${JSON.stringify(want)}`, got === want, JSON.stringify(got));
 }
+check("the resume reader holds a stored resume to the same plain path (the fifth security review)", /return segments\.length >= 2 && segments\[0\] === ownerId && isPlainObjectPath\(storageInfo\.path\);/.test(read("supabase/functions/_shared/resume.ts")));
 check("the page's copy is the server's, byte for byte", read("src/lib/ownDocumentFile.ts") === read("supabase/functions/_shared/ownDocumentFile.ts"));
 
 const signing = read("supabase/functions/document-signing/index.ts");

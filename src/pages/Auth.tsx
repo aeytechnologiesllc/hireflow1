@@ -586,7 +586,7 @@ export default function Auth() {
       <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8">
         {/* On staff.hireflownow.com there is no home behind sign-in: "/" comes
             straight back here, so the link would loop. */}
-        {!isStaffHost() && (
+        {!isStaffHost() ? (
           <Link
             to={inWebView ? "/?showLanding=true" : "/"}
             className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors self-start"
@@ -594,6 +594,17 @@ export default function Auth() {
             <ArrowLeft className="h-4 w-4" />
             Back to Home
           </Link>
+        ) : (
+          // On the staff site the way back is the front page on the main
+          // address (the fifth growth review: a business that came straight
+          // here had no way to read what HireFlow is first).
+          <a
+            href="https://hireflownow.com/"
+            className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors self-start"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            hireflownow.com
+          </a>
         )}
 
         <div className="flex-1 grid items-center gap-10 lg:grid-cols-2 lg:gap-16 max-w-6xl w-full mx-auto py-8 lg:py-0">

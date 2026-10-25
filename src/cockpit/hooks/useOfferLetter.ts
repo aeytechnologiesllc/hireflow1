@@ -16,6 +16,7 @@ import {
   offerLetterText,
   offerProblems,
   payPartsFromJob,
+  currencyFromJob,
   type OfferLetterFields,
   type PayPer,
 } from "../lib/offerLetter";
@@ -43,6 +44,8 @@ export interface OfferPerson {
   jobTitle: string;
   /** The job's pay as the screen's boxes, when the job states one figure a month, a week or an hour. */
   jobPay: { payAmount: string; payCurrency: string; payPer: PayPer } | null;
+  /** The job's currency, when it has one ("" when it has none). */
+  jobCurrency: string;
   /** The job is done from home. */
   jobRemote: boolean;
   /** The job's own type ("full-time", "part-time", "contract"…), when it has one. */
@@ -105,6 +108,7 @@ export function useOfferPeople(enabled: boolean, stages: readonly string[] = OFF
             jobId: application.job_id,
             jobTitle: job?.title ?? "",
             jobPay: payPartsFromJob(job),
+            jobCurrency: currencyFromJob(job),
             jobRemote: job?.is_remote !== false,
             jobType: job?.job_type ?? null,
             jobLocation: (job as { location?: string | null } | undefined)?.location ?? null,

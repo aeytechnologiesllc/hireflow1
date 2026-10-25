@@ -784,7 +784,12 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
     // it is computer-only, docs/COMPUTER-ONLY-TESTS.md), and a phone's typing
     // read against a computer keyboard's bar would flag the applicant for the
     // phone (the second Phase 7 product audit).
-    const chatTypingInUse = job?.is_remote === false ? null : chatTypingForJob(workflowSteps, chatSimulation?.typing ?? null);
+    // The same goes for every other reader of it below: the team-lead blend and
+    // the scorecard's flags and shortfalls (the fifth product review: only this
+    // copy for the prompt skipped on-site jobs, so a phone's 22 WPM still held
+    // the dental office's receptionist back from "interview").
+    const chatTypingThisJob = job?.is_remote === false ? null : (chatSimulation?.typing ?? null);
+    const chatTypingInUse = chatTypingForJob(workflowSteps, chatTypingThisJob);
     const salesSimulation = readChatSimulationResult(parsedNotes.salesSimulationResult);
     const chatInterview = readChatInterviewResult(parsedNotes.chatInterviewResult);
     // The owner's own deal-breaker answers on the form (questions with
@@ -1311,7 +1316,7 @@ ${interviewType} Interview with AVA Results:
     const chatTypingScoreForBlend = chatTypingBlendScore({
       family: inferredFamily,
       workflowSteps,
-      typing: chatSimulation?.typing ?? null,
+      typing: chatTypingThisJob,
     });
 
     // Tests done, tests ahead and the connection check: a judge conflict about
@@ -1527,8 +1532,8 @@ ${interviewType} Interview with AVA Results:
       interviewWorkingLead: chatInterview?.workingLead ?? null,
       browserTranscriptPhases,
       // Typing measured in the chat practice; the scorecard reads it only
-      // when the job has no typing step.
-      chatTyping: chatSimulation?.typing ?? null,
+      // when the job has no typing step, and never on an on-site job.
+      chatTyping: chatTypingThisJob,
       evidenceFingerprint,
     });
     const analysisMeta = {

@@ -444,7 +444,10 @@ export function DocumentWizard({
       if (!user) throw new Error("Not authenticated");
 
       const fileExt = file.name.split(".").pop();
-      const fileName = `${user.id}/${Date.now()}_${file.name}`;
+      // Storage refuses "%", "#", accents and the like in a name ("Kontrata ni
+      // Niño.pdf" failed to upload), and the server reads only a plain path
+      // (_shared/ownDocumentFile.ts): keep letters, digits and . _ - only.
+      const fileName = `${user.id}/${Date.now()}_${file.name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^\w.-]+/g, "_").replace(/^[._]+/, "").slice(-120) || "document.pdf"}`;
       
       const { data, error } = await supabase.storage
         .from("documents")

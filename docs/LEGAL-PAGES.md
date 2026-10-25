@@ -54,7 +54,7 @@ On 2026-10-09, against the repo and the live project.
 | The company that runs the site | Southern Digital Technologies LLC (the owner, 2026-10-24), named in both openings; 2026-10-25 |
 | A new account (hiring or applicant) keeps the campaign tags and the site it arrived from | `src/hooks/useAuth.tsx` (`signup_source`, for every sign-up), read by `admin_growth()`; 2026-10-25 |
 | The way to reach the company is Contact us (an applicant, at `/contact`) or Help (a hiring team, at `/help`), never Messages; the short version says so too | `src/cockpit/pages/Help.tsx`, `send_help_message` (`20261025200000_help_for_applicants.sql`): the platform admin reads it, the business never does; 2026-10-25 |
-| What Delete Account removes, and what stays | `supabase/functions/delete-account`: not in its list are the quiz attempt ledger, typing-test starts, the block list, the note that a team removed an application (`private.applicant_removals`, with its reason) and error reports; a withdrawal note (`private.application_withdrawals`) goes with the account |
+| What Delete Account removes, and what stays | `supabase/functions/delete-account`: not in its list are the quiz attempt ledger, the block list, the note that a team removed an application (`private.applicant_removals`, with its reason), the spoken-interview minutes (`voice_session_log`) and error reports (typing-test starts go with the applications, `ON DELETE CASCADE`; the tenth Phase 5 review); a withdrawal note (`private.application_withdrawals`) goes with the account |
 | A hiring team turns its own email alerts off in Settings (applicants have no email switch: withdrawing stops a job's emails); an application can be withdrawn | `src/pages/Settings.tsx` (staff only), `src/pages/Applications.tsx` |
 | Free at the moment | billing was removed; no price is shown anywhere |
 
@@ -76,7 +76,7 @@ On 2026-10-09, against the repo and the live project.
    nothing is deleted on a timer. A set
    period for the rest would be better, and needs a job that enforces it.
 5. **Delete Account leaves a few technical records behind** (test-attempt
-   counts, typing-test starts, a block-list entry, a business's removal note
+   counts, a block-list entry, a business's removal note
    with its reason, spoken-interview minutes, error reports). The policy names
    each. Removing them with the account would be cleaner. A withdrawal note
    and spoken-interview recordings now go with the account (2026-10-25).

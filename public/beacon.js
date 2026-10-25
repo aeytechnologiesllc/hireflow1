@@ -110,11 +110,14 @@
       // visitor came from) were counted when they arrived, so they are not
       // counted again (the fourth growth review: one YouTube visitor read as
       // three campaign visits, a Quora one as one).
+      var params = new URLSearchParams(window.location.search);
+      // …except a "Hiring? Post a job free" link's own tags (medium
+      // hiring_link): those are a new way in, the click the owner counts (the
+      // fifth growth review: they stopped counting).
       var from = hostOf(document.referrer);
-      if (!staffSite && from && (from === window.location.hostname || /(^|\.)hireflownow\.com$/.test(from))) {
+      if (!staffSite && from && (from === window.location.hostname || /(^|\.)hireflownow\.com$/.test(from)) && params.get("utm_medium") !== "hiring_link") {
         return { source: null, medium: null, campaign: null };
       }
-      var params = new URLSearchParams(window.location.search);
       // The same tidy value carry-source.js puts on the sign-up link, so a
       // visit and the account it makes say the same source ("YouTube" and
       // "youtube" were two; the Phase 7 growth review).

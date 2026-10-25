@@ -120,7 +120,7 @@ export default [
       let latestFile = "";
       for (const rel of migrations) {
         const text = (await read(rel)) ?? "";
-        const at = text.search(/create or replace function public\.ai_budget_take\(/i);
+        const at = text.search(/create (?:or replace )?function public\.ai_budget_take\(/i);
         if (at >= 0) {
           // Its code, not its comments (the fifth and sixth reviews: a commented-out check passed).
           // Block comments too (the seventh review: a /* */-wrapped line passed).
@@ -128,9 +128,13 @@ export default [
           latestFile = rel;
         }
       }
-      if (!/insert into private\.ai_business_daily_usage/.test(latest) || !/v_business_calls > v_business_cap/.test(latest) || !/return false;/.test(latest)) {
+      // The business branch itself says no: the platform's own "return false"
+      // further down used to satisfy this alone (the tenth Phase 5 review).
+      const businessBranch = latest.slice(latest.search(/if v_business_calls > v_business_cap then/), latest.search(/select coalesce\(\(value #>> '\{\}'\)::integer, 10000\)/));
+      if (!/insert into private\.ai_business_daily_usage/.test(latest) || !/v_business_calls > v_business_cap/.test(latest) || !/return false;\s*end if;\s*end if;\s*$/.test(businessBranch) || /return true/.test(businessBranch)) {
         detail.push(`${latestFile}: the live ai_budget_take no longer counts a business against its own cap`);
       }
+      if (!/on conflict do nothing;\s*if found then/.test(businessBranch)) detail.push(`${latestFile}: ai_budget_take must card a business once a day, not on every refusal`);
       // A business that has not confirmed its email gets the smaller day (the third and fourth Phase 5 reviews).
       const code = latest.replace(/'(?:[^']|'')*'/g, (str) => (/^'(ai_new_business_daily_call_cap|published)'$/.test(str) ? str : "''"));
       if (
@@ -142,7 +146,7 @@ export default [
         !/v_business_cap := v_new_cap;/.test(code) ||
         // The smaller day only when smaller, never flipped; nothing or'd or and-ed away; HireFlow's own day still refused past its cap (the seventh review).
         !/and v_new_cap < v_business_cap then/.test(code) ||
-        /\b(and\s+false|or\s+true)\b/i.test(code) ||
+        /\b(?:and\s*\(*\s*false|or\s*\(*\s*true)\b/i.test(code) ||
         /if v_own then\s+return true/i.test(code) ||
         /business_email_verified\(v_business\)\s+and\s+false/.test(code)
       ) {
@@ -222,7 +226,7 @@ export default [
       let sql = "";
       for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
         const text = noComments((await read(rel)) ?? "");
-        if (/create or replace function public\.remove_applicant\(/i.test(text)) sql = text;
+        if (/create (?:or replace )?function public\.remove_applicant\(/i.test(text)) sql = text;
       }
       if (!/grant execute on function public\.remove_applicant\(uuid, uuid, text\) to service_role;/.test(sql) || !/revoke all on function public\.remove_applicant\(uuid, uuid, text\) from public, anon, authenticated;/.test(sql)) {
         detail.push("remove_applicant must be callable by the system only (it trusts the actor it is given)");
@@ -230,12 +234,32 @@ export default [
       if (!/tm\.can_manage_pipeline is true/.test(sql) || !/p_actor = v_app\.employer_id/.test(sql)) detail.push("remove_applicant no longer limits it to the owner and teammates who manage applicants");
       // A check written but switched off ("… or true") is no check, and no later
       // migration may hand the function to a browser (the ninth review).
-      if (/\bor\s+true\b|\bor\s+1\s*=\s*1\b/i.test(sql)) detail.push("remove_applicant's checks are switched off with an \"or true\"");
+      if (/\bor\s*\(*\s*true\b|\bor\s*\(*\s*1\s*=\s*1\b/i.test(sql)) detail.push("remove_applicant's checks are switched off with an \"or true\"");
       for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
         const text = noComments((await read(rel)) ?? "");
-        if (/grant\s+execute\s+on\s+function\s+public\.remove_applicant[^;]*\bto\s+[^;]*\b(authenticated|anon|public)\b/i.test(text)) detail.push(`${rel}: remove_applicant granted to a browser role`);
+        if (/grant\s+(?:execute|all)(?:\s+privileges)?\s+on\s+(?:function\s+)?public\.remove_applicant[^;]*\bto\s+[^;]*\b(authenticated|anon|public)\b/i.test(text)) detail.push(`${rel}: remove_applicant granted to a browser role`);
       }
       if (!/insert into private\.applicant_removals/.test(sql)) detail.push("remove_applicant no longer logs the removal");
+      // A deleted application (a withdrawal, Delete Account, a job deleted) queues
+      // its recordings, video introduction and work samples, always, with the
+      // function's own rights: an applicant's own delete cannot write the queue
+      // (the tenth Phase 5 review: nothing held this, and it ran only for rows
+      // that named a recording).
+      let queue = "";
+      let queueTrigger = false;
+      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
+        const text = noComments((await read(rel)) ?? "");
+        const at = text.search(/create (?:or replace )?function public\.applications_queue_voice_recordings\(/i);
+        if (at >= 0) queue = text.slice(at, text.indexOf("$$;", at));
+        if (/create (?:or replace )?trigger applications_queue_voice_recordings\s+after delete on public\.applications\s+for each row/i.test(text)) queueTrigger = true;
+        if (/drop trigger (?:if exists )?applications_queue_voice_recordings\b|drop function (?:if exists )?public\.applications_queue_voice_recordings\b|disable trigger (?:applications_queue_voice_recordings|all|user)\b/i.test(text) && !/create (?:or replace )?trigger applications_queue_voice_recordings/i.test(text)) detail.push(`${rel}: the trigger that queues a deleted application's files is dropped or switched off`);
+      }
+      if (!queueTrigger) detail.push("supabase/migrations: no AFTER DELETE trigger on applications queues a deleted application's files");
+      if (!/\bsecurity definer\b/i.test(queue)) detail.push("applications_queue_voice_recordings must run with its own rights (an applicant's own delete cannot write storage_file_trash)");
+      for (const [bucket, folder, prefix] of [["voice-interview-recordings", "old\\.id::text", "''"], ["videos", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"], ["portfolios", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"]]) {
+        if (!new RegExp(`\\('${bucket}', ${folder}, ${prefix}, old\\.id\\)`).test(queue)) detail.push(`applications_queue_voice_recordings no longer queues ${bucket} for every deleted application`);
+      }
+      if (/\bif\b[^;]*\bthen\b[\s\S]*insert into public\.storage_file_trash/i.test(queue.slice(0, queue.search(/insert into public\.storage_file_trash/i) + 40))) detail.push("applications_queue_voice_recordings must queue every deleted application's folders, not only some");
       const fn = (await read("supabase/functions/remove-applicant/index.ts")) ?? "";
       if (!/p_actor: caller\.userId/.test(fn) || !/requireSignedInUser\(req, corsHeaders\)/.test(fn)) detail.push("remove-applicant: the actor must come from the caller's sign-in");
       const menu = (await read("src/cockpit/components/ApplicantRowMenu.tsx")) ?? "";

@@ -12,6 +12,7 @@ import {
   NOTICE_CHOICES,
   OFFER_DEFAULTS,
   OFFER_LIMITS,
+  placeForLetter,
   OFFER_REPLY_DAYS,
   REPLY_CHOICES,
   TRIAL_CHOICES,
@@ -273,12 +274,17 @@ export function OfferLetterDialog({
     setName(person.name === "Applicant" ? "" : person.name);
     setRoleTitle(person.jobTitle);
     setRemote(person.jobRemote);
-    setPlace((person.jobLocation ?? "").trim());
+    // Only a place someone goes to, never "Work from home" or a bare country
+    // (the fifth product review); the business can type the address.
+    setPlace(placeForLetter(person.jobLocation));
     if (person.jobPay) {
       const pay = person.jobPay;
       setPayAmount((now) => now || pay.payAmount);
       setPayCurrency(pay.payCurrency);
       setPayPer(pay.payPer);
+    } else {
+      // A range or a yearly figure still says its currency; none is guessed.
+      setPayCurrency(person.jobCurrency);
     }
     const kept = remembered(person.jobId);
     setHours((now) => now || kept.hours || "");
@@ -533,14 +539,25 @@ export function OfferLetterDialog({
                   <Field id="ck-offer-shift" label="Shift" hint="optional" problem={problemFor("shift")} help="With the time zone, so nobody reads it on the wrong clock.">
                     <input id="ck-offer-shift" className={INPUT} value={shift} maxLength={OFFER_LIMITS.line} disabled={busy} placeholder="3:00 AM to 11:00 AM Philippine time" onChange={(e) => edit(setShift)(e.target.value)} autoComplete="off" />
                   </Field>
+                  {!remote && (
+                    <Field id="ck-offer-place" label="Where they work" hint="optional" problem={problemFor("place")} help={`Left empty, the letter says ${company.trim() ? `${company.trim()}'s` : "your"} workplace.`}>
+                      <input id="ck-offer-place" className={INPUT} value={place} maxLength={OFFER_LIMITS.line} disabled={busy} placeholder="2/F Ayala Tower, Makati" onChange={(e) => edit(setPlace)(e.target.value)} autoComplete="off" />
+                    </Field>
+                  )}
                 </Step>
 
                 <Step n={2} title="Pay">
-                  <Field id="ck-offer-pay" label="Pay" problem={problemFor("payAmount")}>
+                  <Field id="ck-offer-pay" label="Pay" problem={problemFor("payAmount") ?? problemFor("payCurrency")}>
                     <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2">
                       <input id="ck-offer-pay" className={INPUT} value={payAmount} inputMode="decimal" disabled={busy} placeholder="500" onChange={(e) => edit(setPayAmount)(e.target.value)} autoComplete="off" aria-label="Amount" />
                       <select className={INPUT} value={payCurrency} disabled={busy} onChange={(e) => edit(setPayCurrency)(e.target.value)} aria-label="Currency">
-                        {(CURRENCIES as readonly string[]).includes(payCurrency) ? null : <option value={payCurrency}>{payCurrency}</option>}
+                        {payCurrency === "" ? (
+                          <option value="" disabled>
+                            Currency
+                          </option>
+                        ) : (CURRENCIES as readonly string[]).includes(payCurrency) ? null : (
+                          <option value={payCurrency}>{payCurrency}</option>
+                        )}
                         {CURRENCIES.map((c) => (
                           <option key={c} value={c}>
                             {c}

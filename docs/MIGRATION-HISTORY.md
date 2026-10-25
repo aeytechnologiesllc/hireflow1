@@ -442,6 +442,8 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025450000_phase5_review9.sql` | `20261025155525` | `phase5_review9` |
 | `20261025460000_voice_recordings_go_with_application.sql` | `20261025155532` | `voice_recordings_go_with_application` |
 | `20261025470000_security_round4.sql` | `20261025155540` | `security_round4` |
+| `20261025480000_growth_app_sources.sql` | `20261025165906` | `growth_app_sources` |
+| `20261025490000_application_files_go_with_it.sql` | `20261025165914` | `application_files_go_with_it` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.

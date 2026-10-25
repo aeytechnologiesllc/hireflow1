@@ -42,6 +42,7 @@ import { APPLICANT_BLOCKED_MESSAGE, applicationClosedMessage, isApplicantBlocked
 import { openRolesPath, rememberBusiness } from "@/lib/openRoles";
 import { SafetyNote } from "@/components/trust/SafetyNote";
 import { HIRING_LINK_WORDS, hiringLink, withVisitorTags } from "@/lib/hiringLink";
+import { shortWayIn } from "@/lib/shortWays";
 
 export default function JobDetails() {
   // Four doors to this one page (docs/SHORT-JOB-LINKS.md): the job's address
@@ -60,6 +61,13 @@ export default function JobDetails() {
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { role, user, signOut, loading: authLoading, isTeamMember } = useAuth();
+  // A short way in typed in other capitals ("/YouTube", "/Signup"): vercel.json's
+  // redirects match only the exact name, so the page sends it on instead of
+  // saying the role isn't open (the fifth growth review; src/lib/shortWays.ts).
+  const shortWay = !id && businessParam === undefined ? shortWayIn(slugParam) : null;
+  useEffect(() => {
+    if (shortWay) window.location.replace(shortWay);
+  }, [shortWay]);
   const [isStartingApplication, setIsStartingApplication] = useState(false);
 
   const isEmployer = role === "employer";

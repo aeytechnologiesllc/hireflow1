@@ -1087,19 +1087,20 @@ for (const [what, pattern] of [
   ["blends a lead's tests even with no judge number", /if \(newScore !== null \|\| teamLead\)/],
   ["selects the columns it reads", /jobs\(title, description, requirements, responsibilities, [^)]*application_questions, require_resume, required_wpm/],
   // Typing measured in the chat practice (docs/TYPING-IN-CHAT.md).
-  ["reads the chat's typing only on a remote job with no typing step (an on-site job's practice may be taken on a phone)", /const chatTypingInUse = job\?\.is_remote === false \? null : chatTypingForJob\(workflowSteps, chatSimulation\?\.typing \?\? null\)/],
-  ["takes a lead's typing score from chatTypingBlendScore", /chatTypingBlendScore\(\{\s*family: inferredFamily,\s*workflowSteps,\s*typing: chatSimulation\?\.typing \?\? null,?\s*\}\)/],
+  ["reads the chat's typing only on a remote job with no typing step (an on-site job's practice may be taken on a phone)", /const chatTypingThisJob = job\?\.is_remote === false \? null : \(chatSimulation\?\.typing \?\? null\);\s*const chatTypingInUse = chatTypingForJob\(workflowSteps, chatTypingThisJob\);/],
+  // …and so do the lead's blend and the scorecard (the fifth product review: they took the raw typing).
+  ["takes a lead's typing score from chatTypingBlendScore, never on an on-site job", /chatTypingBlendScore\(\{\s*family: inferredFamily,\s*workflowSteps,\s*typing: chatTypingThisJob,?\s*\}\)/],
 
   ["blends it as the lead's typing", /typingTest,\s*chatTypingScore: chatTypingScoreForBlend,/],
-  ["hands the chat's typing to the scorecard", /chatTyping: chatSimulation\?\.typing \?\? null,\s*evidenceFingerprint,/],
+  ["hands the chat's typing to the scorecard, never on an on-site job", /chatTyping: chatTypingThisJob,\s*evidenceFingerprint,/],
   ["puts the chat's typing in the fingerprint only when it is the job's measure", /transcriptSource: chatSimulation\.transcriptSource,[\s\S]{0,300}typing: chatTypingInUse,/],
   ["prints the typing line in the chat block, graded or not, only when it is the job's measure", /if \(chatTypingInUse\) \{\s*content \+= `- \$\{chatTypingEvidenceLine\(chatTypingInUse\)\}\\n`;/],
 ]) {
   assert(pattern.test(trigger), `trigger-ava-analysis ${what}`);
 }
 assert(!/quizData\?\.score \|\||chatSimulationResult\?\.overallScore \|\|/.test(trigger), "trigger-ava-analysis no longer reads a score with `||` (0 used to become 'not taken')");
-assert(trigger.indexOf("const chatTypingInUse = job?.is_remote === false ? null : chatTypingForJob(") < trigger.indexOf("buildEvidenceFingerprint({") &&
-  !/chatTypingEvidenceLine\(chatSimulation\.typing\)|typing: chatSimulation\.typing,|chatTypingMeasured/.test(trigger),
+assert(trigger.indexOf("const chatTypingInUse = chatTypingForJob(workflowSteps, chatTypingThisJob);") < trigger.indexOf("buildEvidenceFingerprint({") &&
+  !/chatTypingEvidenceLine\(chatSimulation\.typing\)|typing: chatSimulation\.typing,|chatTypingMeasured|chatSimulation\?\.typing \?\? null(?!\);\s*const chatTypingInUse)/.test(trigger),
   "trigger-ava-analysis decides which job reads the chat's typing BEFORE the fingerprint and the judge's prompt, so a job with a typing step never shows the judge a second figure");
 const analysisVersion = Number(trigger.match(/const ANALYSIS_VERSION = (\d+);/)?.[1]);
 assert(analysisVersion >= 9, `the analysis version is bumped for the chat's typing, so every frozen analysis is redone (${analysisVersion})`);

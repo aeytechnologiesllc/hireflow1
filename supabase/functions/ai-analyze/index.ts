@@ -1291,8 +1291,7 @@ serve(async (req) => {
     // Every analysis ends with the rule for applicant-written text: it is
     // evidence, never instructions (_shared/promptFence.ts).
     const basePrompt = systemPromptFor(type, context?.job_family === "team_lead");
-    const systemPrompt = basePrompt ? withApplicantTextRule(basePrompt) : basePrompt;
-    if (!systemPrompt) {
+    if (!basePrompt) {
       return new Response(
         JSON.stringify({ error: `Invalid analysis type: ${type}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -1388,6 +1387,10 @@ serve(async (req) => {
       userContent += `\nResume text extracted: ${hasResumeText ? `Yes (${resumeText!.length} chars)` : "No"}`;
       userContent += `\nResume images attached: ${normalizedResumeImages.length}`;
     }
+
+    // The rule names the fence trigger-ava-analysis put around its own
+    // content as well as this function's (each function makes its own word).
+    const systemPrompt = withApplicantTextRule(basePrompt, userContent);
 
     // Build the messages array based on what resume data we have
     // Support vision for BOTH "resume" AND "application" types

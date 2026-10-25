@@ -112,6 +112,16 @@ check("the admin gets the report", !!g && g.days === 30, JSON.stringify(g));
 const front = Object.fromEntries((g?.front_page ?? []).map((r) => [r.source, r.visits]));
 check("front-page visits by source: campaign tag, else referring site, else direct", front.youtube === 15 && front.quora === 3 && front.direct === 5, JSON.stringify(front));
 check("…each channel named once: Facebook's hosts and its tag are one \"facebook\", Google's app and country sites one \"google\"", front.facebook === 4 && front.google === 2 && !Object.keys(front).some((k) => /facebook\.com|google\./.test(k)), JSON.stringify(front));
+// The fifth growth review: apps are their own channels; Gmail is not Google.
+{
+  const apps = readFileSync(path.join(ROOT, "supabase/migrations/20261025480000_growth_app_sources.sql"), "utf8");
+  await db.exec(apps);
+  await db.exec(apps);
+  const name = async (v) => (await db.query(`select public.growth_source_name($1) as n`, [v])).rows[0].n;
+  const cases = [["com.google.android.gm", "gmail"], ["mail.google.com", "gmail"], ["com.google.android.youtube", "youtube"], ["com.facebook.katana", "facebook"], ["com.instagram.android", "instagram"], ["com.linkedin.android", "linkedin"], ["com.zhiliaoapp.musically", "tiktok"], ["com.whatsapp", "whatsapp"], ["com.google.android.googlequicksearchbox", "google"], ["www.google.com.ph", "google"], ["docs.google.com", "docs.google.com"], ["open_jobs", "open_jobs"]];
+  const got = await Promise.all(cases.map(async ([v]) => name(v)));
+  check("…each app is its own channel, Gmail is \"gmail\", Google's search app and sites \"google\"", cases.every(([, want], i) => got[i] === want), JSON.stringify(got));
+}
 check("visits older than the window are left out", front.old === undefined);
 check("the sign-in and sign-up page is counted on its own", g?.signup_page === 4);
 const accounts = g?.accounts ?? [];

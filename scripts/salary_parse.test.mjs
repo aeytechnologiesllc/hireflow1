@@ -54,6 +54,7 @@ for (const [text, country, want] of [
 }
 
 const builder = readFileSync(path.join(ROOT, "src/lib/jobFromFlow.ts"), "utf8");
+check("a hybrid job is saved as not remote, as it is built (the fifth product review)", /const isRemote = brief\.workMode !== "hybrid" && \(brief\.workMode === "remote" \|\| isFullyRemoteText\(/.test(builder));
 check("the job builder stores what the parser reads, and a remote job's place picks no currency (the third product audit)", /const sal = parseSalary\(payText, isRemote \? undefined : countryCode \?\? undefined\);/.test(builder) && /const salaryCurrency = sal\.currency \?\? \(!isRemote && countryCode === "US" \? "USD" : null\);/.test(builder));
 const page = readFileSync(path.join(ROOT, "src/pages/JobDetails.tsx"), "utf8");
 check("the job page says pay with the shared words (no USD guessed)", /payWords\(\{ salary_min: min, salary_max: max, salary_currency: currency, salary_period: period \}\)/.test(page) && !/currency \|\| "USD"/.test(page));

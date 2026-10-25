@@ -591,8 +591,10 @@ function GrowthTab() {
       </div>
       <p className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
         Tag every link you post, for example <code>hireflownow.com/?utm_source=youtube&amp;utm_campaign=v1</code>, and the campaign shows here by name.
-        The hiring team's own clicks from the staff site are not counted. An account shows as unknown when it brought no tags and no site sent it
-        (a typed address, a bookmark, a browser that asks sites not to track), and so does every account made before 25 October 2026.
+        The hiring team's own clicks from the staff site are not counted in the page kinds and campaigns (the front-page and sign-in totals still hold them).
+        "short_link" is someone who typed a guess such as hireflownow.com/signup; "hireflownow.com" is a move from another of HireFlow's own pages; "referral" campaigns
+        are a site that linked here with no tags. An account shows as unknown when it brought no tags and no site sent it (a typed address, a bookmark, a link straight
+        to the sign-up page, a browser that asks sites not to track), and so does every account made before 25 October 2026.
         In a video or post, say a short address: <code>hireflownow.com/youtube</code>, <code>/tiktok</code>, <code>/facebook</code>,{" "}
         <code>/instagram</code> or <code>/linkedin</code> lands on the front page already tagged.
       </p>
