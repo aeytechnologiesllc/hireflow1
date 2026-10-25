@@ -596,11 +596,22 @@ function validateWorkflowResponse(value: unknown) {
  * What an applicant reads inside a step, without an age ask (the sixth Phase 6
  * review): a portfolio or video prompt goes (PortfolioUploadPhase and the
  * video step below have their own), and so does a practice situation (a list
- * left empty is removed: the page and the grader then use their own).
+ * left empty is removed: the page and the grader then use their own). A quiz
+ * step's own questions too (the seventh review): QuizPhase serves
+ * `config.questions` ahead of the job's filtered quiz_questions, so an age
+ * question there skipped the filter; a list left empty is removed and the
+ * page falls back to quiz_questions.
  */
 function configWithoutAgeAsks(config: Record<string, unknown>): Record<string, unknown> {
   const out = { ...config };
   if (asksAgeOrStatus(out.prompt)) delete out.prompt;
+  if (Array.isArray(out.questions)) {
+    const kept = (out.questions as WorkflowQuestion[])
+      .filter((q) => !questionAsksAge(q?.question, q?.options))
+      .map((q) => (asksAgeOrStatus(q?.fit_context) ? { ...q, fit_context: (textWithoutAgeAsks(q.fit_context) as string) || undefined } : q));
+    if (kept.length > 0) out.questions = kept;
+    else delete out.questions;
+  }
   if (Array.isArray(out.scenarios)) {
     const kept = withoutAgeAsks(out.scenarios as unknown[], (s) =>
       typeof s === "string"

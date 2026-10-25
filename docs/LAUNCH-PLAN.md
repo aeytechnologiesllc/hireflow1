@@ -994,8 +994,27 @@ Six fresh reviewers read 84688c10 (live). Fixed:
   PDF's pages are not counted by the budget (only the work-sample review sends
   PDFs, ten a day per application), and no business is told when the whole
   platform's day is used (the admins are).
-- **Phase 6, round 7** and **Phase 4, round 11:** see the next entry when
-  their fixes land.
+- **Phase 6, round 7** (fixed in its own session, merged; severity tied to
+  what the AI writes under its no-age rule): the age filter keeps a medical
+  front desk recording a caller's age, customers described as people, women
+  or loan applicants of an age, a product's age limit, the business's own age
+  and grader remarks about the work; it now drops "over the age of 21",
+  combined form labels ("Sex, age, civil status"), DOB asks, pregnancy,
+  marital and childcare questions, "fresh graduate", "legal age", birth-year
+  limits and grader remarks on an applicant's age or family; a quiz step's
+  own questions and a lead's quoted evidence are filtered. 669 checks; over
+  10,596 real strings it drops nothing the old filter kept. Left: the written
+  interviewer's streamed questions (the prompt forbids them; filtering the
+  stream would make the record differ from what the applicant saw).
+- **Phase 4, round 11** (fixed in its own session, merged): online shops
+  (TikTok Shop, Facebook shops, WooCommerce, Zalora) and a chain's
+  nationwide line are customer service again; a store part is a call-centre
+  account only on real evidence (a foreign client, a site the agent works
+  at, a plan's members, the customers' software, a hotline); "Front Office"
+  titles are no venue; conferences rule out a reservations agent only when
+  the work plans them; the benefits bullets go wherever the heading sits;
+  "Join us" no longer reads as the US. 43 of 43 report cases, 1658 checks,
+  every earlier probe unchanged.
 
 ### 2026-10-25 (night) — Phase 7 security, product and growth, round 3; Phase 5 round 8; Phase 6 round 6; Phase 4 round 10
 

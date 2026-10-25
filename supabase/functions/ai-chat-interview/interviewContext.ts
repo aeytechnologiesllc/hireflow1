@@ -662,8 +662,13 @@ export function interviewEvaluationFrom(
   evaluation.score = Math.round(LEAD_MARKS_WEIGHT * leadMean + (1 - LEAD_MARKS_WEIGHT) * modelScore);
   for (const key of LEAD_INTERVIEW_KEYS) evaluation[key] = lead.scores[key] ?? null;
   evaluation.writtenEnglish = lead.scores.writtenEnglish;
-  if (Object.keys(lead.quotes).length > 0) evaluation.leadEvidence = lead.quotes;
-  if (Object.keys(lead.unverifiedQuotes).length > 0) evaluation.leadEvidenceUnverified = lead.unverifiedQuotes;
+  // A quote that names the applicant's age or family ("As a mother of three I…") is not shown as evidence, to the
+  // business or to Ava's scoring (trigger-ava-analysis reads leadEvidence); the mark stays (the seventh Phase 6 review).
+  const evidence = (quotes: Partial<Record<LeadScoredKey, string>>) => Object.fromEntries(Object.entries(quotes).filter(([, quote]) => !marksAgeOrFamily(quote)));
+  const quotes = evidence(lead.quotes);
+  const unverifiedQuotes = evidence(lead.unverifiedQuotes);
+  if (Object.keys(quotes).length > 0) evaluation.leadEvidence = quotes;
+  if (Object.keys(unverifiedQuotes).length > 0) evaluation.leadEvidenceUnverified = unverifiedQuotes;
   const missing = LEAD_INTERVIEW_KEYS.filter((k) => lead.scores[k] === undefined).map((k) => MUST_COVER_TOPIC[k]);
   if (!readFlag(e.hoursCovered)) missing.push(MUST_COVER_TOPIC.hours);
   const answers = options.messages.filter((m) => m.role === "user" && typeof m.content === "string" && m.content.trim()).length;

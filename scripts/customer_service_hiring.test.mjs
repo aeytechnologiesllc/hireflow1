@@ -284,6 +284,28 @@ const CS = [
   ["Retail - Customer Service Associate", "Answer customer emails and calls about orders."], ["Reservations Agent", "Take reservations by phone at our showroom."],
   ["Booking Agent", "Book flights on major carriers for our travel agency's clients."], ["Receptionist", "Greet patients and schedule visits at our dental office."],
   ["Receptionist", "Greet patients at our clinic.\nBenefits:\n- Medical, dental, and vision insurance"],
+  // The eleventh Phase 4 review: an online platform's shop, or stores in many places, is no store anyone stands in; the "office" of
+  // a "Front Office" title is no venue; a hotel's conferences and corporate events, and travel or a job's logistics, are no
+  // planner's or freight broker's; a client a team works for ("Our client is a US retail brand") is still the account.
+  ["Customer Service Representative", "Assist customers in our TikTok Shop with orders and returns."], ["Customer Service Agent", "Assist customers in our Facebook shop with their orders."],
+  ["Customer Service Representative", "Help customers in our WooCommerce store with orders, returns and refunds."],
+  ["Customer Support Agent", "Assist customers in our web store with order status and refunds."], ["E-commerce Customer Service", "Assist customers in our TikTok Shop with orders and returns."],
+  ["Customer Service Representative", "Serve our customers in our Instagram shop and reply to DMs."],
+  ["Customer Service Representative", "Help customers at our store locations nationwide through our hotline and email."],
+  ["Customer Service Representative", "Assist customers in our stores nationwide by answering calls and emails from our head office."],
+  ["Front Office Staff", "Answer customer inquiries by phone and Facebook Messenger and schedule aircon cleaning appointments."],
+  ["Front Office Associate", "Handle inbound calls from US customers for our healthcare account."],
+  ["Front Office Associate", "Respond to customer inquiries via phone, email and chat for our online store."],
+  ["Front Office Associate - Chat Support", "Reply to customer chats."], ["Front Office Agent - Call Center", "Take inbound calls."], ["Front Office Specialist", "Respond to customer emails and chats."],
+  ["Reservations Agent", "Answer calls and emails to book hotel rooms for leisure travelers, corporate events and conferences."],
+  ["Reservations Agent", "Answer calls from guests and book rooms. Our hotel hosts weddings, conferences and corporate events."],
+  ["Reservations Agent", "Answer guest calls about reservations, travel logistics and special requests."],
+  ["Booking Agent", "Answer customer calls, book moves and coordinate with our logistics team."],
+  ["Booking Coordinator", "Schedule cleaning appointments for customers and handle the logistics of each job."],
+  ["Reservations Agent", "Handle airline reservations by phone; experience in travel or logistics is a plus."],
+  ["Reservations Specialist", "Take reservations by phone for our resort, including weddings, conferences and corporate events."],
+  ["Customer Service Representative", "Help customers in our franchise stores with their orders."],
+  ["Retail - Customer Service Representative", "Our client is a US retail brand. Handle customer concerns."], ["Reservations Agent", "Handle group reservations for conferences by phone."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -505,6 +527,34 @@ const NOT_CS = [
   ["Customer Service Associate - Retail", "Help customers in our store and with orders from our website.", "cash"],
   ["Customer Service Representative", "Help customers in our store and over the phone.", "cash"], ["Booking Agent", "Call carriers to book loads.", "general"],
   ["Receptionist", "Greet visitors at our law office. Medical, dental, and vision insurance.", "admin"],
+  // The eleventh: a store's own POS, members, software, site, chain or group, online orders, night shift and a pleasant voice are
+  // no call-centre account, nor a retailer that is hiring, nor "Join us and help customers"; the bullets under a "Benefits:" or
+  // "What we offer:" heading wherever it is, and a yearly check-up; another job served by no channel; a store's or a care home's staff.
+  ["Customer Service Associate - Retail", "Operate the POS system, process returns and exchanges, and answer customer questions.", "cash"],
+  ["Retail - Customer Service Associate", "Operate the POS system, process returns and exchanges, and answer customer questions.", "cash"],
+  ["Customer Service Assistant - Retail", "Job description:\n- Greet and assist customers\n- Operate POS system and handle cash\n- Process returns and exchanges\n- Maintain cleanliness of the area\n\nRequirements:\n- Willing to work on shifting schedule\n- Can start ASAP", "cleaner"],
+  ["Customer Service Representative - Pharmacy", "Our pharmacy chain is hiring!\nDuties:\n- Assist customers with their prescriptions and over-the-counter purchases\n- Answer customer inquiries\n- Process transactions using our POS system\n- Shifting schedule including night shift", "admin"],
+  ["Customer Service Associate - Supermarket", "Join the country's leading supermarket chain. Maintain the front end, bag groceries and help customers.", "general"],
+  ["Customer Service - Restaurant", "Take orders, serve food and handle customer complaints. We are a restaurant group with 20 branches.", "cash"],
+  ["Grocery - Customer Service Associate", "Prepare online orders for curbside pickup.", "general"], ["Retail | Customer Service Clerk", "Help members with returns and exchanges at the front end.", "admin"],
+  ["Customer Service Associate - Retail", "Use our software to look up prices and process returns.", "developer"],
+  ["Customer Service Associate - Retail", "Assist customers, handle cash and keep the site clean.", "cleaner"],
+  ["Customer Service Crew - Bakery", "Serve customers, handle cash and keep the counter clean. Willing to work graveyard shift.", "cleaner"],
+  ["Customer Service Associate - Grocery", "Assist customers. Must be willing to work night shift (24-hour store).", "cash"],
+  ["Customer Service Associate - Retail", "Assist customers and process returns. Must have a pleasant voice and pleasing personality.", "cash"],
+  ["Retail - Customer Service Associate", "Join an American retail brand! Assist customers with purchases and returns.", "cash"],
+  ["Customer Service Associate - Retail", "Join us and help customers with returns and exchanges.", "cash"],
+  ["Customer Service Associate - Electronics Store", "Help customers choose phones, tablets and accessories and process returns.", "cash"],
+  ["Customer Service Representative", "Help customers at our Apple store with repairs.", "cash"], ["Booking Agent (Logistics)", "Answer customer calls.", "general"],
+  ["Receptionist", "Answer phones, greet visitors and manage the mail for our office. Free annual medical and dental check-ups.", "admin"],
+  ["Front Desk Agent", "Check guests in and out, answer phones and handle reservations at our hotel. Free annual medical and dental check-ups.", "general"],
+  ["Gym Front Desk Staff", "Check members in, answer phones and sell memberships. Free annual medical and dental check-ups.", "general"],
+  ["Receptionist", "We are a busy law firm in BGC.\nResponsibilities:\n- Answer and direct phone calls\n- Greet clients and visitors\n- Manage meeting room bookings\nBenefits:\n- Free annual medical and dental check-ups\n- HMO\n- 13th month pay", "admin"],
+  ["Receptionist", "Answer phones and greet visitors at our office.\nWhat we offer:\n- Free dental cleanings\n- PTO", "cleaner"],
+  ["Receptionist", "Answer phones and greet visitors at our office.\nBenefits:\n- Discounted dental care\n- PTO", "admin"],
+  ["Customer Service - Cashier", "Assist cashiers during busy periods and help customers with returns.", "cash"],
+  ["Customer Service - Retail Staff", "Assist customers and keep the store tidy.", "cash"], ["Customer Care - Care Staff", "Assist elderly residents with daily activities.", "general"],
+  ["Front Desk - Hospitality Staff", "", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -730,6 +780,11 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Customer Service Representative", "Handle inquiries, complaints and requests by phone.", "phone"],
     ["Customer Support Agent", "Calls are handled by our sales team. Answer customer emails.", "email"],
     ["Customer Support Agent", "Respond to emails and chats; calls are answered by another team.", "chat"],
+    // The eleventh: a door's or a building's intercom is no chat tool; calls someone else took, followed up on, are no phone work.
+    ["Front Desk Receptionist", "Answer phones and the intercom, check in patients and schedule appointments.", "phone"],
+    ["Virtual Receptionist", "Answer calls and the building intercom for our clients' offices.", "phone"],
+    ["Email Support Specialist", "Reply to customer emails. Follow up on calls from the sales team.", "email"],
+    ["Customer Support Agent", "Support customers via Intercom.", "chat"], ["Customer Support Agent", "Reply to Intercom messages from customers.", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
 }
 
