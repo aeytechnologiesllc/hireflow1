@@ -68,6 +68,7 @@ await db.exec(`
   create table public.applications (id uuid primary key, job_id uuid references public.jobs(id), candidate_id uuid, resume_url text, notes text);
   create table public.team_members (employer_id uuid, user_id uuid, status text, can_manage_pipeline boolean, assigned_job_ids uuid[]);
   create table public.notifications (id serial primary key, user_id uuid, title text, link text);
+  create table public.blocked_applicants (id serial primary key, employer_id uuid not null, candidate_id uuid not null, email text, phone text, reason text, unique (employer_id, candidate_id));
   create table public.applicant_notes (id serial primary key, application_id uuid references public.applications(id) on delete cascade, body text);
   create table public.interviews (id serial primary key, application_id uuid references public.applications(id) on delete cascade);
   create table public.documents (id uuid primary key default gen_random_uuid(), application_id uuid references public.applications(id) on delete cascade, file_url text);
@@ -87,6 +88,11 @@ await db.exec(`
     ('${OWNER}', '${VIEWER}', 'active', false, null),
     ('${OWNER}', '${LEFT}', 'removed', true, null),
     ('${OWNER}', '${ONLY_JOB2}', 'active', true, array['${OWNER_JOB2}']::uuid[]);
+  insert into public.blocked_applicants (employer_id, candidate_id, email, phone, reason) values
+    ('${OWNER}', '${ANA}', 'ana@x.example', '09171234567', 'No-show twice'),
+    ('${OTHER_OWNER}', '${ANA}', 'ana@x.example', null, 'Elsewhere'),
+    ('${OWNER}', '40000000-0000-4000-8000-000000000012', 'sec@x.example', null, 'Kept while another application remains');
+  insert into public.applications values ('42000000-0000-4000-8000-000000000006', '${OWNER_JOB2}', '40000000-0000-4000-8000-000000000012', null, null);
   insert into public.notifications (user_id, title, link) values
     ('${OWNER}', 'Ana finished', '/applicants/${APP}'),
     ('${MANAGER}', 'Ana finished', '/applicants/${APP}?tab=tests'),
@@ -101,6 +107,7 @@ await db.exec(`
 `);
 await db.exec(read("supabase/migrations/20261025170000_remove_applicant.sql"));
 await db.exec(read("supabase/migrations/20261025180000_remove_applicant_review.sql"));
+await db.exec(read("supabase/migrations/20261025220000_remove_applicant_help_review2.sql"));
 
 const remove = async (application, actor, reason = null) =>
   (await db.query(`select public.remove_applicant($1, $2, $3) as r`, [application, actor, reason])).rows[0].r;
@@ -115,7 +122,7 @@ check("a teammate who may not manage applicants: refused", (await remove(APP, VI
 check("someone who left the team: refused", (await remove(APP, LEFT))?.reason === "not_allowed");
 check("the applicant themself: refused (they delete their own account in Settings)", (await remove(APP, ANA))?.reason === "not_allowed");
 check("a teammate who manages applicants on another job only: refused (the Phase 5 review)", (await remove(APP, ONLY_JOB2))?.reason === "not_allowed");
-check("nothing was removed by any refusal", (await count(`select count(*)::int as n from public.applications`)) === 5 && (await count(`select count(*)::int as n from private.applicant_removals`)) === 0);
+check("nothing was removed by any refusal", (await count(`select count(*)::int as n from public.applications`)) === 6 && (await count(`select count(*)::int as n from private.applicant_removals`)) === 0);
 {
   let blocked = false;
   try {
@@ -149,6 +156,8 @@ check("it is logged: which application, whose, by whom, why, when", log.length =
 check("it names the application's documents by id only, never by the file address the business wrote", Array.isArray(done.documents) && done.documents.length === 1 && done.documents[0].id === "43000000-0000-4000-8000-000000000001" && !("file" in done.documents[0]) && !JSON.stringify(done).includes("offer.pdf"), JSON.stringify(done.documents));
 check("the team's notifications about Ana go (owner and teammate, with or without a query)", (await count(`select count(*)::int as n from public.notifications where link like '/applicants/${APP}%' and user_id in ('${OWNER}', '${MANAGER}')`)) === 0);
 check("…Ana's own notifications stay (her account is not touched), as do the team's about Ben", (await count(`select count(*)::int as n from public.notifications where user_id = '${ANA}'`)) === 1 && (await count(`select count(*)::int as n from public.notifications where link = '/applicants/${BEN_APP}'`)) === 1);
+check("her block with this business goes too, once no application of hers is left there (the second Phase 5 review)", (await count(`select count(*)::int as n from public.blocked_applicants where employer_id = '${OWNER}' and candidate_id = '${ANA}'`)) === 0);
+check("…her block with another business stays", (await count(`select count(*)::int as n from public.blocked_applicants where employer_id = '${OTHER_OWNER}' and candidate_id = '${ANA}'`)) === 1);
 check("…and another business's notifications are never touched", (await count(`select count(*)::int as n from public.notifications where user_id = '${OTHER_OWNER}'`)) === 1);
 check("it says what Ana still uses elsewhere: her profile's resume and her other application", done.other_refs.includes(`${ANA}/profile-cv.pdf`) && done.other_refs.includes(`${ANA}/1700000000009.pdf`) && done.other_refs.includes(`${ANA}/1700000000001_q1.pdf`));
 check("removing it again: not found", (await remove(APP, OWNER))?.reason === "not_found");
@@ -156,6 +165,7 @@ check("removing it again: not found", (await remove(APP, OWNER))?.reason === "no
 console.log("\nA teammate who manages applicants\n");
 check("may remove one", (await remove(SECOND, MANAGER))?.ok === true && (await count(`select count(*)::int as n from private.applicant_removals where removed_by = '${MANAGER}'`)) === 1);
 check("one assigned to a job may remove an applicant to that job", (await remove(THIRD, ONLY_JOB2))?.ok === true);
+check("a block stays while the person still has another application with the business", (await count(`select count(*)::int as n from public.blocked_applicants where candidate_id = '40000000-0000-4000-8000-000000000012'`)) === 1);
 
 console.log("\nFiles storage would not delete yet (storage_file_trash)\n");
 {
@@ -201,11 +211,13 @@ check("a storage link is read as its path in the bucket", FILES.storagePathIn(`h
 
 const fn = read("supabase/functions/remove-applicant/index.ts");
 check("the function takes the actor from the sign-in, never the request", /const caller = await requireSignedInUser\(req, corsHeaders\);/.test(fn) && /p_actor: caller\.userId/.test(fn) && !/body\.actor|body\.userId/.test(fn));
-check("files go only after the database removed the application", fn.indexOf('admin.rpc("remove_applicant"') < fn.indexOf("await removeAll(storage"));
-check("a document's files are found by its id only (documents/<id>/), never by its file address (the Phase 5 review)", /for \(const id of documentIdsOf\(documents\)\) documentFiles\.push\(\.\.\.\(await listNames\(storage, "documents", `documents\/\$\{id\}`/.test(fn) && !/doc\.file|storagePathIn\(/.test(fn));
+check("files go only after the database removed the application", fn.indexOf('admin.rpc("remove_applicant"') > 0 && fn.indexOf('admin.rpc("remove_applicant"') < fn.indexOf("removeAll(storage, "));
+check("each kind of file is removed on its own, so one that throws is queued whole and never stops the rest (the second Phase 5 review)", /const step = async \(fallback: Leftover, work: \(\) => Promise<number>\) =>/.test(fn) && /leftovers\.push\(fallback\)/.test(fn) && /attempt <= 3 && filesQueued === 0/.test(fn) && /filesLeft: leftovers\.length/.test(fn));
+check("a document's files are found by its id only (documents/<id>/), never by its file address (the Phase 5 review)", /for \(const id of documentIdsOf\(result\.documents\)\) \{\s*await step\(\{ bucket: "documents", folder: `documents\/\$\{id\}` \}, async \(\) =>\s*removeAll\(storage, "documents", await listNames\(storage, "documents", `documents\/\$\{id\}`/.test(fn) && !/doc\.file|storagePathIn\(/.test(fn));
 check("…and documentIdsOf keeps only real ids", JSON.stringify(FILES.documentIdsOf([{ id: "43000000-0000-4000-8000-000000000001", file: "x" }, { id: "../x" }, { id: 5 }, null, { id: "43000000-0000-4000-8000-000000000001" }])) === JSON.stringify(["43000000-0000-4000-8000-000000000001"]));
 check("a file storage would not delete is queued for the hourly retry, and the answer says how many", /\.from\("storage_file_trash"\)\.insert\(/.test(fn) && /filesQueued/.test(fn));
 const cleanup = read("supabase/functions/document-cleanup/index.ts");
+check("document-cleanup tries the fewest-tried notes first, and a failed ID-papers read never skips the queue", /\.order\("attempts", \{ ascending: true \}\)/.test(cleanup) && !/return json\(\{ error: "read_failed" \}, 500\)/.test(cleanup));
 check("document-cleanup retries the queue, plain paths in the known buckets only, and drops a note only once its files are gone", /\.from\("storage_file_trash"\)[\s\S]*REMOVAL_BUCKETS\.has\(bucket\)[\s\S]*\.remove\(paths\)[\s\S]*\.from\("storage_file_trash"\)\.delete\(\)/.test(cleanup) && /attempts: Number\(note\.attempts \?\? 0\) \+ 1/.test(cleanup));
 
 console.log("\nOn the applicant's page\n");

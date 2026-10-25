@@ -39,7 +39,7 @@ export const SERVICE_DELAY_LINE =
  * people back again and again for hours (the Phase 5 review).
  */
 export const SERVICE_DELAY_LONG_LINE =
-  "We're having a delay on our side. Your answers are saved. Please come back in a few hours to carry on.";
+  "We're having a delay on our side. Your answers are saved. Please come back later today or tomorrow to carry on.";
 
 /** A delay that lasts hours, not minutes (the server's `wait: "long"`). */
 export function isLongServiceDelay(body: unknown): boolean {

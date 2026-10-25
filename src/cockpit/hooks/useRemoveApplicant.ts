@@ -33,11 +33,17 @@ export function useRemoveApplicant() {
         }
         // A file storage would not delete yet is retried every hour (document-cleanup).
         const queued = Number((data as { filesQueued?: unknown }).filesQueued ?? 0);
-        toast.success(
-          queued > 0
-            ? "Their information is deleted. A few of their files could not be removed yet; they are tried again every hour until they are gone."
-            : "Their information is deleted.",
-        );
+        const left = Number((data as { filesLeft?: unknown }).filesLeft ?? queued);
+        if (left > queued) {
+          // Storage refused and the retry could not be queued: say so plainly.
+          toast.warning("Their application is deleted, but some of their files could not be removed. Write to us from Help and we will remove them.");
+        } else {
+          toast.success(
+            queued > 0
+              ? "Their information is deleted. A few of their files could not be removed yet; they are tried again every hour until they are gone."
+              : "Their information is deleted.",
+          );
+        }
         // Every list and count that showed them.
         await queryClient.invalidateQueries();
         return true;

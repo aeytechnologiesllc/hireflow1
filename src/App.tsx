@@ -269,6 +269,8 @@ const App = () => (
                     <Route path="/more" element={<More />} />
                     <Route path="/team" element={<Team />} />
                     <Route path="/help" element={<HelpPage />} />
+                    {/* An applicant's Contact us: their own Help thread with the company (20261025200000). */}
+                    <Route path="/contact" element={<HelpPage />} />
                     <Route path="/admin" element={<AdminPage />} />
                     <Route path="/team-portal" element={<TeamPortal />} />
                     <Route path="/analytics" element={<Analytics />} />

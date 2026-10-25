@@ -68,8 +68,11 @@ export default [
             detail.push(`${rel}:${text.slice(0, m.index).split("\n").length}: takeDailyAiBudget(${m[1]}) does not say which business the call is for`);
           }
         }
-        if (/api\.openai\.com/.test(text) && !/takeDailyAiBudget\(/.test(text)) {
-          detail.push(`${rel}: calls OpenAI directly without taking from the daily budget`);
+        // Each direct OpenAI request needs its own take from the budget.
+        const direct = (text.match(/fetch\(\s*[`"']https:\/\/api\.openai\.com/g) ?? []).length;
+        const takes = (text.match(/\btakeDailyAiBudget\(/g) ?? []).length;
+        if (direct > takes && rel !== "supabase/functions/_shared/openai.ts" && rel !== "supabase/functions/_shared/openaiStreaming.ts") {
+          detail.push(`${rel}: ${direct} direct OpenAI requests but ${takes} takes from the daily budget`);
         }
       }
       const openai = (await read("supabase/functions/_shared/openai.ts")) ?? "";
@@ -79,12 +82,32 @@ export default [
       const streaming = (await read("supabase/functions/_shared/openaiStreaming.ts")) ?? "";
       if (!/takeDailyAiBudget\(1, business\)/.test(streaming)) detail.push("_shared/openaiStreaming.ts: the streaming helper no longer passes the business to the budget");
       const flow = (await read("supabase/functions/generate-flow/index.ts")) ?? "";
-      if (!/takeDailyAiBudget\(1, user\.id\)/.test(flow)) detail.push("generate-flow: does not take from the asking business's budget");
+      if (!/const business = await jobWritingBusiness\(user\.id\);/.test(flow) || !/takeDailyAiBudget\(1, business\)/.test(flow)) detail.push("generate-flow: does not take from the asking business's budget (a hiring account's business, jobWritingBusiness)");
+      for (const writer of ["ai-generate-job-content", "ai-generate-workflow"]) {
+        const text = (await read(`supabase/functions/${writer}/index.ts`)) ?? "";
+        if (!/const askedBy = await jobWritingBusiness\(signedIn\);/.test(text)) detail.push(`${writer}: job-writing AI is not limited to a hiring account (jobWritingBusiness)`);
+      }
       const helper = (await read("supabase/functions/_shared/aiBudget.ts")) ?? "";
       if (!/p_business: business/.test(helper)) detail.push("_shared/aiBudget.ts: does not send the business to ai_budget_take");
       const migration = (await read("supabase/migrations/20261025160000_ai_business_budget.sql")) ?? "";
       if (!/create or replace function public\.ai_budget_take\(p_calls integer default 1, p_business uuid default null\)/.test(migration) || !/drop function if exists public\.ai_budget_take\(integer\);/.test(migration)) {
         detail.push("20261025160000_ai_business_budget.sql: the two-argument budget (and the old one dropped) is missing");
+      }
+      // The LATEST definition is the live one (the second Phase 5 review: the
+      // guard read only the first): it still counts the business and refuses past its cap.
+      const migrations = (await walk("supabase/migrations", [".sql"])).sort();
+      let latest = "";
+      let latestFile = "";
+      for (const rel of migrations) {
+        const text = (await read(rel)) ?? "";
+        const at = text.search(/create or replace function public\.ai_budget_take\(/i);
+        if (at >= 0) {
+          latest = text.slice(at);
+          latestFile = rel;
+        }
+      }
+      if (!/insert into private\.ai_business_daily_usage/.test(latest) || !/v_business_calls > v_business_cap/.test(latest) || !/return false;/.test(latest)) {
+        detail.push(`${latestFile}: the live ai_budget_take no longer counts a business against its own cap`);
       }
       return detail.length ? { ok: false, detail } : { ok: true };
     },
@@ -127,14 +150,18 @@ export default [
         // The company, not the hiring business (the Phase 5 review).
         const contact = block.slice(block.indexOf('id: "contact"'));
         if (!/chooses Contact us; a hiring team opens Help/.test(contact)) detail.push(`legal.ts: ${doc}'s "How to reach us" no longer names Contact us (an applicant) and Help (a hiring team)`);
-        if (/write to the hiring team/i.test(block)) detail.push(`legal.ts: ${doc} sends people to the hiring team to reach us; Messages reach the business, not the company`);
+        if (/write to the hiring team|message us in your account/i.test(block)) detail.push(`legal.ts: ${doc} sends people to Messages to reach us; Messages reach the business, not the company`);
       }
       const help = (await read("src/cockpit/pages/Help.tsx")) ?? "";
       const header = (await read("src/components/AppHeader.tsx")) ?? "";
       const layout = (await read("src/components/AppLayout.tsx")) ?? "";
       if (!/if \(role === "candidate"\) return user!\.id;/.test(help)) detail.push("Help.tsx: an applicant no longer has a thread of their own (Contact us)");
-      if (!/role === "candidate" && \([\s\S]{0,120}navigate\("\/help"\)[\s\S]{0,120}Contact us/.test(header)) detail.push("AppHeader.tsx: the applicant's account menu no longer has Contact us");
-      if (!/"\/help",\n\];/.test(layout)) detail.push("AppLayout.tsx: an applicant can no longer open /help");
+      if (!/role === "candidate" && \([\s\S]{0,120}navigate\("\/contact"\)[\s\S]{0,120}Contact us/.test(header)) detail.push("AppHeader.tsx: the applicant's account menu no longer has Contact us (/contact)");
+      if (!/"\/contact",\n\];/.test(layout)) detail.push("AppLayout.tsx: an applicant can no longer open /contact");
+      const app = (await read("src/App.tsx")) ?? "";
+      const hosts = (await read("src/lib/hosts.ts")) ?? "";
+      if (!/<Route path="\/contact" element=\{<HelpPage \/>\} \/>/.test(app)) detail.push("App.tsx: /contact no longer shows Contact us");
+      if (/\\\/contact/.test(/const STAFF_ONLY = \[([\s\S]*?)\];/.exec(hosts)?.[1] ?? "")) detail.push("src/lib/hosts.ts: /contact must not be staff-only (an applicant has no session on the staff host)");
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

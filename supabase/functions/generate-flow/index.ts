@@ -10,6 +10,8 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
+import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
+import { jobWritingBusiness } from "../_shared/signedIn.ts";
 import { scenarioPack } from "../_shared/scenarioPacks.ts";
 
 const CS_CHANNELS = { chat: "chat", phone: "phone calls", email: "email", mixed: "chat, phone and email" } as const;
@@ -106,6 +108,13 @@ Deno.serve(async (req: Request) => {
     if (!token || !SB_URL || !SERVICE_KEY) return json({ error: "unauthorized" }, 401);
     const { data: { user }, error: authErr } = await createClient(SB_URL, SERVICE_KEY).auth.getUser(token);
     if (authErr || !user) return json({ error: "unauthorized" }, 401);
+    // A hiring account only, billed to its business, at most 40 job-writing
+    // calls an hour per account (the second Phase 5 review: any account,
+    // applicants' included, could spend here, each with its own daily budget).
+    const business = await jobWritingBusiness(user.id);
+    if (!business) return json({ error: "not_a_business" }, 403);
+    const perAccount = await guardAuthenticatedAiCall("job-writing", user.id, CORS, 40, 3600);
+    if (perAccount) return perAccount;
 
     const body = await req.json().catch(() => ({}));
     const brief = body?.brief ?? body;
@@ -123,7 +132,7 @@ Deno.serve(async (req: Request) => {
     // Today's platform-wide AI budget (fails open; _shared/aiBudget.ts). The
     // page falls back to its built-in plan on any error.
     // The asking business pays from its own daily AI budget, then the platform's (_shared/aiBudget.ts).
-    if (!(await takeDailyAiBudget(1, user.id))) return json({ error: "ai_unavailable", reason: "budget_reached" }, 503);
+    if (!(await takeDailyAiBudget(1, business))) return json({ error: "ai_unavailable", reason: "budget_reached" }, 503);
     const model = Deno.env.get("OPENAI_MODEL") || "gpt-5.6-luna";
 
     const followUpCtx =

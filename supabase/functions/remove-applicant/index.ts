@@ -113,27 +113,42 @@ serve(async (req) => {
   const storage = admin.storage;
   const leftovers: Leftover[] = [];
   let removedFiles = 0;
-  try {
-    if (UUID.test(candidateId)) {
-      removedFiles += await removeAll(storage, "videos", await listNames(storage, "videos", candidateId, `${applicationId}-`, leftovers), leftovers);
-      removedFiles += await removeAll(storage, "portfolios", await listNames(storage, "portfolios", candidateId, `${applicationId}-`, leftovers), leftovers);
-      removedFiles += await removeAll(storage, "resumes", resumeFilesToRemove(candidateId, result.resume_url, result.notes, String(result.other_refs ?? "")), leftovers);
+  // Each kind of file on its own: one that throws never stops the others,
+  // and is queued whole for the retry (the second Phase 5 review).
+  const step = async (fallback: Leftover, work: () => Promise<number>) => {
+    try {
+      removedFiles += await work();
+    } catch (e) {
+      console.warn("[remove-applicant] some files were not removed:", e instanceof Error ? e.message : String(e));
+      leftovers.push(fallback);
     }
-    removedFiles += await removeAll(storage, "voice-interview-recordings", await listNames(storage, "voice-interview-recordings", applicationId, "", leftovers), leftovers);
-    const documents = Array.isArray(result.documents) ? (result.documents as Array<{ id?: unknown }>) : [];
-    const documentFiles: string[] = [];
-    for (const id of documentIdsOf(documents)) documentFiles.push(...(await listNames(storage, "documents", `documents/${id}`, "", leftovers)));
-    removedFiles += await removeAll(storage, "documents", documentFiles, leftovers);
-  } catch (e) {
-    console.warn("[remove-applicant] some files were not removed:", e instanceof Error ? e.message : String(e));
+  };
+  if (UUID.test(candidateId)) {
+    await step({ bucket: "videos", folder: candidateId, starts_with: `${applicationId}-` }, async () =>
+      removeAll(storage, "videos", await listNames(storage, "videos", candidateId, `${applicationId}-`, leftovers), leftovers));
+    await step({ bucket: "portfolios", folder: candidateId, starts_with: `${applicationId}-` }, async () =>
+      removeAll(storage, "portfolios", await listNames(storage, "portfolios", candidateId, `${applicationId}-`, leftovers), leftovers));
+    const resumeFiles = resumeFilesToRemove(candidateId, result.resume_url, result.notes, String(result.other_refs ?? ""));
+    for (const path of resumeFiles) {
+      await step({ bucket: "resumes", path }, async () => removeAll(storage, "resumes", [path], leftovers));
+    }
+  }
+  await step({ bucket: "voice-interview-recordings", folder: applicationId }, async () =>
+    removeAll(storage, "voice-interview-recordings", await listNames(storage, "voice-interview-recordings", applicationId, "", leftovers), leftovers));
+  for (const id of documentIdsOf(result.documents)) {
+    await step({ bucket: "documents", folder: `documents/${id}` }, async () =>
+      removeAll(storage, "documents", await listNames(storage, "documents", `documents/${id}`, "", leftovers), leftovers));
   }
 
   let filesQueued = 0;
   if (leftovers.length > 0) {
-    const { error: queueError } = await admin.from("storage_file_trash").insert(leftovers.map((l) => ({ ...l, application_id: applicationId })));
-    if (queueError) console.error(`[remove-applicant] could not queue ${leftovers.length} files for the retry:`, queueError.message);
-    else filesQueued = leftovers.length;
+    const rows = leftovers.map((l) => ({ ...l, application_id: applicationId }));
+    for (let attempt = 1; attempt <= 3 && filesQueued === 0; attempt += 1) {
+      const { error: queueError } = await admin.from("storage_file_trash").insert(rows);
+      if (!queueError) filesQueued = leftovers.length;
+      else console.error(`[remove-applicant] could not queue ${leftovers.length} files for the retry (try ${attempt} of 3):`, queueError.message, JSON.stringify(rows));
+    }
   }
 
-  return json({ ok: true, removedFiles, filesQueued });
+  return json({ ok: true, removedFiles, filesQueued, filesLeft: leftovers.length });
 });

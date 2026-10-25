@@ -121,7 +121,10 @@ for (const fn of ["ai-chat-simulation", "ai-chat-interview"]) {
   check("ai-sales-simulation: the guard is not inside a mode check any more", !/if \(mode === "start" \|\| mode === "respond"\) \{\s*const target = recordingTargetFrom\(request\);\s*const turnUserId/.test(sales));
 }
 for (const fn of ["ai-generate-job-content", "ai-generate-workflow"]) {
-  check(`${fn}: requires a signed-in user`, /const askedBy = await signedInUserId\(req\);\s*if \(!askedBy\)/.test(read(`supabase/functions/${fn}/index.ts`)));
+  const writer = read(`supabase/functions/${fn}/index.ts`);
+  check(`${fn}: requires a signed-in user`, /const signedIn = await signedInUserId\(req\);\s*if \(!signedIn\)/.test(writer));
+  // The second Phase 5 review: an applicant's account spent job-writing AI on its own budget.
+  check(`${fn}: …a hiring account (its business pays), at most 40 calls an hour per account`, /const askedBy = await jobWritingBusiness\(signedIn\);\s*if \(!askedBy\)/.test(writer) && /guardAuthenticatedAiCall\("job-writing", signedIn, corsHeaders, 40, 3600\)/.test(writer));
 }
 
 // ---- who is counted ----------------------------------------------------------
@@ -142,7 +145,14 @@ check("the limiter counts by CF-Connecting-IP first", callerFn.indexOf("cf-conne
 const openai = read("supabase/functions/_shared/openai.ts");
 check("callOpenAIChat takes from the daily budget (the business's, then the platform's) before calling", /if \(!\(await takeDailyAiBudget\(1, business\)\)\) \{\s*throw new AiUnavailableError\("budget_reached"/.test(openai));
 check("the streaming helper does too", /takeDailyAiBudget\(1, business\)/.test(read("supabase/functions/_shared/openaiStreaming.ts")));
-check("generate-flow does too, for the asking business", /takeDailyAiBudget\(1, user\.id\)/.test(read("supabase/functions/generate-flow/index.ts")));
+const flowFn = read("supabase/functions/generate-flow/index.ts");
+check("generate-flow does too: a hiring account only, its business pays, 40 calls an hour per account", /const business = await jobWritingBusiness\(user\.id\);\s*if \(!business\) return json\(\{ error: "not_a_business" \}, 403\);/.test(flowFn) && /takeDailyAiBudget\(1, business\)/.test(flowFn) && /guardAuthenticatedAiCall\("job-writing", user\.id, CORS, 40, 3600\)/.test(flowFn));
+const signedInTs = read("supabase/functions/_shared/signedIn.ts");
+check("a hiring account is a business owner, or a teammate allowed to create jobs (never an applicant)", /r\.role === "employer"\)\) return userId;/.test(signedInTs) && /\.eq\("can_create_jobs", true\)/.test(signedInTs) && /return typeof team\?\.employer_id === "string" \? team\.employer_id : null;/.test(signedInTs));
+const turnsCap = read("supabase/functions/_shared/rateLimit.ts");
+check("the per-application day cap answers with the calm 'come back later' 503, nothing stored (not a 429)", /export const PRACTICE_TURNS_PER_APPLICATION_PER_DAY = 200;/.test(turnsCap) && /aiUnavailableResponse\(corsHeaders, \{ wait: "long", retryAfterSeconds: secondsToNextUtcDay\(\), message: AI_BUDGET_WAIT_MESSAGE, turnSaved: false \}\)/.test(turnsCap));
+const prune = read("supabase/migrations/20261025210000_rate_limit_prune.sql");
+check("the rate-limit table keeps two days (a day cap is not reset) and is pruned every hour", /window_start < now\(\) - interval '2 days'/.test(prune) && /cron\.schedule\('prune-rate-limits', '41 \* \* \* \*'/.test(prune));
 {
   const budget = await import(path.join(ROOT, "supabase/functions/_shared/aiBudget.ts"));
   check("the budget check fails open when it has no settings (a Node run)", (await budget.takeDailyAiBudget()) === true);
@@ -226,9 +236,10 @@ for (let i = 0; i < 6; i += 1) b_platform.push(await b_take(null));
 check("the platform budget still refuses past its ceiling", JSON.stringify(b_platform) === JSON.stringify([true, true, true, true, false, false]), JSON.stringify(b_platform));
 // The Phase 5 review: a call the platform refused still counted against the business.
 const b_otherBefore = (await db.query(`select calls from private.ai_business_daily_usage where business_id = '${B_OTHER}'`)).rows[0]?.calls;
-const b_otherRefused = await b_take(B_OTHER);
+// Three refused calls: without the refund the business would pass its cap of 3 and set off its alert.
+const b_otherRefused = [await b_take(B_OTHER), await b_take(B_OTHER), await b_take(B_OTHER)];
 const b_otherAfter = (await db.query(`select calls from private.ai_business_daily_usage where business_id = '${B_OTHER}'`)).rows[0]?.calls;
-check("a call the platform budget refuses is refused, and the business gets its unit back", b_otherRefused === false && b_otherBefore === 1 && b_otherAfter === 1, `${b_otherRefused} ${b_otherBefore} -> ${b_otherAfter}`);
+check("calls the platform budget refuses are refused, and the business gets each unit back", b_otherRefused.every((ok) => ok === false) && b_otherBefore === 1 && b_otherAfter === 1, `${JSON.stringify(b_otherRefused)} ${b_otherBefore} -> ${b_otherAfter}`);
 check("…so it never sets off the business's own alert", (await db.query(`select count(*)::int as n from public.notifications where title like 'A business reached%' and message like '%${B_OTHER}%'`)).rows[0].n === 0);
 const b_titles = (await db.query(`select title from public.notifications where user_id = '${B_OWNER}' order by created_at`)).rows.map((r) => r.title);
 check("the owner is told once at 80% and once when it is used up", b_titles.filter((t) => /80% of today/.test(t)).length === 1 && b_titles.filter((t) => /budget is used up/.test(t)).length === 1, JSON.stringify(b_titles));

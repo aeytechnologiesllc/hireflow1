@@ -198,6 +198,10 @@ check("0. it applies, and applies again", applied);
   check("1c. the applicant migration exists exactly once", !!applicantSql);
   await db.exec(applicantSql);
   await db.exec(applicantSql);
+  const review2Sql = await migration(/_remove_applicant_help_review2\.sql$/);
+  // The removal part needs tables this stub does not have; only its Help functions are applied here.
+  const helpPart = review2Sql.slice(review2Sql.indexOf("CREATE OR REPLACE FUNCTION public.send_help_message"));
+  await db.exec(helpPart);
   await pg(`delete from public.notifications`);
   const fromAna = await as(ANA, "authenticated", `select public.send_help_message('Please send me a copy of my information.') as id`);
   check("1c. an applicant writes to HireFlow (the Privacy Policy sends them here)", fromAna.ok && !!fromAna.rows[0]?.id, show(fromAna));
@@ -221,7 +225,11 @@ check("0. it applies, and applies again", applied);
   check("1c. a team member still writes in the business's thread", teamStill.ok && teamRow[0]?.employer_id === LUCKY, show(teamRow));
   const answer = await as(ZACK, "authenticated", `select public.admin_reply_help($1, 'Here it is.') as id`, [ANA]);
   const toldAna = await pg(`select user_id, link from public.notifications where title = 'HireFlow replied'`);
-  check("1c. you answer her, and her bell links to Contact us (/help)", answer.ok && toldAna.length === 1 && toldAna[0].user_id === ANA && toldAna[0].link === "/help", show(toldAna));
+  check("1c. you answer her, and her bell links to Contact us (/contact; /help is staff-only on the staff host)", answer.ok && toldAna.length === 1 && toldAna[0].user_id === ANA && toldAna[0].link === "/contact", show(toldAna));
+  await pg(`delete from public.notifications where title = 'HireFlow replied'`);
+  const answerBiz = await as(ZACK, "authenticated", `select public.admin_reply_help($1, 'For the business') as id`, [LUCKY]);
+  const toldBiz = await pg(`select link from public.notifications where title = 'HireFlow replied' and user_id = $1`, [LUCKY]);
+  check("1c. a business's answer still links to Help (/help)", answerBiz.ok && toldBiz[0]?.link === "/help", show(toldBiz));
   const nobody = await as(null, "anon", `select public.send_help_message('hi')`);
   check("1c. nobody signed out can write", !nobody.ok, show(nobody));
 }

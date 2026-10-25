@@ -31,7 +31,7 @@ const pageTitles: Record<string, string> = {
   "/notifications": "Notifications",
   "/settings": "Settings",
   "/profile": "Profile",
-  "/help": "Contact us",
+  "/contact": "Contact us",
 };
 
 interface AppHeaderProps {
@@ -115,7 +115,7 @@ export default function AppHeader({ onMenuClick, isMobile }: AppHeaderProps) {
             </DropdownMenuItem>
             {/* The Privacy Policy sends applicants here to reach the company. */}
             {role === "candidate" && (
-              <DropdownMenuItem onClick={() => navigate("/help")}>
+              <DropdownMenuItem onClick={() => navigate("/contact")}>
                 <LifeBuoy className="h-4 w-4 mr-2" />
                 Contact us
               </DropdownMenuItem>

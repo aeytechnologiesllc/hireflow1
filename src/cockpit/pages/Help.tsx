@@ -16,7 +16,7 @@ import { trustApi, trustErrorWords, type HelpMessage } from "@/lib/trustApi";
  * through send_help_message). The "account paused" alert links here.
  *
  * An applicant has a thread of their own here too ("Contact us" in their
- * account menu) (2026-10-25,
+ * account menu, at /contact: /help is staff-only on the staff host) (2026-10-25,
  * 20261025200000_help_for_applicants.sql): the Privacy Policy sends them
  * here to ask the company for a copy of their information, a correction or
  * a deletion. The hiring business never sees it.
@@ -105,7 +105,7 @@ export default function CockpitHelp() {
     <div className="space-y-5" data-help-page>
       <PageHeader
         title={applicant ? "Contact us" : "Help"}
-        subtitle={applicant ? "Write to the company that runs HireFlow. The business you applied to does not see this." : "Write to HireFlow. We usually reply within a day."}
+        subtitle={applicant ? "Write to the people who run HireFlow. The hiring team of a job you applied to does not see this, unless the job is one of ours." : "Write to HireFlow. We usually reply within a day."}
       />
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,320px)] md:items-start">
         <section className="ck-card p-4 md:p-5" aria-labelledby="help-thread-title">

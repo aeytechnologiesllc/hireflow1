@@ -4,8 +4,8 @@ import {
   callOpenAIJson,
   requireJsonKeys,
 } from "../_shared/openai.ts";
-import { guardPublicAiCall } from "../_shared/rateLimit.ts";
-import { signedInUserId } from "../_shared/signedIn.ts";
+import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { jobWritingBusiness, signedInUserId } from "../_shared/signedIn.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -316,13 +316,25 @@ serve(async (req) => {
   // callers (src/lib/avaJobGeneration.ts, src/pages/CreateJob.tsx) sit behind
   // sign-in, and an open endpoint was a free AI writer for anyone
   // (docs/LAUNCH-PLAN.md, Phase 1, task 3).
-  const askedBy = await signedInUserId(req);
-  if (!askedBy) {
+  const signedIn = await signedInUserId(req);
+  if (!signedIn) {
     return new Response(JSON.stringify({ error: "Sign in to create a job.", code: "sign_in_required" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
+  // A hiring account only (an applicant's account writes no jobs), billed to
+  // its business, and at most 40 job-writing calls an hour per account across
+  // the three job writers (the second Phase 5 review).
+  const askedBy = await jobWritingBusiness(signedIn);
+  if (!askedBy) {
+    return new Response(JSON.stringify({ error: "Only a hiring account can write a job.", code: "not_a_business" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+  const perAccount = await guardAuthenticatedAiCall("job-writing", signedIn, corsHeaders, 40, 3600);
+  if (perAccount) return perAccount;
 
   let body: JobContentRequest | null = null;
 

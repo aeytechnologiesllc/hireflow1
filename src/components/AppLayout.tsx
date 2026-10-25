@@ -69,8 +69,9 @@ const CANDIDATE_ALLOWED_PATH_PREFIXES = [
   "/notifications",
   "/settings",
   "/profile",
-  // Contact us: an applicant's own thread with the company (Help).
-  "/help",
+  // Contact us: an applicant's own thread with the company (the Help page at
+  // its own address; /help is staff-only on the staff host, src/lib/hosts.ts).
+  "/contact",
 ];
 
 function isAllowedCandidatePath(pathname: string) {

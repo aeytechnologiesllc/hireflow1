@@ -418,7 +418,7 @@ export function ApplicantActionDialogs({
       <ActionDialog
         open
         title={`Delete ${who}'s information?`}
-        description={`This deletes ${who}'s application to this job for good: their answers, test results, notes, interview, documents and the files they sent. Their messages stay in Messages, the signing record of any document they signed is kept, and their own account is not touched. Use this when they ask you to delete their information. It cannot be undone.`}
+        description={`This deletes ${who}'s application to this job for good: their answers, test results, notes, interview, documents and the files they sent. If you blocked them and this is their last application with you, the block goes too. Their messages stay in Messages, the signing record of any document they signed is kept, and their own account is not touched. Use this when they ask you to delete their information. It cannot be undone.`}
         confirmLabel="Delete for good"
         tone="danger"
         busy={busy}

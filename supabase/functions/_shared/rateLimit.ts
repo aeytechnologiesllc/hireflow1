@@ -14,6 +14,7 @@
  * candidate mid-interview than block them; the limiter is cost protection, not an
  * authorization boundary.
  */
+import { AI_BUDGET_WAIT_MESSAGE, aiUnavailableResponse, secondsToNextUtcDay } from "./openai.ts";
 
 export type RateLimitResult = {
   allowed: boolean;
@@ -166,10 +167,16 @@ export async function guardAuthenticatedAiCall(
  */
 export const PRACTICE_TURNS_PER_APPLICATION_PER_DAY = 200;
 
-export function guardPracticeTurnsForApplication(
-  req: Request,
+export async function guardPracticeTurnsForApplication(
+  _req: Request,
   applicationId: string,
   corsHeaders: Record<string, string>,
 ): Promise<Response | null> {
-  return guardPublicAiCall(req, "practice-turns-per-application", corsHeaders, PRACTICE_TURNS_PER_APPLICATION_PER_DAY, 86400, `application:${applicationId}`);
+  const result = await checkRateLimit("practice-turns-per-application", `application:${applicationId}`, PRACTICE_TURNS_PER_APPLICATION_PER_DAY, 86400);
+  if (result.allowed) return null;
+  console.warn(`[rate-limit] practice turns for application ${applicationId} reached ${result.hits}/${PRACTICE_TURNS_PER_APPLICATION_PER_DAY} today`);
+  // The calm "come back later" answer the practice pages already show (the
+  // second Phase 5 review: a 429 read as "give it another try" and left the
+  // unsent bubble on screen). Nothing of the turn was stored.
+  return aiUnavailableResponse(corsHeaders, { wait: "long", retryAfterSeconds: secondsToNextUtcDay(), message: AI_BUDGET_WAIT_MESSAGE, turnSaved: false });
 }

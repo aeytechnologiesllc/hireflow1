@@ -678,6 +678,12 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      // A reply with no words is never a model call, recorded or not (the
+      // second Phase 5 review: an empty reply on a busy attempt was a turn
+      // played from the request's own history).
+      if (mode === "respond" && !(typeof agentMessage === "string" && agentMessage.trim())) {
+        return json({ error: "Type a reply first.", code: "no_message" }, 400);
+      }
       // One application's turns a day, all practices together (_shared/rateLimit.ts).
       const perApplication = target ? await guardPracticeTurnsForApplication(req, target.applicationId, corsHeaders) : null;
       if (perApplication) return perApplication;

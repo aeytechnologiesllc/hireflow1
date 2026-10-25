@@ -21,7 +21,7 @@ export function ServiceDelayNotice({
   busy?: boolean;
   /** Nothing to retry yet (the reply box was emptied). */
   disabled?: boolean;
-  /** The day's limit on our side: come back in a few hours, not minutes. */
+  /** The day's limit on our side: come back later today or tomorrow, not in minutes. */
   long?: boolean;
 }) {
   return (

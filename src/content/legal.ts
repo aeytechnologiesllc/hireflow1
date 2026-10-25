@@ -64,7 +64,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             "We do not sell your information, and the site shows no advertising.",
             "Software, including AI, scores your answers. A person on the hiring team decides whether to pass on your application.",
             "You can delete your account yourself, at any time, in Settings.",
-            "To ask us anything, message us in your account.",
+            "To ask us anything, write to us from Contact us in your account menu.",
           ],
         },
       ],
@@ -176,7 +176,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       id: "keep",
       title: "How long we keep it",
       body: [
-        "Most things are not deleted on a timer. We keep your account and your applications until you delete them, you ask us to, or the hiring team removes them.",
+        "Most things are not deleted on a timer. We keep your account and your applications until you delete them or the hiring team removes them. If you ask us to delete an application, we pass your request to its hiring team, which can delete it, and we help you delete your account if you want that too.",
         "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 24 hours after someone on the hiring team first opens it, or 7 days after you send it if nobody opens it.",
         "In that time the hiring team may download a copy. A copy they keep is theirs to look after, under their own duties to protect it.",
         "When you delete your account, your profile, your applications, your test records and your files are deleted with it.",
@@ -230,7 +230,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       id: "contact",
       title: "How to reach us",
       body: [
-        "Write to us, Southern Digital Technologies LLC, from your account: an applicant opens the account menu and chooses Contact us; a hiring team opens Help. Only we read it, never the business you applied to. We usually reply within a day.",
+        "Write to us, Southern Digital Technologies LLC, from your account: an applicant opens the account menu and chooses Contact us; a hiring team opens Help. It reaches the people who run this site, not the hiring team of a job you applied to (unless that job is one of ours). We usually reply within a day.",
         "To ask a hiring business something about your application, use Messages. To report a job, use Report on its page. We do not read replies to the emails the site sends.",
       ],
     },

@@ -193,7 +193,7 @@ export function aiUnavailableResponse(corsHeaders: Record<string, string>, extra
 
 /** The one sentence while the day's limit is reached (src/lib/serviceDelay.ts SERVICE_DELAY_LONG_LINE). */
 export const AI_BUDGET_WAIT_MESSAGE =
-  "We're having a delay on our side. Your answers are saved. Please come back in a few hours to carry on.";
+  "We're having a delay on our side. Your answers are saved. Please come back later today or tomorrow to carry on.";
 
 /** Seconds until the next midnight UTC, when the daily budgets start again (at least a minute). */
 export function secondsToNextUtcDay(now: number = Date.now()): number {
@@ -205,7 +205,7 @@ export function secondsToNextUtcDay(now: number = Date.now()): number {
 /**
  * The extra fields of an applicant's 503 for this refusal: the day's budget
  * (a business's own, or the platform's) lasts until midnight UTC, so the page
- * says to come back in a few hours (`wait: "long"`), not in a couple of
+ * says to come back later today or tomorrow (`wait: "long"`), not in a couple of
  * minutes (the Phase 5 review). Any other refusal adds nothing.
  */
 export function aiUnavailableExtra(error: unknown, now: number = Date.now()): Record<string, unknown> {

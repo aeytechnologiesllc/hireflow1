@@ -716,7 +716,11 @@ kept in the deletion record only):
   the business uploaded to build a document (its own file, in its own
   folder, which other documents may share), the quiz attempt count for that
   job (so re-applying is not a way to retake the skills check), their own
-  account, their own notifications and their other applications. Not the same as Remove and block: that hides and blocks
+  account, their own notifications and their other applications. Their
+  block with the business (email, phone, the team's reason) goes once no
+  application of theirs is left there (`20261025220000`); before, deleting a
+  blocked applicant's only application left it stored with nothing that
+  could show or lift it. Not the same as Remove and block: that hides and blocks
   without deleting anything.
 - Proof: `scripts/remove_applicant.pglite.test.mjs`; guard
   `applicant-data-can-be-removed`.

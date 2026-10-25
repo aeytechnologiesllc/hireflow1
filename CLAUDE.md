@@ -173,16 +173,22 @@ these either; each has a guard or a test that CI runs:
   assigned to; files storage refuses are queued in `storage_file_trash` and
   retried hourly by `document-cleanup`. Guard `applicant-data-can-be-removed`.
 - The way to reach the company is **Contact us** (an applicant's own Help
-  thread, `20261025200000_help_for_applicants.sql`) or Help (a hiring team);
-  Messages reach the hiring business, so the legal pages never send a privacy
-  request there.
-- When a day's AI budget is reached, applicants are told to come back in a
-  few hours (`wait: "long"`, `aiUnavailableExtra`), never "a couple of
-  minutes"; a refused step stays open (chat, interview, sales), and a refused
-  portfolio analysis records no score. Practice turns are also capped at 200
-  per application per day, all practices together. A call the platform
-  budget refuses gives the business its unit back
-  (`20261025190000_ai_budget_count_only_taken.sql`).
+  thread at `/contact`, `20261025200000_help_for_applicants.sql`; `/help` is
+  staff-only on the staff host) or Help (a hiring team); Messages reach the
+  hiring business, so the legal pages never send a privacy request there.
+- When a day's AI budget is reached, applicants are told to come back later
+  today or tomorrow (`wait: "long"`, `aiUnavailableExtra`), never "a couple
+  of minutes"; a refused step stays open (chat, interview, sales), and a
+  refused portfolio analysis records no score. Practice turns are also capped
+  at 200 per application per day, all practices together (the same calm
+  answer); the rate-limit table keeps two days and is pruned hourly
+  (`20261025210000`). A call the platform budget refuses gives the business
+  its unit back (`20261025190000_ai_budget_count_only_taken.sql`).
+- Job-writing AI (generate-flow, ai-generate-job-content,
+  ai-generate-workflow) is for a hiring account only (`jobWritingBusiness`:
+  a business owner, or a teammate allowed to create jobs), billed to its
+  business, at most 40 calls an hour per account. An applicant's account
+  could spend there on its own daily budget.
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

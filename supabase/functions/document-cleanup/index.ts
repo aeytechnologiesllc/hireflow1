@@ -62,13 +62,12 @@ Deno.serve(async (req) => {
   ]);
   const error = opened.error ?? unopened.error ?? neverMarkedSent.error;
   const due = [...(opened.data ?? []), ...(unopened.data ?? []), ...(neverMarkedSent.data ?? [])];
-  if (error) {
-    console.error("[document-cleanup] could not read requests:", error.message);
-    return json({ error: "read_failed" }, 500);
-  }
+  // A failed read skips this hour's ID papers, never the queues below (the
+  // second Phase 5 review: it returned before them).
+  if (error) console.error("[document-cleanup] could not read requests:", error.message);
 
-  const counts = { due: due?.length ?? 0, deleted: 0, failed: 0 };
-  for (const request of due ?? []) {
+  const counts = { due: error ? 0 : due.length, deleted: 0, failed: error ? 1 : 0 };
+  for (const request of error ? [] : due) {
     const path = String(request.file_url);
     // Only ever a file in that applicant's own folder.
     if (!path.startsWith(`${request.candidate_id}/`) || path.includes("..")) {
@@ -123,6 +122,8 @@ Deno.serve(async (req) => {
   const { data: leftovers, error: leftoverError } = await admin
     .from("storage_file_trash")
     .select("id, bucket, path, folder, starts_with, attempts")
+    // Fewest tries first, so notes that keep failing never hold up new ones.
+    .order("attempts", { ascending: true })
     .order("queued_at", { ascending: true })
     .limit(200);
   if (leftoverError) console.error("[document-cleanup] could not read the removal queue:", leftoverError.message);
