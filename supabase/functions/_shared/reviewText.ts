@@ -41,6 +41,30 @@ export function readLineNumber(value: unknown): number | null {
 /** Every speaker label a reviewer's transcript uses (chat practice and interview). */
 const SPEAKER_LABEL = /\b(LEAD|PLAYER|AGENT|CUSTOMER|PATIENT|CALLER|INTERVIEWER|CANDIDATE)(\s*#?\s*\d+)?\s*:/gi;
 
+/** Colons that look like ":" (NFKC folds the full-width and small ones; these it leaves). */
+const COLON_LIKE = "[:\\u02F8\\u0589\\u05C3\\u2236\\uA789]";
+const NUMBERED_LABEL = new RegExp(String.raw`(\p{L}{3,24})([\s_.#()\[\]\-\u2013\u2014]{0,4}\d{1,4}[)\]]?)\s*${COLON_LIKE}(?!\d)`, "gu");
+const CAPS_LABEL = new RegExp(String.raw`(?<!\p{L})(\p{Lu}{3,24})\s*${COLON_LIKE}`, "gu");
+const WORD_BEFORE_COLON = new RegExp(String.raw`(?<!\p{L})(\p{L}{3,24})\s*${COLON_LIKE}`, "gu");
+
+/** One script's letters only? A word mixing Latin with look-alikes ("PаTIENT") is not. */
+function mixesScripts(word: string): boolean {
+  return /\p{Script=Latin}/u.test(word) && /[\p{Script=Cyrillic}\p{Script=Greek}\p{Script=Armenian}\p{Script=Cherokee}]/u.test(word);
+}
+
+/**
+ * The same text a reviewer is shown, before any label rule: look-alike
+ * letters and colons folded (NFKC), and every invisible character removed
+ * (zero-width, bidi controls and isolates, variation selectors, tag
+ * characters: Unicode's default-ignorable set). words() compares on this
+ * too, so a quote from the folded text still matches the applicant's line.
+ */
+export function foldForReview(content: string): string {
+  return String(content ?? "")
+    .normalize("NFKC")
+    .replace(/[\u00AD\p{Default_Ignorable_Code_Point}]/gu, "");
+}
+
 /**
  * One message, or one piece of the applicant's own writing, as one line for
  * a reviewer: newlines, the chat's own [RESOLVED] marker and every angle
@@ -50,19 +74,17 @@ const SPEAKER_LABEL = /\b(LEAD|PLAYER|AGENT|CUSTOMER|PATIENT|CALLER|INTERVIEWER|
  * fenced block (<transcript>, <candidate_wrote>) early.
  */
 export function flattenForReview(content: string): string {
-  return String(content ?? "")
-    // Look-alikes first (the Phase 4 review): a full-width colon or letter is
-    // folded to its plain form, and invisible characters (zero-width, bidi
-    // controls) go, so "PATIENT 3：" or "PA\u200BTIENT 3:" cannot slip by.
-    .normalize("NFKC")
-    .replace(/[\u00AD\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g, "")
+  return foldForReview(content)
     .replace(/\[RESOLVED\]/gi, "")
     .replace(/[<>]/g, " ")
-    // Anything shaped like a line label, in any script: a word and a number
-    // and a colon ("PАTIENT 3:" with a Cyrillic A, "PATIENT-3:"), or a word
-    // in capitals and a colon. The colon becomes " -".
-    .replace(/(\p{L}{3,24})(\s*[#\-\u2013\u2014]?\s*\d{1,4})\s*:(?!\d)/gu, "$1$2 -")
-    .replace(/(?<!\p{L})(\p{Lu}{3,24})\s*:/gu, "$1 -")
+    // Anything shaped like a line label, in any script (the Phase 4 reviews):
+    // a word, a separator, a number and a colon ("PАTIENT 3:", "PATIENT-3:",
+    // "PATIENT_4:", "PATIENT (4):"); a word in capitals and a colon; a word
+    // mixing Latin with look-alike letters and a colon ("Pаtient:"). The
+    // colon, or a colon look-alike, becomes " -".
+    .replace(NUMBERED_LABEL, "$1$2 -")
+    .replace(CAPS_LABEL, "$1 -")
+    .replace(WORD_BEFORE_COLON, (whole, word: string) => (mixesScripts(word) ? `${word} -` : whole))
     .replace(SPEAKER_LABEL, "$1 -")
     .replace(/\s*[\r\n]+\s*/g, " ")
     .replace(/[ \t]{2,}/g, " ")
@@ -84,7 +106,7 @@ export function textList(value: unknown, limit = 4): string[] {
 
 /** Lowercase words, punctuation and quote marks dropped: what quotes are compared on. */
 export function words(text: string): string[] {
-  return String(text ?? "")
+  return foldForReview(text)
     .toLowerCase()
     .replace(/[‘’“”"'`.,!?;:()[\]{}…\-–—/\\*]+/g, " ")
     .split(/\s+/)

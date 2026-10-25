@@ -16,7 +16,8 @@
  * use it, and scripts/lead_practice_grading.test.mjs loads it in Node.
  */
 
-export type Counterpart = "player" | "customer";
+/** The word for the person on the other side: "player" (the owner's gaming jobs, a game company's pack), "patient" (a medical pack), else "customer". */
+export type Counterpart = "player" | "customer" | "patient";
 
 /** "player" only for the owner's own business; "customer" otherwise, unknown included. */
 export function counterpartFor(homeBusiness: boolean | null | undefined): Counterpart {

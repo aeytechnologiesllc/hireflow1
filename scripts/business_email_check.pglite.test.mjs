@@ -113,7 +113,7 @@ for (const name of LATER) {
   try {
     await db.exec(readFileSync(path.join(MIGRATIONS, name), "utf8"));
   } catch (e) {
-    check(`${name} applies on this test's schema (it touches the email check; extend the stub if it needs more)`, false, e.message ?? String(e));
+    check(`${name} applies on this test's schema (every later migration is replayed: extend the stub, or list it in NOT_THE_CHECK with the reason it cannot touch the check)`, false, e.message ?? String(e));
   }
 }
 check("the migrations that make the check are among them", ["20261025100000_business_email_check.sql", "20261025130000_business_email_check_hardening.sql", "20261025140000_business_email_check_round3.sql", "20261025150000_business_email_check_after_trigger.sql"].every((n) => LATER.includes(n)), LATER.join(", "));

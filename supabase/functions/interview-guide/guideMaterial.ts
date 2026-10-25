@@ -37,6 +37,7 @@
  */
 import { flattenForReview, quoteIsApplicants } from "../_shared/reviewText.ts";
 import { counterpartFor } from "../_shared/counterpart.ts";
+import { scenarioPack } from "../_shared/scenarioPacks.ts";
 import { applyPlanEdits, interviewPlanFor,
   planQuestions, readPersonalGuide, readPlanEdits, GUIDE_SOURCES, type PersonalGuide } from "../_shared/interviewGuide.ts";
 import {
@@ -137,11 +138,16 @@ function integrityLine(label: string, summary: unknown): string | null {
  * rating, no list of "inconsistencies", and nothing about latency.
  */
 
+/** Who the applicant talks to in this job: the pack's word, else the business's (_shared/counterpart.ts). */
+export function guideNoun(record: Pick<GuideRecord, "homeBusiness" | "customerService">): string {
+  return scenarioPack(record.customerService?.pack)?.counterpart ?? counterpartFor(record.homeBusiness);
+}
+
 export function recordLines(record: GuideRecord): string[] {
   const { notes, job } = record;
   const lines: string[] = [];
-  // "player" only for the owner's own business (_shared/counterpart.ts).
-  const noun = counterpartFor(record.homeBusiness);
+  // A customer-service pack's word first ("patient"), else "player" only for the owner's own business.
+  const noun = guideNoun(record);
   const context = buildServerCandidateContext(notes, { quizQuestions: job.quizQuestions });
 
   if (typeof context.quizScore === "number") {
@@ -254,19 +260,22 @@ function interviewForRequest(turns: GuideTurn[]): string {
 export function buildGuideMessages(record: GuideRecord): Array<{ role: "system" | "user"; content: string }> {
   const { job } = record;
   const plan = applyPlanEdits(
-    interviewPlanFor(record.family, { homeBusiness: record.homeBusiness, customerService: record.customerService ?? null }),
+    interviewPlanFor(record.family, {
+      homeBusiness: record.homeBusiness,
+      customerService: record.customerService ? { channel: record.customerService.channel, noun: guideNoun(record) } : null,
+    }),
     readPlanEdits(record.planEdits),
   );
   const context = buildServerCandidateContext(record.notes, { quizQuestions: job.quizQuestions });
   const wrote = candidateWrittenBlock(context);
   const facts = recordLines(record);
   const title = flattenForReview(job.title ?? "") || "this role";
-  const noun = counterpartFor(record.homeBusiness);
+  const noun = guideNoun(record);
   const alreadyAnswered = plan.alreadyAsked.length > 0
     ? `\n=== WHAT THIS APPLICANT HAS ALREADY ANSWERED IN WRITING ===
-Before this call they filled in the application form and took a written interview. Both asked about:
+Before this call they filled in the application form and took the job's tests. They have already covered:
 ${plan.alreadyAsked.map((line) => `- ${line}`).join("\n")}
-Their answers are below. Do NOT ask any of this again as if for the first time: to the applicant it would be the third time. Go back to one of these ONLY when their written answer left a real question: it was vague, it had no example, two answers do not fit together, or the written interview never reached it. Then say what they wrote and ask for the missing piece.\n`
+Their answers are below. Do NOT ask any of this again as if for the first time: to the applicant it would be a repeat. Go back to one of these ONLY when their written answer left a real question: it was vague, it had no example, two answers do not fit together, or the written interview never reached it. Then say what they wrote and ask for the missing piece.\n`
     : "";
   const system = `You help an employer prepare for a live video interview with ONE applicant for the job "${title}". The employer will SAY your questions to the applicant on a video call. You took no part in the applicant's tests.
 

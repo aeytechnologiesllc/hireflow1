@@ -58,10 +58,11 @@ export interface Playbook {
  */
 const CS_TITLE = new RegExp(
   [
-    String.raw`\b(customer|client|guest|member|player) (service|support|care|success|experience|happiness)\b`,
+    String.raw`\b(customer|client|guest|member|player) (services?|supports?|care|success|experience|happiness)\b`,
     // "patient care" is nursing work; a patient services desk is customer service.
     String.raw`\bpatient (services?|experience|support) (agent|rep|representative|specialist|coordinator|advisor|associate)\b`,
-    String.raw`\b(support|chat|phone|call|contact|help ?desk|technical support|tech support|it support|live chat|email support) (agent|rep|representative|specialist|advisor|associate|executive|operator|officer)s?\b`,
+    String.raw`\b(support|chat|phone|call|contact|help ?desk|technical support|tech support|it support|live chat|email support|non-?voice|voice) (agent|rep|representative|specialist|advisor|associate|executive|operator|officer|technician)s?\b`,
+    String.raw`\b(customer |client |chat |technical |tech |it |product )?support (team )?(manager|lead|supervisor|team lead)s?\b`,
     String.raw`\b(chat|email|phone|voice|technical|tech|player|tier[ -]?[123]) support\b`,
     String.raw`\blive chat\b`,
     String.raw`\b(call|contact) cent(er|re)\b`,
@@ -69,30 +70,40 @@ const CS_TITLE = new RegExp(
     String.raw`\bcsr\b`,
     String.raw`\bfront desk\b`,
     String.raw`\bpatient (coordinator|services?|scheduler|access|liaison)\b`,
+    String.raw`\bappointment (scheduler|coordinator)\b`,
   ].join("|"),
 );
-// A receptionist is customer service at a clinic or dental office (patients),
-// not at a law office or a warehouse.
-const PATIENT_FRONT = /\b(reception(ist)?|front office|medical (office )?assistant)\b/;
+// A front-office role is customer service at a clinic or dental office
+// (patients); a clinical "medical assistant" (vitals, injections) is not.
+const PATIENT_FRONT = /\b(reception(ist)?|front office|medical office assistant|appointment setter)\b/;
 const PATIENT_CONTEXT = /\b(patients?|clinic|dental|dentist|orthodont|medical|doctor'?s?|physician|hospital|optometr|chiropract|physio)\b/;
+// The work itself is answering people: a verb, then (within a few words) the
+// channel. Never a bare mention ("live chat widget", "help desk articles").
 const CS_WORK = new RegExp(
   [
-    String.raw`\b(answer|answering|handle|handling|respond to|responding to|reply to|replying to|take|taking)\b[^.]{0,30}\b(customer|client|patient|player|guest)s?'?\b[^.]{0,20}\b(chats?|calls|emails|messages|questions|tickets|enquiries|inquiries)\b`,
-    String.raw`\b(live chat|chat support|phone support|email support|call cent(er|re)|contact cent(er|re)|help ?desk|support tickets|inbound calls|support queue)\b`,
+    String.raw`\b(answer|answering|handle|handling|respond to|responding to|reply to|replying to|take|taking|field|fielding|manage|managing|staff|staffing|work in|working in|work on|working on)\b[^.]{0,30}\b(chats?|calls|phones?|emails|messages|tickets|enquiries|inquiries|live chat|help ?desk|support queue)\b`,
+    String.raw`\bcalls from (our |the )?(customers|clients|patients|players|guests)\b`,
     String.raw`\b(customer|client) (service|support) (agent|rep|representative|team|role|desk)\b`,
     // "customer service for an online store", "customer support by chat": the job itself, not a quality of it.
     String.raw`\b(customer|client) (service|support) (for|on behalf of) (our|an?|the|my|their)\b`,
     String.raw`\b(customer|client) (service|support) (by|via|over|through|on) (chat|phone|email|calls)\b`,
   ].join("|"),
 );
-// A title that names another role keeps it, whatever the description says.
-const OTHER_ROLE_TITLE = /\b(barista|cashier|clean(er|ing)|janitor|housekeep|maid|developer|engineer|programmer|coder|sales|sdr|bdr|account executive|closer|warehouse|picker|packer|driver|cook|chef|server|waiter|waitress|bartender|nurse|caregiver|aide|teacher|tutor|designer|accountant|book-?keeper|manager)\b/;
+// Main-street and trade roles keep their own family, whatever else the title
+// or description says ("Customer Service Cashier"; the owner: not main-street roles).
+const MAIN_STREET_TITLE = /\b(barista|cashier|server|waiter|waitress|bartender|cook|chef|clean(er|ing)|janitor|housekeep|maid|driver|warehouse|picker|packer|retail|store|plumber|electrician|nurse|caregiver|pharmacist|pharmacy|trainer|teacher|tutor|security guard)\b/;
+// Other roles named in the title win over support WORDS in the description
+// (an engineer whose service must "support 10k requests"), but not over a
+// support title ("Support Engineer", "Customer Support Manager").
+const OTHER_ROLE_TITLE = /\b(developer|engineer|programmer|coder|sales|sdr|bdr|account executive|closer|aide|designer|accountant|book-?keeper|manager|analyst|tester|qa|writer|copywriter|technician|receptionist|marketer|recruiter)\b/;
 
 function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): boolean {
   const title = (brief.roleTitle ?? "").toLowerCase();
   const work = (brief.whatTheyDo ?? "").toLowerCase();
+  if (MAIN_STREET_TITLE.test(title)) return false;
   if (CS_TITLE.test(title)) return true;
-  if (PATIENT_FRONT.test(title) && PATIENT_CONTEXT.test(`${title} ${work}`)) return true;
+  if (PATIENT_FRONT.test(title) && PATIENT_CONTEXT.test(`${title.replace(PATIENT_FRONT, " ")} ${work}`)) return true;
+  if (/\bsupport\b/.test(title) && CS_WORK.test(work)) return true;
   if (OTHER_ROLE_TITLE.test(title)) return false;
   return CS_WORK.test(work);
 }

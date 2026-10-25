@@ -31,6 +31,7 @@
  * verify_jwt = true (config.toml), plus auth.getUser() here.
  */
 import { customerServiceStepOf } from "../_shared/interviewGuide.ts";
+import { scenarioPack } from "../_shared/scenarioPacks.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { aiUnavailableResponse, callOpenAIJson, isAiUnavailable, requireJsonKeys } from "../_shared/openai.ts";
 import { inferJobFamily } from "../_shared/autopilot.ts";
@@ -210,7 +211,11 @@ Deno.serve(async (req) => {
       job,
       family: inferJobFamily(job.title, job.description),
       homeBusiness: page ? (page as { home_alias?: boolean }).home_alias === true : undefined,
-      customerService: customerServiceStepOf((jobRow as { workflow_steps?: unknown }).workflow_steps),
+      // Only a pack this server knows: an unknown name is no customer-service job here.
+      customerService: (() => {
+        const step = customerServiceStepOf((jobRow as { workflow_steps?: unknown }).workflow_steps);
+        return step && scenarioPack(step.pack) ? step : null;
+      })(),
       notes: parseNotes((application as { notes?: unknown }).notes),
       interview,
       practiceLines: practice.filter((t) => t.role === "user").map((t) => t.content),

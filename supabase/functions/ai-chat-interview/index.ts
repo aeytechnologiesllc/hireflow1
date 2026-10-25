@@ -83,7 +83,9 @@ import {
   type InterviewJob,
 } from "./interviewContext.ts";
 import { parseNotesObject } from "../_shared/trustedResults.ts";
-import { counterpartFor } from "../_shared/counterpart.ts";
+import { counterpartFor, type Counterpart } from "../_shared/counterpart.ts";
+import { scenarioPack } from "../_shared/scenarioPacks.ts";
+import { customerServiceStepOf } from "../_shared/interviewGuide.ts";
 import { isHomeBusiness } from "../_shared/homeBusiness.ts";
 import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, isRefusedStep, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
@@ -233,12 +235,12 @@ async function loadInterviewRecord(
   admin: AssessmentAdmin,
   applicationId: string,
   userId: string,
-): Promise<{ notes: Record<string, unknown>; job: InterviewJob | null; homeBusiness: boolean } | null> {
+): Promise<{ notes: Record<string, unknown>; job: InterviewJob | null; homeBusiness: boolean; packNoun: Counterpart | null } | null> {
   try {
     const { data, error } = await admin
       .from("applications")
       .select(
-        "candidate_id, notes, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions, employer_id)",
+        "candidate_id, notes, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions, employer_id, workflow_steps)",
       )
       .eq("id", applicationId)
       .maybeSingle();
@@ -253,6 +255,8 @@ async function loadInterviewRecord(
       notes: parseNotesObject(row.notes),
       job: interviewJobFrom(jobRow),
       homeBusiness: await isHomeBusiness(admin, (jobRow as { employer_id?: unknown } | null)?.employer_id),
+      // A customer-service job's pack word ("patient"), from the server's own copy of the pack.
+      packNoun: (scenarioPack(customerServiceStepOf((jobRow as { workflow_steps?: unknown } | null)?.workflow_steps)?.pack)?.counterpart as Counterpart | undefined) ?? null,
     };
   } catch (error) {
     console.error("[ai-chat-interview] record not read:", error);
@@ -726,10 +730,11 @@ serve(async (req) => {
     // description: never by the "Lead / Principal" seniority level alone)
     // gets the lead plan and the lead marks.
     const leadRole = isLeadRole({ title: interviewJobTitle, description: interviewJobDescription });
-    // Who the applicant talks to in this job: "player" only for the owner's
-    // own business (its gaming jobs), else "customer"; unknown (no server
-    // record) is "customer" too (_shared/counterpart.ts; docs/LAUNCH-PLAN.md, Phase 2).
-    const counterpart = counterpartFor(serverRecord?.homeBusiness);
+    // Who the applicant talks to in this job: a customer-service pack's word
+    // first ("patient"), else "player" only for the owner's own business (its
+    // gaming jobs), else "customer"; unknown (no server record) is "customer"
+    // too (_shared/counterpart.ts; docs/CUSTOMER-SERVICE-HIRING.md).
+    const counterpart = serverRecord?.packNoun ?? counterpartFor(serverRecord?.homeBusiness);
     const requiredWpm = typeof jobFacts.requiredWpm === "number" && jobFacts.requiredWpm > 0 ? jobFacts.requiredWpm : null;
     const payPosted = postedPay(jobFacts as InterviewJob);
     const chatPracticeName = leadRole ? "Escalated chat practice" : "Chat Simulation";
