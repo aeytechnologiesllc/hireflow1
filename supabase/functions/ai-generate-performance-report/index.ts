@@ -148,7 +148,7 @@ serve(async (req) => {
           workflow_steps,
           passing_score
         ),
-        application_evaluations ( ai_score, ai_analysis )
+        application_evaluations ( ai_score )
       `)
       .eq('id', applicationId)
       .single();
@@ -258,7 +258,6 @@ Include EVERY gap the data supports (not just one), and give whatWentWell at lea
 ${applicationContext}
 
 PASSING SCORE FOR THIS JOB: ${passingScore}%
-CANDIDATE'S OVERALL SCORE: ${application.ai_score || 0}%
 DATA AVAILABLE: ${dataDepth}${dataDepth === 'minimal' ? ' — very little data was captured for this application. Be honest and general where the data is thin rather than inventing specifics, but still give at least one genuinely useful, concrete practice step.' : ''}
 
 Return ONLY the JSON object described in the system prompt.`;
@@ -567,8 +566,7 @@ function buildApplicationContext(application: any, parsedNotes: any, profile: an
 
   sections.push(`## Candidate: ${profile?.full_name || 'Unknown'}
 - Position: ${jobData?.title || 'Unknown'}
-- Status: REJECTED
-- AI Score: ${application.ai_score || 0}/100`);
+- Status: REJECTED`);
 
   // The actual job this candidate applied to — every gap named in the
   // report must trace back to something in here, not a generic skill.
@@ -612,10 +610,8 @@ function buildApplicationContext(application: any, parsedNotes: any, profile: an
     }
   });
 
-  // Previous AI analysis
-  if (application.ai_analysis) {
-    sections.push(`\n## Previous Evaluation Notes\n${application.ai_analysis}`);
-  }
+  // Never Ava's score or report (the hiring team's own, application_evaluations):
+  // the blueprint is the applicant's, cached in notes they read (the staff-columns review).
 
   return sections.join('\n');
 }

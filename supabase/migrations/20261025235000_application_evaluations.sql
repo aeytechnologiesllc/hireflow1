@@ -180,54 +180,101 @@ CREATE OR REPLACE TRIGGER application_evaluations_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
 -- ── 2. What is already on applications moves over ───────────────────────────
-INSERT INTO public.application_evaluations
-  (application_id, ai_score, ai_analysis, ai_scorecard, phase_ai_analysis, employer_notes, updated_at)
-SELECT a.id, a.ai_score, a.ai_analysis, a.ai_scorecard, a.phase_ai_analysis, a.employer_notes, COALESCE(a.updated_at, now())
+-- A notes text as an object, or NULL when it is not one (never an error).
+CREATE OR REPLACE FUNCTION pg_temp.notes_object(p_notes text)
+RETURNS jsonb LANGUAGE plpgsql IMMUTABLE AS $f$
+DECLARE v jsonb;
+BEGIN
+  IF p_notes IS NULL OR btrim(p_notes) = '' THEN RETURN NULL; END IF;
+  v := p_notes::jsonb;
+  RETURN CASE WHEN jsonb_typeof(v) = 'object' THEN v END;
+EXCEPTION WHEN others THEN
+  RETURN NULL;
+END;
+$f$;
+
+-- First a copy of everything that moves or leaves the notes, kept only until
+-- the move is checked live (private: not reachable through the API; it goes
+-- with its application, so "Delete their information" and account deletion
+-- reach it too). A later migration drops it.
+CREATE SCHEMA IF NOT EXISTS private;
+CREATE TABLE IF NOT EXISTS private.application_evaluation_move_backup AS
+SELECT a.id AS application_id, a.ai_score, a.ai_analysis, a.ai_scorecard, a.phase_ai_analysis, a.employer_notes,
+       a.notes AS notes_before, now() AS copied_at
   FROM public.applications a
  WHERE a.ai_score IS NOT NULL
     OR a.ai_analysis IS NOT NULL
     OR a.ai_scorecard IS NOT NULL
     OR a.phase_ai_analysis IS NOT NULL
     OR a.employer_notes IS NOT NULL
-ON CONFLICT (application_id) DO UPDATE SET
-  ai_score          = COALESCE(EXCLUDED.ai_score, application_evaluations.ai_score),
-  ai_analysis       = COALESCE(EXCLUDED.ai_analysis, application_evaluations.ai_analysis),
-  ai_scorecard      = COALESCE(EXCLUDED.ai_scorecard, application_evaluations.ai_scorecard),
-  phase_ai_analysis = COALESCE(EXCLUDED.phase_ai_analysis, application_evaluations.phase_ai_analysis),
-  employer_notes    = COALESCE(EXCLUDED.employer_notes, application_evaluations.employer_notes);
+    OR pg_temp.notes_object(a.notes) ? 'avaScorecard'
+    OR pg_temp.notes_object(a.notes) -> 'avaAnalysisMeta' ? 'structuredScoring';
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+     WHERE conrelid = 'private.application_evaluation_move_backup'::regclass AND contype = 'f'
+  ) THEN
+    DELETE FROM private.application_evaluation_move_backup b
+     WHERE NOT EXISTS (SELECT 1 FROM public.applications a WHERE a.id = b.application_id);
+    ALTER TABLE private.application_evaluation_move_backup
+      ADD CONSTRAINT application_evaluation_move_backup_application_fk
+      FOREIGN KEY (application_id) REFERENCES public.applications(id) ON DELETE CASCADE;
+  END IF;
+END;
+$$;
+REVOKE ALL ON TABLE private.application_evaluation_move_backup FROM PUBLIC, anon, authenticated;
 
--- A copy of every value that moves, kept only until the move is checked live
--- (private: not reachable through the API). A later migration drops it, so
--- "Delete their information" never leaves a team's notes behind in it.
-CREATE SCHEMA IF NOT EXISTS private;
-CREATE TABLE IF NOT EXISTS private.application_evaluation_move_backup AS
-SELECT a.id AS application_id, a.ai_score, a.ai_analysis, a.ai_scorecard, a.phase_ai_analysis, a.employer_notes, now() AS copied_at
+-- Then the values, and Ava's scorecard where only notes.avaScorecard held it.
+-- A value already in application_evaluations wins (a second run never puts a
+-- stale value back over it).
+INSERT INTO public.application_evaluations AS e
+  (application_id, ai_score, ai_analysis, ai_scorecard, phase_ai_analysis, employer_notes, updated_at)
+SELECT a.id, a.ai_score, a.ai_analysis,
+       COALESCE(a.ai_scorecard, pg_temp.notes_object(a.notes) -> 'avaScorecard'),
+       a.phase_ai_analysis, a.employer_notes, COALESCE(a.updated_at, now())
   FROM public.applications a
  WHERE a.ai_score IS NOT NULL
     OR a.ai_analysis IS NOT NULL
     OR a.ai_scorecard IS NOT NULL
     OR a.phase_ai_analysis IS NOT NULL
-    OR a.employer_notes IS NOT NULL;
-REVOKE ALL ON TABLE private.application_evaluation_move_backup FROM PUBLIC, anon, authenticated;
+    OR a.employer_notes IS NOT NULL
+    OR pg_temp.notes_object(a.notes) ? 'avaScorecard'
+ON CONFLICT (application_id) DO UPDATE SET
+  ai_score          = COALESCE(e.ai_score, EXCLUDED.ai_score),
+  ai_analysis       = COALESCE(e.ai_analysis, EXCLUDED.ai_analysis),
+  ai_scorecard      = COALESCE(e.ai_scorecard, EXCLUDED.ai_scorecard),
+  phase_ai_analysis = COALESCE(e.phase_ai_analysis, EXCLUDED.phase_ai_analysis),
+  employer_notes    = COALESCE(e.employer_notes, EXCLUDED.employer_notes)
+WHERE (e.ai_score IS NULL AND EXCLUDED.ai_score IS NOT NULL)
+   OR (e.ai_analysis IS NULL AND EXCLUDED.ai_analysis IS NOT NULL)
+   OR (e.ai_scorecard IS NULL AND EXCLUDED.ai_scorecard IS NOT NULL)
+   OR (e.phase_ai_analysis IS NULL AND EXCLUDED.phase_ai_analysis IS NOT NULL)
+   OR (e.employer_notes IS NULL AND EXCLUDED.employer_notes IS NOT NULL);
 
--- Then the applicant's rows lose them. Before the triggers below exist (they
--- would move these NULLs over the copy), and without touching updated_at:
--- clearing columns nobody can see any more is not activity on the
--- application, and every staff screen that says "last updated" reads it.
+-- Then the applicant's rows lose them: the five columns, notes.avaScorecard
+-- (a second copy of the scorecard) and the structured scores in
+-- notes.avaAnalysisMeta. With these triggers off for the moment: the
+-- updated_at stamp (clearing what nobody can see any more is not activity,
+-- and every staff screen that says "last updated" reads it), the quiz
+-- session closer that a notes write wakes, and, on a second run, this
+-- migration's own move triggers (they would move these NULLs over the copy).
 DO $$
 DECLARE
-  v_stamp boolean;
+  v_off text[];
+  v_name text;
 BEGIN
-  SELECT EXISTS (
-    SELECT 1 FROM pg_trigger
-     WHERE tgrelid = 'public.applications'::regclass
-       AND tgname = 'update_applications_updated_at'
-       AND NOT tgisinternal
-       AND tgenabled <> 'D'
-  ) INTO v_stamp;
-  IF v_stamp THEN
-    ALTER TABLE public.applications DISABLE TRIGGER update_applications_updated_at;
-  END IF;
+  SELECT coalesce(array_agg(t.tgname::text), '{}') INTO v_off
+    FROM pg_trigger t
+   WHERE t.tgrelid = 'public.applications'::regclass
+     AND NOT t.tgisinternal
+     AND t.tgenabled <> 'D'
+     AND (t.tgname IN ('update_applications_updated_at', 'assessment_quiz_result_landed')
+          OR t.tgname LIKE 'zz\_applications\_evaluation\_%');
+  FOREACH v_name IN ARRAY v_off LOOP
+    EXECUTE format('ALTER TABLE public.applications DISABLE TRIGGER %I', v_name);
+  END LOOP;
+
   UPDATE public.applications
      SET ai_score = NULL,
          ai_analysis = NULL,
@@ -239,9 +286,15 @@ BEGIN
       OR ai_scorecard IS NOT NULL
       OR phase_ai_analysis IS NOT NULL
       OR employer_notes IS NOT NULL;
-  IF v_stamp THEN
-    ALTER TABLE public.applications ENABLE TRIGGER update_applications_updated_at;
-  END IF;
+
+  UPDATE public.applications a
+     SET notes = ((pg_temp.notes_object(a.notes) - 'avaScorecard') #- '{avaAnalysisMeta,structuredScoring}')::text
+   WHERE pg_temp.notes_object(a.notes) ? 'avaScorecard'
+      OR pg_temp.notes_object(a.notes) -> 'avaAnalysisMeta' ? 'structuredScoring';
+
+  FOREACH v_name IN ARRAY v_off LOOP
+    EXECUTE format('ALTER TABLE public.applications ENABLE TRIGGER %I', v_name);
+  END LOOP;
 END;
 $$;
 

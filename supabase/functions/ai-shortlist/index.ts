@@ -196,7 +196,9 @@ function buildDimensionScores(app: any, score: number) {
 
 export function buildScorecard(app: any, score: number): RankedCandidateScorecard {
   const notes = parseMaybeJson<Record<string, any>>(app.notes) || {};
-  const storedScorecard = notes.avaScorecard;
+  // Ava's scorecard: the hiring team's own table (application_evaluations.ai_scorecard,
+  // laid onto the row), never the applicant-readable notes.
+  const storedScorecard = parseMaybeJson<Record<string, any>>(app.ai_scorecard);
 
   if (storedScorecard && typeof storedScorecard === "object") {
     const dimensions = storedScorecard.dimensionScores || {};
@@ -606,7 +608,7 @@ serve(async (req) => {
     // (application_evaluations), embedded and laid back onto each row.
     const { data: applicationRows, error: applicationsError } = await supabaseAdmin
       .from("applications")
-      .select("id, candidate_id, phase, status, notes, voice_interview_result, application_evaluations(ai_score, ai_analysis)")
+      .select("id, candidate_id, phase, status, notes, voice_interview_result, application_evaluations(ai_score, ai_analysis, ai_scorecard)")
       .eq("job_id", jobId)
       .in("id", requestedIds);
 

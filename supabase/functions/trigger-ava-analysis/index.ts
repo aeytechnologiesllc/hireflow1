@@ -895,7 +895,9 @@ Purpose: This is a supplementary document for the above question. It is NOT a re
           }
         : null,
     });
-    const existingScorecard = (parsedNotes.avaScorecard || null) as AvaScorecard | null;
+    // The scorecard lives in the hiring team's own table (application_evaluations.ai_scorecard),
+    // never in the applicant-readable notes (the staff-columns review).
+    const existingScorecard = (application.ai_scorecard || null) as AvaScorecard | null;
     const existingAnalysisMeta = (parsedNotes.avaAnalysisMeta || {}) as Record<string, any>;
     const canReuseExistingAnalysis =
       !force &&
@@ -1573,8 +1575,8 @@ ${interviewType} Interview with AVA Results:
     //    out of order). The window between this read and the writes below is
     //    milliseconds, against runs that start tens of seconds apart.
     // 2. It writes ONLY analysis fields. Never phase, never status.
-    // 3. Its notes keys (avaScorecard, avaAnalysisMeta) go through
-    //    merge_application_notes, which merges just those two keys into what
+    // 3. Its notes key (avaAnalysisMeta) goes through
+    //    merge_application_notes, which merges just that key into what
     //    is stored at that moment. This used to write the whole notes object
     //    from the snapshot taken at the start of the request, ~40 s earlier,
     //    and would have erased the next step's result.
@@ -1613,8 +1615,10 @@ ${interviewType} Interview with AVA Results:
       .update({
         ai_analysis: analysisData?.analysis || null,
         ai_score: typeof scorecard?.overallScore === "number" ? scorecard.overallScore : null,
-        // Canonical scorecard — single source of truth read by every screen.
-        ai_scorecard: scorecard ?? null,
+        // Canonical scorecard — single source of truth read by every screen —
+        // with the structured scores beside it (they were in notes.avaAnalysisMeta,
+        // which the applicant can read).
+        ai_scorecard: scorecard ? { ...scorecard, structuredScoring: analysisMeta.structuredScoring } : null,
         // Only set resume_score if the resume was actually analyzed (not RESUME_UNAVAILABLE)
         resume_score: resumeUnavailable ? null : (typeof newScore === "number" && newScore >= 0 && newScore <= 100 ? newScore : null),
         ...(phaseAnalysisNote ? { phase_ai_analysis: phaseAnalysisNote } : {}),
@@ -1626,9 +1630,12 @@ ${interviewType} Interview with AVA Results:
       return { ok: false, status: 500, body: { error: "Failed to save analysis", details: updateError.message }, profile };
     }
 
+    // Notes keep only what the analysis is and when it ran (the applicant can
+    // read notes): the scorecard and the structured scores are in ai_scorecard.
+    const { structuredScoring: _scores, ...notesMeta } = analysisMeta;
     const { error: notesError } = await supabaseAdmin.rpc("merge_application_notes", {
       p_application_id: applicationId,
-      p_patch: withoutNulCharacters({ avaScorecard: scorecard, avaAnalysisMeta: analysisMeta }),
+      p_patch: withoutNulCharacters({ avaAnalysisMeta: notesMeta }),
     });
     if (notesError) {
       if (!isMissingFunctionError(notesError)) {
@@ -1643,7 +1650,7 @@ ${interviewType} Interview with AVA Results:
       );
       const { error: fallbackError } = await supabaseAdmin
         .from("applications")
-        .update({ notes: JSON.stringify({ ...freshNotes, avaScorecard: scorecard, avaAnalysisMeta: analysisMeta }) })
+        .update({ notes: JSON.stringify({ ...freshNotes, avaAnalysisMeta: notesMeta }) })
         .eq("id", applicationId);
       if (fallbackError) {
         console.error("[trigger-ava-analysis] Fallback notes write failed:", fallbackError);

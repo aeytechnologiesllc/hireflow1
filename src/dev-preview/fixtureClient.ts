@@ -50,6 +50,11 @@ function takeEvaluationFields(row: FixtureRow, onlyValues: boolean): FixtureRow 
   const taken: FixtureRow = {};
   for (const field of EVALUATION_FIELDS) {
     if (!(field in row)) continue;
+    // A key set to undefined is no write at all: PostgREST never sees it (JSON drops it).
+    if (row[field] === undefined) {
+      delete row[field];
+      continue;
+    }
     const value = row[field];
     if (!onlyValues || (value !== null && value !== undefined)) taken[field] = value ?? null;
     row[field] = null;

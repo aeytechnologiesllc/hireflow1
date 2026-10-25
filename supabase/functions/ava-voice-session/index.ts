@@ -7,7 +7,7 @@ import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { computeSessionTimeLimitMinutes, HARD_CAP_MINUTES } from "../_shared/voiceSessionCharge.ts";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer, stepNeedsComputer } from "../_shared/deviceKind.ts";
 import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
-import { readEvaluation, withEvaluation } from "../_shared/applicationEvaluation.ts";
+import { withEvaluation } from "../_shared/applicationEvaluation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1474,11 +1474,12 @@ Keep greetings to ONE short sentence - don't ramble.`;
       if (!applicationRow) {
         throw new Error("Application not found");
       }
-      // The interviewer's brief uses Ava's earlier score and report. They are
-      // the hiring team's own table since 2026-10-25 (application_evaluations),
-      // which the applicant's sign-in (this client) cannot read: read with the
-      // service key, for this application only (its owner was checked above).
-      const application = { ...applicationRow, ...(await readEvaluation(adminClient, applicationRow.id)) };
+      // The interviewer's brief never carries Ava's score or report (the hiring
+      // team's own table since 2026-10-25, application_evaluations): this session
+      // is the applicant's, and its instructions reach their browser (the
+      // client_secrets reply, the realtime session.created event; the
+      // staff-columns review).
+      const application = applicationRow;
 
       const { data: candidateProfile } = await supabaseClient
         .from("profiles")
@@ -1565,10 +1566,6 @@ BASIC INFO:
 
 ${resumeContent}
 
-PREVIOUS AI ANALYSIS (for reference only - may be outdated):
-${application.ai_analysis || 'Not analyzed yet'}
-
-**IMPORTANT:** If the previous AI analysis mentions "RESUME_UNAVAILABLE" or similar, IGNORE that flag. Check the "RESUME CONTENT" or "RESUME FILE UPLOADED" section above - that is the current truth about the resume. The previous analysis may be stale.
 
 APPLICATION ANSWERS:
 ${formatApplicationAnswersForPrompt(notes.applicationAnswers)}
@@ -1624,7 +1621,6 @@ ${notes.portfolioResult ? `
 - Strengths: ${notes.portfolioResult.aiAnalysis?.strengths?.join(', ') || 'N/A'}
 ` : 'Not submitted'}
 
-PRIOR AI SCORE: ${application.ai_score || 'Not scored'}
 `;
 
       // Get language settings from application (set by employer via wizard) or fallback to workflow config
@@ -2341,7 +2337,6 @@ ${requiredLanguage !== 'English' ? `
    - Real assessment of their fit
 
 ${notes.typingTestResult?.wpm && notes.typingTestResult.wpm < 40 ? '⚠️ LOW TYPING SPEED (' + notes.typingTestResult.wpm + ' WPM) - Challenge them on this directly' : ''}
-${application.ai_score && application.ai_score < 60 ? '⚠️ LOW INITIAL SCORE (' + application.ai_score + ') - Be extra rigorous' : ''}
 ${notes.quizAnswers && notes.quizScore && notes.quizScore < 50 ? '⚠️ LOW QUIZ SCORE (' + notes.quizScore + '%) - Verify their knowledge claims thoroughly' : ''}`;
 
       tools = [

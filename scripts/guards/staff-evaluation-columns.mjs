@@ -22,7 +22,12 @@
  *   3. a file that selects * from applications and then reads one of them
  *      (row.ai_score) with no sign of the new path (the embed, the staff
  *      view, withEvaluation / readEvaluation / evaluationOf);
- *   4. the two helper copies naming different fields.
+ *   4. the two helper copies naming different fields;
+ *   5. an .or("...") filter on applications that names one of them;
+ *   6. notes.avaScorecard read or written anywhere: that second copy of the
+ *      scorecard sat in the applicant-readable notes, so it moved into
+ *      ai_scorecard too (the staff-columns review).
+ * It reads src/, supabase/functions/ and api/.
  */
 
 const FIVE = ["ai_score", "ai_analysis", "ai_scorecard", "phase_ai_analysis", "employer_notes"];
@@ -176,6 +181,15 @@ export function evaluationReadProblems(rel, text) {
     }
     const filter = new RegExp(`\\.(eq|neq|gt|gte|lt|lte|like|ilike|is|in|not|order|contains|containedBy|filter|match)\\(\\s*["'\`](${FIVE.join("|")})["'\`]`).exec(chain.text);
     if (filter) problems.push(`${rel}:${chain.at} filters applications by ${filter[2]} (NULL there: filter application_evaluations.${filter[2]} through an !inner embed)`);
+    for (const or of chain.text.matchAll(/\.or\(\s*(["'`])([\s\S]*?)\1/g)) {
+      const hit = new RegExp(`(^|[,(])\\s*(${FIVE.join("|")})\\.`).exec(or[2]);
+      if (hit) problems.push(`${rel}:${chain.at} filters applications by ${hit[2]} in .or(...) (NULL there: filter application_evaluations through an !inner embed)`);
+    }
+  }
+  const scorecardInNotes = /\bavaScorecard\b/.exec(code.replace(/(["'`])(?:\\.|(?!\1)[^\\])*\1/g, (str) => (/^["'`]avaScorecard["'`]$/.test(str) ? "avaScorecard" : str)));
+  if (scorecardInNotes) {
+    const line = code.slice(0, scorecardInNotes.index).split("\n").length;
+    problems.push(`${rel}:${line} uses notes.avaScorecard (the applicant reads notes: Ava's scorecard is application_evaluations.ai_scorecard)`);
   }
   if (selectsStar && !NEW_PATH_RE.test(code)) {
     const read = new RegExp(`\\.(${FIVE.join("|")})\\b(?!\\s*=[^=])`).exec(code);
@@ -197,7 +211,7 @@ export default [
       "that matches nobody. Read applications_staff_list, or embed application_evaluations(...) and use withEvaluation.",
     run: async ({ walk, read }) => {
       const detail = [];
-      const rels = [...(await walk("src", [".ts", ".tsx"])), ...(await walk("supabase/functions", [".ts"]))];
+      const rels = [...(await walk("src", [".ts", ".tsx"])), ...(await walk("supabase/functions", [".ts"])), ...(await walk("api", [".mjs", ".js", ".ts"]))];
       for (const rel of rels) {
         if (rel === "src/integrations/supabase/types.ts") continue;
         const text = await read(rel);

@@ -99,6 +99,7 @@ const JOB_2 = "50000000-0000-4000-8000-000000000002";
 const OTHER_JOB = "50000000-0000-4000-8000-000000000003";
 const APP = "30000000-0000-4000-8000-000000000001"; // scored before the migration
 const APP_BLANK = "30000000-0000-4000-8000-000000000002"; // nothing to move
+const APP_NOTES = "30000000-0000-4000-8000-000000000009"; // Ava's scorecard only in notes.avaScorecard
 const APP_OTHER = "30000000-0000-4000-8000-000000000003"; // another business's applicant
 const STAMP = "2026-10-20 08:00:00+00";
 
@@ -215,9 +216,10 @@ await db.exec(`
   select set_config('request.jwt.claim.role', 'service_role', false);
   insert into public.applications (id, job_id, candidate_id, status, phase, notes, ai_score, ai_analysis, ai_scorecard, phase_ai_analysis, employer_notes, created_at, updated_at)
   values
-    ('${APP}', '${JOB}', '${APPLICANT}', 'reviewing', 'step_chat', '{"applicationAnswers":[{"answer":"yes"}]}', 72.5, 'Strong resume.', '{"overallScore":72.5,"whyDown":["late"]}', 'Chat practice: solid.', 'Call Monday.', '${STAMP}', '${STAMP}'),
+    ('${APP}', '${JOB}', '${APPLICANT}', 'reviewing', 'step_chat', '{"applicationAnswers":[{"answer":"yes"}],"avaScorecard":{"overallScore":72.5,"whyDown":["late"]},"avaAnalysisMeta":{"model":"m","analyzedAt":"2026-10-20","structuredScoring":{"directMatchScore":70,"summary":"fits"}}}', 72.5, 'Strong resume.', '{"overallScore":72.5,"whyDown":["late"]}', 'Chat practice: solid.', 'Call Monday.', '${STAMP}', '${STAMP}'),
     ('${APP_BLANK}', '${JOB}', '${OTHER_APPLICANT}', 'in_progress', 'application', null, null, null, null, null, null, '${STAMP}', '${STAMP}'),
-    ('${APP_OTHER}', '${OTHER_JOB}', '${OTHER_APPLICANT}', 'reviewing', 'step_1', null, 40, 'Elsewhere.', '{"overallScore":40}', 'Other summary.', 'Their notes.', '${STAMP}', '${STAMP}');
+    ('${APP_OTHER}', '${OTHER_JOB}', '${OTHER_APPLICANT}', 'reviewing', 'step_1', null, 40, 'Elsewhere.', '{"overallScore":40}', 'Other summary.', 'Their notes.', '${STAMP}', '${STAMP}'),
+    ('${APP_NOTES}', '${OTHER_JOB}', '${APPLICANT}', 'reviewing', 'step_1', '{"avaScorecard":{"overallScore":55,"whyUp":["only in notes"]}}', null, null, null, null, null, '${STAMP}', '${STAMP}');
   select set_config('request.jwt.claim.role', '', false);
 `);
 
@@ -259,7 +261,13 @@ const allNull = (row) => !!row && FIVE.every((c) => row[c] === null);
   check("...without touching updated_at (clearing hidden columns is no activity)", new Date(a.updated_at).toISOString() === new Date(STAMP).toISOString(), String(a.updated_at));
   check("an application with nothing to move gets no row", (await evalOf(APP_BLANK)) === null);
   const backup = (await db.query(`select * from private.application_evaluation_move_backup where application_id = $1`, [APP])).rows[0];
-  check("a private copy of what moved is kept until the move is checked live", backup?.ai_score === 72.5 && backup?.employer_notes === "Call Monday." && (await db.query(`select count(*)::int as n from private.application_evaluation_move_backup`)).rows[0].n === 2);
+  check("a private copy of what moved is kept until the move is checked live, notes as they were included", backup?.ai_score === 72.5 && backup?.employer_notes === "Call Monday." && /avaScorecard/.test(backup?.notes_before ?? "") && (await db.query(`select count(*)::int as n from private.application_evaluation_move_backup`)).rows[0].n === 3);
+  // notes.avaScorecard was a second copy of the scorecard where the applicant reads; the structured scores too.
+  const notes = JSON.parse(a.notes);
+  check("notes lose Ava's scorecard copy and the structured scores, and keep everything else", !("avaScorecard" in notes) && notes.avaAnalysisMeta?.model === "m" && !("structuredScoring" in notes.avaAnalysisMeta) && notes.applicationAnswers?.[0]?.answer === "yes", a.notes);
+  const fromNotes = await evalOf(APP_NOTES);
+  check("a scorecard only notes held moves into the evaluation", fromNotes?.ai_scorecard?.whyUp?.[0] === "only in notes", JSON.stringify(fromNotes));
+  check("...and leaves the notes", !("avaScorecard" in JSON.parse((await appOf(APP_NOTES)).notes)));
   const reach = await as(OWNER, "authenticated", `select * from private.application_evaluation_move_backup`);
   check("...which no signed-in account can read", !!reach.error, reach.error ?? "readable");
   check("another business's application moved too", (await evalOf(APP_OTHER))?.ai_score === 40);
@@ -294,7 +302,7 @@ const allNull = (row) => !!row && FIVE.every((c) => row[c] === null);
   const otherJob = await as(TEAM_OTHER_JOB, "authenticated", `select * from public.application_evaluations where application_id = '${APP}'`);
   check("a teammate assigned only to another job reads nothing", otherJob.rows.length === 0, JSON.stringify(otherJob.rows));
   const otherBiz = await as(OTHER_BUSINESS, "authenticated", `select application_id from public.application_evaluations`);
-  check("another business reads only its own applicant's", otherBiz.rows.length === 1 && otherBiz.rows[0].application_id === APP_OTHER, JSON.stringify(otherBiz.rows));
+  check("another business reads only its own applicants'", otherBiz.rows.length === 2 && otherBiz.rows.every((r) => r.application_id === APP_OTHER || r.application_id === APP_NOTES), JSON.stringify(otherBiz.rows));
   const otherBizView = await as(OTHER_BUSINESS, "authenticated", `select * from public.applications_staff_list where id = '${APP}'`);
   check("...and nothing of this business's through the staff view", otherBizView.rows.length === 0);
 }
@@ -416,6 +424,13 @@ const allNull = (row) => !!row && FIVE.every((c) => row[c] === null);
   check("application_evaluations is in the realtime publication (the staff shell merges scores live)", pub === 1);
   const rls = (await db.query(`select relrowsecurity from pg_class where oid = 'public.application_evaluations'::regclass`)).rows[0]?.relrowsecurity;
   check("row level security is on", rls === true);
+  // Every BEFORE trigger on applications in the repo's migrations sorts before ours, not only the stub's.
+  const names = new Set();
+  for (const f of FILES) for (const m of text(f).replace(/--[^\n]*/g, "").matchAll(/create\s+(?:or\s+replace\s+)?trigger\s+("?)([a-z0-9_]+)\1\s+before\s+[^;]*?\bon\s+(?:public\.)?applications\b/gi)) names.add(m[2].toLowerCase());
+  const late = [...names].filter((n) => !n.startsWith("zz_applications_evaluation_") && n > "zz_applications_evaluation_");
+  check(`every BEFORE trigger on applications in the migrations (${names.size}) fires before the move`, names.size > 10 && late.length === 0, late.join(", "));
+  // A second run with a stray value on applications (a restore with triggers off) keeps the evaluation.
+  await db.exec(`alter table public.applications disable trigger user; update public.applications set ai_score = 1, employer_notes = 'stale' where id = '${APP}'; alter table public.applications enable trigger user;`);
   const beforeRerun = JSON.stringify(await evalOf(APP));
   let rerun = null;
   try {
@@ -424,7 +439,10 @@ const allNull = (row) => !!row && FIVE.every((c) => row[c] === null);
     rerun = e.message;
   }
   check("running the migration a second time is safe", rerun === null, rerun);
-  check("...and loses nothing", JSON.stringify(await evalOf(APP)) === beforeRerun);
+  check("...and loses nothing, a stray old value on applications included", JSON.stringify(await evalOf(APP)) === beforeRerun && allNull(await appOf(APP)), JSON.stringify(await evalOf(APP)));
+  const del = await as(null, "service_role", `delete from public.applications where id = '${APP_NOTES}'`);
+  const left = (await db.query(`select count(*)::int as n from private.application_evaluation_move_backup where application_id = $1`, [APP_NOTES])).rows[0].n;
+  check("deleting an application deletes its backup copy too (Delete their information, account deletion)", del.error === null && left === 0, del.error ?? String(left));
 }
 
 // ── No migration after this one puts the five back where an applicant reads ──
