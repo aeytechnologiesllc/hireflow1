@@ -907,6 +907,33 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (evening) — Pass C round 6; Phase 4 built
+
+- **Pass C round 6** (fresh reviewer on the round-5 fixes and all Phase 3
+  commits): the publish check was BEFORE ... UPDATE OF status, and Postgres
+  does not fire a column trigger when another trigger sets the column; it is
+  now AFTER INSERT OR UPDATE on every row (business_email_check_after_trigger,
+  live 20261025045451, verified live in rolled-back transactions). The
+  email-check test replays EVERY later migration except a reasoned skip list
+  and refuses a back-dated file. Feed country reading capped at 300
+  characters (a 27 KB location took 1.5 s) with more real strings fixed. The
+  boot marker is removed once the app draws. The colour guards now read
+  comma hsl(), oklch(), named greens, Tailwind green classes and
+  tailwind.config.ts (they found real greens: admin charts, unused glows).
+  Commit 829d2faf.
+- **Phase 4, built (docs/CUSTOMER-SERVICE-HIRING.md):** a `customer_service`
+  family checked first, six follow-ups (channel, industry, load, hours,
+  private details, tools), six industry packs (medical, store, software,
+  home services, gaming, general) of five keyed questions and six chat cases
+  each, written by one writer per pack and read by three independent
+  reviewers (ambiguity, second-language reader under a timer, hiring
+  manager), merged by an editor. Both plan generators put the pack in;
+  Publish saves the answers (moved to the server by the trigger) and the
+  step's pack; the server grades with the pack's word ("patient") and note,
+  against "What the agent knows". Interview guides for customer-service jobs,
+  chat and phone. A "clinic" preview scenario. Day's --ck-brass-bright made
+  readable (the builder's chips were pale brass on paper).
+
 ### 2026-10-25 (later) — Pass C rounds 3–5 on Phase 2; Phase 3's look built
 
 - **Pass C round 3** (on the round-2 fixes): the code now goes only to the

@@ -1,3 +1,4 @@
+import { scenarioPack } from "../_shared/scenarioPacks.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
@@ -438,9 +439,13 @@ serve(async (req) => {
       const rubric = rubricForCase(gradedScenario);
       const focus = practiceJob.step?.focus ?? [];
       // The owner's own business (its gaming jobs) is graded in players'
-      // words; every other business's, in customers' (_shared/counterpart.ts).
-      // A property of the business, never a guess from the cases' text.
-      const counterpart = counterpartFor(practiceJob.homeBusiness);
+      // words (_shared/counterpart.ts); a customer-service pack's step in its
+      // pack's word ("patient") with its note on what good looks like, read
+      // from the server's own copy of the pack (_shared/scenarioPacks.ts),
+      // never from the step's text; every other step in customers'. A
+      // property of the business and the step, never a guess from the cases.
+      const pack = scenarioPack(practiceJob.step?.pack);
+      const counterpart = practiceJob.homeBusiness ? counterpartFor(true) : pack?.counterpart ?? counterpartFor(false);
 
       try {
         // Graded here, server-side, every time, by a REVIEWER (prompts.ts
@@ -467,6 +472,7 @@ serve(async (req) => {
               focus,
               stepTitle: practiceJob.step?.title ?? null,
               counterpart,
+              industryNote: pack?.evaluatorNote ?? null,
             },
             gradedMessages,
           ),

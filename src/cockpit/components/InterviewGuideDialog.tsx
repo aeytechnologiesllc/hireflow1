@@ -445,7 +445,7 @@ export function InterviewGuideDialog({
   const { data: ownBusiness } = useOwnBusiness();
   const { data: ownPage } = useBusinessPageFor(ownBusiness?.employerId);
   const homeBusiness = ownPage ? ownPage.home_alias : undefined;
-  const basePlan = useMemo(() => interviewPlanFor(record?.family, { homeBusiness }), [record?.family, homeBusiness]);
+  const basePlan = useMemo(() => interviewPlanFor(record?.family, { homeBusiness, phone: record?.phone }), [record?.family, homeBusiness, record?.phone]);
   const plan = useMemo(() => applyPlanEdits(basePlan, record?.planEdits), [basePlan, record?.planEdits]);
   const personal = record?.personal ?? null;
   // Changing the questions: `draft` holds what is being typed; null = reading.

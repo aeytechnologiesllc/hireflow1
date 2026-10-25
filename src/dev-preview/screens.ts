@@ -68,6 +68,8 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "email-check-publish", group: "Employer cockpit", label: "Publish before confirming the email (code is 123456)", role: "employer", path: `/jobs/edit/${JOB_CASHIER_DRAFT_ID}?__previewEmailCheck=1` },
   { id: "fresh-dashboard", group: "New account (1 live role, 0 applicants)", label: "Dashboard", role: "employer", path: "/dashboard?__previewScenario=fresh" },
   { id: "fresh-jobs", group: "New account (1 live role, 0 applicants)", label: "Jobs", role: "employer", path: "/jobs?__previewScenario=fresh" },
+  { id: "clinic-jobs", group: "Customer-service jobs (industry packs)", label: "Jobs: a dental office's chat agent and a store's phone support", role: "employer", path: "/jobs?__previewScenario=clinic" },
+  { id: "clinic-dashboard", group: "Customer-service jobs (industry packs)", label: "Dashboard", role: "employer", path: "/dashboard?__previewScenario=clinic" },
   { id: "fresh-applicants", group: "New account (1 live role, 0 applicants)", label: "Applicants (via Open)", role: "employer", path: `/applicants?roleId=${JOB_FRESH_ID}&__previewScenario=fresh` },
   { id: "fresh-interviews", group: "New account (1 live role, 0 applicants)", label: "Interviews", role: "employer", path: "/interviews?__previewScenario=fresh" },
   { id: "fresh-analytics", group: "New account (1 live role, 0 applicants)", label: "Analytics", role: "employer", path: "/analytics?__previewScenario=fresh" },

@@ -1,5 +1,6 @@
 /** Deterministic template generator — guaranteed fallback when OpenAI / edge fn unavailable. */
 import { detectFamily } from "./playbook";
+import { applyCustomerServicePack } from "./customerService";
 import { bankForFamily } from "./questionBanks";
 import {
   briefWantsEquipmentCheck,
@@ -149,7 +150,8 @@ function buildPhases(brief: GenerateFlowRequest["brief"], rigor: GenerateFlowReq
 }
 
 export function generateTemplateFlow(req: GenerateFlowRequest): GenerateFlowResult {
-  const phases = buildPhases(req.brief, req.rigor);
+  const built = buildPhases(req.brief, req.rigor);
+  const phases = detectFamily(req.brief) === "customer_service" ? applyCustomerServicePack(built, req.brief) : built;
   const shortlist = {
     topN: RIGOR_SPEC[req.rigor].topN,
     minCompositeScore: RIGOR_SPEC[req.rigor].minCompositeScore,

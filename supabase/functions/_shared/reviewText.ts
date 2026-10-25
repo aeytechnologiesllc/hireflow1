@@ -39,7 +39,7 @@ export function readLineNumber(value: unknown): number | null {
 }
 
 /** Every speaker label a reviewer's transcript uses (chat practice and interview). */
-const SPEAKER_LABEL = /\b(LEAD|PLAYER|AGENT|CUSTOMER|INTERVIEWER|CANDIDATE)(\s*#?\s*\d+)?\s*:/gi;
+const SPEAKER_LABEL = /\b(LEAD|PLAYER|AGENT|CUSTOMER|PATIENT|CALLER|INTERVIEWER|CANDIDATE)(\s*#?\s*\d+)?\s*:/gi;
 
 /**
  * One message, or one piece of the applicant's own writing, as one line for

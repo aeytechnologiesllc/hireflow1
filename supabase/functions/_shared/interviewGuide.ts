@@ -80,7 +80,7 @@ export interface GuideMark {
 }
 
 export interface InterviewPlan {
-  family: "team_lead" | "general";
+  family: "team_lead" | "support" | "general";
   /** The half hour, in order. The minutes add up to INTERVIEW_GUIDE_MINUTES. */
   stages: GuideStage[];
   /** Words to say in the first two minutes, as they would be spoken. */
@@ -259,6 +259,100 @@ const GENERAL_PLAN: InterviewPlan = {
   verdict: "Would I trust this person to do this job without me watching?",
 };
 
+/**
+ * A customer-service job ("support" from the scorer's own inferJobFamily;
+ * docs/CUSTOMER-SERVICE-HIRING.md). By the call the applicant has written
+ * about an upset customer, saying no, several customers at once and not
+ * knowing an answer (the written interview), and handled one customer chat,
+ * so the call does not ask those again. It hears them SPEAK: a one-minute
+ * practice with the interviewer as the customer, and, for a phone job, how
+ * they hold and pass on a call.
+ */
+const SUPPORT_CORE_START: GuideQuestion[] = [
+  {
+    id: "recent_support",
+    question: "Can you tell me about your most recent customer service job? Who were the customers, and what did they usually need?",
+    listenFor: "The real work in their own words: the kind of business, how many customers a shift, the usual problems, and the tools.",
+    redFlag: "A title and nothing more, or details that do not match what they wrote on the form.",
+  },
+  {
+    id: "live_practice",
+    question:
+      "Let's say I am a customer, and you answer me out loud the way you would at work. I say: \"Hi. I was charged twice this month and I want my money back today.\" What do you say first?",
+    listenFor:
+      "A calm greeting, they take the problem seriously, ask one useful question (which account, which charge), and give a true next step without promising a refund or a date they cannot know.",
+    redFlag: "\"Your refund is done\" or \"you'll have it today\" with no way to know; reading like a script; going silent.",
+  },
+];
+
+const SUPPORT_CORE_END: GuideQuestion[] = [
+  {
+    id: "correction",
+    question: "Can you tell me about a time a manager corrected your work? What did they say, and what did you change?",
+    listenFor: "A real correction, taken without excuses, and one concrete thing they did differently after it.",
+    redFlag: "No example, or a story about how the manager was wrong.",
+  },
+  {
+    id: "this_job",
+    question: "From what you know so far, which part of this job will be hardest for you?",
+    listenFor: "They have thought about the actual job. An honest weak spot and how they would handle it.",
+    redFlag: "\"Nothing\", or an answer that shows they have not read what the job is.",
+  },
+];
+
+const SUPPORT_ALREADY_ASKED = [
+  "An upset customer, and what they wrote (the written interview)",
+  "Saying no to a customer (the written interview)",
+  "Keeping up with several customers at once (the written interview)",
+  "Their hours and when they can start (the form)",
+];
+
+const SUPPORT_PLAN: InterviewPlan = {
+  family: "support",
+  stages: STAGES,
+  welcome: WELCOME,
+  opener: OPENER,
+  core: [
+    ...SUPPORT_CORE_START,
+    {
+      id: "long_shift",
+      question: "Can you tell me about a long or busy shift? How did you keep your answers clear and kind until the end?",
+      listenFor: "A real shift and a real habit: short breaks, saved replies used with care, rereading before sending, asking for help in time.",
+      redFlag: "\"I never get tired\", or answers that get sloppy when it is busy.",
+    },
+    ...SUPPORT_CORE_END,
+  ],
+  close: GENERAL_PLAN.close,
+  alreadyAsked: SUPPORT_ALREADY_ASKED,
+  marks: [SPEAKING],
+  verdict: "Would I trust this person to answer my customers on their own tonight?",
+};
+
+const SUPPORT_PHONE_PLAN: InterviewPlan = {
+  ...SUPPORT_PLAN,
+  core: [
+    ...SUPPORT_CORE_START,
+    {
+      id: "hold_transfer",
+      question: "Can you tell me what you say before you put a caller on hold? And when you pass a call to someone else? Say it the way you would on a call.",
+      listenFor: "They ask first, say why and about how long, come back when they said, and when passing a call on they give the next person the details so the caller does not repeat everything.",
+      redFlag: "Putting people on hold without asking, or a transfer with no explanation.",
+    },
+    ...SUPPORT_CORE_END,
+  ],
+  verdict: "Would I trust this person to answer my phones on their own tonight?",
+};
+
+/**
+ * A phone job, read from its own words: the job builder's channel answer is
+ * not stored on the job, but a phone job says so ("phone support", "calls").
+ * The page and the function both call this on the job's title and
+ * description, so they show the same plan.
+ */
+export function isPhoneJob(title: string | null | undefined, description: string | null | undefined): boolean {
+  return /\b(phones?|calls?|caller|call cent(er|re)|inbound|outbound)\b/i.test(`${title ?? ""} ${description ?? ""}`);
+}
+
 /** The plan for a job family ("team_lead" from the scorer's own inferJobFamily; anything else is general). */
 /**
  * The plan for a job. The team-lead plan was written from the home
@@ -269,7 +363,8 @@ const GENERAL_PLAN: InterviewPlan = {
  * owner's players and tools, and any other business must never see it
  * (Pass C review, 2026-10-25; until then unknown meant the home script).
  */
-export function interviewPlanFor(family: string | null | undefined, options: { homeBusiness?: boolean } = {}): InterviewPlan {
+export function interviewPlanFor(family: string | null | undefined, options: { homeBusiness?: boolean; phone?: boolean } = {}): InterviewPlan {
+  if (family === "support") return options.phone === true ? SUPPORT_PHONE_PLAN : SUPPORT_PLAN;
   if (family !== "team_lead") return GENERAL_PLAN;
   return options.homeBusiness === true ? TEAM_LEAD_PLAN : TEAM_LEAD_PLAN_ANY_BUSINESS;
 }

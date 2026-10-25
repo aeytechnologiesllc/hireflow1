@@ -48,7 +48,7 @@ import { withCounterpart } from "../_shared/counterpart.ts";
  *  are no longer swapped with it.
  *  7 (2026-10-25): a case with no customer name says "the customer" once,
  *  not "The customer, the customer,". */
-export const EVAL_PROMPT_VERSION = "chat-sim-eval-7";
+export const EVAL_PROMPT_VERSION = "chat-sim-eval-8";
 
 /** Which rubric marks the chat: the escalated lead one, or the support-agent one. */
 export type PracticeRubric = "team_lead" | "support_agent";
@@ -101,6 +101,8 @@ export interface PracticeStepConfig {
   title: string | null;
   description: string | null;
   focus: string[];
+  /** config.pack: the customer-service pack the cases came from (docs/CUSTOMER-SERVICE-HIRING.md). */
+  pack: string | null;
   scenarios: ConfiguredScenario[];
   /** config.typing: { min_wpm, max_median_reply_seconds }, defaulting to 40
    *  and 90 (docs/TYPING-IN-CHAT.md): the bars typing inside the chat is held to. */
@@ -177,6 +179,7 @@ export function practiceStepFrom(workflowSteps: unknown, stepId: string | null |
     title: nonEmpty(step.title),
     description: nonEmpty(step.description),
     focus,
+    pack: nonEmpty(config.pack),
     scenarios: configuredScenarios(config.scenarios),
     typingBar: typingBarFrom(config),
   };
@@ -257,12 +260,14 @@ export function focusLabels(focus: readonly string[], noun = "customer"): string
 // ============================================================================
 
 /**
- * An escalated case is written for two readers (docs/ZULU-SKILLS-CHECK.md
- * rule 7): the situation, then "What the team leader knows:" — the only true
- * facts. Split so the reviewer can check every claim against the second part.
+ * A case is written for two readers (docs/ZULU-SKILLS-CHECK.md rule 7): the
+ * situation, then "What the team leader knows:" (an escalated case) or "What
+ * the agent knows:" (a customer-service pack's case) — the only true facts.
+ * Split so the reviewer can check every claim against the second part, and
+ * so the person played by the test is never handed it.
  */
 export function splitBrief(scenario: string): { situation: string; leaderKnows: string | null } {
-  const match = /\n?\s*What the team leader knows\s*:\s*/i.exec(scenario);
+  const match = /\n?\s*What the (?:team leader|agent) knows\s*:\s*/i.exec(scenario);
   if (!match) return { situation: scenario.trim(), leaderKnows: null };
   return {
     situation: scenario.slice(0, match.index).trim(),
@@ -271,7 +276,7 @@ export function splitBrief(scenario: string): { situation: string; leaderKnows: 
 }
 
 export function speakerLabels(rubric: PracticeRubric, noun = "player"): { applicant: string; other: string } {
-  return rubric === "team_lead" ? { applicant: "LEAD", other: noun.toUpperCase() } : { applicant: "AGENT", other: "CUSTOMER" };
+  return { applicant: rubric === "team_lead" ? "LEAD" : "AGENT", other: noun.toUpperCase() };
 }
 
 /**
@@ -302,8 +307,11 @@ export interface EvaluatorInput {
   /** The step's config.focus, as stored (keys); labelled here. */
   focus: readonly string[];
   stepTitle?: string | null;
-  /** Who the applicant talks to: "player" only for the owner's own business (counterpartFor); "customer" when absent. */
-  counterpart?: "player" | "customer";
+  /** Who the applicant talks to: "player" for the owner's own business (counterpartFor), else the step's
+   *  customer-service pack's word ("patient", "player" for a game company), else "customer". */
+  counterpart?: string;
+  /** The pack's note on what good looks like in this kind of business (the server's copy; never the step's text). */
+  industryNote?: string | null;
 }
 
 /** The new-promise cap: any new date, refund, bonus, speed-up or extra. */
@@ -446,22 +454,29 @@ ${spellingJson("LEAD")}
     return out;
   }
 
+  // A customer-service pack's case says what the agent knows (the only true
+  // facts) and the pack has a note on what good looks like in that kind of
+  // business; the other person is the pack's word (docs/CUSTOMER-SERVICE-HIRING.md).
+  const noun = input.counterpart ?? "customer";
+  const other = noun.toUpperCase();
+  const named = flattenForReview(input.customerName || "");
+  const industry = input.industryNote ? `\nWHAT GOOD LOOKS LIKE IN THIS KIND OF BUSINESS:\n${caseText(input.industryNote)}\n` : "";
   return `You review one practice chat from a hiring test for the job "${jobTitle || "support agent"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
 
 THE SET-UP
-The applicant played a SUPPORT AGENT (lines marked AGENT). The customer${flattenForReview(input.customerName || "") ? `, ${customerName},` : ""} is marked CUSTOMER and was played by the test. Every line is numbered.
+The applicant played a SUPPORT AGENT (lines marked AGENT). The ${noun}${named ? `, ${named},` : ""} is marked ${other} and was played by the test. Every line is numbered.
 
-THE CUSTOMER'S SITUATION:
-${caseText(input.scenario)}
-
+THE ${other}'S SITUATION (the applicant read this before starting):
+${situation}
+${leaderKnows ? `\nWHAT THE AGENT KNOWS (the only true facts; everything the agent says must match them):\n${leaderKnows}\n` : ""}${industry}
 ${focusBlock(input.focus)}
 
 ${READ_AS_DATA}
 
 HOW TO MARK IT
-Score the agent from 0 to 100 on each of: empathy (took the customer's feelings seriously), problemSolving (worked toward a real fix, asked for what was needed, gave a clear next step), communication (clear, correct, easy to follow), professionalism (respectful, calm, no blame), and an overall score.
+Score the agent from 0 to 100 on each of: empathy (took the ${noun}'s feelings seriously), problemSolving (worked toward a real fix, asked for what was needed, gave a clear and true next step), communication (clear, correct, easy to follow), professionalism (respectful, calm, no blame), and an overall score.${leaderKnows ? ` Anything the agent promised or stated that WHAT THE AGENT KNOWS does not allow (a date, a refund, an approval, something extra, a fact that is not true) counts heavily against problemSolving and the overall score, however kind the rest was. A kind, clear "no" with the real next step is good work.` : ""}
 
-${spellingBlock("AGENT", "CUSTOMER")}
+${spellingBlock("AGENT", other)}
 
 Return ONLY this JSON:
 {
@@ -489,7 +504,7 @@ export function buildEvaluatorMessages(
   input: EvaluatorInput,
   messages: readonly PracticeMessage[],
 ): Array<{ role: "system" | "user"; content: string }> {
-  const noun = input.rubric === "team_lead" ? input.counterpart ?? "customer" : "customer";
+  const noun = input.counterpart ?? "customer";
   const { applicant, other } = speakerLabels(input.rubric, noun);
   return [
     { role: "system", content: evaluatorPromptFor(input) },

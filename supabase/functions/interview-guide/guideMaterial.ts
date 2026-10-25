@@ -37,7 +37,8 @@
  */
 import { flattenForReview, quoteIsApplicants } from "../_shared/reviewText.ts";
 import { counterpartFor } from "../_shared/counterpart.ts";
-import { applyPlanEdits, interviewPlanFor, planQuestions, readPersonalGuide, readPlanEdits, GUIDE_SOURCES, type PersonalGuide } from "../_shared/interviewGuide.ts";
+import { applyPlanEdits, interviewPlanFor,
+  isPhoneJob, planQuestions, readPersonalGuide, readPlanEdits, GUIDE_SOURCES, type PersonalGuide } from "../_shared/interviewGuide.ts";
 import {
   buildServerCandidateContext,
   candidateWrittenBlock,
@@ -250,7 +251,10 @@ function interviewForRequest(turns: GuideTurn[]): string {
  */
 export function buildGuideMessages(record: GuideRecord): Array<{ role: "system" | "user"; content: string }> {
   const { job } = record;
-  const plan = applyPlanEdits(interviewPlanFor(record.family, { homeBusiness: record.homeBusiness }), readPlanEdits(record.planEdits));
+  const plan = applyPlanEdits(
+    interviewPlanFor(record.family, { homeBusiness: record.homeBusiness, phone: isPhoneJob(record.job.title, record.job.description) }),
+    readPlanEdits(record.planEdits),
+  );
   const context = buildServerCandidateContext(record.notes, { quizQuestions: job.quizQuestions });
   const wrote = candidateWrittenBlock(context);
   const facts = recordLines(record);

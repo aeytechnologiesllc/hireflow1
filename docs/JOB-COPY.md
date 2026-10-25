@@ -34,6 +34,11 @@ template. There is nothing to keep: any job can be copied again at any time.
 
 ## What a copy is
 
+(A customer-service job's copy keeps its skills check and its chat step
+exactly, pack tag included, so it is graded the same way as the original:
+docs/CUSTOMER-SERVICE-HIRING.md.)
+
+
 Everything that makes the job what it is, as it stands: the post (title,
 description, requirements, responsibilities, department, level, skills,
 benefits, job type), the pay, the place, the application form, the tests

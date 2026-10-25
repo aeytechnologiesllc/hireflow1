@@ -68,7 +68,10 @@ export interface ModelStamp {
 export interface QuizConfig {
   kind: "quiz";
   timeLimitSec: number;
-  items: { id: string; scenario: string; options?: string[] }[];
+  /** A customer-service pack's questions carry their right answer and their
+   *  own time (src/content/scenarioPacks/packs.ts); jobFromFlow.ts saves them
+   *  as multiple choice and the jobs table moves the answer to the server. */
+  items: { id: string; scenario: string; options?: string[]; correctAnswer?: string; category?: string; timeLimitSec?: number }[];
 }
 
 export interface VoiceConfig {
@@ -80,7 +83,11 @@ export interface VoiceConfig {
 
 export interface SimulationConfig {
   kind: "simulation";
-  scenarios: { id: string; title: string; prompt: string }[];
+  scenarios: { id: string; title: string; prompt: string; customerName?: string }[];
+  /** The customer-service pack these cases came from; the server grades with
+   *  its word for the other person and its note (docs/CUSTOMER-SERVICE-HIRING.md). */
+  pack?: string;
+  counterpart?: string;
 }
 
 /**

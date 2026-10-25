@@ -10,6 +10,9 @@
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
+import { scenarioPack } from "../_shared/scenarioPacks.ts";
+
+const CS_CHANNELS = { chat: "chat", phone: "phone calls", email: "email", mixed: "chat, phone and email" } as const;
 
 type RigorKey = "easy" | "medium" | "hard";
 
@@ -127,8 +130,20 @@ Deno.serve(async (req: Request) => {
         ? brief.followUps.map((f: { question: string; answer: string }) => `${f.question}: ${f.answer}`).join("\n")
         : "";
 
+    // A customer-service job (docs/CUSTOMER-SERVICE-HIRING.md): the page says
+    // which industry pack and channel; only known values are used. The skills
+    // check and chat cases come from the pack on the page, so the model writes
+    // the post, the application and the interview for that industry.
+    const csPack = scenarioPack(body?.customerService?.pack);
+    const csChannel = CS_CHANNELS[body?.customerService?.channel as keyof typeof CS_CHANNELS] ?? null;
+    const csCtx = csPack
+      ? `Customer service role: a front-line agent for a ${csPack.label.toLowerCase()}, answering by ${csChannel ?? "chat"}. ` +
+        `Call the person they help a "${csPack.counterpart}" everywhere.`
+      : "";
+
     const ctx = [
       `Role title: ${brief.roleTitle || brief.title || "(unspecified)"}`,
+      csCtx,
       brief.employmentType ? `Employment type: ${brief.employmentType}` : "",
       brief.workMode ? `Work mode: ${brief.workMode}` : "",
       brief.location ? `Location: ${brief.location}` : "",
@@ -152,7 +167,8 @@ Deno.serve(async (req: Request) => {
       "Interview questions are for a WRITTEN interview the candidate answers by typing — warm and behavioral, one thing at a time, never asking them to speak, record or call — candidate-facing prompts with NO mention of AI, bots, or automation. " +
       "jobPost fields are candidate-facing — warm, clear, human language only (no AI/Ava/bot/automated/algorithm). " +
       "phaseRationales are employer-facing first-person Ava notes explaining why each screening phase exists (AI framing OK there). " +
-      "For technical/developer roles include practical scenarios; for cash-handling roles include till/de-escalation scenarios; for cleaning roles include trust/reliability scenarios.";
+      "For technical/developer roles include practical scenarios; for cash-handling roles include till/de-escalation scenarios; for cleaning roles include trust/reliability scenarios. " +
+      "For a customer service role: write for any country (no country-specific laws, apps or holidays), in plain English a second-language applicant reads easily; use the counterpart word you are given and never 'player' unless that is the word; for phone work, include interview questions about handling calls.";
 
     const userMsg = `${ctx}
 
@@ -205,7 +221,7 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
       voiceDimensions: take<string>(content.voiceDimensions, 4),
       shortlistWeights: take<string>(content.shortlistWeights, 5),
       phaseRationales: take<string>(content.phaseRationales, 8),
-      generatedBy: { provider: "openai", model, promptVersion: "flowgen@1" },
+      generatedBy: { provider: "openai", model, promptVersion: csPack ? "flowgen-cs@1" : "flowgen@1" },
     });
   } catch (e) {
     return json({ error: "exception", detail: String(e) }, 500);

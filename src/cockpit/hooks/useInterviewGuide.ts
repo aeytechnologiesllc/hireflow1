@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { NO_PLAN_EDITS, readPersonalGuide, readPlanEdits, type PersonalGuide, type PlanEdits } from "@/lib/interviewGuide";
+import { isPhoneJob, NO_PLAN_EDITS, readPersonalGuide, readPlanEdits, type PersonalGuide, type PlanEdits } from "@/lib/interviewGuide";
 import { isRecordNotDeployed } from "./useAssessmentSessions";
 
 /**
@@ -33,6 +33,8 @@ export const interviewGuideKeys = {
 export interface InterviewGuideRecord {
   /** The scorer's family for the job ("team_lead", …), or null when the applicant is not scored yet. */
   family: string | null;
+  /** A phone job, from its own title and description (isPhoneJob): a customer-service job's guide asks about calls. */
+  phone: boolean;
   personal: PersonalGuide | null;
   generatedAt: string | null;
   /** False when the table is not there yet (the migration is not applied). */
@@ -102,7 +104,7 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
     queryFn: async (): Promise<InterviewGuideRecord> => {
       const [guide, application] = await Promise.all([
         supabase.from("interview_guides").select("guide, generated_at").eq("application_id", applicationId!).maybeSingle(),
-        supabase.from("applications").select("ai_scorecard, job_id").eq("id", applicationId!).maybeSingle(),
+        supabase.from("applications").select("ai_scorecard, job_id, jobs(title, description)").eq("id", applicationId!).maybeSingle(),
       ]);
       const jobId = typeof application.data?.job_id === "string" ? application.data.job_id : null;
       // The job's own changes to the plan. A table that is not there yet
@@ -125,12 +127,15 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
         scorecard && typeof scorecard === "object" && !Array.isArray(scorecard) && typeof (scorecard as Record<string, unknown>).jobFamily === "string"
           ? ((scorecard as Record<string, unknown>).jobFamily as string)
           : null;
+      const job = (application.data as { jobs?: { title?: string | null; description?: string | null } | null } | null)?.jobs ?? null;
+      const phone = isPhoneJob(job?.title, job?.description);
       if (guide.error) {
-        if (isRecordNotDeployed(guide.error)) return { family, personal: null, generatedAt: null, deployed: false, jobId, planEdits, plansDeployed };
+        if (isRecordNotDeployed(guide.error)) return { family, phone, personal: null, generatedAt: null, deployed: false, jobId, planEdits, plansDeployed };
         throw guide.error;
       }
       return {
         family,
+        phone,
         personal: readPersonalGuide(guide.data?.guide),
         generatedAt: guide.data?.generated_at ?? null,
         deployed: true,
@@ -162,6 +167,7 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
     onSuccess: ({ personal, generatedAt }) => {
       queryClient.setQueryData<InterviewGuideRecord>(interviewGuideKeys.one(applicationId), (previous) => ({
         family: previous?.family ?? null,
+        phone: previous?.phone ?? false,
         personal,
         generatedAt,
         deployed: true,

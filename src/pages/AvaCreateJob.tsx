@@ -243,8 +243,10 @@ export default function AvaCreateJob() {
 
   const family = useMemo(() => detectFamily(briefFromForm({ ...briefFields, followUps: [] })), [briefFields]);
   const playbook = PLAYBOOKS[family];
-  const workMode = useMemo(() => briefFromForm({ ...briefFields, followUps: [] }).workMode, [briefFields]);
-  const followUps = useMemo(() => withRemoteFollowUps(playbook.followUps(chipAnswers), workMode), [playbook, chipAnswers, workMode]);
+  const formBrief = useMemo(() => briefFromForm({ ...briefFields, followUps: [] }), [briefFields]);
+  const workMode = formBrief.workMode;
+  // The brief lets a follow-up start on what the business's own words point to (a dental office starts on "Medical or dental office").
+  const followUps = useMemo(() => withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode), [playbook, chipAnswers, workMode, formBrief]);
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
 
   const setBrief = (k: string, v: string) => setBriefFields((b) => ({ ...b, [k]: v }));
@@ -276,7 +278,7 @@ export default function AvaCreateJob() {
   const runGeneration = useCallback(async () => {
     setGenerating(true);
     setGenSource(null);
-    const followUpDefs = withRemoteFollowUps(playbook.followUps(chipAnswers), briefFromForm({ ...briefFields, followUps: [] }).workMode);
+    const followUpDefs = withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), formBrief.workMode);
     const brief = briefFromForm({
       ...briefFields,
       followUps: chipAnswersToBriefAnswers(followUpDefs, chipAnswers),
@@ -295,7 +297,7 @@ export default function AvaCreateJob() {
     } finally {
       setGenerating(false);
     }
-  }, [briefFields, chipAnswers, playbook, rigor]);
+  }, [briefFields, chipAnswers, playbook, rigor, formBrief]);
 
   useEffect(() => {
     if (step === 3) {
@@ -665,7 +667,7 @@ export default function AvaCreateJob() {
                       {fu.chips.map((chip, ci) => {
                         const on = picked === ci;
                         return (
-                          <button key={chip} type="button" onClick={() => setChipAnswers((a) => ({ ...a, [fu.id]: ci }))} className="inline-flex items-center rounded-full px-4 py-2.5 text-sm transition-all" style={on ? { background: "linear-gradient(180deg, color-mix(in srgb, var(--hf-gold) 22%, transparent) 0%, color-mix(in srgb, var(--hf-gold-hover) 10%, transparent) 100%), hsl(var(--ck-surface-2))", color: "hsl(var(--ck-brass-bright))", border: "1px solid hsl(var(--primary) / 0.7)", fontWeight: 600 } : { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}>
+                          <button key={chip} type="button" onClick={() => setChipAnswers((a) => ({ ...a, [fu.id]: ci }))} className="inline-flex items-center rounded-full px-4 py-2.5 text-sm transition-all" style={on ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", border: "1px solid var(--action)", fontWeight: 600 } : { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}>
                             {on && <Check className="mr-2 h-4 w-4" />}{chip}
                           </button>
                         );

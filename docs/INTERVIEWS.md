@@ -652,6 +652,15 @@ Proof: `scripts/interview_score.test.mjs`, `scripts/interview_outcome.test.mjs`.
 
 ## The interview guide
 
+**A customer-service job** ("support", 2026-10-25; docs/CUSTOMER-SERVICE-HIRING.md)
+gets its own plan: it does not re-ask what the written interview already asked
+(an upset customer, saying no, several at once: listed as already asked), and
+hears them speak, with a one-minute practice where the interviewer plays the
+customer ("I was charged twice and I want my money back today"). A phone job
+(`isPhoneJob`, read from the job's own title and description, the same on the
+page and in the function) also asks how they hold and pass on a call.
+
+
 "Interview guide" on an applicant's profile, and on each row of the
 Interviews page, opens one page to read before and during the call
 (`src/cockpit/components/InterviewGuideDialog.tsx`). The owner asked for it on

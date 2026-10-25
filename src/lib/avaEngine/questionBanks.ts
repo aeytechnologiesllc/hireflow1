@@ -11,6 +11,39 @@ export interface QuestionBank {
 }
 
 const BANKS: Record<Family, QuestionBank> = {
+  // Customer service, chat and phone, any business (docs/CUSTOMER-SERVICE-HIRING.md).
+  // The skills check and the chat practice come from the industry pack
+  // (applyCustomerServicePack); these are the rest. Nothing here assumes an
+  // industry or a country, and nothing names the other person "player".
+  customer_service: {
+    application: [
+      "Which days and hours can you work, and in which time zone?",
+      "Tell us about your customer service experience: chat, phone or email, and for what kind of business.",
+      "Which tools have you used to answer customers (for example a help desk, a chat tool or a phone system)?",
+      "Why do you want this job?",
+    ],
+    quiz: [
+      { scenario: "A customer asks for something you are not allowed to give. How do you say no and still help?", good: "Explains kindly, offers what they can do, gives the real next step." },
+      { scenario: "Three chats arrive at once while you are answering an upset customer. What do you do?", good: "Acknowledges each one quickly, works the most urgent first, keeps promises." },
+      { scenario: "You are not sure of the answer to a customer's question. What do you do?", good: "Says so honestly, checks the right source, tells them when they will hear back." },
+      { scenario: "Someone asks about an account but you cannot tell if it is theirs. What do you do?", good: "Checks who they are before sharing or changing anything." },
+      { scenario: "You promised to call a customer back today but your shift is ending. What do you do?", good: "Keeps the promise or hands it over with notes and tells the customer." },
+    ],
+    interview: [
+      "Tell us about a time a customer was upset with you or your company. What did you write or say, and how did it end?",
+      "Describe a time you had to say no to a customer. How did you keep them on your side?",
+      "Tell us about a mistake you made with a customer and what you did next.",
+      "How do you keep your answers clear and kind when you are busy with several customers at once?",
+      "Tell us about a time you did not know the answer. What did you do?",
+      "What does great customer service look like to you, in one real example?",
+      "How do you stay calm and polite on a long or difficult shift?",
+      "Why this job, and why now?",
+    ],
+    simulation: [
+      { title: "An upset customer", prompt: "A customer is upset about a late order and wants a refund today. Calm them, explain what you can do, and give the real next step." },
+    ],
+    shortlistWeights: ["Clear, kind writing", "Judgment on the rules", "Calm with upset customers", "Ownership and follow-through", "Reliability for the shifts"],
+  },
   cash: {
     application: [
       "Which days and shifts can you work?",

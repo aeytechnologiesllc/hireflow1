@@ -12,6 +12,7 @@
  * functions in src/cockpit/lib/mappers.ts run unmodified over this data.
  */
 import type { FixtureRow, FixtureTables } from "./fixtureClient";
+import { SCENARIO_PACKS, type ScenarioPackId } from "@/content/scenarioPacks/packs";
 import {
   APP_CHAT_INTERVIEW_ID,
   APP_CHAT_SIM_ID,
@@ -38,6 +39,8 @@ import {
   DOC_PENDING_EMPLOYER_ID,
   DOC_SIGNED_ID,
   EMPLOYER_USER_ID,
+  JOB_CLINIC_CHAT_ID,
+  JOB_STORE_PHONE_ID,
   INTERVIEW_COMPLETED_ID,
   INTERVIEW_UPCOMING_ID,
   JOB_BARISTA_ID,
@@ -862,6 +865,62 @@ function buildFreshTables(): FixtureTables {
   };
 }
 
+
+// ---------------------------------------------------- "clinic" scenario
+// Two customer-service jobs built the way the job builder builds them from an
+// industry pack (docs/CUSTOMER-SERVICE-HIRING.md): a dental office's front-desk
+// chat agent and an online store's phone support. The skills check is the
+// pack's five questions (answers stripped, as the jobs table keeps them) and
+// the chat practice serves the pack's six cases, tagged with the pack.
+
+function packJob(id: string, packId: ScenarioPackId, title: string, description: string, code: string): FixtureRow {
+  const pack = SCENARIO_PACKS[packId];
+  return {
+    ...freshJob,
+    id,
+    title,
+    description,
+    job_code: code,
+    department: "Customer service",
+    workflow_steps: [
+      { id: `${id}-connection`, type: "equipment_check", title: "Your computer and connection", config: CONNECTION_BARS },
+      {
+        id: `${id}-chat`,
+        type: "chat_simulation",
+        title: "Customer chat practice",
+        description: "Answer one realistic customer chat, the way you would on the job.",
+        config: { pack: pack.id, scenarios: pack.cases.map((c) => ({ id: c.id, customerName: c.customerName, scenario: c.scenario })) },
+      },
+      { id: `${id}-interview`, type: "chat_interview", title: "Written interview" },
+    ],
+    quiz_questions: pack.skills.map(({ id: qid, type, category, time_limit_seconds, question, options }) => ({ id: qid, type, category, time_limit_seconds, question, options })),
+    required_wpm: null,
+  };
+}
+
+const clinicChatJob = packJob(
+  JOB_CLINIC_CHAT_ID,
+  "medical",
+  "Front Desk Chat Agent (Dental Office)",
+  "Answer our dental office's patients by chat: book and move appointments, answer questions about bills, and pass anything medical to our nurses. Clear, kind writing in English; we train you on our booking system.",
+  "JOB-CL1N1C",
+);
+const storePhoneJob = packJob(
+  JOB_STORE_PHONE_ID,
+  "store",
+  "Customer Support Agent, Phone and Chat (Online Store)",
+  "Take calls and chats from our online store's customers about orders, deliveries, returns and refunds. You keep to our return rules, tell customers the real next step, and stay calm when a delivery is late.",
+  "JOB-ST0RE1",
+);
+
+function buildClinicTables(): FixtureTables {
+  return {
+    ...buildFreshTables(),
+    jobs: [{ ...clinicChatJob }, { ...storePhoneJob }],
+    published_jobs_public: [{ ...clinicChatJob }, { ...storePhoneJob }],
+    employer_public_branding: [{ user_id: EMPLOYER_USER_ID, company_name: "Bright Smile Dental", company_logo: null }],
+  };
+}
 
 // ---------------------------------------------------- "zulu" scenario
 // The Zulu chat-agent role the way the owner's own test run left it on
@@ -2656,12 +2715,13 @@ function buildZuluSome(keep: FixtureRow[]): FixtureTables {
  *  shows. `applying`: the Zulu role with only the applicant still on the form.
  *  `new` and `draft`: a business with no job yet. `testing`: four people in
  *  the tests, none finished. `ready`: three finished and scored, no decision. */
-export type FixtureScenario = "cafe" | "fresh" | "zulu" | "applying" | "new" | "draft" | "testing" | "ready";
+export type FixtureScenario = "cafe" | "fresh" | "zulu" | "applying" | "new" | "draft" | "testing" | "ready" | "clinic";
 
-export const FIXTURE_SCENARIOS: readonly FixtureScenario[] = ["cafe", "fresh", "zulu", "applying", "new", "draft", "testing", "ready"];
+export const FIXTURE_SCENARIOS: readonly FixtureScenario[] = ["cafe", "fresh", "zulu", "applying", "new", "draft", "testing", "ready", "clinic"];
 
 export function buildFixtureTables(scenario: FixtureScenario = "cafe"): FixtureTables {
   if (scenario === "fresh") return buildFreshTables();
+  if (scenario === "clinic") return buildClinicTables();
   if (scenario === "zulu") return buildZuluTables(false);
   if (scenario === "applying") return buildZuluTables(true);
   if (scenario === "new") return buildNewTables(false);

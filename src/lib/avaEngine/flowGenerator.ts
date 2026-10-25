@@ -11,6 +11,8 @@ import {
   WRITTEN_INTERVIEW_TITLE,
 } from "./assemble";
 import { rigorToLegacy } from "./rigor";
+import { detectFamily } from "./playbook";
+import { applyCustomerServicePack, channelForBrief, packIdForBrief } from "./customerService";
 import { supabase } from "@/integrations/supabase/client";
 import type {
   GenerateFlowRequest,
@@ -174,17 +176,20 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
   });
 
   const weights = take(payload.shortlistWeights, 5);
+  // A customer-service job gets its industry pack's skills check and chat
+  // cases, whatever the model wrote for those two (customerService.ts).
+  const finalPhases = detectFamily(req.brief) === "customer_service" ? applyCustomerServicePack(phases, req.brief) : phases;
   const shortlist = {
     topN: spec.topN,
     minCompositeScore: spec.minCompositeScore,
-    weights: defaultShortlistWeights(phases),
+    weights: defaultShortlistWeights(finalPhases),
   };
 
   return buildJobFlow({
     brief: req.brief,
     rigor: req.rigor,
     jobPost,
-    phases,
+    phases: finalPhases,
     shortlist,
     generatedBy: {
       provider: "openai",
@@ -192,6 +197,11 @@ function edgePayloadToFlow(req: GenerateFlowRequest, payload: EdgeFlowPayload): 
       promptVersion: "flowgen@1",
     },
   });
+}
+
+/** A customer-service job's pack and channel, which generate-flow reads against its own allow-list to write the post and interview for that industry. */
+function customerServiceFields(brief: GenerateFlowRequest["brief"]): { customerService?: { pack: string; channel: string } } {
+  return detectFamily(brief) === "customer_service" ? { customerService: { pack: packIdForBrief(brief), channel: channelForBrief(brief) } } : {};
 }
 
 async function callEdgeFunction(req: GenerateFlowRequest): Promise<JobFlow> {
@@ -220,6 +230,7 @@ async function callEdgeFunction(req: GenerateFlowRequest): Promise<JobFlow> {
         brief: req.brief,
         rigor: rigorToLegacy(req.rigor),
         rigorPlan: req.rigor,
+        ...customerServiceFields(req.brief),
       }),
       signal: controller.signal,
     });

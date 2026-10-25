@@ -237,6 +237,21 @@ export function buildQuizQuestions(phases: ScreeningPhase[]): QuizQuestion[] {
     .filter((it) => typeof it.scenario === "string" && it.scenario.trim().length > 0)
     .map((it) => {
       const options = Array.isArray(it.options) ? it.options : [];
+      // A customer-service pack's question has one right answer
+      // (docs/CUSTOMER-SERVICE-HIRING.md): saved as multiple choice with its
+      // key, which the strip_quiz_answer_keys trigger moves to job_quiz_keys
+      // as the row is written, so no applicant can read it.
+      if (typeof it.correctAnswer === "string" && options.includes(it.correctAnswer)) {
+        return {
+          id: it.id || uid("quiz"),
+          type: "multiple_choice",
+          question: it.scenario.trim(),
+          options,
+          correct_answer: it.correctAnswer,
+          time_limit_seconds: it.timeLimitSec ?? timeLimit,
+          category: it.category || "Scenario",
+        };
+      }
       return {
         id: it.id || uid("quiz"),
         // A situational question with no options is unanswerable as a radio
@@ -284,16 +299,20 @@ export function buildWorkflowSteps(phases: ScreeningPhase[], voiceInterview: boo
       const cfg = phase.config as SimulationConfig;
       const scenarios = (cfg.scenarios ?? []).map((s, i) => ({
         id: s.id || `scenario-${i + 1}`,
-        customerName: "Customer",
+        customerName: s.customerName?.trim() || "Customer",
         scenario: `${s.title ? `${s.title}: ` : ""}${s.prompt}`.trim(),
       }));
+      // A customer-service pack's step says which pack it is, so the server
+      // grades with that pack's word for the other person and its note
+      // (ai-chat-simulation reads config.pack against its own copy).
+      const packTag = typeof cfg.pack === "string" && cfg.pack ? { pack: cfg.pack } : {};
       steps.push({
         id: uid("step"),
         type: "chat_simulation",
         title: phase.title || "Scenario simulation",
         description: phase.candidateDescription || "Handle a realistic situation.",
         required: true,
-        config: scenarios.length ? { scenarios } : {},
+        config: scenarios.length ? { scenarios, ...packTag } : { ...packTag },
       });
     } else if (phase.kind === "voice_interview") {
       const cfg = phase.config as VoiceConfig;

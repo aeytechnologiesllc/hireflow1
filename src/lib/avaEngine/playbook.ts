@@ -3,8 +3,9 @@
  * lines keyed off the brief (mirrors AvaFlowPreview prototype).
  */
 import type { BriefAnswer, JobBrief, Rigor } from "./types";
+import { CS_CHANNEL_CHIPS, CS_INDUSTRY_CHIPS, industryFromText } from "./customerService.ts";
 
-export type Family = "cash" | "cleaner" | "admin" | "developer" | "general";
+export type Family = "customer_service" | "cash" | "cleaner" | "admin" | "developer" | "general";
 
 export interface FollowUpDef {
   id: string;
@@ -37,13 +38,41 @@ export function withRemoteFollowUps(defs: FollowUpDef[], workMode?: string): Fol
 
 export interface Playbook {
   label: string;
-  followUps: (answers: Record<string, number>) => FollowUpDef[];
+  /** The brief, when given, lets a follow-up start on the answer the business's own words point to. */
+  followUps: (answers: Record<string, number>, brief?: Pick<JobBrief, "roleTitle" | "whatTheyDo">) => FollowUpDef[];
   reasoning: string[];
   rigor: { recommended: Rigor; rationale: string };
 }
 
+/**
+ * Customer service, chat and phone, for any business (the niche: CLAUDE.md,
+ * "Positioning"). Checked first, so "customer support for our cleaning
+ * company", "software support agent" or a clinic's front desk are not read
+ * as cleaner, developer or admin (docs/CUSTOMER-SERVICE-HIRING.md).
+ */
+const CUSTOMER_SERVICE = new RegExp(
+  [
+    String.raw`customer (service|support|care|success|experience|happiness)`,
+    String.raw`client (service|support|care)`,
+    String.raw`(support|service|care|chat|phone|call|contact|help ?desk|technical|tech) (agent|rep|representative|specialist|advisor|associate|executive)s?\b`,
+    String.raw`\b(chat|email|phone|voice|technical|tech|it|player|tier[ -]?[12]) support\b`,
+    String.raw`\blive chat\b`,
+    String.raw`\bcall (cent(er|re)|handler)`,
+    String.raw`\bcontact cent(er|re)`,
+    String.raw`\bhelp ?desk\b`,
+    String.raw`\bcsr\b`,
+    String.raw`\b(inbound|outbound) (calls?|support)\b`,
+    String.raw`\banswer(ing)? (calls|phones|the phone|chats|customer)`,
+    String.raw`\bfront desk\b`,
+    String.raw`\breception(ist)?\b.*\b(patient|clinic|dental|dentist|medical|doctor|practice)`,
+    String.raw`\b(patient|clinic|dental|dentist|medical|doctor)\b.*\breception(ist)?\b`,
+    String.raw`\bpatient (coordinator|services?|scheduler|access)`,
+  ].join("|"),
+);
+
 export function detectFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employmentType">): Family {
   const s = `${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase();
+  if (CUSTOMER_SERVICE.test(s)) return "customer_service";
   if (/clean|janitor|housekeep|custodi|maid|porter/.test(s)) return "cleaner";
   if (/develop|engineer|programmer|coder|software|frontend|front-end|back-?end|full-?stack|web dev|data scientist/.test(s))
     return "developer";
@@ -54,6 +83,46 @@ export function detectFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | 
 }
 
 export const PLAYBOOKS: Record<Family, Playbook> = {
+  customer_service: {
+    label: "customer service",
+    followUps: (a, brief) => {
+      const channel = a["cs-channel"] ?? 0;
+      const industryDefault = CS_INDUSTRY_CHIPS.findIndex(([, id]) => id === industryFromText(`${brief?.roleTitle ?? ""} ${brief?.whatTheyDo ?? ""}`));
+      const industry = a["cs-industry"] ?? industryDefault;
+      const phone = channel === 1;
+      return [
+        { id: "cs-channel", question: "How will they talk to your customers?", chips: [...CS_CHANNEL_CHIPS], def: 0 },
+        { id: "cs-industry", question: "What kind of business is it?", chips: CS_INDUSTRY_CHIPS.map(([label]) => label), def: industryDefault },
+        {
+          id: "cs-load",
+          question: phone ? "Besides calls, how many chats or messages at once?" : "How many chats or messages at once?",
+          chips: ["One at a time", "Two or three", "Four or more"],
+          def: 1,
+        },
+        { id: "cs-hours", question: "When will they work?", chips: ["Daytime", "Evenings or nights", "Weekends too", "Rotating shifts"], def: 0 },
+        {
+          id: "cs-sensitive",
+          question: "What private details will they see?",
+          chips: ["Nothing sensitive", "Payment details", "Health details", "ID documents"],
+          def: CS_INDUSTRY_CHIPS[industry]?.[1] === "medical" ? 2 : CS_INDUSTRY_CHIPS[industry]?.[1] === "store" ? 1 : 0,
+        },
+        { id: "cs-tools", question: "What will they work in?", chips: ["Email and a chat box", "A help desk tool", "A phone system", "We'll train them"], def: phone ? 2 : 3 },
+      ];
+    },
+    reasoning: [
+      "Reading the role and who they'll talk to",
+      "Matching real situations from your kind of business",
+      "Choosing a skills check with clear right answers",
+      "Picking the chat practice they'll face",
+      "Writing the interview",
+      "Building the scorecard",
+    ],
+    rigor: {
+      recommended: "standard",
+      rationale:
+        "They speak for your business all day. A five-question skills check, one real customer chat and a short written interview show how they write, think and calm someone down, without a long test that loses good applicants.",
+    },
+  },
   cash: {
     label: "front-of-house / cash-handling",
     followUps: (a) => {

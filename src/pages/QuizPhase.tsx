@@ -997,7 +997,8 @@ export default function QuizPhase() {
 
               {/* Question — the focal moment */}
               <div className="space-y-5">
-                <h2 className="font-display ck-ink text-xl leading-snug text-foreground sm:text-2xl">
+                {/* pre-line: a rule written on its own line in the question shows on its own line. */}
+                <h2 className="font-display ck-ink whitespace-pre-line text-xl leading-snug text-foreground sm:text-2xl">
                   {currentQuestion.question}
                 </h2>
 

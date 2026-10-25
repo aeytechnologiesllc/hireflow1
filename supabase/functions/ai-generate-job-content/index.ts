@@ -354,7 +354,7 @@ serve(async (req) => {
           {
             role: "system",
             content:
-              "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.",
+              "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. For a customer service or support role, write so an applicant in any country reads it easily (plain English, no country-specific laws or apps) and call the people they help customers (patients for a medical or dental office), never players unless it is a game company. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.",
           },
           { role: "user", content: prompt },
         ],
@@ -388,7 +388,7 @@ serve(async (req) => {
         {
           role: "system",
           content:
-            "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.",
+            "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. For a customer service or support role, write so an applicant in any country reads it easily (plain English, no country-specific laws or apps) and call the people they help customers (patients for a medical or dental office), never players unless it is a game company. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.",
         },
         { role: "user", content: prompt },
       ],

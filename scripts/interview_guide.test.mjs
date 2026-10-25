@@ -64,7 +64,7 @@ const show = (v) => JSON.stringify(v);
 console.log("\nThe plan every applicant gets\n");
 {
   const lead = G.interviewPlanFor("team_lead", { homeBusiness: true });
-  const general = G.interviewPlanFor("support");
+  const general = G.interviewPlanFor("operations_admin");
   check("a team lead job gets the team lead plan; anything else the general one", lead.family === "team_lead" && general.family === "general" && G.interviewPlanFor(null).family === "general" && G.interviewPlanFor(undefined).family === "general");
   // The owner, 2026-10-11: other businesses get "Same script, no number".
   const words = (plan) => JSON.stringify(plan);
@@ -86,8 +86,18 @@ console.log("\nThe plan every applicant gets\n");
     .replace("like promising a refund.", "like promising a payout.")
     .replace(/\bcustomers\b/g, "players")
     .replace(/\bcustomer\b/g, "player") === words(home));
-  check("…and the general plan is the same for every business", words(G.interviewPlanFor("support", { homeBusiness: false })) === words(general));
-  for (const [name, plan] of [["team lead", lead], ["general", general]]) {
+  check("…and the general plan is the same for every business", words(G.interviewPlanFor("operations_admin", { homeBusiness: false })) === words(general));
+  // A customer-service job (docs/CUSTOMER-SERVICE-HIRING.md): its own plan, a phone version, never the home script.
+  const support = G.interviewPlanFor("support");
+  const supportPhone = G.interviewPlanFor("support", { phone: true });
+  check("a customer-service job gets the support plan; a phone one the phone version", support.family === "support" && supportPhone.family === "support" && words(support) !== words(supportPhone));
+  check("…which hears them speak: a one-minute practice with the interviewer as the customer", support.core.some((q) => q.id === "live_practice" && /What do you say first\?$/.test(q.question)));
+  check("…the phone version asks how they hold and pass on a call", supportPhone.core.some((q) => q.id === "hold_transfer") && !support.core.some((q) => q.id === "hold_transfer"));
+  check("…and does not re-ask what the written interview asked (it lists it)", support.alreadyAsked.length >= 3 && support.alreadyAsked.some((l) => /upset customer/i.test(l)) && !support.core.some((q) => /upset/i.test(q.question)));
+  check("…the home business's support job gets the same plan (no home script for support)", words(G.interviewPlanFor("support", { homeBusiness: true })) === words(support));
+  check("…and never says player", !/\bplayers?\b/i.test(words(support) + words(supportPhone)));
+  check("a phone job is read from its own words", G.isPhoneJob("Phone CSR", null) && G.isPhoneJob("Support agent", "Answer inbound calls") && !G.isPhoneJob("Chat support agent", "Answer customers in live chat"));
+  for (const [name, plan] of [["team lead", lead], ["general", general], ["support", support], ["support (phone)", supportPhone]]) {
     const all = [plan.opener, ...plan.core, ...plan.close];
     check(`${name}: opens with the owner's question, in his softer words ("what makes you a good candidate for this role")`, plan.opener.question === "To start, what makes you a good candidate for this role?" && !/Why should we hire you/.test(show(plan)));
     check(`${name}: five questions everyone gets, two to close`, plan.core.length === 5 && plan.close.length === 2);
@@ -272,7 +282,7 @@ console.log("\nThe request\n");
   check("with no interview taken it says so", /\(they have not taken the written interview\)/.test(M.buildGuideMessages(record({ interview: [] }))[1].content));
   const huge = Array.from({ length: 200 }, (_, i) => ({ role: i % 2 ? "user" : "assistant", content: "word ".repeat(400) }));
   check("a very long interview is cut to a bounded size", M.buildGuideMessages(record({ interview: huge }))[1].content.length < 16000);
-  const general = M.buildGuideMessages(record({ family: "support" }))[0].content;
+  const general = M.buildGuideMessages(record({ family: "operations_admin" }))[0].content;
   check("another kind of job is told that plan's questions", general.includes("closest to this one? What did a normal day look like?") && !general.includes("You also lead six agents"));
 }
 
@@ -343,11 +353,11 @@ console.log("\nWhere it is kept, and where it shows\n");
   check("the page sends the application's id and nothing else", /supabase\.functions\.invoke\("interview-guide", \{ body: \{ applicationId \} \}\)/.test(hook) && (hook.match(/functions\.invoke\(/g) ?? []).length === 1);
   check("the page only reads the table", /\.from\("interview_guides"\)\.select\("guide, generated_at"\)/.test(hook) && !/\.from\("interview_guides"\)[\s\S]{0,60}\.(insert|update|upsert|delete)\(/.test(hook));
   check("what it reads back goes through the same reader", /personal: readPersonalGuide\(guide\.data\?\.guide\)/.test(hook) && /const personal = readPersonalGuide\(\(data as/.test(hook));
-  check("a missing table or function reads as 'not switched on yet', never an error card", /if \(isRecordNotDeployed\(guide\.error\)\) return \{ family, personal: null, generatedAt: null, deployed: false, jobId, planEdits, plansDeployed \};/.test(hook) && /not_deployed: "Personal questions are not switched on yet\."/.test(hook));
+  check("a missing table or function reads as 'not switched on yet', never an error card", /if \(isRecordNotDeployed\(guide\.error\)\) return \{ family, phone, personal: null, generatedAt: null, deployed: false, jobId, planEdits, plansDeployed \};/.test(hook) && /not_deployed: "Personal questions are not switched on yet\."/.test(hook));
   check("each way it can fail has plain words", ["ai_unavailable", "nothing_yet", "rate_limited", "not_deployed", "failed"].every((k) => new RegExp(`${k}: "[A-Z]`).test(hook)));
 
   const dialog = await read("src/cockpit/components/InterviewGuideDialog.tsx");
-  check("the plan shows without any call; the personal part is asked for with one button", /interviewPlanFor\(record\?\.family, \{ homeBusiness \}\)/.test(dialog) && dialog.includes("data-guide-write") && /Write \{first\}'s questions/.test(dialog));
+  check("the plan shows without any call; the personal part is asked for with one button", /interviewPlanFor\(record\?\.family, \{ homeBusiness, phone: record\?\.phone \}\)/.test(dialog) && dialog.includes("data-guide-write") && /Write \{first\}'s questions/.test(dialog));
   check("the applicant is told nothing: the card says so", /\{first\} never sees them/.test(dialog));
   check("nothing is folded away: no collapsible, no accordion", !/Collapsible|Accordion|aria-expanded/.test(dialog));
   check("the screen never swaps one plan for another while it loads", /\{isLoading \? \(/.test(dialog) && dialog.includes("data-guide-loading"));
@@ -371,7 +381,7 @@ console.log("\nThe writer is told how a question must sound, and what was alread
   const jobRow = { title: "Chat Support Team Leader", description: "Lead six agents.", quizQuestions: [] };
   const rec = (family) => ({ job: jobRow, family, notes: { applicationAnswers: [{ question: "Tell us about a team you have led", answer: "I led eight people for two years." }] }, interview: [], practiceLines: [] });
   const leadAsk = M.buildGuideMessages(rec("team_lead"))[0].content;
-  const generalAsk = M.buildGuideMessages(rec("support"))[0].content;
+  const generalAsk = M.buildGuideMessages(rec("operations_admin"))[0].content;
   check("the request is version 2", M.GUIDE_PROMPT_VERSION === "interview-guide-2");
   check("it is told the questions are SAID, and how a person says them", /=== HOW A QUESTION MUST SOUND ===/.test(leadAsk) && /the way a friendly person talks, not the way a form reads/.test(leadAsk) && /"Can you tell me about\.\.\."/.test(leadAsk) && /"Let's say\.\.\."/.test(leadAsk));
   check("…never the bare command, never \"Why did you\", never a cross-examination", /Never the bare command "Tell me about\.\.\." or "Walk me through\.\.\.", and never "Why did you\.\.\."/.test(leadAsk) && /never sound like a cross-examination/.test(leadAsk));
@@ -554,7 +564,7 @@ console.log("\nThe owner's own changes to a job's questions (2026-10-09)\n");
 
   const code = (src) => src.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   const hook = code(await read("src/cockpit/hooks/useInterviewGuide.ts"));
-  check("the page reads the job's changes for the applicant's own job, and only reads", /\.from\("applications"\)\.select\("ai_scorecard, job_id"\)/.test(hook) && /\.from\("interview_plans"\)\.select\("edits"\)\.eq\("job_id", jobId\)\.maybeSingle\(\)/.test(hook) && !/\.from\("interview_plans"\)[\s\S]{0,80}\.(insert|update|upsert|delete)\(/.test(hook));
+  check("the page reads the job's changes for the applicant's own job, and only reads", /\.from\("applications"\)\.select\("ai_scorecard, job_id, jobs\(title, description\)"\)/.test(hook) && /\.from\("interview_plans"\)\.select\("edits"\)\.eq\("job_id", jobId\)\.maybeSingle\(\)/.test(hook) && !/\.from\("interview_plans"\)[\s\S]{0,80}\.(insert|update|upsert|delete)\(/.test(hook));
   check("a plans table that is not there yet reads as no changes; any other failure is a failure (never the wrong questions)", /if \(!isRecordNotDeployed\(plan\.error\)\) throw plan\.error;\s*plansDeployed = false;/.test(hook));
   check("changes are saved through the one function, cleaned first, and what comes back is what is shown", /supabase\.rpc\("save_interview_plan", \{ p_job_id: jobId, p_edits: \(edits \? readPlanEdits\(edits\) : null\) as never \}\)/.test(hook) && /return readPlanEdits\(data\);/.test(hook));
   check("each way saving can fail has plain words", ["not_allowed", "too_long", "not_deployed", "failed"].every((k) => new RegExp(`${k}: "[A-Z]`).test(hook)));
@@ -562,7 +572,7 @@ console.log("\nThe owner's own changes to a job's questions (2026-10-09)\n");
   check("the function reads the job's changes itself, by the job it took from the application", /admin\.from\("interview_plans"\)\.select\("edits"\)\.eq\("job_id", jobId\)\.maybeSingle\(\)/.test(fn) && /planEdits: \(planRow\.data as \{ edits\?: unknown \} \| null\)\?\.edits \?\? null,/.test(fn));
 
   const dialog = code(await read("src/cockpit/components/InterviewGuideDialog.tsx"));
-  check("the guide shows the job's own plan: the plan as written with the changes laid over it", /const basePlan = useMemo\(\(\) => interviewPlanFor\(record\?\.family, \{ homeBusiness \}\), \[record\?\.family, homeBusiness\]\);\s*const plan = useMemo\(\(\) => applyPlanEdits\(basePlan, record\?\.planEdits\), \[basePlan, record\?\.planEdits\]\);/.test(dialog));
+  check("the guide shows the job's own plan: the plan as written with the changes laid over it", /const basePlan = useMemo\(\(\) => interviewPlanFor\(record\?\.family, \{ homeBusiness, phone: record\?\.phone \}\), \[record\?\.family, homeBusiness, record\?\.phone\]\);\s*const plan = useMemo\(\(\) => applyPlanEdits\(basePlan, record\?\.planEdits\), \[basePlan, record\?\.planEdits\]\);/.test(dialog));
   check("'Edit questions' opens the editor on a copy; nothing changes until Save", /setDraft\(record\?\.planEdits \?\? NO_PLAN_EDITS\);/.test(dialog) && dialog.includes("data-guide-edit") && /Nothing changes until you save\./.test(dialog) && (dialog.match(/savePlan\(/g) ?? []).length === 1);
   check("the opener can be reworded, not removed; the others can be taken out and put back", /<QuestionEditor id=\{base\.opener\.id\} base=\{base\} edits=\{edits\} removable=\{false\}/.test(dialog) && dialog.includes("data-plan-remove") && dialog.includes("data-plan-back") && /Do not ask this one/.test(dialog));
   check("'Back to the original questions' takes two presses", /resetArmed \? void savePlanEdits\(null\) : setResetArmed\(true\)/.test(dialog) && /Yes, back to the original/.test(dialog));
