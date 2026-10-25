@@ -148,9 +148,11 @@ function isTakeoverScenario(scenario: string | null | undefined): boolean {
   return !!scenario && /team leader has (now )?taken over|what the team leader knows\s*:/i.test(scenario);
 }
 
-/** The case split for reading: what happened, and what the team leader knows. */
+/** The case split for reading: what happened, and what the team leader (or,
+ *  in a customer-service pack's case, the agent) knows: the same split the
+ *  server makes (ai-chat-simulation/prompts.ts splitBrief). */
 function splitScenarioBrief(scenario: string): { situation: string; youKnow: string | null } {
-  const match = /\n?\s*What the team leader knows\s*:\s*/i.exec(scenario);
+  const match = /\n?\s*What the (?:team leader|agent) knows\s*:\s*/i.exec(scenario);
   if (!match) return { situation: scenario, youKnow: null };
   const known = scenario.slice(match.index + match[0].length).trim();
   return {
@@ -1171,7 +1173,7 @@ export default function ChatSimulationPhase() {
             {brief.youKnow && (
               <div className="space-y-1.5 border-t border-border pt-3">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  What you know, as the team leader
+                  {takeover ? "What you know, as the team leader" : "What you know"}
                 </p>
                 <p className="whitespace-pre-line text-sm leading-relaxed text-foreground">
                   {brief.youKnow}
@@ -1202,7 +1204,7 @@ export default function ChatSimulationPhase() {
                       </span>
                     ) : (
                       <span>
-                        <strong className="text-foreground">{preselectedScenario.customerName}</strong> messages you first — reply the way you'd want a real customer treated.
+                        <strong className="text-foreground">{preselectedScenario.customerName}</strong> messages you first. Reply the way you would at work: kind, clear, and true to what you know.
                       </span>
                     )}
                   </li>

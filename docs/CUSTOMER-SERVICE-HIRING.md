@@ -9,19 +9,24 @@ own words. docs/LAUNCH-PLAN.md, Phase 4, is the plan this follows.
 ## What Ava asks
 
 `src/lib/avaEngine/playbook.ts`: the `customer_service` family is checked
-before every other (`detectFamily`), so "customer support for our cleaning
-company", "software support agent" or a clinic's front desk are not read as
-cleaner, developer or admin. It catches customer service / support / care /
+before every other (`detectFamily` → `isCustomerService`), read from the
+job's **title** where the role is named (customer service / support / care /
 success, support or chat agents and reps, help desk, call or contact centre,
-CSR, inbound calls, answering phones or chats, front desk, a receptionist for
-patients, and patient coordinators. A receptionist at a law office stays
-admin; outbound sales stays out.
+CSR, front desk, a receptionist or medical office assistant at a clinic,
+patient services or coordinators), or from a description that says the job
+**is** answering customers ("answer customer chats", "live chat", "support
+tickets", "customer service for an online store"). A description that only
+asks for good service does not count, and a title that names another role
+wins: a barista, cashier or cleaner who gives "great customer service", an
+engineer who makes something "support 10k requests", an SDR making outbound
+calls, a law-office receptionist and a patient care aide keep their own
+families (the Phase 4 review found all of these misread).
 
 Its follow-ups (one chip each, the default in brackets):
 
 | id | Question | Chips |
 |---|---|---|
-| `cs-channel` | How will they talk to your customers? | [Chat], Phone, Email, A mix of these |
+| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say ("Phone CSR", "inbound calls"; "chat only, no phone calls" stays Chat) |
 | `cs-industry` | What kind of business is it? | Medical or dental office, Online store, Software or app, Home services, Gaming, Something else; the default is what the business's own words point to (`industryFromText`) |
 | `cs-load` | How many chats or messages at once? | One at a time, [Two or three], Four or more |
 | `cs-hours` | When will they work? | [Daytime], Evenings or nights, Weekends too, Rotating shifts |
@@ -33,9 +38,9 @@ A remote role adds the internet and computer questions, as for every family.
 ## What it builds
 
 `src/lib/avaEngine/customerService.ts`, `applyCustomerServicePack`, run by
-BOTH generators (the AI plan in `flowGenerator.ts` and the built-in plan in
-`templateGenerator.ts`), so they can never ask a business's applicants
-different things:
+both of the job builder's generators (the AI plan in `flowGenerator.ts` and
+the built-in plan in `templateGenerator.ts`), so the builder's two paths ask
+the same things:
 
 1. the application (from the AI, or the `customer_service` question bank);
 2. **Skills check**: the pack's five questions, multiple choice, each with
@@ -48,9 +53,13 @@ different things:
    server picks one case per applicant (the stable pick in
    `ai-chat-simulation/prompts.ts`), and typing speed and reply time are
    measured inside it (docs/TYPING-IN-CHAT.md);
-5. the written interview. A phone job's interview always has two questions
-   about calls (`PHONE_INTERVIEW_QUESTIONS`) until the practice call exists
-   (docs/LAUNCH-PLAN.md, "Later").
+5. the written interview. A phone job's interview always starts with the two
+   questions about calls (`PHONE_INTERVIEW_QUESTIONS`, in place of its last
+   two) until the practice call exists (docs/LAUNCH-PLAN.md, "Later"), and an
+   interview the model left empty gets the customer-service bank's questions.
+
+The chat step also keeps the channel the business chose (`config.channel`),
+which the interview guide reads.
 
 `generate-flow` is told the pack and channel (read against its own
 allow-list) so the post, the application and the interview are written for
@@ -122,8 +131,13 @@ were reviewed" below).
 server's own copy of the pack (never the step's text). A pack's case is graded
 as a support agent (`rubricForCase`), with:
 
-- the other side named by the pack's word (`PATIENT 4:` lines; the label is
-  neutralised if an applicant types it, `_shared/reviewText.ts`);
+- the other side named by the pack's word, whoever's business it is (a pack's
+  word wins; a step with no pack says the business's word: "player" for the
+  owner's own, "customer" for any other). Lines read `PATIENT 4:`. Anything
+  an applicant types that is shaped like a label is neutralised
+  (`_shared/reviewText.ts`): look-alike letters and full-width colons are
+  folded first, invisible characters removed, then any "Word 3:" or
+  "WORD:" in any script loses its colon;
 - WHAT THE AGENT KNOWS as the only true facts, and anything promised or stated
   that they do not allow counting heavily against the mark;
 - the pack's note, WHAT GOOD LOOKS LIKE IN THIS KIND OF BUSINESS.
@@ -133,12 +147,13 @@ no pack is graded as before. `EVAL_PROMPT_VERSION` is `chat-sim-eval-8`.
 
 ## The interview guide
 
-`src/lib/interviewGuide.ts` (and its server copy): a customer-service job
-("support" from the scorer's `inferJobFamily`) gets its own plan. It does not
-re-ask what the written interview asked (listed in `alreadyAsked`); it hears
-them speak, with a one-minute practice where the interviewer is the customer.
-A phone job (`isPhoneJob`, from its own title and description) also asks how
-they hold and pass on a call.
+`src/lib/interviewGuide.ts` (and its server copy): a customer-service job (a
+chat practice with a pack, `customerServiceStepOf`; not any job the scorer
+calls "support", which a "supportive team" also is) gets its own plan. It
+lists the chat practice as already done and hears them speak, with a
+one-minute practice where the interviewer is the customer. A phone job (the
+step's `config.channel` is "phone") also asks how they hold and pass on a
+call. A team lead's job keeps the team-lead plan.
 
 ## Locks
 
@@ -159,3 +174,6 @@ they hold and pass on a call.
 - A team-lead customer-service job gets the agent cases; only the owner's own
   gaming job has takeover cases (docs/ZULU-SKILLS-CHECK.md).
 - A phone job practises in writing until the practice call exists.
+- The classic job editor (`src/pages/CreateJob.tsx`) writes its own questions
+  with `ai-generate-workflow` and uses a pack only in its built-in fallback;
+  the Ava job builder is the customer-service path.

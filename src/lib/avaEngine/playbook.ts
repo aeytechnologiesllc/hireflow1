@@ -3,7 +3,7 @@
  * lines keyed off the brief (mirrors AvaFlowPreview prototype).
  */
 import type { BriefAnswer, JobBrief, Rigor } from "./types";
-import { CS_CHANNEL_CHIPS, CS_INDUSTRY_CHIPS, industryFromText } from "./customerService.ts";
+import { CS_CHANNEL_CHIPS, CS_INDUSTRY_CHIPS, channelForBrief, industryFromText } from "./customerService.ts";
 
 export type Family = "customer_service" | "cash" | "cleaner" | "admin" | "developer" | "general";
 
@@ -46,33 +46,60 @@ export interface Playbook {
 
 /**
  * Customer service, chat and phone, for any business (the niche: CLAUDE.md,
- * "Positioning"). Checked first, so "customer support for our cleaning
- * company", "software support agent" or a clinic's front desk are not read
- * as cleaner, developer or admin (docs/CUSTOMER-SERVICE-HIRING.md).
+ * "Positioning"; docs/CUSTOMER-SERVICE-HIRING.md). Read from the job's TITLE,
+ * where the role is named ("Customer service representative", "Chat support
+ * agent", "Help desk tier 1", a clinic's front desk), or from a description
+ * that says the job IS answering customers ("answer customer chats", "live
+ * chat", "call centre", "support tickets"). Not from a description that only
+ * asks for good service: a barista or a cleaner who gives "great customer
+ * service" keeps their own family, and a title that names another role
+ * (barista, cashier, cleaner, engineer, sales, a law-office receptionist) wins
+ * (the Phase 4 review, 2026-10-25).
  */
-const CUSTOMER_SERVICE = new RegExp(
+const CS_TITLE = new RegExp(
   [
-    String.raw`customer (service|support|care|success|experience|happiness)`,
-    String.raw`client (service|support|care)`,
-    String.raw`(support|service|care|chat|phone|call|contact|help ?desk|technical|tech) (agent|rep|representative|specialist|advisor|associate|executive)s?\b`,
-    String.raw`\b(chat|email|phone|voice|technical|tech|it|player|tier[ -]?[12]) support\b`,
+    String.raw`\b(customer|client|guest|member|player) (service|support|care|success|experience|happiness)\b`,
+    // "patient care" is nursing work; a patient services desk is customer service.
+    String.raw`\bpatient (services?|experience|support) (agent|rep|representative|specialist|coordinator|advisor|associate)\b`,
+    String.raw`\b(support|chat|phone|call|contact|help ?desk|technical support|tech support|it support|live chat|email support) (agent|rep|representative|specialist|advisor|associate|executive|operator|officer)s?\b`,
+    String.raw`\b(chat|email|phone|voice|technical|tech|player|tier[ -]?[123]) support\b`,
     String.raw`\blive chat\b`,
-    String.raw`\bcall (cent(er|re)|handler)`,
-    String.raw`\bcontact cent(er|re)`,
+    String.raw`\b(call|contact) cent(er|re)\b`,
     String.raw`\bhelp ?desk\b`,
     String.raw`\bcsr\b`,
-    String.raw`\b(inbound|outbound) (calls?|support)\b`,
-    String.raw`\banswer(ing)? (calls|phones|the phone|chats|customer)`,
     String.raw`\bfront desk\b`,
-    String.raw`\breception(ist)?\b.*\b(patient|clinic|dental|dentist|medical|doctor|practice)`,
-    String.raw`\b(patient|clinic|dental|dentist|medical|doctor)\b.*\breception(ist)?\b`,
-    String.raw`\bpatient (coordinator|services?|scheduler|access)`,
+    String.raw`\bpatient (coordinator|services?|scheduler|access|liaison)\b`,
   ].join("|"),
 );
+// A receptionist is customer service at a clinic or dental office (patients),
+// not at a law office or a warehouse.
+const PATIENT_FRONT = /\b(reception(ist)?|front office|medical (office )?assistant)\b/;
+const PATIENT_CONTEXT = /\b(patients?|clinic|dental|dentist|orthodont|medical|doctor'?s?|physician|hospital|optometr|chiropract|physio)\b/;
+const CS_WORK = new RegExp(
+  [
+    String.raw`\b(answer|answering|handle|handling|respond to|responding to|reply to|replying to|take|taking)\b[^.]{0,30}\b(customer|client|patient|player|guest)s?'?\b[^.]{0,20}\b(chats?|calls|emails|messages|questions|tickets|enquiries|inquiries)\b`,
+    String.raw`\b(live chat|chat support|phone support|email support|call cent(er|re)|contact cent(er|re)|help ?desk|support tickets|inbound calls|support queue)\b`,
+    String.raw`\b(customer|client) (service|support) (agent|rep|representative|team|role|desk)\b`,
+    // "customer service for an online store", "customer support by chat": the job itself, not a quality of it.
+    String.raw`\b(customer|client) (service|support) (for|on behalf of) (our|an?|the|my|their)\b`,
+    String.raw`\b(customer|client) (service|support) (by|via|over|through|on) (chat|phone|email|calls)\b`,
+  ].join("|"),
+);
+// A title that names another role keeps it, whatever the description says.
+const OTHER_ROLE_TITLE = /\b(barista|cashier|clean(er|ing)|janitor|housekeep|maid|developer|engineer|programmer|coder|sales|sdr|bdr|account executive|closer|warehouse|picker|packer|driver|cook|chef|server|waiter|waitress|bartender|nurse|caregiver|aide|teacher|tutor|designer|accountant|book-?keeper|manager)\b/;
+
+function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): boolean {
+  const title = (brief.roleTitle ?? "").toLowerCase();
+  const work = (brief.whatTheyDo ?? "").toLowerCase();
+  if (CS_TITLE.test(title)) return true;
+  if (PATIENT_FRONT.test(title) && PATIENT_CONTEXT.test(`${title} ${work}`)) return true;
+  if (OTHER_ROLE_TITLE.test(title)) return false;
+  return CS_WORK.test(work);
+}
 
 export function detectFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employmentType">): Family {
   const s = `${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase();
-  if (CUSTOMER_SERVICE.test(s)) return "customer_service";
+  if (isCustomerService(brief)) return "customer_service";
   if (/clean|janitor|housekeep|custodi|maid|porter/.test(s)) return "cleaner";
   if (/develop|engineer|programmer|coder|software|frontend|front-end|back-?end|full-?stack|web dev|data scientist/.test(s))
     return "developer";
@@ -86,12 +113,14 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
   customer_service: {
     label: "customer service",
     followUps: (a, brief) => {
-      const channel = a["cs-channel"] ?? 0;
+      // The channel starts on what the business's own words say ("Phone CSR", "inbound calls"), like the industry.
+      const channelDefault = Math.max(0, ["chat", "phone", "email", "mixed"].indexOf(channelForBrief({ roleTitle: brief?.roleTitle ?? "", whatTheyDo: brief?.whatTheyDo ?? "", followUps: [] })));
+      const channel = a["cs-channel"] ?? channelDefault;
       const industryDefault = CS_INDUSTRY_CHIPS.findIndex(([, id]) => id === industryFromText(`${brief?.roleTitle ?? ""} ${brief?.whatTheyDo ?? ""}`));
       const industry = a["cs-industry"] ?? industryDefault;
       const phone = channel === 1;
       return [
-        { id: "cs-channel", question: "How will they talk to your customers?", chips: [...CS_CHANNEL_CHIPS], def: 0 },
+        { id: "cs-channel", question: "How will they talk to your customers?", chips: [...CS_CHANNEL_CHIPS], def: channelDefault },
         { id: "cs-industry", question: "What kind of business is it?", chips: CS_INDUSTRY_CHIPS.map(([label]) => label), def: industryDefault },
         {
           id: "cs-load",

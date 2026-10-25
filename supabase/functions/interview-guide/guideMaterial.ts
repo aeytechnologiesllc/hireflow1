@@ -38,7 +38,7 @@
 import { flattenForReview, quoteIsApplicants } from "../_shared/reviewText.ts";
 import { counterpartFor } from "../_shared/counterpart.ts";
 import { applyPlanEdits, interviewPlanFor,
-  isPhoneJob, planQuestions, readPersonalGuide, readPlanEdits, GUIDE_SOURCES, type PersonalGuide } from "../_shared/interviewGuide.ts";
+  planQuestions, readPersonalGuide, readPlanEdits, GUIDE_SOURCES, type PersonalGuide } from "../_shared/interviewGuide.ts";
 import {
   buildServerCandidateContext,
   candidateWrittenBlock,
@@ -71,6 +71,8 @@ export interface GuideRecord {
   family: string;
   /** Whether the job is the home business's (its team-lead script names its own numbers). Absent: yes, as before. */
   homeBusiness?: boolean;
+  /** The job's customer-service chat practice (customerServiceStepOf): its plan is the support plan. */
+  customerService?: { pack: string; channel: string | null } | null;
   /** applications.notes, parsed. */
   notes: Record<string, unknown>;
   /** The applicant's latest written interview, oldest first; empty when there is none. */
@@ -252,7 +254,7 @@ function interviewForRequest(turns: GuideTurn[]): string {
 export function buildGuideMessages(record: GuideRecord): Array<{ role: "system" | "user"; content: string }> {
   const { job } = record;
   const plan = applyPlanEdits(
-    interviewPlanFor(record.family, { homeBusiness: record.homeBusiness, phone: isPhoneJob(record.job.title, record.job.description) }),
+    interviewPlanFor(record.family, { homeBusiness: record.homeBusiness, customerService: record.customerService ?? null }),
     readPlanEdits(record.planEdits),
   );
   const context = buildServerCandidateContext(record.notes, { quizQuestions: job.quizQuestions });

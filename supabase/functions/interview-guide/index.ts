@@ -30,6 +30,7 @@
  *
  * verify_jwt = true (config.toml), plus auth.getUser() here.
  */
+import { customerServiceStepOf } from "../_shared/interviewGuide.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { aiUnavailableResponse, callOpenAIJson, isAiUnavailable, requireJsonKeys } from "../_shared/openai.ts";
 import { inferJobFamily } from "../_shared/autopilot.ts";
@@ -57,7 +58,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 /** A person preparing interviews writes a handful an hour; this only stops a loop. */
 const GUIDES_PER_HOUR = 40;
 const JOB_COLUMNS =
-  "id, employer_id, title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions";
+  "id, employer_id, title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions, workflow_steps";
 
 // SupabaseClient's own declared defaults (Database = any) are what createClient(url, key) returns here.
 type Admin = SupabaseClient;
@@ -209,6 +210,7 @@ Deno.serve(async (req) => {
       job,
       family: inferJobFamily(job.title, job.description),
       homeBusiness: page ? (page as { home_alias?: boolean }).home_alias === true : undefined,
+      customerService: customerServiceStepOf((jobRow as { workflow_steps?: unknown }).workflow_steps),
       notes: parseNotes((application as { notes?: unknown }).notes),
       interview,
       practiceLines: practice.filter((t) => t.role === "user").map((t) => t.content),

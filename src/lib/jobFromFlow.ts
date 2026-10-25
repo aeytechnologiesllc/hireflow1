@@ -305,7 +305,7 @@ export function buildWorkflowSteps(phases: ScreeningPhase[], voiceInterview: boo
       // A customer-service pack's step says which pack it is, so the server
       // grades with that pack's word for the other person and its note
       // (ai-chat-simulation reads config.pack against its own copy).
-      const packTag = typeof cfg.pack === "string" && cfg.pack ? { pack: cfg.pack } : {};
+      const packTag = typeof cfg.pack === "string" && cfg.pack ? { pack: cfg.pack, ...(typeof cfg.channel === "string" && cfg.channel ? { channel: cfg.channel } : {}) } : {};
       steps.push({
         id: uid("step"),
         type: "chat_simulation",

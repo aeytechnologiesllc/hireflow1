@@ -260,13 +260,13 @@ const GENERAL_PLAN: InterviewPlan = {
 };
 
 /**
- * A customer-service job ("support" from the scorer's own inferJobFamily;
- * docs/CUSTOMER-SERVICE-HIRING.md). By the call the applicant has written
- * about an upset customer, saying no, several customers at once and not
- * knowing an answer (the written interview), and handled one customer chat,
- * so the call does not ask those again. It hears them SPEAK: a one-minute
- * practice with the interviewer as the customer, and, for a phone job, how
- * they hold and pass on a call.
+ * A customer-service job: one whose chat practice carries an industry pack
+ * (docs/CUSTOMER-SERVICE-HIRING.md; customerServiceStepOf below). Not any job
+ * the scorer calls "support", which a "supportive team" also is (the Phase 4
+ * review). By the call the applicant has handled one customer chat in
+ * writing, so the call hears them SPEAK: a one-minute practice with the
+ * interviewer as the customer, and, for a phone job, how they hold and pass
+ * on a call.
  */
 const SUPPORT_CORE_START: GuideQuestion[] = [
   {
@@ -300,11 +300,10 @@ const SUPPORT_CORE_END: GuideQuestion[] = [
   },
 ];
 
+// Only what every customer-service job is sure to have asked: its written
+// interview and form are written per job and may not cover anything else.
 const SUPPORT_ALREADY_ASKED = [
-  "An upset customer, and what they wrote (the written interview)",
-  "Saying no to a customer (the written interview)",
-  "Keeping up with several customers at once (the written interview)",
-  "Their hours and when they can start (the form)",
+  "How they handled one customer's problem in a typed chat (the chat practice)",
 ];
 
 const SUPPORT_PLAN: InterviewPlan = {
@@ -344,13 +343,22 @@ const SUPPORT_PHONE_PLAN: InterviewPlan = {
 };
 
 /**
- * A phone job, read from its own words: the job builder's channel answer is
- * not stored on the job, but a phone job says so ("phone support", "calls").
- * The page and the function both call this on the job's title and
- * description, so they show the same plan.
+ * The job's customer-service chat practice, when it has one: the step the
+ * job builder tags with its industry pack and channel (jobFromFlow.ts). The
+ * page and the function both read it from the job's own steps, so they show
+ * the same plan; a phone job is one whose channel the business said was phone.
  */
-export function isPhoneJob(title: string | null | undefined, description: string | null | undefined): boolean {
-  return /\b(phones?|calls?|caller|call cent(er|re)|inbound|outbound)\b/i.test(`${title ?? ""} ${description ?? ""}`);
+export function customerServiceStepOf(workflowSteps: unknown): { pack: string; channel: string | null } | null {
+  if (!Array.isArray(workflowSteps)) return null;
+  for (const step of workflowSteps) {
+    if (!step || typeof step !== "object") continue;
+    const s = step as { type?: unknown; config?: unknown };
+    const config = s.config && typeof s.config === "object" ? (s.config as { pack?: unknown; channel?: unknown }) : null;
+    if (s.type === "chat_simulation" && config && typeof config.pack === "string" && config.pack) {
+      return { pack: config.pack, channel: typeof config.channel === "string" ? config.channel : null };
+    }
+  }
+  return null;
 }
 
 /** The plan for a job family ("team_lead" from the scorer's own inferJobFamily; anything else is general). */
@@ -363,8 +371,11 @@ export function isPhoneJob(title: string | null | undefined, description: string
  * owner's players and tools, and any other business must never see it
  * (Pass C review, 2026-10-25; until then unknown meant the home script).
  */
-export function interviewPlanFor(family: string | null | undefined, options: { homeBusiness?: boolean; phone?: boolean } = {}): InterviewPlan {
-  if (family === "support") return options.phone === true ? SUPPORT_PHONE_PLAN : SUPPORT_PLAN;
+export function interviewPlanFor(
+  family: string | null | undefined,
+  options: { homeBusiness?: boolean; customerService?: { channel: string | null } | null } = {},
+): InterviewPlan {
+  if (options.customerService && family !== "team_lead") return options.customerService.channel === "phone" ? SUPPORT_PHONE_PLAN : SUPPORT_PLAN;
   if (family !== "team_lead") return GENERAL_PLAN;
   return options.homeBusiness === true ? TEAM_LEAD_PLAN : TEAM_LEAD_PLAN_ANY_BUSINESS;
 }
