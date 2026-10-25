@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+import { usePlatformAdminAccount } from "@/hooks/usePlatformAdmin";
 import { useCockpitAccount } from "../hooks/useCockpitData";
 
 /**
@@ -32,7 +32,8 @@ export function AccountMenu({
 }) {
   const navigate = useNavigate();
   const { signOut, role, isTeamMember } = useAuth();
-  const admin = usePlatformAdmin();
+  // The link stays for the admin's account even before the second step (the page asks for it).
+  const admin = usePlatformAdminAccount();
   const owner = role === "employer" && !isTeamMember;
   const { account } = useCockpitAccount();
 

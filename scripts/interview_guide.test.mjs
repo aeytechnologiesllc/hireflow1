@@ -72,7 +72,17 @@ console.log("\nThe plan every applicant gets\n");
   const other = G.interviewPlanFor("team_lead", { homeBusiness: false });
   check("the home business's team-lead script still names its six agents, word for word", words(home) === words(lead) && /You also lead six agents\./.test(words(home)) && /alone on a shift with six agents\?/.test(words(home)));
   check("…another business gets the same script without the number", !/six agents/.test(words(other)) && /You also lead the agents on your shift\./.test(words(other)) && /alone on a shift with the team\?/.test(words(other)));
-  check("…and nothing else in it changes", words(other).replace(/the agents on your shift/g, "six agents").replace(/with the team\?/g, "with six agents?") === words(home));
+  // 2026-10-25 (docs/LAUNCH-PLAN.md, Phase 2, task 2): another business's lead
+  // looks after customers, not the owner's players, tools or payouts.
+  check("…and no player, buggy tool or payout of the owner's", !/\bplayers?\b/i.test(words(other)) && !/bugs/.test(words(other)) && !/payout/.test(words(other)) && /You answer customers yourself/.test(words(other)));
+  check("…and nothing else in it changes", words(other)
+    .replace(/the agents on your shift/g, "six agents")
+    .replace(/with the team\?/g, "with six agents?")
+    .replace("Our tools and rules change from time to time.", "Our tools and rules change often, and some of the tools still have bugs.")
+    .replace("no new promise about money or refunds.", "no new promise about money.")
+    .replace("like promising a refund.", "like promising a payout.")
+    .replace(/\bcustomers\b/g, "players")
+    .replace(/\bcustomer\b/g, "player") === words(home));
   check("…and the general plan is the same for every business", words(G.interviewPlanFor("support", { homeBusiness: false })) === words(general));
   for (const [name, plan] of [["team lead", lead], ["general", general]]) {
     const all = [plan.opener, ...plan.core, ...plan.close];

@@ -84,8 +84,10 @@ import {
   rubricForCase,
   scenarioToPin,
   type PracticeStepConfig,
+  practiceScenarios,
+  counterpartNoun,
 } from "./prompts.ts";
-import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
+import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, isRefusedStep, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -245,7 +247,15 @@ serve(async (req) => {
   }
 
   try {
-    const request: ChatSimulationRequest = await req.json();
+    // Read with a hard cap, whatever the request claims (_shared/practiceTurnGuard.ts).
+    const read = await readJsonWithin(req);
+    if (!read.ok) {
+      return new Response(JSON.stringify({ error: read.status === 413 ? "Request too large" : "Invalid request", code: read.status === 413 ? "too_large" : "invalid_json" }), {
+        status: read.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const request = (read.body ?? {}) as ChatSimulationRequest;
     const { mode, scenario, customerName, messages = [], agentMessage, messageCount = 0, applicationId, stepId, violations = [] } = request;
     const oversized = oversizedPracticeField(request);
     if (oversized) {
@@ -393,7 +403,7 @@ serve(async (req) => {
       // Nothing the applicant wrote: nothing to grade (never a real 0).
       if (!gradedMessages.some((m) => m.role === "user" && typeof m.content === "string" && m.content.trim().length > 0)) {
         await letGo();
-        return json({ error: "Reply to the player at least once before you send the chat.", code: "no_answers" }, 400);
+        return json({ error: "Reply in the chat at least once before you send it.", code: "no_answers" }, 400);
       }
 
       // The job, and this step's own config (its focus, its title, its
@@ -424,6 +434,11 @@ serve(async (req) => {
       // as a support agent (whatever the job's level says).
       const rubric = rubricForCase(gradedScenario);
       const focus = practiceJob.step?.focus ?? [];
+      // A step whose cases are about players (the owner's own gaming jobs) is
+      // graded in players' words; every other business's step, in customers'
+      // (prompts.ts counterpartNoun). Read across all the step's cases: not
+      // every case in a players' step says the word.
+      const counterpart = counterpartNoun([...practiceScenarios(practiceJob.step).map((c) => c.scenario), gradedScenario].join("\n"));
 
       try {
         // Graded here, server-side, every time, by a REVIEWER (prompts.ts
@@ -449,6 +464,7 @@ serve(async (req) => {
               jobTitle: practiceJob.title ?? "",
               focus,
               stepTitle: practiceJob.step?.title ?? null,
+              counterpart,
             },
             gradedMessages,
           ),
@@ -674,6 +690,17 @@ serve(async (req) => {
         else notRecorded = resolved.reason;
       }
       if (notRecorded) console.log("[ai-chat-simulation] turn not recorded:", notRecorded);
+      // A turn on a step that is not this applicant's open step of this kind
+      // is refused, never played from the request's own scenario and history:
+      // that was a free AI call for any account with any application (Pass C
+      // review, 2026-10-25). A passing database error or a busy attempt is
+      // still served, so a blip never strands an applicant mid-test.
+      if (notRecorded && isRefusedStep(notRecorded)) {
+        return new Response(JSON.stringify({ error: "This step isn't open for you right now. Reload the page.", code: notRecorded }), {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
 
     let liveScenario = scenario;

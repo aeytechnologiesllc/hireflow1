@@ -65,7 +65,15 @@
     return h.indexOf("staff.") === 0;
   }
 
-  if (isOptedOut() || isLocalHost() || isAutomation() || isStaffSite()) {
+  // On the staff site only the sign-up page is a visitor's page (2026-10-25):
+  // counting it gives the funnel from the front page to a new account
+  // (docs/ANALYTICS.md). Everything else there is the hiring team at work.
+  function isSignUpPage(path) {
+    return /^\/auth\/?$/.test(path || "");
+  }
+  var staffSite = isStaffSite();
+
+  if (isOptedOut() || isLocalHost() || isAutomation() || (staffSite && !isSignUpPage(window.location.pathname))) {
     window.__hfBeacon = { track: function () {} };
     return;
   }
@@ -116,6 +124,7 @@
 
   function track(path) {
     if (isOptedOut()) return;
+    if (staffSite && !isSignUpPage(path || window.location.pathname)) return;
     var body = {
       path: path || window.location.pathname,
       referrerHost: referrerSent ? null : initialReferrerHost,

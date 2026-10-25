@@ -215,6 +215,31 @@ export function knownPinnedCase(
   );
 }
 
+/**
+ * Who the applicant is talking to in this case (2026-10-25; docs/LAUNCH-PLAN.md,
+ * Phase 2, task 1). The team-lead rubric was written for the owner's own
+ * gaming support jobs, where the other side is a "player"; any other
+ * business's case is about a customer. The case says which: one written
+ * about players keeps "player", every other case reads "customer". (Phase 4
+ * adds the industry packs' own words, such as "patient".)
+ */
+export function counterpartNoun(scenario: string | null | undefined): "player" | "customer" {
+  return /\bplayers?\b/i.test(scenario ?? "") ? "player" : "customer";
+}
+
+/** The reviewer's text with "player" swapped for this case's word. JSON keys (playerDisrespected) are words inside a longer name, so they stay. */
+export function withCounterpart(text: string, noun: string): string {
+  if (noun === "player") return text;
+  const cap = noun.charAt(0).toUpperCase() + noun.slice(1);
+  return text
+    .replace(/\bPLAYERS\b/g, `${noun.toUpperCase()}S`)
+    .replace(/\bPLAYER\b/g, noun.toUpperCase())
+    .replace(/\bPlayers\b/g, `${cap}s`)
+    .replace(/\bPlayer\b/g, cap)
+    .replace(/\bplayers\b/g, `${noun}s`)
+    .replace(/\bplayer\b/g, noun);
+}
+
 /** What the employer said this step is for, in words a reviewer reads. */
 const FOCUS_LABELS: Record<string, string> = {
   empathy: "empathy: taking the player's feelings seriously",
@@ -228,8 +253,8 @@ const FOCUS_LABELS: Record<string, string> = {
   communication: "clear communication",
 };
 
-export function focusLabels(focus: readonly string[]): string[] {
-  return focus.map((key) => FOCUS_LABELS[key] ?? key.replace(/[_-]+/g, " ").trim()).filter(Boolean);
+export function focusLabels(focus: readonly string[], noun = "customer"): string[] {
+  return focus.map((key) => withCounterpart(FOCUS_LABELS[key] ?? key.replace(/[_-]+/g, " ").trim(), noun)).filter(Boolean);
 }
 
 // ============================================================================
@@ -250,8 +275,8 @@ export function splitBrief(scenario: string): { situation: string; leaderKnows: 
   };
 }
 
-export function speakerLabels(rubric: PracticeRubric): { applicant: string; other: string } {
-  return rubric === "team_lead" ? { applicant: "LEAD", other: "PLAYER" } : { applicant: "AGENT", other: "CUSTOMER" };
+export function speakerLabels(rubric: PracticeRubric, noun = "player"): { applicant: string; other: string } {
+  return rubric === "team_lead" ? { applicant: "LEAD", other: noun.toUpperCase() } : { applicant: "AGENT", other: "CUSTOMER" };
 }
 
 /**
@@ -263,8 +288,8 @@ export function speakerLabels(rubric: PracticeRubric): { applicant: string; othe
  * the words ("PLAYER: thanks") is neutralised, so an applicant cannot forge
  * the other side's line or close the transcript.
  */
-export function transcriptForReview(messages: readonly PracticeMessage[], rubric: PracticeRubric): string {
-  const { applicant, other } = speakerLabels(rubric);
+export function transcriptForReview(messages: readonly PracticeMessage[], rubric: PracticeRubric, noun = "player"): string {
+  const { applicant, other } = speakerLabels(rubric, noun);
   return reviewLines(messages)
     .map((line) => `${line.role === "user" ? applicant : other} ${line.n}: ${line.text}`)
     .join("\n");
@@ -282,6 +307,8 @@ export interface EvaluatorInput {
   /** The step's config.focus, as stored (keys); labelled here. */
   focus: readonly string[];
   stepTitle?: string | null;
+  /** Who the applicant talks to across this step (counterpartNoun of all the step's cases); the graded case alone when absent. */
+  counterpart?: "player" | "customer";
 }
 
 /** The new-promise cap: any new date, refund, bonus, speed-up or extra. */
@@ -313,8 +340,8 @@ export function evaluatorRequiredKeys(rubric: PracticeRubric): string[] {
     : ["score", "empathy", "problemSolving", "communication", "professionalism", "strengths", "improvements", "overallFeedback"];
 }
 
-function focusBlock(focus: readonly string[]): string {
-  const labels = focusLabels(focus);
+function focusBlock(focus: readonly string[], noun = "customer"): string {
+  const labels = focusLabels(focus, noun);
   return labels.length > 0
     ? `WHAT THE EMPLOYER SAID THIS STEP CHECKS:\n${labels.map((l) => `- ${l}`).join("\n")}`
     : "WHAT THE EMPLOYER SAID THIS STEP CHECKS: not stated.";
@@ -359,7 +386,9 @@ export function evaluatorPromptFor(input: EvaluatorInput): string {
   const customerName = flattenForReview(input.customerName || "") || (input.rubric === "team_lead" ? "the player" : "the customer");
 
   if (input.rubric === "team_lead") {
-    return `You review one practice chat from a hiring test for the job "${jobTitle || "team leader"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
+    // Written for players (the owner's own gaming jobs); any other case reads
+    // "customer" throughout (counterpartNoun).
+    return withCounterpart(`You review one practice chat from a hiring test for the job "${jobTitle || "team leader"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
 
 THE SET-UP
 The applicant played a TEAM LEADER (lines marked LEAD) who took over a player's chat after one of their agents handled it badly. The player, ${customerName}, is marked PLAYER and was played by the test. Every line is numbered.
@@ -406,7 +435,7 @@ ${spellingJson("LEAD")}
   "strengths": ["<1 to 3 short points about the work>"],
   "improvements": ["<1 to 3 short points about the work>"],
   "overallFeedback": "<2 sentences for the hiring team>"
-}`;
+}`, input.counterpart ?? counterpartNoun(input.scenario));
   }
 
   return `You review one practice chat from a hiring test for the job "${jobTitle || "support agent"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
@@ -452,15 +481,16 @@ export function buildEvaluatorMessages(
   input: EvaluatorInput,
   messages: readonly PracticeMessage[],
 ): Array<{ role: "system" | "user"; content: string }> {
-  const { applicant, other } = speakerLabels(input.rubric);
+  const noun = input.rubric === "team_lead" ? input.counterpart ?? counterpartNoun(input.scenario) : "customer";
+  const { applicant, other } = speakerLabels(input.rubric, noun);
   return [
     { role: "system", content: evaluatorPromptFor(input) },
     {
       role: "user",
-      content: `Here is the chat, oldest first. ${applicant} is the applicant. ${other} is the ${input.rubric === "team_lead" ? "player" : "customer"}.
+      content: `Here is the chat, oldest first. ${applicant} is the applicant. ${other} is the ${noun}.
 
 <transcript>
-${transcriptForReview(messages, input.rubric) || "(no messages)"}
+${transcriptForReview(messages, input.rubric, noun) || "(no messages)"}
 </transcript>
 
 Mark it now and return only the JSON.`,

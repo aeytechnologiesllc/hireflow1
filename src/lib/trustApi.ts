@@ -64,6 +64,14 @@ export interface HelpThread {
   unread: number;
 }
 
+/** admin_growth(): where new businesses come from (supabase/migrations/20261025080000_admin_growth.sql). */
+export interface AdminGrowth {
+  days: number;
+  front_page: { source: string; visits: number }[];
+  signup_page: number;
+  accounts: { role: string; source: string; accounts: number }[];
+}
+
 async function rpc<T>(name: string, args?: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.rpc(name as never, (args ?? {}) as never);
   if (error) throw error;
@@ -73,12 +81,14 @@ async function rpc<T>(name: string, args?: Record<string, unknown>): Promise<T> 
 export const trustApi = {
   standing: () => rpc<BusinessStanding | null>("my_business_standing"),
   isPlatformAdmin: () => rpc<boolean>("is_platform_admin"),
+  isPlatformAdminAccount: () => rpc<boolean>("is_platform_admin_account"),
   adminBusinesses: () => rpc<AdminBusiness[]>("admin_businesses"),
   adminReports: () => rpc<AdminReport[]>("admin_reports"),
   adminCloseReport: (reportId: string) => rpc<void>("admin_close_report", { p_report_id: reportId }),
   adminSetStatus: (employerId: string, status: BusinessStatus, reason?: string | null) =>
     rpc<string>("admin_set_business_status", { p_employer: employerId, p_status: status, p_reason: reason ?? null }),
   adminHelpThreads: () => rpc<HelpThread[]>("admin_help_threads"),
+  adminGrowth: (days: number) => rpc<AdminGrowth>("admin_growth", { p_days: days }),
   adminReplyHelp: (employerId: string, body: string) => rpc<string>("admin_reply_help", { p_employer: employerId, p_body: body }),
   adminMarkHelpRead: (employerId: string) => rpc<void>("mark_help_read", { p_employer: employerId }),
   sendHelp: (body: string) => rpc<string>("send_help_message", { p_body: body }),

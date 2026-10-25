@@ -8,8 +8,9 @@ import { ActionDialog } from "../components/ActionDialog";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
-import { trustApi, trustErrorWords, type AdminBusiness, type AdminReport, type BusinessStatus, type HelpThread } from "@/lib/trustApi";
+import { usePlatformAdmin, usePlatformAdminAccount } from "@/hooks/usePlatformAdmin";
+import { SecondStepForm } from "@/components/auth/SecondStepForm";
+import { trustApi, trustErrorWords, type AdminBusiness, type AdminGrowth, type AdminReport, type BusinessStatus, type HelpThread } from "@/lib/trustApi";
 import { REPORT_REASONS } from "@/components/trust/ReportJobDialog";
 
 /**
@@ -22,11 +23,12 @@ import { REPORT_REASONS } from "@/components/trust/ReportJobDialog";
  * opening it again reopens them (admin_set_business_status).
  */
 
-type Tab = "businesses" | "reports" | "help";
+type Tab = "businesses" | "reports" | "help" | "growth";
 const TABS: ReadonlyArray<{ key: Tab; label: string }> = [
   { key: "businesses", label: "Businesses" },
   { key: "reports", label: "Reports" },
   { key: "help", label: "Help" },
+  { key: "growth", label: "Growth" },
 ];
 
 const STATUS_WORDS: Record<BusinessStatus, string> = { new: "Open", approved: "Open", suspended: "Paused" };
@@ -51,6 +53,8 @@ function reasonWords(key: string): string {
 
 export default function CockpitAdmin() {
   const admin = usePlatformAdmin();
+  const adminAccount = usePlatformAdminAccount();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [params, setParams] = useSearchParams();
   const tab = (TABS.find((t) => t.key === params.get("tab"))?.key ?? "businesses") as Tab;
@@ -71,15 +75,29 @@ export default function CockpitAdmin() {
 
   const openReports = (reports.data ?? []).filter((r) => r.status === "open").length;
   const unread = (threads.data ?? []).reduce((n, t) => n + t.unread, 0);
-  const counts: Record<Tab, number> = { businesses: (businesses.data ?? []).length, reports: openReports, help: unread };
+  const counts: Record<Tab, number> = { businesses: (businesses.data ?? []).length, reports: openReports, help: unread, growth: 0 };
 
   if (!admin) {
     return (
       <div className="space-y-5">
         <PageHeader title="Admin" />
-        <div className="ck-card p-5 text-[14px]" style={{ color: "var(--hf-text-soft)" }} data-admin-locked>
-          Only HireFlow can open this page.
-        </div>
+        {adminAccount ? (
+          // The admin's account, signed in without the second step: ask for it here.
+          <div className="ck-card max-w-md p-5" data-admin-second-step>
+            <SecondStepForm
+              onDone={() => {
+                void queryClient.invalidateQueries({ queryKey: ["platform-admin"] });
+              }}
+              onCancel={() => {
+                void supabase.auth.signOut();
+              }}
+            />
+          </div>
+        ) : (
+          <div className="ck-card p-5 text-[14px]" style={{ color: "var(--hf-text-soft)" }} data-admin-locked>
+            Only HireFlow can open this page.
+          </div>
+        )}
       </div>
     );
   }
@@ -112,6 +130,7 @@ export default function CockpitAdmin() {
       )}
       {tab === "reports" && <ReportsTab query={reports} businesses={businesses.data ?? []} />}
       {tab === "help" && <HelpTab query={threads} />}
+      {tab === "growth" && <GrowthTab />}
     </div>
   );
 }
@@ -432,5 +451,92 @@ function AdminThread({ thread }: { thread: HelpThread }) {
         </button>
       </div>
     </section>
+  );
+}
+
+/**
+ * Where new businesses come from (2026-10-25; docs/ANALYTICS.md). Front-page
+ * visits by source, visits to the sign-up page, and new accounts by the
+ * source the front page carried to them (src/lib/signupSource.ts). Tag the
+ * links you post (?utm_source=youtube&utm_campaign=v1) and they show here by
+ * name; untagged visits show the site they came from, or "direct".
+ */
+function GrowthTab() {
+  const [days, setDays] = useState(30);
+  const growth = useQuery({ queryKey: ["admin", "growth", days], queryFn: () => trustApi.adminGrowth(days) });
+  if (growth.isLoading) return <Loader2 className="h-5 w-5 animate-spin" aria-label="Loading" />;
+  if (growth.isError || !growth.data) return <CockpitErrorCard message="Couldn't load the numbers." onRetry={() => void growth.refetch()} />;
+  const g: AdminGrowth = growth.data;
+  const frontTotal = g.front_page.reduce((n, r) => n + r.visits, 0);
+  const businesses = g.accounts.filter((a) => a.role === "employer");
+  const businessTotal = businesses.reduce((n, a) => n + a.accounts, 0);
+  const cell: CSSProperties = { padding: "8px 12px", borderTop: "1px solid var(--line)" };
+  return (
+    <div className="space-y-4" data-admin-growth>
+      <div className="flex flex-wrap items-center gap-2 text-[13px]" style={{ color: "var(--ink-3)" }}>
+        Last
+        {[7, 30, 90].map((d) => (
+          <button
+            key={d}
+            className="rounded-full border px-3 py-1"
+            style={d === days ? { borderColor: "var(--hf-text)", color: "var(--hf-text)", fontWeight: 600 } : { borderColor: "var(--line)" }}
+            onClick={() => setDays(d)}
+            aria-pressed={d === days}
+          >
+            {d} days
+          </button>
+        ))}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {[
+          { label: "Front page visits", value: frontTotal },
+          { label: "Sign-up page visits", value: g.signup_page },
+          { label: "New businesses", value: businessTotal },
+        ].map((k) => (
+          <div key={k.label} className="ck-card p-4">
+            <div className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>{k.label}</div>
+            <div className="font-display text-[26px]" style={{ color: "var(--hf-text)" }}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid gap-3 lg:grid-cols-2">
+        <div className="ck-card overflow-x-auto">
+          <table className="w-full text-[13.5px]">
+            <caption className="px-3 pt-3 text-left font-semibold" style={{ color: "var(--hf-text)" }}>Front page, by source</caption>
+            <tbody>
+              {g.front_page.length === 0 ? (
+                <tr><td style={cell}>No visits counted yet.</td></tr>
+              ) : (
+                g.front_page.map((r) => (
+                  <tr key={r.source}><td style={cell}>{r.source}</td><td style={{ ...cell, textAlign: "right" }}>{r.visits}</td></tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="ck-card overflow-x-auto">
+          <table className="w-full text-[13.5px]">
+            <caption className="px-3 pt-3 text-left font-semibold" style={{ color: "var(--hf-text)" }}>New accounts, by source</caption>
+            <tbody>
+              {g.accounts.length === 0 ? (
+                <tr><td style={cell}>No new accounts in this period.</td></tr>
+              ) : (
+                g.accounts.map((a) => (
+                  <tr key={`${a.role}-${a.source}`}>
+                    <td style={cell}>{a.role === "employer" ? "Business" : a.role === "candidate" ? "Applicant" : a.role === "team_member" ? "Team member" : a.role}</td>
+                    <td style={cell}>{a.source}</td>
+                    <td style={{ ...cell, textAlign: "right" }}>{a.accounts}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+        Tag every link you post, for example <code>hireflownow.com/?utm_source=youtube&amp;utm_campaign=v1</code>, and it shows here by name.
+        Accounts made before 25 October 2026 show as unknown.
+      </p>
+    </div>
   );
 }

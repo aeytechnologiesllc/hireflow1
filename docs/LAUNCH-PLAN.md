@@ -832,6 +832,25 @@ customer-service hiring searches to the sign-up button.
 5. Ask the owner for the one live end-to-end run: sign up a new business,
    verify email, post a customer-service job, apply from a phone, finish the
    chat practice, get the email.
+6. **Carried from Phase 1 (decided there, built here):**
+   - **Enforce the CSP.** Read `client_error_events where release = 'csp'`
+     (real traffic since 2026-10-25); allow anything legitimate in
+     `scripts/csp.mjs`; then `node scripts/csp.mjs --write --enforce`, ship,
+     and re-check every screen on the live site.
+   - **Applicants stop reading staff columns of their own application**
+     (`ai_score`, `ai_analysis`, `ai_scorecard`, `phase_ai_analysis`,
+     `employer_notes`, `notes.avaScorecard`). Their pages read the row live
+     (realtime works only on tables, not views), so the fix is moving the
+     evaluation into a staff-only table (`application_evaluations`, one row
+     per application, RLS for the business and its team), writing it from
+     trigger-ava-analysis and the graders, and moving every cockpit read to
+     it. Writes are already blocked (Phase 1 task 4). Prove with PGlite that
+     an applicant session reads none of it.
+   - **Applicants stop reading internal job columns** once they have applied
+     (`passing_score`, `processing_mode`, `ai_bias_feedback`, step configs):
+     same constraint (embedded selects on applications), same kind of fix.
+   - **The RLS performance advisor**: 117 `auth_rls_initplan` and 143
+     `multiple_permissive_policies` warnings (task 2 above).
 
 ---
 

@@ -62,6 +62,8 @@ import {
   splitBrief,
   stableIndex,
   transcriptForReview,
+  counterpartNoun,
+  withCounterpart,
 } from "../supabase/functions/ai-chat-simulation/prompts.ts";
 import {
   LEAD_DISRESPECT_CAP,
@@ -249,6 +251,8 @@ const F_RAY = [
 ];
 
 console.log("\nThe reviewer's request (mode evaluate), built by the function's own code:\n");
+// The function reads the noun across the whole step (some of the owner's
+// cases never say "player"): the same here (ai-chat-simulation index.ts).
 const leadInput = {
   rubric: "team_lead",
   scenario: angela.scenario,
@@ -256,6 +260,7 @@ const leadInput = {
   jobTitle: LIVE_JOB.title,
   focus: step.focus,
   stepTitle: step.title,
+  counterpart: counterpartNoun(liveScenarios.map((c) => c.scenario).join("\n")),
 };
 const request = buildEvaluatorMessages(leadInput, HELD_LINE);
 const system = request[0].content;
@@ -834,6 +839,20 @@ check("the scorer's own reader: not graded, no score, both shapes", readChatInte
 check("phase_ai_analysis says not graded", /not graded/.test(buildInterviewPhaseAiAnalysis("manual", failedInterview)) && /not graded/.test(buildInterviewPhaseAiAnalysis("auto_end", failedInterview)));
 const leadManual = buildChatInterviewResult({ path: "manual", messages: transcript, duration: 300, questionCount: 1, violations: [], evaluation: { score: 74, strengths: [], concerns: [], recommendation: "Hire", summary: "ok", leadership: 82, adaptability: 64, workingLead: 71, leadEvidence: { leadership: "I led six agents" } } });
 check("a lead's marks ride along on the End-button shape", leadManual.leadership === 82 && leadManual.workingLead === 71 && leadManual.leadEvidence.leadership === "I led six agents");
+
+
+// ---- another business's team-lead case reads "customer" (2026-10-25) ----
+{
+  const storeCase = "A customer ordered a blender two weeks ago and it has not arrived. An agent promised a refund today. What the team leader knows: refunds take 3 to 5 days after the parcel is returned.";
+  check("a step about players keeps the owner's word", counterpartNoun(liveScenarios.map((c) => c.scenario).join("\n")) === "player");
+  check("any other business's step reads customer", counterpartNoun(storeCase) === "customer");
+  const storeInput = { ...leadInput, scenario: storeCase, customerName: "Dana", counterpart: "customer" };
+  const storeReq = buildEvaluatorMessages(storeInput, HELD_LINE);
+  check("another business's lead review never says player", !/\bplayers?\b/i.test(storeReq[0].content) && !/\bPLAYER\b/.test(storeReq[1].content), storeReq[0].content.match(/.{20}player.{20}/i)?.[0]);
+  check("…and labels the other side CUSTOMER", /CUSTOMER \d+:/.test(storeReq[1].content));
+  check("…while the JSON key the score reads is untouched", /"playerDisrespected"/.test(storeReq[0].content));
+  check("withCounterpart keeps playerDisrespected and swaps the word", withCounterpart("the player's playerDisrespected PLAYER players", "customer") === "the customer's playerDisrespected CUSTOMER customers");
+}
 
 console.log(`\n${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

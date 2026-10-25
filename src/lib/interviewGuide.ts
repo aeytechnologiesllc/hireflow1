@@ -271,12 +271,25 @@ export function interviewPlanFor(family: string | null | undefined, options: { h
   return options.homeBusiness === false ? TEAM_LEAD_PLAN_ANY_BUSINESS : TEAM_LEAD_PLAN;
 }
 
-/** The team-lead plan without the home business's own numbers. */
-function withoutHomeNumbers(text: string): string {
-  return text.replace("You also lead six agents.", "You also lead the agents on your shift.").replace("alone on a shift with six agents?", "alone on a shift with the team?");
+/**
+ * The team-lead plan without the home business's own specifics: its number
+ * of agents (the owner, 2026-10-11: "Same script, no number"), and since
+ * 2026-10-25 its players, its tools "that still have bugs" and its payouts
+ * (docs/LAUNCH-PLAN.md, Phase 2, task 2): another business's lead looks
+ * after customers.
+ */
+function withoutHomeSpecifics(text: string): string {
+  return text
+    .replace("You also lead six agents.", "You also lead the agents on your shift.")
+    .replace("alone on a shift with six agents?", "alone on a shift with the team?")
+    .replace("Our tools and rules change often, and some of the tools still have bugs.", "Our tools and rules change from time to time.")
+    .replace("no new promise about money.", "no new promise about money or refunds.")
+    .replace("like promising a payout.", "like promising a refund.")
+    .replace(/\bplayers\b/g, "customers")
+    .replace(/\bplayer\b/g, "customer");
 }
 
-const TEAM_LEAD_PLAN_ANY_BUSINESS: InterviewPlan = JSON.parse(JSON.stringify(TEAM_LEAD_PLAN), (_key, value) => (typeof value === "string" ? withoutHomeNumbers(value) : value));
+const TEAM_LEAD_PLAN_ANY_BUSINESS: InterviewPlan = JSON.parse(JSON.stringify(TEAM_LEAD_PLAN), (_key, value) => (typeof value === "string" ? withoutHomeSpecifics(value) : value));
 
 /** Every question the plan already asks, so the personal part does not repeat one. */
 export function planQuestions(plan: InterviewPlan): string[] {

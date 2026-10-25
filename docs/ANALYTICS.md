@@ -82,3 +82,51 @@ from his own week's totals was approved, then built here on live numbers.
 Proof: `scripts/analytics_view.test.mjs` (where each number comes from, the
 rules above, and the wiring). In the preview:
 `/analytics?__preview=1&__previewScenario=zulu`.
+
+## Where new businesses come from (2026-10-25)
+
+Before the marketing push the front page was not counted at all (`beacon.js`
+had been taken off `public/landing.html` on 2026-10-04 and never put back),
+and an account kept no trace of how its owner arrived. Now:
+
+1. **The front page counts again**: `public/landing.html` loads
+   `/beacon.js`, so `/` appears in `page_view_daily` with its `utm_source`
+   and referring host.
+2. **It passes its source on**: `public/carry-source.js` adds the visitor's
+   `utm_source`, `utm_medium`, `utm_campaign` and the bare host of the site
+   they came from (`ref`) to every link to `staff.hireflownow.com/auth`.
+   No cookie, no storage, only short plain values, nothing under Do Not
+   Track or Global Privacy Control.
+3. **The account keeps it**: on sign-up, `src/lib/signupSource.ts` reads
+   those tags from the page's own address and `useAuth`'s `signUp` stores
+   them as `signup_source` in the account's metadata.
+4. **The staff site counts its sign-up page** (`/auth`, which sign-in shares)
+   and nothing else, so the funnel is front page → sign-up page → accounts.
+
+The platform admin reads it all on **Admin → Growth** (`admin_growth(p_days)`,
+`supabase/migrations/20261025080000_admin_growth.sql`): front-page visits by
+source, sign-up page visits, and new accounts by role and source.
+
+**Tag every link you post**, so each channel shows by name:
+
+| Where | Link |
+|---|---|
+| YouTube video description | `https://hireflownow.com/?utm_source=youtube&utm_campaign=<video>` |
+| Quora answer | `https://hireflownow.com/?utm_source=quora&utm_campaign=<topic>` |
+| Facebook / LinkedIn post | `https://hireflownow.com/?utm_source=facebook&utm_campaign=<post>` |
+| A blog post's button | `https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_campaign=<slug>` |
+
+An untagged visit shows the site it came from (`www.quora.com`), or
+"direct" when the browser sent none (an app, a bookmark, a typed address).
+Accounts made before 2026-10-25 show as "unknown".
+
+The same query by hand:
+
+```sql
+select coalesce(raw_user_meta_data #>> '{signup_source,utm_source}',
+                raw_user_meta_data #>> '{signup_source,ref}', 'unknown') as source,
+       count(*)
+  from auth.users u join public.user_roles r on r.user_id = u.id and r.role = 'employer'
+ where u.created_at > now() - interval '30 days'
+ group by 1 order by 2 desc;
+```

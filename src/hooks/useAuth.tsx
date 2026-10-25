@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
 import { removeThisDeviceBeforeSignOut } from "@/lib/webPush";
 import { inAppPath } from "@/lib/safeLink";
+import { signupSourceFrom } from "@/lib/signupSource";
 
 type AppRole = "employer" | "candidate" | "team_member" | "developer";
 
@@ -274,6 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const trimmedCompanyName = companyName?.trim();
+    const signupSource = signupSourceFrom(typeof window !== "undefined" ? window.location.href : null);
 
     const { error, data } = await supabase.auth.signUp({
       email,
@@ -288,6 +290,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // account creation — the only point that used to leave it null for
           // every employer forever (see the 2026-08-30 migration).
           ...(trimmedCompanyName ? { company_name: trimmedCompanyName } : {}),
+          // Where this account came from (campaign tags the front page carried
+          // here; src/lib/signupSource.ts). Kept on the account, nowhere else.
+          ...(signupSource ? { signup_source: signupSource } : {}),
         },
       },
     });

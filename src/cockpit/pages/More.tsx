@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { useCockpitAccount } from "../hooks/useCockpitData";
 import { useInterviewsLeftToday } from "../hooks/useInterviewsLeftToday";
 import { useAuth } from "@/hooks/useAuth";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
+import { usePlatformAdminAccount } from "@/hooks/usePlatformAdmin";
 
 type Item = { label: string; to: string; icon: typeof CalendarDays };
 
@@ -39,7 +39,8 @@ export default function CockpitMore() {
   const navigate = useNavigate();
   const { account } = useCockpitAccount();
   const { signOut, role, isTeamMember } = useAuth();
-  const admin = usePlatformAdmin();
+  // The link stays for the admin's account even before the second step (the page asks for it).
+  const admin = usePlatformAdminAccount();
   const items = moreItems({ owner: role === "employer" && !isTeamMember, admin });
   const interviewsToday = useInterviewsLeftToday();
 
