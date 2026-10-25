@@ -945,6 +945,79 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (evening) — the loop picked up from the HANDOFF: round 6 fixed, round 7 under way
+
+A new session (Opus 5.5) picked up the HANDOFF entry below the same
+evening and kept its way of working: fix jobs in agent worktrees with a
+brief file each (`.claude/handoff/2026-10-25/review-materials/*_fix_brief.md`),
+fresh read-only reviewers with a brief and no conclusions (`*_brief.md`,
+reports `*_report.md` beside them), the full suite before every push, one
+migration at a time after comparing the live body's md5, every reached
+function deployed. Agent worktrees were cut from origin/main, not local
+HEAD: merge with `git diff <its merge-base> <its commit> | git apply -3`.
+
+**Shipped, in order (all live, CI and Vercel green):**
+- e0ddb5ae: Phase 6 round 8 age filter (the HANDOFF's in-flight job 2). 8
+  functions deployed.
+- fe4ae1ad + eb6d62e4: growth round 6 (all five findings, four LOWs).
+  Migrations `growth_google_is_search` (live 20261025221613) and
+  `growth_front_page_not_staff` (20261025221619). Checked live: `/YouTube`
+  in capitals lands tagged, sign-up links carry the tags.
+- 84844d01: product round 6 (the "kept until you delete it" wording, on-site
+  typing out of Analytics and the interview guide, the letter's worker type
+  in the open, Hybrid, "Where", hourly pay, the signing footer and the
+  applicant's audit trail). interview-guide deployed. `/terms` checked live.
+- bceb48be: Phase 4 round 13 (58 of 59 report cases; the 50 known probe
+  failures unchanged). Front end only.
+- 9bc418f7 + 5393d6f1: security round 6 findings 2 and 3. The plain-path
+  rule in applicant-file-url and requested-document-url (both deployed);
+  `plain_file_paths` (live 20261025224159; the three live bodies matched
+  their source files first, no stored row breaks it); the behaviour proof
+  `scripts/launch_locks_behaviour.pglite.test.mjs` (every migration, then
+  each lock as anon / authenticated / service role; all 22 of the
+  reviewer's weakenings and 18 more fail it) and hardened guard readers.
+- 0b33bb9c: Phase 6 round 9 age filter (three regressions of round 8 fixed:
+  "70-year-old patients", "aged 21-35 in Cebu", the employer's own HMO
+  dependents; the rule in every prompt that writes about an applicant).
+  965 checks; 58 of 58 weakenings caught; 0 real lines newly dropped. 12
+  functions deployed.
+- e415c849: product round 7 (the applicant's audit trail says Voided /
+  Waiting for countersign and "Verified" only when finished; My Documents'
+  "To sign" holds only open papers; the pay row on a phone; "Where" without
+  a stray "in"/"at"). Looked at in the dev preview at 375 and 1280 px.
+- 2c5053bd: growth round 7 (a hiring link on a page opened from another
+  HireFlow page carries no mark, so a front-page visitor is not counted
+  again from Open jobs; applicants' "Sign in" links carry the channel; the
+  Admin → Growth note).
+
+**Reviews this session:** Phase 6 round 9 (3 MEDIUM regressions → fixed),
+Phase 4 round 13 (2 HIGH → fixed) and round 14 (4 HIGH regressions of
+round 13: walk-ins, the front desk, "US-based … account" places saving a
+Makati job as US/USD, booking-titled planners → **fix job in flight**,
+brief `p4r14_fix_brief.md`), product round 7 (LOWs only → fixed), growth
+round 7 (1 MEDIUM regression → fixed).
+
+**In flight when this entry was written:** the Phase 4 round 14 fix job;
+security round 7 (`sec7_brief.md`, on 9bc418f7 and everything security
+touched since 43f38221); Phase 6 round 10 (`p6r10_brief.md`); product
+round 8, growth round 8, Phase 5 round 11 (a whole-phase re-check). If a
+`*_report.md` for one of these is missing, it did not finish: run its
+brief again.
+
+**Left on purpose:** a hybrid job made with the builder's Type field opens
+its letter on "In person" (hybrid is saved only as not remote; the business
+picks Hybrid in step 1); an in-app forward on a job page still records two
+job-page views.
+
+**Noticed:** `client_error_events` has no CSP report at all yet (release
+`csp`). With almost no traffic that proves little, so the policy stays
+report-only.
+
+**Still the owner's:** everything in the HANDOFF's list, plus the offer
+letter's default worker type for a remote hire in the business's own
+country (the letter now shows "Working as" openly; the default is still
+"Independent contractor").
+
 ### 2026-10-25 (1:15 PM EDT) — HANDOFF: the session stopped mid-loop (the account's weekly credits ran out)
 
 **Read this first, then the entry below it.** Everything up to and including
