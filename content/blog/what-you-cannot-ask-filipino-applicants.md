@@ -1,5 +1,5 @@
 ---
-title: What you can't ask Filipino applicants (age, birth date and RA 10911)
+title: What you can't ask Filipino applicants: age and RA 10911
 description: Philippine law bars requiring age or birth date when people apply. What RA 10911 says, what to ask instead, and how to word your job ad.
 date: 2026-10-25
 slug: what-you-cannot-ask-filipino-applicants
@@ -33,9 +33,9 @@ HireFlow's application form asks one yes-or-no question first:
 
 > Are you 18 or older?
 
-It asks for far less than a birth date. HireFlow takes applications only from people 18 and over, on every job, and does not take one that answers "No": the person is told the job is open to people 18 and over. That is HireFlow's own rule, and here is the reason for it. Republic Act No. 9231, which protects working children, does not allow anyone under 18 to work between 10 p.m. and 6 a.m., and limits a 15- to 17-year-old to 8 hours a day and 40 hours a week (Section 12-A). Many Philippine support jobs serve customers in other time zones, so their shifts run through the night. You can read the [text of RA 9231](https://lawphil.net/statutes/repacts/ra2003/ra_9231_2003.html).
+It asks for far less than a birth date. HireFlow asks it on every application, for every job, and does not send on an application that answers "No": the person is told the job is open to people 18 and over. That is HireFlow's own rule, and here is the reason for it. The law that protects working children (Republic Act No. 7610, Section 12-A, added by Republic Act No. 9231) does not allow anyone under 18 to work between 10 p.m. and 6 a.m., and limits a 15- to 17-year-old to 8 hours a day and 40 hours a week. Many Philippine support jobs serve customers in other time zones, so their shifts run through the night. You can read the [text of RA 9231](https://lawphil.net/statutes/repacts/ra2003/ra_9231_2003.html).
 
-For your own hiring outside HireFlow, Section 6 of RA 10911 lists the cases in which an employer may set an age limit. Before you add any age rule of your own, check with a lawyer which case it falls under.
+You are the employer for every job you post, on HireFlow or anywhere else. Section 6 of RA 10911 lists the cases in which an employer may set an age limit, so check any age rule of your own with a lawyer before you use it.
 
 Then wait. Collect the exact date of birth after the hire, from the ID or papers you ask for at that point. You may need it then for a contract, payroll or your records. By then the hiring decision is already made, so the date plays no part in who you hire.
 
@@ -90,7 +90,7 @@ Go through your application form and your job ad with this list:
 
 - Republic Act No. 10911 makes it unlawful for an employer to require a declaration of age or birth date while people apply, to publish a job notice that suggests an age preference, or to decline someone because of age.
 - Section 7 sets a fine of ₱50,000 to ₱500,000, or 3 months to 2 years in prison, or both.
-- HireFlow takes applications only from people 18 and over, asking "Are you 18 or older?" and never a birth date. Under RA 9231, no one under 18 may work between 10 p.m. and 6 a.m.
+- HireFlow asks every applicant "Are you 18 or older?", never a birth date, and does not send on an application that answers "No". Under RA 9231, no one under 18 may work between 10 p.m. and 6 a.m.
 - For any age rule of your own, check with a lawyer which case in Section 6 of RA 10911 it falls under.
 - Collect the exact birth date after the hire, from the ID or papers you ask for then.
 - Under the Data Privacy Act, age and marital status are sensitive personal information. Ask only for what you need.

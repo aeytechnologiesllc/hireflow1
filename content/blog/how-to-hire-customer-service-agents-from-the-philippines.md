@@ -100,4 +100,4 @@ A good hire still needs a good start. Before day one:
 - Give everyone the same steps, and score them the same way.
 - Call the best three to five.
 - Agree the pay, the currency and the payment method in writing.
-- Never ask for an exact age or a birth date while people apply (HireFlow asks only "Are you 18 or older?").
+- Never ask for age or a birth date while people apply.

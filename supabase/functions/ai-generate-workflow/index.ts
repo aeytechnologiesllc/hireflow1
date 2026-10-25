@@ -3,7 +3,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness, signedInUserId } from "../_shared/signedIn.ts";
-import { AGE_RULE, withoutAgeAsks } from "../_shared/ageWording.ts";
+import { AGE_RULE, asksAgeOrStatus, withoutAgeAsks } from "../_shared/ageWording.ts";
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_MODEL = Deno.env.get("OPENAI_WORKFLOW_MODEL") || "gpt-5.6-luna";
@@ -600,8 +600,9 @@ function postProcessWorkflowData(
 ): WorkflowResponse {
   const data = {
     // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts).
-    application_questions: withoutAgeAsks(Array.isArray(workflowData.application_questions) ? workflowData.application_questions : [], (q) => q?.question),
-    quiz_questions: withoutAgeAsks(Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : [], (q) => q?.question),
+    // A question's options too ("18-25", "26-35" is an age bracket).
+    application_questions: withoutAgeAsks(Array.isArray(workflowData.application_questions) ? workflowData.application_questions : [], (q) => [q?.question, ...(Array.isArray(q?.options) ? q.options : [])].join(". ")),
+    quiz_questions: withoutAgeAsks(Array.isArray(workflowData.quiz_questions) ? workflowData.quiz_questions : [], (q) => [q?.question, ...(Array.isArray(q?.options) ? q.options : [])].join(". ")),
     workflow_steps: Array.isArray(workflowData.workflow_steps) ? workflowData.workflow_steps : [],
     screening_plan_summary: workflowData.screening_plan_summary,
   };
@@ -669,8 +670,9 @@ function postProcessWorkflowData(
         : typeof existingConfig.max_duration_seconds === "number"
           ? existingConfig.max_duration_seconds
           : defaultConfig.maxDuration;
+    // The video prompt applicants read: the model's, unless it asks their age ("name, age…").
     const prompt =
-      typeof existingConfig.prompt === "string" && existingConfig.prompt.trim().length > 0
+      typeof existingConfig.prompt === "string" && existingConfig.prompt.trim().length > 0 && !asksAgeOrStatus(existingConfig.prompt)
         ? existingConfig.prompt
         : defaultConfig.prompt;
 

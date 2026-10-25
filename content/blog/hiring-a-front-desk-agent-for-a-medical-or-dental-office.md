@@ -98,4 +98,4 @@ If many of your applicants are in the Philippines, leave age and birth date out 
 - Write those rules down, with a word-for-word emergency instruction from your clinical team.
 - Test with your own situations: a tricky booking, a medical question, an insurance question, the wrong caller, an upset patient and, for chat roles, two patients at once.
 - For phone roles, add written questions about calls and a short practice call you run yourself.
-- Leave an exact age and birth date out of the post and the application.
+- Leave age and birth date out of the post and the application.

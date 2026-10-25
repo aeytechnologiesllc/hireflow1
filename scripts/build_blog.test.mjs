@@ -178,9 +178,11 @@ for (const p of all) {
 }
 {
   const age = all.find((p) => p.slug === "what-you-cannot-ask-filipino-applicants");
-  check("the age guide says HireFlow takes only people 18 and over, as its own rule, and why (RA 9231's night hours)", !!age && /does not take one that answers "No"/.test(age.body) && /That is HireFlow's own rule/.test(age.body) && /Republic Act No\. 9231/.test(age.body) && /10 p\.m\. and 6 a\.m\./.test(age.body));
+  check("the age guide says HireFlow takes only people 18 and over, as its own rule, and why (RA 9231's night hours)", !!age && /does not send on an application that answers "No"/.test(age.body) && /That is HireFlow's own rule/.test(age.body) && /Republic Act No\. 9231/.test(age.body) && /10 p\.m\. and 6 a\.m\./.test(age.body));
   check("…never recommends an age floor to the reader as lawful (the third review: 'an age limit above 18 is a different matter' implied it)", !!age && !/age limit above 18 is a different matter/i.test(age.body) && !/many employers ask one yes-or-no question/i.test(age.body));
-  for (const p of all) check(`${p.slug}: never casts HireFlow's 18-or-older question as doubtful ("ask your lawyer whether ... 18 or older")`, !/turning away a "No"/.test(p.body) && !/ask your lawyer whether[^.]*18 or older/i.test(p.body) && !/Never ask for age or birth date/.test(p.body));
+  for (const p of all) check(`${p.slug}: never casts HireFlow's 18-or-older question as doubtful ("ask your lawyer whether ... 18 or older")`, !/turning away a "No"/.test(p.body) && !/ask your lawyer whether[^.]*18 or older/i.test(p.body) );
+  // The fourth review: the law's words are "age or birth date", never "an exact age" (which would read as if a bracket question were outside it).
+  for (const p of all) check(`${p.slug}: says "age or birth date" as the law does, never "an exact age"`, !/\ban exact age\b/i.test(p.body));
   for (const p of all) check(`${p.slug}: "a person makes every decision" names the built-in 18-or-older check`, !/makes every decision/.test(p.body) || /18 or older\?" question every application starts with, a person on your team makes every decision/.test(p.body));
 }
 

@@ -40,8 +40,9 @@ so a long one is never counted as redacted) or one used twice, a date
 that is not a real day, a description outside 50-160 characters, a `# `
 heading in the body (the title is the page's only h1), raw HTML, an image
 (not supported yet), a bare `www.` address in the text (write it as a link),
-or a link that is not a site path, `https://` (written in full: not
-`https:example.com`) or `mailto:`. The file name must be the slug
+or a link that is not a site path, a `#part` of the same page, `https://`
+(written in full: not `https:example.com`, and with no user part: not
+`https://hireflownow.com@evil.example/`) or `mailto:`. The file name must be the slug
 (`scripts/build_blog.test.mjs` checks the real posts, and every post,
 drafts included, for prices and for "our own" team or agents under the
 HireFlow byline).

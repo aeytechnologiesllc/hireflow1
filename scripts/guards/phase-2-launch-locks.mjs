@@ -26,6 +26,7 @@ function code(text) {
  * says it can reach another business's applicants or hiring team.
  */
 const PLAYER_ALLOWED = [
+  ["supabase/functions/_shared/ageWording.ts", "a pattern for the age-preference wording \"young team player\", dropped from job posts; never a word shown to anyone"],
   ["src/pages/Index.tsx", "the owner's own /careers page"],
   ["src/components/careers/", "the owner's own careers page"],
   ["src/dev-preview/", "fixtures of the owner's own job"],

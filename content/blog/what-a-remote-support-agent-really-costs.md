@@ -9,7 +9,7 @@ draft: true
 
 > **Draft for the owner.** Before this goes live: confirm the pay figure below is what you pay today, and add one or two sentences from your own experience where marked. Remove this note when done.
 
-The short answer: a full-time remote support agent in the Philippines can cost around **$500 a month** in pay. That is what the people behind HireFlow pay in their own business. [Owner: confirm the figure, and say what it covers: full time, which shift, chat or phone.]
+The short answer: a full-time remote support agent in the Philippines can cost around **$500 a month** in pay. [Owner: $500 a month is the team lead's pay in docs/OFFER-LETTER.md; give an agent's pay in your business, and what it covers: full time, which shift, chat or phone.]
 
 The pay is only part of the cost. Here is everything to budget for, so the number you plan with is the number you spend.
 

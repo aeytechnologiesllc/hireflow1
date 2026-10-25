@@ -1,5 +1,5 @@
 ---
-title: How we hired a support team lead from 153 applicants in four days
+title: Hiring a support team lead from 153 applicants in 4 days
 description: A real hire by the people behind HireFlow, step by step - where it was posted, how 153 applicants became three calls, and what worked.
 date: 2026-10-25
 slug: how-we-hired-a-team-lead-from-153-applicants
@@ -9,7 +9,7 @@ draft: true
 
 > **Draft for the owner.** This is your story; the parts in brackets need your details. Remove this note and every bracket before it goes live.
 
-In October, the people behind HireFlow needed a team lead for the support team of their own business. [Owner: what the team does, how many agents the lead looks after, which shifts.] We hired through HireFlow, the same way any business on it does.
+In October, the people behind HireFlow needed a team lead for the support team of their own business. [Owner: what the team does, how many agents the lead looks after, which shifts.] We hired through HireFlow. [Owner: confirm how this compares with what any business on it gets; the app was still being improved during this run.]
 
 The numbers: **153 people applied in the first four days. 71 finished the written interview. 3 were worth a call. We hired from those three.**
 

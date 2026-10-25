@@ -335,6 +335,7 @@ Rules for every question:
 - Open-ended, about what THEY did or would do. Never a yes-or-no question.
 - No scores, percentages or test names inside "question": the applicant has not seen them. "why" may mention them.
 - Neutral and respectful. Never "why did you fail", never an accusation.
+- Never about age, birth date, graduation year, marital status, children or family plans, even to "confirm" them (RA 10911; the fourth Phase 6 review). The same for "confirm".
 - No jargon.`;
 
   const transcript = interviewForRequest(record.interview);

@@ -234,7 +234,8 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
     const jobPost = content.jobPost && typeof content.jobPost === "object"
       ? {
           ...content.jobPost,
-          title: textWithoutAgeAsks(content.jobPost.title),
+          // A title that was only an age phrase ("Young Professionals Wanted") falls back to the role's own.
+          title: textWithoutAgeAsks(content.jobPost.title) || brief.roleTitle || brief.title || content.jobPost.title,
           summary: textWithoutAgeAsks(content.jobPost.summary),
           requirements: withoutAgeAsks(content.jobPost.requirements),
           niceToHaves: withoutAgeAsks(content.jobPost.niceToHaves),
@@ -244,12 +245,13 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
     return json({
       jobPost,
       application: take<string>(withoutAgeAsks(content.application), spec.app),
-      quiz: take(withoutAgeAsks(content.quiz, (q: { scenario?: unknown }) => q?.scenario), spec.quiz),
+      quiz: take(withoutAgeAsks(content.quiz, (q: { scenario?: unknown; good?: unknown }) => `${q?.scenario ?? ""} ${q?.good ?? ""}`), spec.quiz),
       simulation: take(content.simulation, spec.sim),
       voiceQuestions: take<string>(withoutAgeAsks(content.voiceQuestions), spec.voice),
-      voiceDimensions: take<string>(content.voiceDimensions, 4),
-      shortlistWeights: take<string>(content.shortlistWeights, 5),
-      phaseRationales: take<string>(content.phaseRationales, 8),
+      // Ranking factors and notes too: an age factor would rank applicants by age (the fourth Phase 6 review).
+      voiceDimensions: take<string>(withoutAgeAsks(content.voiceDimensions), 4),
+      shortlistWeights: take<string>(withoutAgeAsks(content.shortlistWeights), 5),
+      phaseRationales: take<string>(withoutAgeAsks(content.phaseRationales), 8),
       generatedBy: { provider: "openai", model, promptVersion: csPack ? "flowgen-cs@1" : "flowgen@1" },
     });
   } catch (e) {

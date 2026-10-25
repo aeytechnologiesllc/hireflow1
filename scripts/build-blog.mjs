@@ -391,7 +391,7 @@ function card(post) {
 
 function endBlock(campaign, medium = "article") {
   return `<aside class="end" aria-label="Post a job">
-  <div><h2>Hiring a customer service agent?</h2><p>Post the role tonight. By morning every applicant has handled a realistic customer conversation, been scored and ranked.</p></div>
+  <div><h2>Hiring a customer service agent?</h2><p>Post the role and share its link tonight. By morning your applicants have handled a realistic customer conversation, been scored and ranked.</p></div>
   <span class="go"><a class="btn" href="${ctaHref(campaign, medium)}">Post your first job free</a><small>First job free. No card.</small></span>
 </aside>`;
 }
