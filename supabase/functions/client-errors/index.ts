@@ -31,6 +31,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { guardPublicAiCall, callerId } from "../_shared/rateLimit.ts";
 import { classifyBrowserFamily, isLocalDevOrigin, sanitizeClientErrorPayload } from "../_shared/telemetry.ts";
+import { cspReportsToClientErrors, isCspReportRequest } from "../_shared/cspReport.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,7 +64,12 @@ Deno.serve(async (req) => {
     return jsonResponse({ ok: true, skipped: "local-dev" }, 200);
   }
 
-  const limited = await guardPublicAiCall(req, "client-errors", corsHeaders, 30, 3600);
+  // A Content-Security-Policy violation report (vercel.json sends them here
+  // with ?kind=csp while the policy is report-only; see _shared/cspReport.ts).
+  // Its own bucket, so a page with many violations can never use up the
+  // allowance a real crash report needs.
+  const isCsp = isCspReportRequest(req.headers.get("content-type"), req.url);
+  const limited = await guardPublicAiCall(req, isCsp ? "client-errors-csp" : "client-errors", corsHeaders, isCsp ? 60 : 30, 3600);
   if (limited) return limited;
 
   const contentLength = Number(req.headers.get("content-length") ?? "0");
@@ -89,7 +95,13 @@ Deno.serve(async (req) => {
   }
 
   const browserFamily = classifyBrowserFamily(req.headers.get("user-agent"));
-  const sanitized = sanitizeClientErrorPayload(body);
+  // A CSP report carries one violation (report-uri) or a batch (report-to);
+  // the first is recorded, which is all the grouping needs.
+  const cspFirst = isCsp ? cspReportsToClientErrors(body)[0] : null;
+  if (isCsp && !cspFirst) {
+    return new Response(null, { status: 204, headers: corsHeaders });
+  }
+  const sanitized = sanitizeClientErrorPayload(cspFirst ? { ...cspFirst, release: "csp" } : body);
   if (!sanitized) {
     return jsonResponse({ error: "message is required" }, 400);
   }
