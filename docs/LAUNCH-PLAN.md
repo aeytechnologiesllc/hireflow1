@@ -917,7 +917,7 @@ session stops mid-phase (say exactly where).
   their own application": `ai_score`, `ai_analysis`, `ai_scorecard`,
   `phase_ai_analysis` and `employer_notes` move to
   `application_evaluations` (migration
-  `20261025230000_application_evaluations.sql`: table with the
+  `20261025235000_application_evaluations.sql`: table with the
   business/team/developer read rules of `applications`, a direct
   `employer_notes` update for the owner and pipeline teammates, six
   per-column `zz_` triggers that fire after the protect triggers, backfill

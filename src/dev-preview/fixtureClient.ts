@@ -18,7 +18,7 @@ export type FixtureTables = Record<string, FixtureRow[]>;
 
 /**
  * The hiring team's evaluation lives in its own table
- * (supabase/migrations/20261025230000_application_evaluations.sql), and this
+ * (supabase/migrations/20261025235000_application_evaluations.sql), and this
  * stand-in database keeps it there the way the real one does:
  *  - the fixtures (and every write the app makes) put the five on the
  *    application; they are moved into `application_evaluations` and the
@@ -425,7 +425,7 @@ export function createFixtureSupabaseClient(opts: FixtureClientOptions) {
       // in step with its writes. applications_staff_list is applications
       // with the notes' server-only parts left out (migration
       // 20261011201000); the fixtures never had those parts. Since
-      // 20261025230000 it also joins the hiring team's evaluation back on,
+      // 20261025235000 it also joins the hiring team's evaluation back on,
       // which the builder does when it knows the view was asked for.
       return new FixtureQueryBuilder(VIEW_OF[table] ?? table, opts.tables, opts.refuseWrite, table);
     },

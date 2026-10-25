@@ -86,7 +86,7 @@ import { EVALUATION_FIELDS, withoutEvaluationFields } from "@/lib/applicationEva
  *
  * Wave 6 (2026-10-25): Ava's score, report, scorecard and summary and the
  * team's notes moved out of the applicant's row into
- * `application_evaluations` (supabase/migrations/20261025230000). The
+ * `application_evaluations` (supabase/migrations/20261025235000). The
  * applications row now always carries NULL for those five, so they are taken
  * out of every applications event before it is merged (merging them would
  * wipe the score on screen), and a sixth channel of its own merges each

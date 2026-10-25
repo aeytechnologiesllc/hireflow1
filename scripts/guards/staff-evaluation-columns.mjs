@@ -4,7 +4,7 @@
  *
  * ai_score, ai_analysis, ai_scorecard, phase_ai_analysis and employer_notes
  * live in public.application_evaluations
- * (supabase/migrations/20261025230000_application_evaluations.sql): the job's
+ * (supabase/migrations/20261025235000_application_evaluations.sql): the job's
  * business and its team read it, the applicant never. Everything still
  * WRITES them through applications (a trigger moves them), but applications
  * itself answers NULL for them, so a read from it is a screen that silently
@@ -192,7 +192,7 @@ export default [
     id: "staff-evaluation-columns",
     why:
       "Ava's score, report, scorecard and summary and the team's notes live in application_evaluations, which the " +
-      "applicant cannot read (20261025230000_application_evaluations.sql); applications answers NULL for them. A read " +
+      "applicant cannot read (20261025235000_application_evaluations.sql); applications answers NULL for them. A read " +
       "from applications again is a screen that says 'not scored yet', a scorer that re-runs every analysis, or a filter " +
       "that matches nobody. Read applications_staff_list, or embed application_evaluations(...) and use withEvaluation.",
     run: async ({ walk, read }) => {
@@ -212,9 +212,9 @@ export default [
         if (JSON.stringify(fields) !== JSON.stringify(FIVE)) detail.push(`${rel}: EVALUATION_FIELDS must be exactly ${FIVE.join(", ")} (found ${fields.join(", ") || "none"})`);
       }
       // The table exists in a migration, with its triggers.
-      const migration = (await read("supabase/migrations/20261025230000_application_evaluations.sql")) ?? "";
+      const migration = (await read("supabase/migrations/20261025235000_application_evaluations.sql")) ?? "";
       if (!/CREATE TABLE IF NOT EXISTS public\.application_evaluations/.test(migration) || (migration.match(/CREATE OR REPLACE TRIGGER zz_applications_evaluation_/g) ?? []).length !== 6) {
-        detail.push("supabase/migrations/20261025230000_application_evaluations.sql: the table or its six triggers are gone");
+        detail.push("supabase/migrations/20261025235000_application_evaluations.sql: the table or its six triggers are gone");
       }
       return detail.length ? { ok: false, detail } : { ok: true };
     },

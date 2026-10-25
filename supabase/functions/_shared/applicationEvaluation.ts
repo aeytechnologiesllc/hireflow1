@@ -1,7 +1,7 @@
 /**
  * The hiring team's evaluation of an application, kept out of the
  * applicant's own row (2026-10-25,
- * supabase/migrations/20261025230000_application_evaluations.sql;
+ * supabase/migrations/20261025235000_application_evaluations.sql;
  * docs/BACKEND-SCHEMA.md).
  *
  * ai_score, ai_analysis, ai_scorecard, phase_ai_analysis and employer_notes

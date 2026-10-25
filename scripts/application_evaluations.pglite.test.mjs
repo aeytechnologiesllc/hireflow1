@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * PGlite proof for supabase/migrations/20261025230000_application_evaluations.sql
+ * PGlite proof for supabase/migrations/20261025235000_application_evaluations.sql
  * (docs/LAUNCH-PLAN.md, Phase 7, task 6): the hiring team's evaluation of an
  * application (ai_score, ai_analysis, ai_scorecard, phase_ai_analysis,
  * employer_notes) lives in public.application_evaluations, and the
@@ -32,7 +32,7 @@ import path from "node:path";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const MIGRATIONS = path.join(ROOT, "supabase/migrations");
-const MIGRATION = "20261025230000_application_evaluations.sql";
+const MIGRATION = "20261025235000_application_evaluations.sql";
 const FILES = readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sort();
 const text = (name) => readFileSync(path.join(MIGRATIONS, name), "utf8");
 const BEFORE_THIS = FILES.filter((f) => f < MIGRATION);

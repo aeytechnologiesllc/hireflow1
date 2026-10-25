@@ -2,7 +2,7 @@
 /**
  * applications_staff_list keeps every column of applications
  * (supabase/migrations/20261011201000_applications_staff_list.sql; since
- * 20261025230000_application_evaluations.sql the hiring team's five
+ * 20261025235000_application_evaluations.sql the hiring team's five
  * evaluation columns come from application_evaluations).
  *
  * The dashboard and the Applicants list read that view instead of the table
@@ -42,7 +42,7 @@ const sql = await read("supabase/migrations/20261011201000_applications_staff_li
 const viewSql = await read(`supabase/migrations/${latestView}`);
 const types = await read("src/integrations/supabase/types.ts");
 
-check("the view's latest definition is the evaluations one (20261025230000)", latestView === "20261025230000_application_evaluations.sql", latestView);
+check("the view's latest definition is the evaluations one (20261025235000)", latestView === "20261025235000_application_evaluations.sql", latestView);
 const viewStart = viewSql.indexOf("CREATE OR REPLACE VIEW public.applications_staff_list");
 const viewBody = viewSql.slice(viewStart, viewSql.indexOf("FROM public.applications a", viewStart));
 const viewCols = [...viewBody.matchAll(/^\s*(?:[ae]\.(\w+)|public\.staff_list_notes\(a\.notes\) AS (\w+)),?\s*$/gm)].map((m) => m[1] ?? m[2]);

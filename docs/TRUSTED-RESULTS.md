@@ -431,7 +431,7 @@ Two holes from the 2026-10-24 audit (docs/LAUNCH-PLAN.md, Phase 1):
   too, with `ai_score`, `ai_analysis` and `ai_scorecard`: since 2026-10-25
   (Phase 7, task 6) all five are filed in `application_evaluations`, which
   the applicant cannot read, by triggers that fire after both protect
-  triggers (`20261025230000_application_evaluations.sql`).
+  triggers (`20261025235000_application_evaluations.sql`).
 - **Voice evidence** (found by the Pass C review). The hiring team's read
   shows "N-minute voice interview", a quote from it and a "Hear it" link. An
   applicant could write a made-up transcript and link any recording. The same

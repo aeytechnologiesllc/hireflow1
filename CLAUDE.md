@@ -140,7 +140,7 @@ these either; each has a guard or a test that CI runs:
   lives in `application_evaluations`, which the applicant cannot read;
   writers keep writing `applications`, and `zz_applications_evaluation_*`
   triggers (after the protect triggers) move each value and leave the row
-  NULL (`20261025230000_application_evaluations.sql`). Read it from
+  NULL (`20261025235000_application_evaluations.sql`). Read it from
   `applications_staff_list` or an `application_evaluations(...)` embed with
   `withEvaluation`; guard `staff-evaluation-columns`, proof
   `scripts/application_evaluations.pglite.test.mjs`.

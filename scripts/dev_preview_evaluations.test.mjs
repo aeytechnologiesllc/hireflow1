@@ -2,7 +2,7 @@
 /**
  * The dev preview's stand-in database keeps the hiring team's evaluation in
  * its own table, the way the real one does since
- * supabase/migrations/20261025230000_application_evaluations.sql
+ * supabase/migrations/20261025235000_application_evaluations.sql
  * (docs/DEV-PREVIEW.md), so every staff screen in /__preview still shows
  * Ava's score and read, through the same path it uses live:
  *
