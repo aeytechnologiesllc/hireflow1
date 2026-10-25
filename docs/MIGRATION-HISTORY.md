@@ -444,6 +444,7 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025470000_security_round4.sql` | `20261025155540` | `security_round4` |
 | `20261025480000_growth_app_sources.sql` | `20261025165906` | `growth_app_sources` |
 | `20261025490000_application_files_go_with_it.sql` | `20261025165914` | `application_files_go_with_it` |
+| `20261025500000_plain_file_paths.sql` | `20261025224159` | `plain_file_paths` |
 | `20261025510000_growth_google_is_search.sql` | `20261025221613` | `growth_google_is_search` |
 | `20261025520000_growth_front_page_not_staff.sql` | `20261025221619` | `growth_front_page_not_staff` |
 
