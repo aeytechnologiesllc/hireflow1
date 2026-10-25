@@ -1319,18 +1319,22 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Status</p>
-                    <Badge variant="default" className="mt-0.5">
-                      {document.status === 'signed' ? 'Fully Executed' : 'Pending Signatures'}
+                    {/* A voided document is still stored as pending; an applicant
+                        who signed opens this screen too, before the countersign
+                        and after a void (the seventh product review: it said
+                        "Pending Signatures" under a red "Voided"). */}
+                    <Badge variant={document.is_voided ? 'destructive' : 'default'} className="mt-0.5">
+                      {document.is_voided ? 'Voided' : document.status === 'signed' ? 'Fully Executed' : document.candidate_signed_at ? 'Waiting for countersign' : 'Pending Signatures'}
                     </Badge>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Final Hash (SHA-256)</p>
-                    <p className="font-mono text-xs truncate">{finalHash || 'Pending'}</p>
+                    <p className="font-mono text-xs truncate">{finalHash || (document.is_voided ? 'None' : 'Pending')}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Completed</p>
                     <p className="font-medium">
-                      {document.signed_at ? format(new Date(document.signed_at), "PPpp 'UTC'") : "Pending"}
+                      {document.signed_at ? format(new Date(document.signed_at), "PPpp 'UTC'") : document.is_voided ? "Not completed" : "Pending"}
                     </p>
                   </div>
                 </div>
@@ -1448,19 +1452,38 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                   ))}
                 </div>
 
-                {/* Summary Card */}
-                <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-success/10 to-primary/10 border border-success/20">
-                  <div className="flex items-center gap-3">
-                    <Shield className="h-8 w-8 text-success" />
-                    <div>
-                      <p className="font-semibold text-foreground">Integrity Verified via SHA-256</p>
-                      <p className="text-sm text-muted-foreground">
-                        This audit trail provides a complete, tamper-evident record of all document activity.
-                        Hash matching confirms the finalized document has not been altered.
-                      </p>
+                {/* Summary Card. "Verified" only for a finished document: the
+                    final hash is made when both sides have signed (the seventh
+                    product review: it said the finalized document was intact
+                    on one still waiting for the countersign, and on a voided one). */}
+                {document.status === 'signed' && !document.is_voided ? (
+                  <div className="mt-6 p-4 rounded-xl bg-gradient-to-r from-success/10 to-primary/10 border border-success/20" data-audit-summary="verified">
+                    <div className="flex items-center gap-3">
+                      <Shield className="h-8 w-8 text-success" />
+                      <div>
+                        <p className="font-semibold text-foreground">Integrity Verified via SHA-256</p>
+                        <p className="text-sm text-muted-foreground">
+                          This audit trail provides a complete, tamper-evident record of all document activity.
+                          Hash matching confirms the finalized document has not been altered.
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="mt-6 p-4 rounded-xl bg-muted/50 border border-border" data-audit-summary={document.is_voided ? "voided" : "in-progress"}>
+                    <div className="flex items-center gap-3">
+                      <Shield className="h-8 w-8 text-muted-foreground" />
+                      <div>
+                        <p className="font-semibold text-foreground">{document.is_voided ? "Voided before it was finished" : "Not finished yet"}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {document.is_voided
+                            ? "This record shows every step up to the void. A voided document was never finalized, so it has no final hash."
+                            : "This record shows every step so far. The final hash is made once both sides have signed."}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </ScrollArea>
             </motion.div>
           )}

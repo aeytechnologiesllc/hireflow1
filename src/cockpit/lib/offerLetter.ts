@@ -358,6 +358,7 @@ function isOnlyACountry(part: string): boolean {
 const WORK_MODE_WORDS = /\b(?:work(?:ing)?\s+)?(?:on[-\s]?site|onsite|in[-\s]?office|office[-\s]based|in[-\s]?person|face[-\s]to[-\s]face|hybrid)\b/gi;
 
 function withoutWorkMode(place: string): string {
+  const hadModeWord = new RegExp(WORK_MODE_WORDS.source, "i").test(place);
   let text = place
     .replace(WORK_MODE_WORDS, " ")
     .replace(/\(\s*[,;:/|-]*\s*\)/g, " ")
@@ -366,6 +367,10 @@ function withoutWorkMode(place: string): string {
     .replace(/^[\s,;:/|()\u2013\u2014-]+|[\s,;:/|(\u2013\u2014-]+$/g, "")
     .replace(/\s+/g, " ")
     .trim();
+  // The "in" or "at" that went with the work-mode word ("On-site in Manila",
+  // "In-person at our Makati clinic"; the seventh product review: "In person,
+  // at in Manila"). The letter says its own "at".
+  if (hadModeWord) text = text.replace(/^(?:in|at)\s+/i, "").trim();
   // A bracket left without its pair ("Taguig)" from "Hybrid (Taguig)").
   if (!text.includes("(")) text = text.replace(/\)/g, "").trim();
   if (!text.includes(")")) text = text.replace(/\(/g, "").trim();

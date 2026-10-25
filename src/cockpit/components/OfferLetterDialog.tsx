@@ -563,8 +563,11 @@ export function OfferLetterDialog({
 
                 <Step n={2} title="Pay">
                   <Field id="ck-offer-pay" label="Pay" problem={problemFor("payAmount") ?? problemFor("payCurrency")}>
-                    <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,1fr)] gap-2">
-                      <input id="ck-offer-pay" className={INPUT} value={payAmount} inputMode="decimal" disabled={busy} placeholder="500" onChange={(e) => edit(setPayAmount)(e.target.value)} autoComplete="off" aria-label="Amount" />
+                    {/* On a phone the amount takes its own line, so the currency
+                        and the period are wide enough to read ("USD", "an hour";
+                        the seventh product review: they read "USI", "an hou"). */}
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.3fr)_minmax(0,0.8fr)_minmax(0,1fr)]" data-offer-pay-row>
+                      <input id="ck-offer-pay" className={`${INPUT} col-span-2 sm:col-span-1`} value={payAmount} inputMode="decimal" disabled={busy} placeholder="500" onChange={(e) => edit(setPayAmount)(e.target.value)} autoComplete="off" aria-label="Amount" />
                       <select className={INPUT} value={payCurrency} disabled={busy} onChange={(e) => edit(setPayCurrency)(e.target.value)} aria-label="Currency">
                         {payCurrency === "" ? (
                           <option value="" disabled>

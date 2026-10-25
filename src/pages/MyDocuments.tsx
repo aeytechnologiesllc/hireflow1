@@ -120,6 +120,11 @@ export default function MyDocuments() {
   const pendingSignature = signDocuments.filter(
     (d) => d.status === "pending" && !d.candidate_signed_at && !d.is_voided
   ).length;
+  // "To sign" holds only documents still open; signed, declined, voided and
+  // withdrawn ones go under their own heading (the seventh product review: a
+  // just-voided letter sat at the top of "To sign", above two to sign).
+  const openDocuments = signDocuments.filter((d) => d.status === "pending" && !d.is_voided);
+  const closedDocuments = signDocuments.filter((d) => !(d.status === "pending" && !d.is_voided));
   const hasAny = documentRequests.length > 0 || signDocuments.length > 0;
 
   return (
@@ -147,13 +152,13 @@ export default function MyDocuments() {
         />
       ) : (
         <>
-          {signDocuments.length > 0 && (
-            <section className="space-y-3">
+          {openDocuments.length > 0 && (
+            <section className="space-y-3" data-documents-section="to-sign">
               <h2 className="px-1 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--ink-3)" }}>
                 To sign{pendingSignature > 0 ? ` — ${pendingSignature} waiting on you` : ""}
               </h2>
               <div className="space-y-3">
-                {signDocuments.map((doc) => (
+                {openDocuments.map((doc) => (
                   <SignDocumentRow
                     key={doc.id}
                     doc={doc}
@@ -178,6 +183,24 @@ export default function MyDocuments() {
                     isEmployer={false}
                     onUpload={() => setUploadDialogRequest(request)}
                     askedBy={businessJobLine(companies.get(request.applications?.jobs?.employer_id ?? request.employer_id), request.applications?.jobs?.title)}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
+
+          {closedDocuments.length > 0 && (
+            <section className="space-y-3" data-documents-section="closed">
+              <h2 className="px-1 text-xs font-medium uppercase tracking-wide" style={{ color: "var(--ink-3)" }}>
+                Signed or closed
+              </h2>
+              <div className="space-y-3">
+                {closedDocuments.map((doc) => (
+                  <SignDocumentRow
+                    key={doc.id}
+                    doc={doc}
+                    onView={() => openDocument(doc)}
+                    askedBy={businessJobLine(companies.get(doc.applications?.jobs?.employer_id ?? ""), doc.applications?.jobs?.title)}
                   />
                 ))}
               </div>

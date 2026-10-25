@@ -213,6 +213,12 @@ for (const [place, want] of [
   ["On-site - Texas", ""],
   ["Malaysia", ""],
   ["Vietnam", ""],
+  // The seventh product review: the "in" or "at" that went with the
+  // work-mode word goes too ("In person, at in Manila"); a place that only
+  // starts with "In" keeps it.
+  ["On-site in Manila", "Manila"],
+  ["In-person at our Makati clinic", "our Makati clinic"],
+  ["Onsite at 2F Ayala Tower, Makati", "2F Ayala Tower, Makati"],
   ["Viet Nam", ""],
   ["Brazil", ""],
   ["the Philippines", ""],
@@ -250,6 +256,8 @@ eq("…and none for a year or a day, which the box cannot say", `${lib.payPerFro
   check("the screen fills the place only with placeForLetter, with the job's geocoded place, and lets the business type it", /setPlace\(placeForLetter\(person\.jobLocation, person\.jobPlace\)\);/.test(dialog) && /id="ck-offer-place"[^>]*onChange=\{\(e\) => edit\(setPlace\)\(e\.target\.value\)\}/.test(dialog) && /location_city, location_region, location_country/.test(hook) && /jobPlace: \{ city: job\?\.location_city \?\? null, region: job\?\.location_region \?\? null, country: job\?\.location_country \?\? null \}/.test(hook));
   check("the screen takes the job's currency even for a range, and never a default one", /setPayCurrency\(person\.jobCurrency\);/.test(dialog) && /problemFor\("payAmount"\) \?\? problemFor\("payCurrency"\)/.test(dialog));
   check("…and the range's period with it", /setPayCurrency\(person\.jobCurrency\);\s*setPayPer\(person\.jobPer \?\? OFFER_DEFAULTS\.payPer\);/.test(dialog) && /jobPer: payPerFromJob\(job\),/.test(hook));
+  // The seventh product review: on a phone the three pay boxes cut "USD" to "USI" and "an hour" to "an hou".
+  check("on a phone the amount takes its own line, the currency and the period share the next", /className="grid grid-cols-2 gap-2 sm:grid-cols-\[minmax\(0,1\.3fr\)_minmax\(0,0\.8fr\)_minmax\(0,1fr\)\]" data-offer-pay-row/.test(dialog) && /id="ck-offer-pay" className=\{`\$\{INPUT\} col-span-2 sm:col-span-1`\}/.test(dialog));
   // The worker type on its own line, outside the folded terms (the sixth product review).
   const step3 = dialog.slice(dialog.indexOf('<Step n={3} title="Terms">'), dialog.indexOf('<Step n={4} title="Sending">'));
   const folded = step3.indexOf("{!showTerms ? (");
