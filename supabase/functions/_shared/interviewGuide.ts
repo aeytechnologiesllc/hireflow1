@@ -364,7 +364,8 @@ function withSupportNoun(plan: InterviewPlan, noun: string | null | undefined): 
  * The job's customer-service chat practice, when it has one: the step the
  * job builder tags with its industry pack and channel (jobFromFlow.ts). The
  * page and the function both read it from the job's own steps, so they show
- * the same plan; a phone job is one whose channel the business said was phone.
+ * the same plan; a phone job is one whose channel is phone, or a mix with
+ * phones in it.
  */
 export function customerServiceStepOf(workflowSteps: unknown): { pack: string; channel: string | null } | null {
   if (!Array.isArray(workflowSteps)) return null;

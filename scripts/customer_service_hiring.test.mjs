@@ -48,7 +48,7 @@ const bundle = await build({
     contents:
       'export { generateTemplateFlow } from "./src/lib/avaEngine/templateGenerator.ts";\n' +
       'export { generateJobFlow } from "./src/lib/avaEngine/flowGenerator.ts";\n' +
-      'export { PLAYBOOKS, briefFromForm, detectFamily, chipAnswersToBriefAnswers, withRemoteFollowUps } from "./src/lib/avaEngine/playbook.ts";\n' +
+      'export { PLAYBOOKS, briefFromForm, detectFamily, chipAnswersToBriefAnswers, withRemoteFollowUps, jobKindFollowUp, JOB_KIND_ID, JOB_KIND_CHIPS } from "./src/lib/avaEngine/playbook.ts";\n' +
       'export { CS_INDUSTRY_CHIPS, CS_CHANNEL_CHIPS, PHONE_INTERVIEW_QUESTIONS, packIdForBrief, channelForBrief, industryFromText } from "./src/lib/avaEngine/customerService.ts";\n' +
       'export { SCENARIO_PACKS } from "./src/content/scenarioPacks/packs.ts";\n' +
       'export { createJobFromFlow } from "./src/lib/jobFromFlow.ts";\n',
@@ -144,6 +144,29 @@ const CS = [
   ["IT Support Technician", "Help staff with laptops and log tickets"],
   ["Virtual Assistant", "Handle inbound calls for a law firm"],
   ["Medical secretary", "Answer patient calls and book appointments"],
+  // The fourth Phase 4 review's misses.
+  ["Virtual Medical Assistant", "Answer patient calls and schedule appointments for a US clinic"],
+  ["Remote Dental Assistant", "Answer patient calls and book cleanings"],
+  ["Patient Care Coordinator", "Answer phones and schedule patients at our dental office"],
+  ["Care Coordinator", "Answer patient calls and schedule visits"],
+  ["Intake Coordinator", "Answer calls from new patients and book their first visit"],
+  ["Senior Support Manager", "Lead our support agents"],
+  ["Remote Support Team Lead", "Run the evening shift"],
+  ["Sr. Support Lead", ""],
+  ["Support Technician", "Help customers by phone"],
+  ["Computer Support Technician", "Help customers by phone and email"],
+  ["Service Desk Agent", ""],
+  ["BPO Agent", "Inbound calls"],
+  ["Non-Voice Account", "Email support for a US company"],
+  ["Voice Account", ""],
+  ["Customer Relations Officer", ""],
+  ["Virtual Assistant", "Help customers by phone and email"],
+  ["Virtual Assistant", "Assist customers via live chat and email"],
+  ["Virtual Assistant", "Chat with customers on our website"],
+  ["Maid Service Customer Service Representative", ""],
+  ["Customer Service Rep for Nurse Staffing Agency", ""],
+  ["House Cleaner Customer Support", ""],
+  ["Caregiver Agency Phone Support", ""],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -213,10 +236,52 @@ const NOT_CS = [
   ["Production Support Engineer", "Handle incident tickets", "developer"],
   ["Assistant", "Answer phones and manage the office", "admin"],
   ["Delivery Driver", "Deliver orders and answer customer questions", "general"],
+  // The fourth Phase 4 review: in-person roles, office roles, outbound sales.
+  ["Server", "Take orders and answer guest questions", "cash"],
+  ["Waitstaff", "Answer guest questions about the menu", "general"],
+  ["Cook", "Take customer orders by phone and cook pizzas", "general"],
+  ["Driver", "Deliver orders and answer customer calls", "general"],
+  ["Grocery Clerk", "Answer customer questions", "admin"],
+  ["Bank Teller", "Answer customer questions", "cash"],
+  ["Fitness Instructor", "Answer member questions", "general"],
+  ["Lifeguard", "Answer guest questions at the pool", "general"],
+  ["Car Wash Attendant", "Answer customer questions", "general"],
+  ["Mechanic", "Answer customer calls about repairs", "general"],
+  ["Tax Preparer", "Answer client questions", "general"],
+  ["Retail Customer Service Associate", "Help customers on the floor and at the register", "cash"],
+  ["In-Store Customer Service", "Work the returns counter", "cash"],
+  ["Call Center Trainer", "Train new agents", "general"],
+  ["Office Assistant", "Answer client calls and file papers", "admin"],
+  ["Admin", "Answer client calls", "admin"],
+  ["Admin Assistant", "Answer client calls and manage calendars", "admin"],
+  ["Admin Support Specialist", "Handle client calls", "admin"],
+  ["Front Office Assistant", "Answer client calls at our accounting firm", "admin"],
+  ["Paralegal", "Draft documents and answer client calls", "admin"],
+  ["HR Support Specialist", "Answer employee questions", "admin"],
+  ["Payroll Support Specialist", "", "admin"],
+  ["Logistics Support Specialist", "", "general"],
+  ["Peer Support Specialist", "", "general"],
+  ["Mental Health Support Specialist", "", "general"],
+  ["Appointment Setter (Dental Marketing Agency)", "Cold call dental clinics to book demos", "sales"],
+  ["Medical Secretary", "Type up doctor's letters and file records", "admin"],
+  ["Scheduling Coordinator", "Schedule our medical sales reps' visits to hospitals", "admin"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is not customer service (${want})`, got !== "customer_service", got);
+}
+
+// The fourth Phase 4 review: the guess is only the start; the business confirms the kind of job.
+{
+  const kind = (title, work, answer) => M.detectFamily({ roleTitle: title, whatTheyDo: work, employmentType: "full_time", followUps: answer === undefined ? [] : [{ questionId: M.JOB_KIND_ID, question: "", answer }] });
+  check("the job-kind question starts on the guess: customer service for a chat agent", M.jobKindFollowUp({ roleTitle: "Chat agent", whatTheyDo: "" }).def === 0);
+  check("…and 'another kind of job' for a barista", M.jobKindFollowUp({ roleTitle: "Barista", whatTheyDo: "" }).def === 1);
+  check("answering 'customer service' makes any job customer service (a guess the words missed)", kind("Assistant", "Answer customer questions", M.JOB_KIND_CHIPS[0]) === "customer_service");
+  check("answering 'another kind of job' takes customer service away (a guess the words got wrong)", kind("Customer Service Rep", "", M.JOB_KIND_CHIPS[1]) !== "customer_service");
+  check("…and then the words pick the other family (a cleaner stays a cleaner)", kind("Customer support for our cleaning crew", "Clean homes", M.JOB_KIND_CHIPS[1]) === "cleaner");
+  check("no answer: the guess from the words", kind("Live chat agent", "") === "customer_service" && kind("Barista", "") !== "customer_service");
+  const page = read("src/pages/AvaCreateJob.tsx");
+  check("the builder asks it first, and the answer goes into the brief both plan builders read", /jobKindFollowUp\(formBrief\)/.test(page) && /\[jobKind, \.\.\.withRemoteFollowUps\(playbook\.followUps\(chipAnswers, formBrief\), workMode\)\]/.test(page) && /\[jobKind, \.\.\.withRemoteFollowUps\(playbook\.followUps\(chipAnswers, formBrief\), formBrief\.workMode\)\]/.test(page));
 }
 
 /* ── 2. The follow-ups, the pack and the channel a brief points to ───── */
@@ -263,6 +328,17 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Call center agent", "Voice and email support", "mixed"], ["Phone & Email Support Rep", "", "mixed"],
     ["CSR", "Inbound calls; chat support when quiet", "mixed"], ["Phone and Chat Support Agent", "", "mixed"],
     ["Support agent", "Email and phone", "mixed"], ["Chat CSR", "", "chat"], ["Non-voice CSR", "Email and chat only", "chat"],
+    // The fourth Phase 4 review: lists, voice and non-voice, the title's channel first, more negations.
+    ["Support agent", "Phone, email and chat", "mixed"], ["Support agent", "Phone, chat", "mixed"], ["Support agent", "Calls and emails", "mixed"],
+    ["Support agent", "Calls, chats and emails", "mixed"], ["Support agent", "Emails, phones", "mixed"], ["Support agent", "Voice and non-voice", "mixed"],
+    ["CSR", "Voice / Non-voice", "mixed"], ["Support agent", "Text and calls", "mixed"], ["Support agent", "SMS and phone", "mixed"],
+    ["Chat Support Agent", "Join our call center's chat team", "chat"], ["Chat CSR", "For a call center", "chat"], ["Chat Support CSR", "", "chat"],
+    ["Email Support CSR", "", "email"], ["CSR - Chat Support", "", "chat"], ["CSR (Chat)", "", "chat"], ["Chat-CSR", "", "chat"], ["Email-CSR", "", "email"],
+    ["Live chat agent", "Answer customers in live chat. Phone support is handled by another team.", "chat"],
+    ["Support agent", "Help customers set up their phone and email accounts", "email"], ["Non Voice Account", "Email support", "email"],
+    ["Non Voice CSR", "", "chat"], ["CSR (Non Voice)", "", "chat"], ["Support agent", "Without phone calls, only chat", "chat"],
+    ["Support agent", "Phone calls are not required. Chat and email.", "chat"], ["Chat Support Agent", "Answer chats and calls", "mixed"],
+    ["Phone Support Agent", "Calls all day; chats and emails are handled by another team", "phone"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
 }
 
@@ -434,6 +510,30 @@ let aiFlow;
     }), { status: 200, headers: { "Content-Type": "application/json" } });
   const loose = (await M.generateJobFlow({ brief: formFor("Online store", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;
   check("'transferable skills', 'hold yourself accountable' and an upset coworker do not count as the call questions", loose.filter((q) => /^vphone\d$/.test(q.id)).length === 2, JSON.stringify(loose.map((q) => q.id)));
+  // The fourth Phase 4 review: a call word and an angry word in different sentences, "hold times", other angry words.
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({
+      jobPost: { title: "Phone agent", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [],
+      voiceQuestions: ["Have you used a phone system before? Tell us about a time a customer was upset by email.", "Do you ever keep notes on hold times?", "Why us?"],
+      voiceDimensions: [], shortlistWeights: [], phaseRationales: [],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  const apart = (await M.generateJobFlow({ brief: formFor("Online store", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;
+  check("a call word and an upset customer in different sentences, or 'hold times', are not the call questions", apart.filter((q) => /^vphone\d$/.test(q.id)).length === 2, JSON.stringify(apart.map((q) => q.id)));
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({
+      jobPost: { title: "Phone agent", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [],
+      voiceQuestions: ["A furious caller is screaming at you on the phone. What do you say?", "When do you place a caller on hold, and what do you say first?", "Why us?"],
+      voiceDimensions: [], shortlistWeights: [], phaseRationales: [],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  const furious = (await M.generateJobFlow({ brief: formFor("Online store", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;
+  check("a furious, irate or screaming caller is the angry-caller question (no second one added)", furious.filter((q) => /^vphone\d$/.test(q.id)).length === 0, JSON.stringify(furious.map((q) => q.id)));
+  // Back to questions that ask neither, for the mixed job below.
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({
+      jobPost: { title: "Phone agent", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [],
+      voiceQuestions: ["What transferable skills do you bring?", "Why us?", "How do you stay calm?"],
+      voiceDimensions: [], shortlistWeights: [], phaseRationales: [],
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
   const mixed = (await M.generateJobFlow({ brief: formFor("Online store", "A mix of these", "Remote"), rigor: "standard" })).flow.phases;
   const mixedChannel = mixed.find((p) => p.kind === "simulation").config.channel;
   check("a job with phones among its channels gets the call questions too", mixedChannel === "mixed" && mixed.find((p) => p.kind === "voice_interview").config.questions.filter((q) => /^vphone\d$/.test(q.id)).length === 2, mixedChannel);

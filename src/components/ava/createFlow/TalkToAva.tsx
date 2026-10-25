@@ -517,7 +517,7 @@ function MissingFieldsForm({ missing, brief, onSave }: { missing: string[]; brie
       {showRole && (
         <label className="block">
           <span className={LBL} style={{ color: "hsl(var(--muted-foreground))" }}>Role</span>
-          <input value={role} onChange={(e) => setRole(e.target.value)} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="Barista, Line cook, Frontend Developer…" />
+          <input value={role} onChange={(e) => setRole(e.target.value)} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="Customer service agent, Chat support, Front desk…" />
         </label>
       )}
       {showLocation && (

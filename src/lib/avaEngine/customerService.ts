@@ -59,17 +59,47 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const chosen = answerTo(brief, "cs-channel");
   const index = CS_CHANNEL_CHIPS.findIndex((label) => label === chosen);
   if (index >= 0) return CHANNELS[index];
-  const s = `${brief.roleTitle ?? ""} ${brief.whatTheyDo ?? ""}`.toLowerCase();
-  // Never phone: "non-voice", "chat only", "no phone calls" (the Phase 4 reviews).
-  const negated = /\b(non-?voice|chat only|email only|written only|no (phone|calls?|voice)|never on the phone|not (on the )?phone)\b/.test(s);
-  // Phones named, alone or in a list of channels ("Phone & Email Support
-  // Rep", "voice and email support"); a chat or email CSR is not one (the
-  // third Phase 4 review: a list with email in it once read as never phone).
-  const phone =
-    !negated &&
-    /\b(phone (support|agent|rep|csr|calls?)|phones?,? ?(&|and|\/|\+|or) ?(chat|e-?mail|text|sms)|(chats?|e-?mails?|texts?|sms),? ?(&|and|\/|\+|or) ?(phones?|voice|calls?)\b|voice,? ?(&|and|\/|\+|or) ?(chat|e-?mail)|voice (agent|csr|support|account)|(customer|client|patient|inbound|outbound) calls?|calls? (from|with) (our |the )?(customers|clients|patients)|call cent(er|re)|(?<!(chat|e-?mail|non-?voice) )csr|answer(ing)? (the )?phones?|(on|at) the phones?|by phone|on the phone)\b/.test(s);
-  const chat = /\b(chats?|live chat|messages|messaging)\b/.test(s);
-  const email = /\b(e-?mails?)\b/.test(s);
+  const title = (brief.roleTitle ?? "").toLowerCase();
+  const work = (brief.whatTheyDo ?? "").toLowerCase();
+  const s = `${title} ${work}`;
+  // "Voice and non-voice": both.
+  if (/\bvoice\s*(and|&|\/|or)\s*non[- ]?\s?voice\b|\bnon[- ]?\s?voice\s*(and|&|\/|or)\s*voice\b/.test(s)) return "mixed";
+  // Never phone: "non-voice" (or "non voice"), "chat only", "no phone calls",
+  // "without calls", "phone calls are not required" (the Phase 4 reviews).
+  const negated = /\b(non[- ]?\s?voice|chat only|email only|written only|no (phone|calls?|voice)|without (phone )?calls|never on the phone|not (on the )?phones?|phone calls? (are|is) not (required|needed|part))\b/;
+  // A list of channels with phones in it ("phone, email and chat", "calls and
+  // emails", "SMS and phone"); not a list of what customers own ("their phone
+  // and email accounts").
+  const LIST = String.raw`(\s*(,|&|\band\b|\/|\+|\bor\b)\s*(and\s+)?)`;
+  const WRITTEN = String.raw`(live chats?|chats?|e-?mails?|texts?|sms|messages?)`;
+  const PHONE = String.raw`(phones?|calls?|voice)`;
+  const list = new RegExp(
+    String.raw`\b(${PHONE}(${LIST}${WRITTEN})+|${WRITTEN}(${LIST}(${WRITTEN}|${PHONE}))*${LIST}${PHONE})\b(?!\s+(accounts?|numbers?|settings|plans?|apps?|devices?|bills?|lines?))`,
+  );
+  const phoneWords = /\b(phone (support|agent|rep|csr|calls?)|voice (agent|csr|support|account)|(customer|client|patient|inbound|outbound) calls?|calls? (from|with) (our |the )?(customers|clients|patients)|call cent(er|re)|answer(ing)? (the )?phones?|(on|at) the phones?|by phone|on the phone|bpo)\b/;
+  const writtenIn = (text: string) => ({ chat: /\b(chats?|live chat|messages|messaging|texts?|sms)\b/.test(text), email: /\b(e-?mails?)\b/.test(text) });
+  const writtenChannel = (text: string): CsChannel => (writtenIn(text).email && !writtenIn(text).chat ? "email" : "chat");
+
+  // The title names the channel the agent works in; it leads (the fourth
+  // Phase 4 review: "Chat CSR — for a call center" is a chat job).
+  const titleNoVoice = title.replace(/\bnon[- ]?\s?voice\b/g, " ");
+  const titleWritten = /\b(chat|e-?mail|non[- ]?\s?voice|text|sms|ticket|written)\b/.test(title);
+  // A bare "CSR" title reads as phone (the Philippine meaning), "Chat CSR" as chat.
+  const titlePhone = /\b(phone|voice|calls?|caller|telephone)\b/.test(titleNoVoice) || (/\bcsr\b/.test(title) && !titleWritten);
+  if (titleWritten && titlePhone) return "mixed";
+  if (titleWritten) return list.test(work) && !negated.test(s) ? "mixed" : writtenChannel(`${title} ${work}`);
+  if (titlePhone) {
+    // Chats or emails "handled by another team" are not this agent's.
+    const elsewhere = /\b(chats?|e-?mails?|messages?)\b[^.]{0,40}\b(handled by|another team|elsewhere|someone else)\b/.test(work);
+    const written = writtenIn(work).chat || writtenIn(work).email;
+    return (list.test(s) || written) && !elsewhere && !negated.test(s) ? "mixed" : "phone";
+  }
+
+  // The title says nothing about the channel: the description does.
+  if (negated.test(s)) return writtenChannel(s);
+  if (list.test(s)) return "mixed";
+  const phone = phoneWords.test(s) || /\bcsr\b/.test(title);
+  const { chat, email } = writtenIn(s);
   if (phone && (chat || email)) return "mixed";
   if (phone) return "phone";
   if (email && !chat) return "email";
@@ -185,11 +215,18 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
       // passing them on: not "transferable skills" or "hold yourself
       // accountable", the third Phase 4 review), and always at least one of
       // the model's own (the second).
-      const onCall = (prompt: string) => /\b(calls?|callers?|phones?|on the line)\b/i.test(prompt);
-      const asksAngryCaller = (prompt: string) => onCall(prompt) && /\b(angry|upset|shout\w*|yell\w*|talk\w* over)\b/i.test(prompt);
+      // Read sentence by sentence (the fourth Phase 4 review: "Have you used a
+      // phone system? Tell us about an upset customer by email." is neither).
+      const sentences = (prompt: string) => prompt.split(/(?<=[.?!])\s+/);
+      const onCall = (sentence: string) => /\b(calls?|callers?|phones?|on the line)\b/i.test(sentence) && !/\bby (e-?mail|chat)\b/i.test(sentence);
+      const asksAngryCaller = (prompt: string) =>
+        sentences(prompt).some((x) => onCall(x) && /\b(angry|upset|furious|irate|rude|abusive|shout\w*|yell\w*|scream\w*|swear\w*|talk\w* over)\b/i.test(x));
       const asksHoldOrTransfer = (prompt: string) =>
-        /\b(put|putting|place|placing|keep|keeping)\b[^.?]{0,30}\bon hold\b/i.test(prompt) ||
-        (onCall(prompt) && /\b(on hold|transfer(s|red|ring)? (the |a |their )?(call|caller|them|it)|pass\w* (them|the call|the caller|it) (on|to))\b/i.test(prompt));
+        sentences(prompt).some(
+          (x) =>
+            /\b(put|putting|place|placing|keep|keeping)\s+(them|him|her|someone|people|a caller|the caller|callers|a customer|the customer|customers)\s+on hold\b/i.test(x) ||
+            (onCall(x) && /\b(on hold(?!\s+times?)|transfer(s|red|ring)? (the |a |their )?(call|caller|them|it)|pass\w* (them|the call|the caller|it) (on|to))\b/i.test(x)),
+        );
       const prompts = questions.map((q) => q.prompt);
       const phone = PHONE_INTERVIEW_QUESTIONS.map((prompt, i) => ({ id: `vphone${i}`, prompt })).filter((_q, i) =>
         i === 0 ? !prompts.some(asksAngryCaller) : !prompts.some(asksHoldOrTransfer),

@@ -56,6 +56,7 @@ import {
   withRemoteFollowUps,
   detectFamily,
   generateJobFlow,
+  jobKindFollowUp,
   loadDraft,
   saveDraft,
   type JobFlow,
@@ -241,12 +242,15 @@ export default function AvaCreateJob() {
     return () => window.clearTimeout(t);
   }, [step, generating]);
 
-  const family = useMemo(() => detectFamily(briefFromForm({ ...briefFields, followUps: [] })), [briefFields]);
-  const playbook = PLAYBOOKS[family];
   const formBrief = useMemo(() => briefFromForm({ ...briefFields, followUps: [] }), [briefFields]);
+  // Ava's first question: what kind of job, starting on her guess from the
+  // words; the answer decides the family (detectFamily reads it).
+  const jobKind = useMemo(() => jobKindFollowUp(formBrief), [formBrief]);
+  const family = useMemo(() => detectFamily({ ...formBrief, followUps: chipAnswersToBriefAnswers([jobKind], chipAnswers) }), [formBrief, jobKind, chipAnswers]);
+  const playbook = PLAYBOOKS[family];
   const workMode = formBrief.workMode;
   // The brief lets a follow-up start on what the business's own words point to (a dental office starts on "Medical or dental office").
-  const followUps = useMemo(() => withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode), [playbook, chipAnswers, workMode, formBrief]);
+  const followUps = useMemo(() => [jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode)], [jobKind, playbook, chipAnswers, workMode, formBrief]);
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
 
   const setBrief = (k: string, v: string) => setBriefFields((b) => ({ ...b, [k]: v }));
@@ -278,7 +282,7 @@ export default function AvaCreateJob() {
   const runGeneration = useCallback(async () => {
     setGenerating(true);
     setGenSource(null);
-    const followUpDefs = withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), formBrief.workMode);
+    const followUpDefs = [jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), formBrief.workMode)];
     const brief = briefFromForm({
       ...briefFields,
       followUps: chipAnswersToBriefAnswers(followUpDefs, chipAnswers),
@@ -297,7 +301,7 @@ export default function AvaCreateJob() {
     } finally {
       setGenerating(false);
     }
-  }, [briefFields, chipAnswers, playbook, rigor, formBrief]);
+  }, [briefFields, chipAnswers, playbook, rigor, formBrief, jobKind]);
 
   useEffect(() => {
     if (step === 3) {
@@ -610,7 +614,7 @@ export default function AvaCreateJob() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Role title</label>
-                        <input value={briefFields.role} onChange={(e) => setBrief("role", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Barista, Line cook, Frontend Developer…" />
+                        <input value={briefFields.role} onChange={(e) => setBrief("role", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Customer service agent, Chat support, Front desk…" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Location</label>

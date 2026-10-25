@@ -47,6 +47,8 @@ export const ROUTE_SEGMENTS: readonly string[] = [
   // A business's careers page: /c/<slug> (2026-10-11).
   "c",
   "candidate",
+  // An applicant's Contact us (2026-10-25).
+  "contact",
   "dashboard",
   "developer",
   "documents",
@@ -105,7 +107,6 @@ export const SITE_PATHS: readonly string[] = [
 export const HELD_BACK: readonly string[] = [
   "about",
   "careers",
-  "contact",
   "home",
   "login",
   "logout",
