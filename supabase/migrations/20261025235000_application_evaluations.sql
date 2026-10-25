@@ -196,6 +196,20 @@ ON CONFLICT (application_id) DO UPDATE SET
   phase_ai_analysis = COALESCE(EXCLUDED.phase_ai_analysis, application_evaluations.phase_ai_analysis),
   employer_notes    = COALESCE(EXCLUDED.employer_notes, application_evaluations.employer_notes);
 
+-- A copy of every value that moves, kept only until the move is checked live
+-- (private: not reachable through the API). A later migration drops it, so
+-- "Delete their information" never leaves a team's notes behind in it.
+CREATE SCHEMA IF NOT EXISTS private;
+CREATE TABLE IF NOT EXISTS private.application_evaluation_move_backup AS
+SELECT a.id AS application_id, a.ai_score, a.ai_analysis, a.ai_scorecard, a.phase_ai_analysis, a.employer_notes, now() AS copied_at
+  FROM public.applications a
+ WHERE a.ai_score IS NOT NULL
+    OR a.ai_analysis IS NOT NULL
+    OR a.ai_scorecard IS NOT NULL
+    OR a.phase_ai_analysis IS NOT NULL
+    OR a.employer_notes IS NOT NULL;
+REVOKE ALL ON TABLE private.application_evaluation_move_backup FROM PUBLIC, anon, authenticated;
+
 -- Then the applicant's rows lose them. Before the triggers below exist (they
 -- would move these NULLs over the copy), and without touching updated_at:
 -- clearing columns nobody can see any more is not activity on the
