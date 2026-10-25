@@ -61,7 +61,9 @@ address and put a job live under it. At its first Publish a business gets a
 - Changing the sign-in address ends the stamp until the new address is
   confirmed: the business cannot put another job live (or reopen a closed
   one) until it does. Jobs already live stay live; the check is for going
-  live.
+  live. Its AI day stays the full one while it has a job live (a job only
+  goes live through the check); with no job live it has the new-business
+  day (300) until it confirms (`ai_budget_take`, `20261025250000`).
 - The code is mailed to the address the database recorded it for, never to
   an address looked up again, so an address changed in between cannot get a
   code made for another (third Pass C review, 2026-10-25;

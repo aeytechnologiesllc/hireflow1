@@ -30,8 +30,9 @@ export function resumeFilesToRemove(candidateId: string, resumeUrl: unknown, not
   if (own && own.startsWith(`${candidateId}/`)) found.add(own);
   const escaped = candidateId.replace(/[-]/g, "\\-");
   // A file name may have spaces or accents ("Scan 2026"): a path runs to the
-  // next quote, backslash, angle bracket or line end (the fourth Phase 5 review).
-  for (const m of String(notes ?? "").matchAll(new RegExp(`${escaped}/[^"'\\\\<>\\r\\n]{1,400}`, "g"))) found.add(m[0].replace(/\s+$/, ""));
+  // next quote, backslash, angle bracket or line end (the fourth Phase 5
+  // review), and stops at a query or a list ("?token=", "&", ", next/path"; the fifth).
+  for (const m of String(notes ?? "").matchAll(new RegExp(`${escaped}/[^"'\\\\<>\\r\\n?#&,]{1,400}`, "g"))) found.add(m[0].replace(/\s+$/, ""));
   // Only a plain path inside their own folder: never "..", an empty segment
   // or another folder, whatever the notes (partly their own writing) say.
   const safe = (path: string) => path.startsWith(`${candidateId}/`) && !path.includes("..") && !path.includes("//") && !path.endsWith("/");

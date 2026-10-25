@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { callOpenAIJson, requireJsonKeys } from "../_shared/openai.ts";
 import { requireSignedInUser } from "../_shared/signedInUser.ts";
-import { hiringBusiness } from "../_shared/signedIn.ts";
+import { hiringBusiness, hiringBusinessRefusal } from "../_shared/signedIn.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
@@ -141,7 +141,7 @@ serve(async (req) => {
     // Phase 5 review).
     const business = await hiringBusiness(caller.userId);
     if (!business) {
-      return new Response(JSON.stringify({ error: "Only a hiring account can do this.", code: "not_a_business" }), {
+      return new Response(JSON.stringify({ error: await hiringBusinessRefusal(caller.userId), code: "not_a_business" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

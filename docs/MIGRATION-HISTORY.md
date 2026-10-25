@@ -418,6 +418,8 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025220000_remove_applicant_help_review2.sql` | `20261025074829` | `remove_applicant_help_review2` |
 | `20261025230000_phase5_review3.sql` | `20261025083800` | `phase5_review3` |
 | `20261025240000_phase5_review4.sql` | `20261025085354` | `phase5_review4` |
+| `20261025235000_application_evaluations.sql` | `20261025101542` | `application_evaluations` |
+| `20261025250000_phase5_review5.sql` | `20261025103724` | `phase5_review5` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.

@@ -156,8 +156,12 @@ for (const fn of ["ai-generate-document", "ai-analyze-document-fields"]) {
 {
   const helper = read("supabase/functions/_shared/signedIn.ts");
   const body = helper.slice(helper.indexOf("export async function hiringBusiness"));
-  check("document AI's business is the owner's own, or a teammate's who may send documents (never an applicant)", /r\.role === "employer"\)\) return userId;/.test(body) && /\.eq\("status", "active"\)\s*\.neq\("can_send_documents", false\)/.test(body) && /return typeof team\?\.employer_id === "string" \? team\.employer_id : null;/.test(body) && !/return userId;\s*\}\s*catch/.test(body));
+  check("document AI's business is the owner's own, or a teammate's who may send documents (never an applicant)", /r\.role === "employer"\)\) return userId;/.test(body) && /\.eq\("status", "active"\)\s*(\/\/[^\n]*\s*)?\.or\("can_send_documents\.is\.null,can_send_documents\.eq\.true"\)/.test(body) && /return typeof team\?\.employer_id === "string" \? team\.employer_id : null;/.test(body) && !/return userId;\s*\}\s*catch/.test(body));
 }
+// The fifth Phase 5 review: an unset permission reads as allowed (as in the app); a teammate is told why; a budget refusal reads plainly.
+check("…an unset send-documents permission reads as allowed, as the app's own check does", /useTeamMemberPermissions/.test(signedInTs.slice(signedInTs.indexOf("export async function hiringBusiness("))));
+check("a teammate without the permission is told their role does not include documents", /Your team role does not include sending documents/.test(signedInTs) && ["ai-generate-document", "ai-analyze-document-fields"].every((fn) => /error: await hiringBusinessRefusal\(caller\.userId\)/.test(read(`supabase/functions/${fn}/index.ts`))));
+check("a document budget refusal answers 503 with a plain sentence, and the wizard shows the server's sentence", /if \(isAiUnavailable\(error\)\)/.test(read("supabase/functions/ai-generate-document/index.ts")) && /status: 503/.test(read("supabase/functions/ai-generate-document/index.ts")) && /context\?\.clone\(\)\.json\(\)/.test(read("src/components/documents/DocumentWizard.tsx")));
 check("generate-flow checks the connection before the account, so a refused request costs the account nothing", read("supabase/functions/generate-flow/index.ts").indexOf('guardPublicAiCall(req, "generate-flow"') < read("supabase/functions/generate-flow/index.ts").indexOf('guardAuthenticatedAiCall("job-writing"'));
 check("the written interview bills the application's business even when its record could not be read", /const billedBusiness = serverRecord\?\.employerId\s*\?\? \(recordApplicationId && recordReader \? await employerOfApplication/.test(read("supabase/functions/ai-chat-interview/index.ts")) && !/business: serverRecord\?\.employerId \?\? null/.test(read("supabase/functions/ai-chat-interview/index.ts")));
 check("no AI function speaks of credits or funds to add (nothing is paid for while billing is off)", !/add funds|credits exhausted/i.test(read("supabase/functions/ai-generate-document/index.ts")));
@@ -232,6 +236,7 @@ await db.exec(read("supabase/migrations/20261025230000_phase5_review3.sql").spli
 await db.exec(`create table if not exists public.zz_verified (user_id uuid primary key);
   create or replace function public.business_email_verified(p_user uuid) returns boolean language sql stable as $$ select exists (select 1 from public.zz_verified v where v.user_id = p_user) or exists (select 1 from public.platform_admins a where a.user_id = p_user) $$;`);
 await db.exec(read("supabase/migrations/20261025240000_phase5_review4.sql"));
+await db.exec(read("supabase/migrations/20261025250000_phase5_review5.sql"));
 // The businesses the older checks below use have confirmed their email (they hire).
 await db.exec(`insert into public.zz_verified values ('${B_SHOP}'), ('${B_OTHER}') on conflict do nothing;`);
 const b_bcap = await db.query(`select value #>> '{}' as v from public.app_settings where key = 'ai_business_daily_call_cap'`);
@@ -297,6 +302,24 @@ check("the old one-argument function is gone (one budget function, no way round 
   check("…and the owner's alert names the setting that applies (ai_new_business_daily_call_cap)", alert.rows.length === 1 && /ai_new_business_daily_call_cap/.test(alert.rows[0].message) && !/ai_business_daily_call_cap/.test(alert.rows[0].message), JSON.stringify(alert.rows));
   await db.exec(`insert into public.zz_verified values ('${B_NEW}');`);
   check("…confirming its sign-in email does (the full day)", (await b_take(B_NEW)) === true);
+  // The fifth review: a business whose stamp lapsed (it changed its sign-in address) but has a job live keeps the full day.
+  const B_LIVE = "30000000-0000-4000-8000-00000000000a";
+  await db.exec(`insert into public.jobs (employer_id, status) values ('${B_LIVE}', 'published');`);
+  const live = [await b_take(B_LIVE), await b_take(B_LIVE), await b_take(B_LIVE)];
+  check("…a job live (only a confirmed business can publish one) keeps the full day after the stamp lapses", live.every(Boolean), JSON.stringify(live));
+  // ...and the two alerts are told apart: one for the new-business day, one for the full day, the same day.
+  const B_BOTH = "30000000-0000-4000-8000-00000000000b";
+  await db.exec(`update public.app_settings set value = '3'::jsonb where key = 'ai_business_daily_call_cap';`);
+  await b_take(B_BOTH); await b_take(B_BOTH); await b_take(B_BOTH);
+  await db.exec(`insert into public.zz_verified values ('${B_BOTH}');`);
+  await b_take(B_BOTH); await b_take(B_BOTH);
+  const both = (await db.query(`select message from public.notifications where title = 'A business reached its daily AI budget' and message like '%${B_BOTH}%'`)).rows;
+  check("…a business that hits the small day, confirms and hits the full day is reported twice, once for each", both.length === 2 && both.some((r) => /before confirming/.test(r.message)) && both.some((r) => !/before confirming/.test(r.message)), JSON.stringify(both));
+  const B_CAPPED = "30000000-0000-4000-8000-00000000000c";
+  await db.exec(`update public.app_settings set value = '1'::jsonb where key = 'ai_business_daily_call_cap'; update public.app_settings set value = '5'::jsonb where key = 'ai_new_business_daily_call_cap';`);
+  await b_take(B_CAPPED); await b_take(B_CAPPED);
+  const capped = (await db.query(`select message from public.notifications where message like '%${B_CAPPED}%'`)).rows[0]?.message ?? "";
+  check("…and when the business cap is the lower one, the alert names that setting (raising the other would change nothing)", /raise ai_business_daily_call_cap/.test(capped) && !/ai_new_business_daily_call_cap/.test(capped), capped);
   const owner = [await b_take(B_OWNER), await b_take(B_OWNER), await b_take(B_OWNER)];
   check("…a platform admin's business is never capped", owner.every(Boolean));
 }

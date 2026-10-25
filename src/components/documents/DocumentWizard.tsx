@@ -538,7 +538,18 @@ export function DocumentWizard({
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // The function's own sentence is in the response body, not on `data`
+        // (a non-2xx answer): show it rather than "non-2xx status code".
+        let message: string | null = null;
+        try {
+          const body = await (error as { context?: Response }).context?.clone().json();
+          message = typeof body?.error === "string" ? body.error : null;
+        } catch {
+          message = null;
+        }
+        throw message ? new Error(message) : error;
+      }
 
       setGeneratedContent(data.content);
       setCurrentStep(prev => prev + 1);

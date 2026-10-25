@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { callOpenAIChat, openAIErrorStatus } from "../_shared/openai.ts";
+import { callOpenAIChat, isAiUnavailable, openAIErrorStatus } from "../_shared/openai.ts";
 import { requireSignedInUser } from "../_shared/signedInUser.ts";
-import { hiringBusiness } from "../_shared/signedIn.ts";
+import { hiringBusiness, hiringBusinessRefusal } from "../_shared/signedIn.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
@@ -188,7 +188,7 @@ serve(async (req) => {
     // Phase 5 review).
     const business = await hiringBusiness(caller.userId);
     if (!business) {
-      return new Response(JSON.stringify({ error: "Only a hiring account can do this.", code: "not_a_business" }), {
+      return new Response(JSON.stringify({ error: await hiringBusinessRefusal(caller.userId), code: "not_a_business" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -325,6 +325,18 @@ Generate the complete, professionally formatted document now:`;
       });
       content = result.content;
     } catch (error) {
+      // The day's budget (the account's business, or the platform's) or the
+      // service itself said no: a plain answer the wizard shows (the fifth
+      // Phase 5 review: it reached the business as a bare server error).
+      if (isAiUnavailable(error)) {
+        const message = error.reason === "budget_reached"
+          ? "Ava's writing help for your account is used up for today. It starts again at midnight UTC; a new account gets the full day once it confirms its email (press Publish on a job)."
+          : "Writing documents is unavailable right now. Please try again in a few minutes.";
+        return new Response(JSON.stringify({ error: message, code: error.reason }), {
+          status: 503,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
       const status = openAIErrorStatus(error);
       console.error("AI API error:", status ?? "network/parse", error);
 

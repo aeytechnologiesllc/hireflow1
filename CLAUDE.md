@@ -205,10 +205,12 @@ these either; each has a guard or a test that CI runs:
   per connection for each; document AI (ai-generate-document,
   ai-analyze-document-fields) is for a business owner or a teammate who may
   send documents (`hiringBusiness`). Until a business confirms its sign-in
-  email with the 6-digit code (`business_email_verified`) it gets 300 AI calls
-  a day, not 2,000 (`ai_new_business_daily_call_cap`, `20261025240000`): with
-  email confirmation off and no Turnstile yet, any sign-up is a business, and
-  a job's status was no test (a job can be saved as closed unpublished).
+  email with the 6-digit code (`business_email_verified`), and while it has no
+  job live, it gets 300 AI calls a day, not 2,000
+  (`ai_new_business_daily_call_cap`, `20261025240000`, `20261025250000`): with
+  email confirmation off and no Turnstile yet, any sign-up is a business; a
+  job saved as closed is no test, a live job is (only a confirmed business can
+  publish one, so changing the sign-in address later keeps the full day).
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

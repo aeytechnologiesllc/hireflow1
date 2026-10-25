@@ -61,6 +61,26 @@ export async function jobWritingBusiness(userId: string): Promise<string | null>
  * third Phase 5 review), and a teammate without the permission could still
  * spend their business's day (the fourth).
  */
+/**
+ * Why hiringBusiness said no, in the caller's words: a teammate whose role
+ * does not include documents is told so, anyone else that it is for hiring
+ * accounts (the fifth Phase 5 review).
+ */
+export async function hiringBusinessRefusal(userId: string): Promise<string> {
+  const url = Deno.env.get("SUPABASE_URL");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  if (userId && url && serviceKey) {
+    try {
+      const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+      const { data: team } = await admin.from("team_members").select("employer_id").eq("user_id", userId).eq("status", "active").limit(1).maybeSingle();
+      if (team?.employer_id) return "Your team role does not include sending documents. Ask the account owner to turn it on.";
+    } catch {
+      // the general answer below
+    }
+  }
+  return "Only a hiring account can do this.";
+}
+
 export async function hiringBusiness(userId: string): Promise<string | null> {
   const url = Deno.env.get("SUPABASE_URL");
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -74,7 +94,8 @@ export async function hiringBusiness(userId: string): Promise<string | null> {
       .select("employer_id")
       .eq("user_id", userId)
       .eq("status", "active")
-      .neq("can_send_documents", false)
+      // An unset permission reads as allowed, as the app's own check does (useTeamMemberPermissions).
+      .or("can_send_documents.is.null,can_send_documents.eq.true")
       .limit(1)
       .maybeSingle();
     return typeof team?.employer_id === "string" ? team.employer_id : null;

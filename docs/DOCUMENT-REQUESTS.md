@@ -22,6 +22,9 @@ never approved was kept for good.
   while unset (opening it again never moves the deletion). No client can set
   or clear it; a new file from the applicant starts it over.
 - `document-cleanup` runs **every hour** (was daily), so 24 hours means 24.
+  When it cannot read the requests or cannot delete an ID file that is due,
+  the platform admins get one in-app notice a day ("ID papers were not deleted
+  on time"); it tries again on every run.
 - The team sees "Deleted in 23 h" and **Download a copy** (a link that saves
   the file). The applicant is told the same rule when they upload, and how
   long is left once it has been seen. The privacy page says it, and that a

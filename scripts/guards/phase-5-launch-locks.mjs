@@ -105,7 +105,8 @@ export default [
         const text = (await read(rel)) ?? "";
         const at = text.search(/create or replace function public\.ai_budget_take\(/i);
         if (at >= 0) {
-          latest = text.slice(at);
+          // Its code, not its comments or messages (the fifth review: a commented-out check passed).
+          latest = text.slice(at).replace(/--[^\n]*/g, "").replace(/'(?:[^']|'')*'/g, "''");
           latestFile = rel;
         }
       }
@@ -113,7 +114,8 @@ export default [
         detail.push(`${latestFile}: the live ai_budget_take no longer counts a business against its own cap`);
       }
       // A business that has not confirmed its email gets the smaller day (the third and fourth Phase 5 reviews).
-      if (!/if not public\.business_email_verified\(v_business\) then/.test(latest) || !/ai_new_business_daily_call_cap/.test(latest)) {
+      const raw = (await read(latestFile)) ?? "";
+      if (!/if not public\.business_email_verified\(v_business\)/.test(latest) || !/v_business_cap := least\(v_business_cap/.test(latest) || !/key = 'ai_new_business_daily_call_cap'/.test(raw)) {
         detail.push(`${latestFile}: the live ai_budget_take no longer gives an unconfirmed business the smaller day`);
       }
       return detail.length ? { ok: false, detail } : { ok: true };
