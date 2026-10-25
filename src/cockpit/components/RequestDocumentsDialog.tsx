@@ -280,7 +280,7 @@ export function RequestDocumentsDialog({ open, applicationId, onClose }: { open:
             </div>
             <div className="mt-3 flex gap-2.5 rounded-[12px] px-3 py-2.5 text-[12.5px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }}>
               <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              <span>Files are private: only you and {person ? first : "the applicant"} can open them, through a link that lasts five minutes, and every opening is recorded. IDs are deleted {ID_DELETE_HOURS_AFTER_OPENED} hours after you first open them (download a copy if you need to keep one), or after 7 days if you never do. Never ask for bank account numbers here; the payment email is enough to pay them on Wise or PayPal.</span>
+              <span>Files are private: only you and {person ? first : "the applicant"} can open them, through a link that lasts five minutes, and every opening is recorded. IDs are deleted {ID_DELETE_HOURS_AFTER_OPENED} hours after you first open them (download a copy if you need to keep one), or after 7 days if you never do. Never ask for bank account numbers here. If you pay through Wise or PayPal, the email they use there is enough.</span>
             </div>
           </div>
         </div>

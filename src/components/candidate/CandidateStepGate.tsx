@@ -22,6 +22,8 @@ interface GateJob {
   workflow_steps?: unknown;
   quiz_questions?: unknown;
   title?: string | null;
+  /** false: an on-site job, where only a connection check the business added puts a step on a computer. */
+  is_remote?: boolean | null;
 }
 
 /**
@@ -124,7 +126,7 @@ export default function CandidateStepGate({
     const load = async () => {
       const { data: app, error } = await supabase
         .from("applications")
-        .select("phase, status, notes, voice_interview_result, jobs:job_id ( workflow_steps, quiz_questions, title )")
+        .select("phase, status, notes, voice_interview_result, jobs:job_id ( workflow_steps, quiz_questions, title, is_remote )")
         .eq("id", applicationId)
         .maybeSingle();
 
@@ -145,6 +147,7 @@ export default function CandidateStepGate({
         workflow_steps: gateJob?.workflow_steps ?? [],
         quiz_questions: gateJob?.quiz_questions ?? [],
         title: gateJob?.title ?? null,
+        is_remote: gateJob?.is_remote ?? null,
       });
       setAppPhase(app.phase ?? null);
       setAppStatus(app.status ?? null);
@@ -203,7 +206,7 @@ export default function CandidateStepGate({
   // `phase` stays where the decision found it, so the step it was waiting
   // on still reads as reached, but it is never "continue on your computer".
   const thisStep = resolution.matched ? steps[resolution.index] : null;
-  const needsComputer = !!thisStep && stepNeedsComputer(steps, thisStep.id);
+  const needsComputer = !!thisStep && stepNeedsComputer(steps, thisStep.id, { onSite: job?.is_remote === false });
   const closed = appStatus === "rejected" || appStatus === "hired";
   const stepBehind =
     !!thisStep &&

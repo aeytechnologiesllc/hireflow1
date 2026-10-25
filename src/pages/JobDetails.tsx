@@ -1,3 +1,6 @@
+import { computerPartStartsAt } from "@/lib/deviceGate";
+import { buildCandidateJourney, type WorkflowStepLike } from "@/lib/candidateJourney";
+import { payWords } from "@/lib/jobPost";
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -213,18 +216,25 @@ export default function JobDetails() {
   // so this reads straight off the real, regenerated column type.
   const jobBenefits = job ? job.benefits : null;
 
+  // Said before they start (the Phase 7 product audit: a phone-only applicant
+  // found out at step 3): a remote job's tests are taken on a computer
+  // (docs/COMPUTER-ONLY-TESTS.md); an on-site job's are not.
+  const testsOnComputer = job
+    ? computerPartStartsAt(
+        buildCandidateJourney(((job.workflow_steps ?? []) as unknown) as WorkflowStepLike[], {
+          hasQuiz: Array.isArray(job.quiz_questions) && (job.quiz_questions as unknown[]).length > 0,
+        }),
+        { onSite: job.is_remote === false },
+      ) !== -1
+    : false;
 
-  const formatSalary = (min?: number | null, max?: number | null, currency?: string | null, period?: string | null) => {
-    if (!min && !max) return "Competitive Salary";
-    const curr = currency || "USD";
-    // "a month", not a bare number: a monthly 500 read as a yearly figure is
-    // the difference between applying and scrolling past.
-    const per = ({ HOUR: " an hour", DAY: " a day", WEEK: " a week", MONTH: " a month", YEAR: " a year" } as Record<string, string>)[(period || "").toUpperCase()] ?? "";
-    if (min && max && min === max) return `${curr} ${min.toLocaleString()}${per}`;
-    if (min && max) return `${curr} ${min.toLocaleString()} to ${max.toLocaleString()}${per}`;
-    if (min) return `${curr} ${min.toLocaleString()}+${per}`;
-    return `Up to ${curr} ${max?.toLocaleString()}${per}`;
-  };
+
+  // One way of saying pay everywhere (src/lib/jobPost.ts payWords): the
+  // currency the business named or none, cents kept, "a month" not a bare
+  // number (a monthly 500 read as yearly is the difference between applying
+  // and scrolling past).
+  const formatSalary = (min?: number | null, max?: number | null, currency?: string | null, period?: string | null) =>
+    payWords({ salary_min: min, salary_max: max, salary_currency: currency, salary_period: period }) ?? "Competitive Salary";
 
   const handleStartApplication = async () => {
     // Started by itself (the ?apply=1 return from sign-in): every move
@@ -578,7 +588,9 @@ export default function JobDetails() {
               </Button>
 
               <p className="text-xs text-center text-muted-foreground">
-                Your application will be reviewed by the hiring team
+                {testsOnComputer
+                  ? "You can start on your phone. The tests after the form are done on a computer."
+                  : "Your application will be reviewed by the hiring team"}
               </p>
             </>
           )}

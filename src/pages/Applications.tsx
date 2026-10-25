@@ -142,7 +142,9 @@ function getStatusChip(application: ApplicationWithJob, displayState: Applicatio
 function getGuidanceCopy(displayState: ApplicationDisplayState): string | null {
   if (displayState.showActionButton) {
     const estimate = phaseDurationEstimates[displayState.phaseType]?.label;
-    return estimate ? `Your turn — about ${estimate}.` : "Your turn — pick this up when you're ready.";
+    if (!estimate) return "Your turn — pick this up when you're ready.";
+    // "Under 1 min" reads as its own phrase ("about Under 1 min" did not).
+    return /^under\b/i.test(estimate) ? `Your turn — it takes ${estimate.toLowerCase()}.` : `Your turn — about ${estimate}.`;
   }
   // An interview with the team takes the whole card (InterviewHero): no
   // line about it here.

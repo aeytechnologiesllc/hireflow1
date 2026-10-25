@@ -1,5 +1,5 @@
 /** Deterministic template generator — guaranteed fallback when OpenAI / edge fn unavailable. */
-import { JOB_KIND_ID, detectFamily } from "./playbook";
+import { detectFamily } from "./playbook";
 import { applyCustomerServicePack } from "./customerService";
 import { bankForFamily } from "./questionBanks";
 import {
@@ -18,24 +18,24 @@ function take<T>(arr: T[], n: number): T[] {
   return arr.slice(0, Math.min(n, arr.length));
 }
 
+/**
+ * A plain post in whole sentences. The place, the pay, the work mode and the
+ * openings are the job's own fields, shown beside the post, so they are not
+ * repeated in it; the business's answers to Ava's questions are for the
+ * plan, never pasted into the post (the Phase 7 product audit: "Key context:
+ * Phone; Medical or dental office; Two or three", "Work mode: onsite" and
+ * "Nice to have: Openings: 1" were on public posts).
+ */
 function buildJobPost(brief: GenerateFlowRequest["brief"]): JobPost {
   const title = brief.roleTitle;
+  const whatTheyDo = (brief.whatTheyDo ?? "").trim();
+  const sentence = whatTheyDo && !/[.!?]$/.test(whatTheyDo) ? `${whatTheyDo}.` : whatTheyDo;
   return {
     title,
-    summary: `${brief.whatTheyDo} ${brief.location ? `· ${brief.location}` : ""} · ${brief.pay}`.trim(),
-    responsibilities: [
-      brief.whatTheyDo,
-      `Work mode: ${brief.workMode.replace("_", "-")}`,
-      `Start: ${brief.startUrgency.replace("_", " ")}`,
-    ],
-    requirements: [
-      "Reliable attendance and clear communication",
-      // Ava's own "What kind of job is it?" is for the plan, never the post (the fifth Phase 4 review).
-      brief.followUps.some((f) => f.questionId !== JOB_KIND_ID)
-        ? `Key context: ${brief.followUps.filter((f) => f.questionId !== JOB_KIND_ID).map((f) => f.answer).join("; ")}`
-        : "Relevant experience welcome",
-    ],
-    niceToHaves: [`Openings: ${brief.openings}`],
+    summary: sentence,
+    responsibilities: sentence ? [sentence] : [],
+    requirements: ["Clear, friendly communication", "Reliable attendance", "Relevant experience is welcome"],
+    niceToHaves: [],
   };
 }
 

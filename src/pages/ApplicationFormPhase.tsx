@@ -1148,7 +1148,14 @@ export default function ApplicationFormPhase() {
       if (application.status !== "pending") {
         const candidateName =
           profile?.full_name?.trim() || user?.user_metadata?.full_name || user?.email || "A candidate";
-        void notifyApplicationSubmitted(application.job_id, application.candidate_id, candidateName);
+        // More steps after this one (the journey has the form, the decision and
+        // something between): the email says to continue, never "submitted, we
+        // will get back to you" (the Phase 7 product audit: applicants on a
+        // phone stopped after step 1 of 5, thinking they were done).
+        void notifyApplicationSubmitted(application.job_id, application.candidate_id, candidateName, {
+          applicationId: application.id,
+          moreSteps: journeyStep.total > 2,
+        });
       }
 
       // Handle autopilot mode. The answers are stored; which step opens next

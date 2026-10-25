@@ -80,7 +80,7 @@ export default function CandidatePortalLanding() {
               { step: 1, icon: KeyRound, title: "Get a job code", desc: "The employer shares a code or an apply link for the role" },
               { step: 2, icon: UserRound, title: "Create a free account", desc: "With your email — it takes a moment and keeps your progress safe" },
               { step: 3, icon: ClipboardCheck, title: "Apply", desc: "A few questions, your resume, and any steps the employer added" },
-              { step: 4, icon: MessageSquare, title: "Get a yes or no", desc: "Sign in anytime to see where things stand. Everyone who finishes every step gets a yes or no by email." },
+              { step: 4, icon: MessageSquare, title: "Get a yes or no", desc: "Sign in anytime to see where things stand. When the hiring team decides, you get their answer by email." },
             ].map(({ step, icon: Icon, title, desc }) => (
               <div key={step} className="flex items-start gap-4 border-t pt-4 first:border-t-0 first:pt-0" style={{ borderColor: "var(--hf-border-strong)" }}>
                 <span

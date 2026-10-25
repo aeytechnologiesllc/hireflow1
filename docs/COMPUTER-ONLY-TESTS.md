@@ -36,9 +36,22 @@ use.
     under 600 (every iPhone is 440 or less, every iPad 744 or more), else a
     tablet, with or without a trackpad.
 - The gate applies to the job's **first `equipment_check` step and every step
-  after it** in the journey. A job with no connection check gates its first
-  typing test, chat practice, sales practice, written or voice interview, and
-  everything after it (the same "tests that matter" set).
+  after it** in the journey. A **remote** job with no connection check gates
+  its first typing test, chat practice, sales practice, written or voice
+  interview, and everything after it (the same "tests that matter" set).
+- **An on-site job** (`jobs.is_remote` false; hybrid jobs too) **gates nothing
+  unless its business added a connection check** (2026-10-25, the Phase 7
+  product audit). Its work is done on the business's own computer, which an
+  applicant cannot use before they are hired: a phone-only applicant to a
+  dental front desk was told to continue on "the computer you'd use for this
+  job" and could never finish. The rule's reason (test on the machine they
+  will work on) does not reach an office computer. One option in both rules
+  (`onSite` in `src/lib/deviceGate.ts` and `_shared/deviceKind.ts`), passed
+  from the job by CandidateStepGate, the server gate (`ownJourneySteps`
+  reads `is_remote`), submit-typing-test and ava-voice-session.
+- The job page says it before they start: on a job whose rule puts tests on
+  a computer, under Apply, "You can start on your phone. The tests after the
+  form are done on a computer."
 - On a gated step, a phone or tablet sees ONE screen instead of the test:
   "Continue on your computer". It says, in plain words: this part needs the
   computer you will work on; on that computer, go to

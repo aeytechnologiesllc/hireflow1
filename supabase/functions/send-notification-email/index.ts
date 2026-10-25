@@ -128,6 +128,8 @@ interface NotificationRequest {
     document_name?: string;
     message_preview?: string;
     company_name?: string;
+    /** application_received: "1" when the form was the first of several steps. */
+    more_steps?: string;
     rejection_reason?: string;
     proposed_times?: string;
     proposed_times_list?: string[];
@@ -291,16 +293,34 @@ const getEmailContent = (
     },
     
     // CANDIDATE-FACING
-    application_received: {
-      subject: `Application Submitted: ${data.job_title}`,
-      html: wrapEmail(
-        "Application Submitted",
-        `<p>Your application for <strong>${esc(data.job_title)}</strong> has been successfully submitted.</p>
-         <p style="color: #666;">The hiring team will review your application and get back to you. You can track your application status in your dashboard.</p>`,
-        "Track Application",
-        candidateLink("/applications")
-      ),
-    },
+    // The form is often the first of several steps: then it says what is
+    // left, never "submitted, we'll get back to you" (the Phase 7 product
+    // audit: applicants stopped after step 1, thinking they were done).
+    application_received: data.more_steps === "1"
+      ? {
+          subject: `Next steps for your ${data.job_title} application`,
+          html: wrapEmail(
+            "Your application is not finished yet",
+            `<p>We have your answers for <strong>${esc(data.job_title)}</strong>. Thank you.</p>
+             <p>Your application has more steps, and they are waiting for you. The hiring team decides once you have done them, so please finish them soon.</p>`,
+            "Continue my application",
+            candidateLink(
+              /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.application_id ?? "")
+                ? `/applications/${data.application_id}`
+                : "/applications",
+            )
+          ),
+        }
+      : {
+          subject: `Application Submitted: ${data.job_title}`,
+          html: wrapEmail(
+            "Application Submitted",
+            `<p>Your application for <strong>${esc(data.job_title)}</strong> has been successfully submitted.</p>
+             <p style="color: #666;">The hiring team will review your application and get back to you. You can track your application status in your dashboard.</p>`,
+            "Track Application",
+            candidateLink("/applications")
+          ),
+        },
     
     // CANDIDATE-FACING
     phase_advanced: {

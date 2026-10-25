@@ -160,13 +160,16 @@ export async function notifyApplicationReceived(
   jobTitle: string,
   companyName?: string,
   applicationId?: string,
+  moreSteps = false,
 ): Promise<EmailStatus> {
   // The application itself, so two jobs with the same title at two
   // businesses can't be mixed up (the server signs it with that job's business).
+  // moreSteps: the form was the first step of several, so the email says to continue.
   return sendNotificationEmail("application_received", candidateId, {
     job_title: jobTitle,
     company_name: companyName,
     application_id: applicationId,
+    ...(moreSteps ? { more_steps: "1" } : {}),
   });
 }
 
@@ -386,7 +389,8 @@ export async function notifyNewMessage(
 export async function notifyApplicationSubmitted(
   jobId: string,
   candidateId: string,
-  candidateName: string
+  candidateName: string,
+  options: { applicationId?: string; moreSteps?: boolean } = {},
 ): Promise<void> {
   try {
     const { data: job, error: jobError } = await supabase
@@ -406,7 +410,7 @@ export async function notifyApplicationSubmitted(
     const companyName = employerProfile?.company_name?.trim() || undefined;
 
     await Promise.all([
-      notifyApplicationReceived(candidateId, job.title, companyName),
+      notifyApplicationReceived(candidateId, job.title, companyName, options.applicationId, options.moreSteps === true),
       notifyNewApplication(job.employer_id, candidateName || "A candidate", job.title),
     ]);
   } catch (err) {

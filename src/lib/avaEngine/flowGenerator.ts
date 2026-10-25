@@ -216,7 +216,10 @@ async function callEdgeFunction(req: GenerateFlowRequest): Promise<JobFlow> {
   // it out. Bound it so a stall surfaces as an ordinary failure and falls through to
   // the template flow below, same as any other generate-flow error.
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 18000);
+  // 40 s: the writer often needs more than the old 18, and every stop here
+  // put the plain template post on a business's public job (the Phase 7
+  // product audit).
+  const timeout = window.setTimeout(() => controller.abort(), 40000);
   let res: Response;
   try {
     res = await fetch(`${SB_URL}/functions/v1/generate-flow`, {

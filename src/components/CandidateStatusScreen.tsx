@@ -193,7 +193,7 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
                 </Button>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">Included at no charge — read it anytime.</p>
+            <p className="text-xs text-muted-foreground">Yours to keep — read it anytime.</p>
           </div>
         )}
       </CardContent>

@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft } from "lucide-react";
 import type { LegalBlock, LegalDocument } from "@/content/legal";
 import { usePageHead } from "@/components/seo/usePageHead";
+import { isStaffHost } from "@/lib/hosts";
 
 /**
  * One legal page: the Privacy Policy or the Terms and Conditions
@@ -38,7 +39,12 @@ export function LegalPage({ document: doc, other }: { document: LegalDocument; o
           <button
             type="button"
             className="inline-flex items-center gap-1.5 rounded-md py-1 font-medium text-[#17150F] hover:underline"
-            onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/"))}
+            // A tab with no history (the sign-up opens the policy in a new
+            // tab): the front page itself, by a full load (the server serves
+            // it at "/"), never the app's "/", which forwards to the
+            // platform's own open role (the Phase 7 product audit). The staff site's "/"
+            // is its sign-in doorway.
+            onClick={() => (window.history.length > 1 ? navigate(-1) : isStaffHost() ? navigate("/") : window.location.assign("/"))}
           >
             <ArrowLeft className="h-4 w-4" aria-hidden />
             Back

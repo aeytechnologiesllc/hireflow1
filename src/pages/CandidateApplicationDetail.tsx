@@ -595,7 +595,7 @@ export default function CandidateApplicationDetail() {
   // left there gets no promise of one).
   // And what a yes looks like: the video call must never be a surprise to
   // someone who was told the job is chat only (FINALIST_LINE).
-  let guidanceMessage = `Everyone who finishes every step gets a yes or no by email. ${FINALIST_LINE}`;
+  let guidanceMessage = `When the hiring team decides, you get their answer by email. ${FINALIST_LINE}`;
   let guidanceIcon: "clock" | null = null;
   if (standing.kind === "take") {
     const duration = phaseDurationEstimates[currentPhase.type];

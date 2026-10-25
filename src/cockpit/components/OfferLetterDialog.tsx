@@ -284,7 +284,12 @@ export function OfferLetterDialog({
     setReportsTo((now) => now || kept.reportsTo || "");
     setSignerTitle((now) => now || kept.signerTitle || "");
     if (kept.payEvery !== undefined) setPayEvery(kept.payEvery);
-    if (kept.workerType) setWorkerType(kept.workerType);
+    // An on-site job starts as an employee on the business's own equipment;
+    // the remote defaults (contractor, own computer, own taxes) are for work
+    // from home (the Phase 7 product audit: a dental office's front-desk
+    // offer called its employee a contractor on their own computer).
+    setWorkerType(kept.workerType ?? (person.jobRemote ? OFFER_DEFAULTS.workerType : "employee"));
+    setOwnEquipment(person.jobRemote ? OFFER_DEFAULTS.ownEquipment : false);
     if (kept.schedule) setSchedule(kept.schedule);
     if (typeof kept.trialDays === "number") setTrialDays(kept.trialDays);
     if (typeof kept.noticeDays === "number") setNoticeDays(kept.noticeDays);

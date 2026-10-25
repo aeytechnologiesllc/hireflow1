@@ -410,14 +410,19 @@ export async function stepAccessFor(
 
 /** The job's own steps, in order, for the caller's OWN application. Null
  *  when it cannot be read or the application is not theirs. */
-async function ownJourneySteps(admin: AssessmentAdmin, applicationId: string, userId: string): Promise<WorkflowStepLike[] | null> {
+async function ownJourneySteps(
+  admin: AssessmentAdmin,
+  applicationId: string,
+  userId: string,
+): Promise<{ steps: WorkflowStepLike[]; onSite: boolean } | null> {
   const res = await settle(() =>
-    admin.from("applications").select("candidate_id, jobs:job_id ( workflow_steps )").eq("id", applicationId).maybeSingle(),
+    admin.from("applications").select("candidate_id, jobs:job_id ( workflow_steps, is_remote )").eq("id", applicationId).maybeSingle(),
   );
   if (res.error || !isPlainObject(res.data)) return null;
   if (res.data.candidate_id !== userId) return null;
-  const steps = asObject(res.data.jobs).workflow_steps;
-  return buildCandidateJourney((Array.isArray(steps) ? steps : []) as WorkflowStepLike[]);
+  const job = asObject(res.data.jobs);
+  const steps = job.workflow_steps;
+  return { steps: buildCandidateJourney((Array.isArray(steps) ? steps : []) as WorkflowStepLike[]), onSite: job.is_remote === false };
 }
 
 /**
@@ -452,6 +457,9 @@ export interface ComputerGateRequest {
   /** The journey, when the caller already loaded it for an application it
    *  verified is theirs; otherwise read here (and the ownership checked). */
   steps?: readonly WorkflowStepLike[] | null;
+  /** With `steps`: the job is on-site (jobs.is_remote false), so only a
+   *  connection check the business added puts anything on a computer. */
+  onSite?: boolean;
   /** false for a request that begins a new run or has no attempt to
    *  continue (the typing start, the sales chat): refused on a gated step
    *  whatever the attempt. Default true. */
@@ -475,11 +483,14 @@ export async function computerOnlyGate(
   if (!needsComputer(kind)) return "go";
   if (!admin || !request || !request.userId) return "refuse";
   let steps = request.steps;
+  let onSite = request.onSite === true;
   if (steps === undefined) {
-    steps = await ownJourneySteps(admin, request.applicationId, request.userId);
-    if (!steps) return "refuse";
+    const own = await ownJourneySteps(admin, request.applicationId, request.userId);
+    if (!own) return "refuse";
+    steps = own.steps;
+    onSite = own.onSite;
   }
-  if (stepNeedsComputer(steps, request.stepId) === false) return "go";
+  if (stepNeedsComputer(steps, request.stepId, { onSite }) === false) return "go";
   if (request.continuable === false) return "refuse";
 
   const access = await stepAccessFor(admin, { applicationId: request.applicationId, stepId: request.stepId, userId: request.userId });

@@ -1016,7 +1016,7 @@ export default function CandidateAuth() {
                       set off from the form by a hairline like a signature block. */}
                   <div className="mt-6 pt-4 border-t border-[var(--hf-border)] text-center space-y-2">
                     <p className="text-xs" style={{ color: "var(--hf-text-muted)" }}>
-                      One home for every application. Everyone who finishes every step gets a yes or no by email.
+                      One home for every application. When a hiring team decides, you get their answer by email.
                     </p>
                     <p className="text-sm text-muted-foreground">
                       Hiring team?{" "}

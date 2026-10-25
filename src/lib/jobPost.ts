@@ -20,17 +20,28 @@ export interface PayFields {
   salary_period?: string | null;
 }
 
-/** "USD 500 a month", "PHP 20,000 to 25,000 a month", or null when the job names no pay. */
+/** 20000 → "20,000"; 18.5 → "18.50". */
+function amount(n: number): string {
+  return n.toLocaleString("en-US", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 });
+}
+
+/**
+ * "USD 500 a month", "PHP 20,000 to 25,000 a month", "From USD 18 an hour",
+ * or null when the job names no pay. No currency is guessed: a job whose pay
+ * names none shows the figure alone (it used to read "USD", so a peso salary
+ * showed as dollars; the Phase 7 product audit).
+ */
 export function payWords(job: PayFields): string | null {
-  const min = job.salary_min ?? null;
-  const max = job.salary_max ?? null;
+  const min = job.salary_min != null ? Number(job.salary_min) : null;
+  const max = job.salary_max != null ? Number(job.salary_max) : null;
   if (!min && !max) return null;
-  const curr = (job.salary_currency || "USD").toUpperCase();
+  const curr = String(job.salary_currency || "").trim().toUpperCase();
+  const money = (n: number) => (curr ? `${curr} ${amount(n)}` : amount(n));
   const per = PER[(job.salary_period || "").toUpperCase()] ?? "";
-  if (min && max && min === max) return `${curr} ${min.toLocaleString("en-US")}${per}`;
-  if (min && max) return `${curr} ${min.toLocaleString("en-US")} to ${max.toLocaleString("en-US")}${per}`;
-  if (min) return `${curr} ${min.toLocaleString("en-US")}+${per}`;
-  return `Up to ${curr} ${(max as number).toLocaleString("en-US")}${per}`;
+  if (min && max && min === max) return `${money(min)}${per}`;
+  if (min && max) return `${money(min)} to ${amount(max)}${per}`;
+  if (min) return `From ${money(min)}${per}`;
+  return `Up to ${money(max as number)}${per}`;
 }
 
 /** "full-time" → "Full-time"; "part_time" → "Part-time". */

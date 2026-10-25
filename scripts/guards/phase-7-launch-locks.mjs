@@ -24,6 +24,9 @@
  *   - phase-7-low-fixes-hold: strong server-made invite codes, the blueprint
  *     PDF for a signed-in account only, the geocode lookup limited, no late
  *     video result on a decided application.
+ *   - product-audit-fixes-hold: the product audit's fixes that no test
+ *     reads: posts that print each list once, a fallback post in sentences,
+ *     the first-step email that says what is left, the legal page's Back.
  */
 
 /** The body of the last migration (by file name) that defines public.<fn>, with its file. */
@@ -251,6 +254,29 @@ export default [
       const video = strip(await ctx.read("supabase/functions/complete-video-intro/index.ts"));
       const decided = video.search(/\["offered", "hired", "rejected"\]\.includes\(String\(\(appRow as \{ status\?: unknown \}\)\.status\)\)\) \{\s*return jsonResponse\(/);
       if (decided < 0 || decided > video.search(/await recordStepResult\(/)) detail.push("supabase/functions/complete-video-intro/index.ts: a decided application must be refused before the result is recorded");
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "product-audit-fixes-hold",
+    why:
+      "The Phase 7 product audit: builder posts printed every list twice; the fallback post put raw notes on public " +
+      "posts (\"Key context: Phone; Medical or dental office\", \"Work mode: onsite\", \"Openings: 1\"); applicants " +
+      "were emailed \"submitted, we'll get back to you\" after step 1 of 5; Back from a legal page opened HireFlow's own job.",
+    run: async ({ read }) => {
+      const detail = [];
+      const strip = (t) => (t ?? "").replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+      const flow = strip(await read("src/lib/jobFromFlow.ts"));
+      const compose = flow.slice(flow.indexOf("function composeDescription"), flow.indexOf("function composeDescription") + 1200);
+      if (/What you'll do:|What we're looking for:|jobPost\.responsibilities\.map|jobPost\.requirements\.map/.test(compose)) detail.push("src/lib/jobFromFlow.ts: composeDescription writes the responsibilities or requirements into the description again (they are printed from their own columns)");
+      const template = strip(await read("src/lib/avaEngine/templateGenerator.ts"));
+      if (/Key context:|Work mode:|`Start: |Openings: /.test(template)) detail.push("src/lib/avaEngine/templateGenerator.ts: the fallback post puts raw notes on the public post again");
+      const email = strip(await read("supabase/functions/send-notification-email/index.ts"));
+      if (!/application_received: data\.more_steps === "1"/.test(email)) detail.push("send-notification-email: the first-step email no longer says what is left");
+      const form = strip(await read("src/pages/ApplicationFormPhase.tsx"));
+      if (!/moreSteps: journeyStep\.total > 2,/.test(form)) detail.push("src/pages/ApplicationFormPhase.tsx: the submitted email is no longer told when more steps follow");
+      const legal = strip(await read("src/components/LegalPage.tsx"));
+      if (/navigate\(-1\) : navigate\("\/"\)\)/.test(legal) || !/window\.location\.assign\("\/"\)/.test(legal)) detail.push("src/components/LegalPage.tsx: Back from a tab with no history goes to the app's \"/\" (HireFlow's own job) again");
       return { ok: detail.length === 0, detail };
     },
   },

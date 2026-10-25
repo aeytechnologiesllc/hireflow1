@@ -48,6 +48,7 @@ const NOT_THE_CHECK = {
   "20261025300000_ai_budget_own_jobs.sql": "ai_budget_take gives HireFlow's own jobs their own day; it reads business_email_verified as before and changes nothing of jobs, profiles or the check",
   "20261025310000_notification_and_message_limits.sql": "limits on notifications and messages a browser writes; nothing of jobs, profiles or the check",
   "20261025320000_team_invite_codes_stronger.sql": "team invite codes only; nothing of jobs, profiles or the check",
+  "20261025330000_salary_keeps_cents.sql": "jobs' pay columns (numeric) and the public jobs view rebuilt from its own definition; nothing of the check",
   "20261025270000_phase5_review6.sql": "the AI budget's new-business day only when smaller (no change to the check)",
   "20261025250000_phase5_review5.sql": "the AI budget reads business_email_verified and live jobs (no change to either); nothing of jobs, profiles or the check's tables",
   "20261025260000_drop_evaluation_move_backup.sql": "drops the evaluations move's private backup; nothing of jobs, profiles or the check's tables",

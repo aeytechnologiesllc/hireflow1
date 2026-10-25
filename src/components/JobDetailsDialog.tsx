@@ -1,3 +1,4 @@
+import { payWords } from "@/lib/jobPost";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -32,13 +33,9 @@ export default function JobDetailsDialog({
 }: JobDetailsDialogProps) {
   if (!job) return null;
 
-  const formatSalary = (min?: number | null, max?: number | null, currency?: string | null) => {
-    if (!min && !max) return "Competitive";
-    const curr = currency || "USD";
-    if (min && max) return `${curr} ${min.toLocaleString()} - ${max.toLocaleString()}`;
-    if (min) return `${curr} ${min.toLocaleString()}+`;
-    return `Up to ${curr} ${max?.toLocaleString()}`;
-  };
+  // The same pay words as the job page (src/lib/jobPost.ts payWords).
+  const formatSalary = (min?: number | null, max?: number | null, currency?: string | null, period?: string | null) =>
+    payWords({ salary_min: min, salary_max: max, salary_currency: currency, salary_period: period }) ?? "Competitive";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -65,7 +62,7 @@ export default function JobDetailsDialog({
               </div>
               <div className="flex items-center gap-2 text-muted-foreground">
                 <DollarSign className="h-4 w-4" />
-                <span>{formatSalary(job.salary_min, job.salary_max, job.salary_currency)}</span>
+                <span>{formatSalary(job.salary_min, job.salary_max, job.salary_currency, (job as { salary_period?: string | null }).salary_period)}</span>
               </div>
               {job.experience_level && (
                 <div className="flex items-center gap-2 text-muted-foreground">

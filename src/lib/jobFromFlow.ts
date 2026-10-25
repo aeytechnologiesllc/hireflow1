@@ -173,18 +173,18 @@ export async function fetchEmployerCompanyName(employerId: string): Promise<stri
   return name ? name : null;
 }
 
-/** Build a non-empty job description from the post (description is NOT NULL). */
+/**
+ * Build a non-empty job description from the post (description is NOT NULL).
+ * The summary and the nice-to-haves only: responsibilities and requirements
+ * are saved in their own columns, which the job page, the copied post and
+ * the job feeds print under their own headings. Writing them here too
+ * printed every list twice (the Phase 7 product audit).
+ */
 function composeDescription(flow: JobFlow, brief: JobBrief): string {
   const { jobPost } = flow;
   const parts: string[] = [];
   if (jobPost.summary?.trim()) parts.push(jobPost.summary.trim());
 
-  if (jobPost.responsibilities?.length) {
-    parts.push("What you'll do:\n" + jobPost.responsibilities.map((r) => `• ${r}`).join("\n"));
-  }
-  if (jobPost.requirements?.length) {
-    parts.push("What we're looking for:\n" + jobPost.requirements.map((r) => `• ${r}`).join("\n"));
-  }
   if (jobPost.niceToHaves?.length) {
     parts.push("Nice to have:\n" + jobPost.niceToHaves.map((r) => `• ${r}`).join("\n"));
   }

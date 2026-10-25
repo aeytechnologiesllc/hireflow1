@@ -164,6 +164,7 @@ interface JobRow {
   processing_mode: string | null;
   workflow_steps: unknown;
   quiz_questions: unknown;
+  is_remote?: boolean | null;
 }
 
 interface ApplicationRow {
@@ -219,7 +220,7 @@ Deno.serve(async (req) => {
     // confirm the candidate has actually reached this step — fetch once.
     const { data: appData, error: appError } = await admin
       .from("applications")
-      .select("id, candidate_id, phase, status, notes, jobs:job_id ( required_wpm, processing_mode, workflow_steps, quiz_questions )")
+      .select("id, candidate_id, phase, status, notes, jobs:job_id ( required_wpm, processing_mode, workflow_steps, quiz_questions, is_remote )")
       .eq("id", applicationId)
       .maybeSingle();
 
@@ -235,7 +236,7 @@ Deno.serve(async (req) => {
       return jsonResponse({ error: "Application has been rejected" }, 400);
     }
 
-    const job = application.jobs ?? { required_wpm: null, processing_mode: null, workflow_steps: [], quiz_questions: [] };
+    const job = application.jobs ?? { required_wpm: null, processing_mode: null, workflow_steps: [], quiz_questions: [], is_remote: null };
     const workflowSteps = (job.workflow_steps ?? []) as WorkflowStepLike[];
     const quizQuestions = job.quiz_questions as unknown[] | undefined;
     const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
@@ -279,7 +280,7 @@ Deno.serve(async (req) => {
     const requestDevice = deviceKindOfRequest(req, payload);
     const phoneRefused = async (continuable: boolean): Promise<boolean> =>
       needsComputer(requestDevice) &&
-      (await computerOnlyGate(record, requestDevice, { applicationId, stepId, userId: user.id, purpose: "submit", steps, continuable })) === "refuse";
+      (await computerOnlyGate(record, requestDevice, { applicationId, stepId, userId: user.id, purpose: "submit", steps, onSite: job.is_remote === false, continuable })) === "refuse";
 
     if (payload.action === "start") {
       // Every start is a new run with its own clock, so a phone or tablet

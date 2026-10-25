@@ -519,8 +519,8 @@ console.log("\nWhat the interview is, said before anyone has to ask");
   // "From now on in the beginning": the screen after the last test.
   check("everyone who finishes the tests is told what a yes leads to", C.FINALIST_LINE === "Finalists are invited to one last step: a short interview with the hiring team, usually a video call.");
   const next = await read("src/components/candidate/NextStepCard.tsx");
-  check("…on the 'You've finished every step' screen", /you'll get a yes or no by email\. \$\{FINALIST_LINE\}`/.test(next));
-  check("…and on their application's own page", /`Everyone who finishes every step gets a yes or no by email\. \$\{FINALIST_LINE\}`/.test(detail));
+  check("…on the 'You've finished every step' screen", /when they decide, you get their answer by email\. \$\{FINALIST_LINE\}`/.test(next));
+  check("…and on their application's own page", /`When the hiring team decides, you get their answer by email\. \$\{FINALIST_LINE\}`/.test(detail));
 
   const mail = await read("src/utils/emailNotifications.ts");
   check("the invitation email is told the kind and the length, as fixed words", /\.\.\.\(about \? \{ interview_kind: interviewKindPhrase\(about\.interviewType\) \} : \{\}\),\s*\.\.\.\(length \? \{ interview_length: length \} : \{\}\),/.test(mail));

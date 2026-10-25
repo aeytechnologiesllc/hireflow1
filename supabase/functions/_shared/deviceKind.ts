@@ -197,13 +197,19 @@ export const TESTS_THAT_MATTER: readonly string[] = ["typing_test", "chat_simula
  * (docs/COMPUTER-ONLY-TESTS.md): the job's first `equipment_check` step and
  * every step after it; with no check, its first test that matters (typing,
  * chat or sales practice, written or voice interview) and every step after
- * it. `steps` is the journey in order (buildCandidateJourney, or the job's
- * own workflow_steps: the stages it adds are never gated). Null when the
- * step is not in it; callers treat that as gated.
+ * it, on a remote job only (`onSite`: jobs.is_remote is false). An on-site
+ * job's work is done on the business's own computer, which an applicant
+ * cannot use before they are hired, so with no connection check the
+ * business added nothing of it is computer-only (the Phase 7 product audit:
+ * a phone-only applicant to a dental front desk could never finish). `steps`
+ * is the journey in order (buildCandidateJourney, or the job's own
+ * workflow_steps: the stages it adds are never gated). Null when the step is
+ * not in it; callers treat that as gated.
  */
 export function stepNeedsComputer(
   steps: readonly ({ id?: unknown; type?: unknown } | null | undefined)[] | null | undefined,
   stepId: string,
+  options: { onSite?: boolean } = {},
 ): boolean | null {
   const list = (Array.isArray(steps) ? steps : []).filter(
     (s): s is { id: string; type: string } => !!s && typeof s.id === "string" && !!s.id && typeof s.type === "string" && !!s.type,
@@ -211,7 +217,10 @@ export function stepNeedsComputer(
   const at = list.findIndex((s) => s.id === stepId);
   if (at === -1) return null;
   let gate = list.findIndex((s) => s.type === "equipment_check");
-  if (gate === -1) gate = list.findIndex((s) => TESTS_THAT_MATTER.includes(s.type));
+  if (gate === -1) {
+    if (options.onSite) return false;
+    gate = list.findIndex((s) => TESTS_THAT_MATTER.includes(s.type));
+  }
   return gate !== -1 && at >= gate;
 }
 

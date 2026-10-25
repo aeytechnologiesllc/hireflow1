@@ -99,6 +99,12 @@ export default defineConfig(({ mode }) => ({
           // both sign-ups then fetched the whole PDF and charts code before
           // showing the form (the Phase 7 growth audit, 2026-10-25).
           if (id.includes("/src/lib/pdfWorker")) return "vendor-pdf";
+          // The scenario packs carry every skills-check answer and grading
+          // note. Left to the size rule they shared a chunk with the dialog
+          // component, so the public job page downloaded them on every visit
+          // (the Phase 7 product audit). Their own chunk loads only where the
+          // builder, the interview guide or Ava's engine needs them.
+          if (id.includes("/src/content/scenarioPacks/")) return "scenario-packs";
           const pkg = id.match(/.*node_modules\/((?:@[^/]+\/)?[^/]+)\//)?.[1];
           if (!pkg) return undefined;
           for (const [chunk, pkgs] of Object.entries(VENDOR_CHUNKS)) if (pkgs.includes(pkg)) return chunk;

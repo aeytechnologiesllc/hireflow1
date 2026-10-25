@@ -241,7 +241,7 @@ export default function CockpitTeam() {
         {/* right: permissions matrix */}
         <div className="ck-card p-4">
           <div className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 600, lineHeight: 1.15, letterSpacing: "-0.01em" }}>Permissions at a glance</div>
-          <p className="mt-0.5 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>See what each role can do in Hireflow.</p>
+          <p className="mt-0.5 text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>See what each role can do in HireFlow.</p>
 
           {/* Not .ck-scroll: that class is for a box that scrolls up and down
               (it sets overflow-x: hidden and takes only up-and-down swipes), so

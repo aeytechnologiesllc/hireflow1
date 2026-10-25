@@ -91,7 +91,7 @@ export default function CockpitMore() {
       <div className="ck-card flex items-center gap-3 p-4" onClick={() => navigate("/analytics")}>
         <div className="min-w-0">
           <div className="font-display text-[19px] leading-tight" style={{ color: "var(--hf-text)", fontWeight: 500 }}>Ava is watching your pipeline</div>
-          <button className="mt-1.5 flex items-center gap-1 text-[13px]" style={{ color: "var(--hf-gold)" }}>View recommendations<ChevronRight className="h-3.5 w-3.5" /></button>
+          <button className="mt-1.5 flex items-center gap-1 text-[13px]" style={{ color: "var(--hf-gold)" }}>See your numbers<ChevronRight className="h-3.5 w-3.5" /></button>
         </div>
       </div>
 

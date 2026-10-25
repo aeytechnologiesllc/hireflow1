@@ -986,6 +986,37 @@ session stops mid-phase (say exactly where).
     provider has no HTTPS; the public branding list and a deleted
     applicant's signed copies are by design for now. The many-accounts
     budget drain needs Turnstile (the owner's keys).
+- **Phase 7, task 1: the product audit (a new business, an applicant on a
+  phone), fixed:**
+  - Pay on the public job page: pesos (PHP, ₱) and the Philippines are
+    known, one figure is the pay itself ("from" only when the text says so),
+    cents kept (jobs.salary_min/max numeric, `salary_keeps_cents`,
+    20261025123012; the public jobs view rebuilt from its own definition,
+    dry-run live first), a missing period follows the currency's habit, the
+    "m" of "monthly" is never a million, and no currency is guessed (USD was).
+  - Phone-only applicants can finish on-site jobs: an on-site job puts
+    nothing on a computer unless its business added a connection check (its
+    work is on the business's computer); a remote job's page says before
+    Apply that the tests are done on a computer.
+  - Builder posts print each list once; the fallback post is whole
+    sentences (no "Key context", "Work mode", "Openings"); the writer gets
+    40 s, not 18; the review step says when the post is a plain draft.
+  - The email after the form says what is left when more steps follow.
+  - The skills-check answers have their own chunk: no applicant page
+    downloads them (the job page did, through a chunk shared with the dialog).
+  - The old editor's claims (auto-reject, quiz counts, a missing menu), the
+    offer letter's remote defaults on an on-site job, the ID note's payment
+    line, Back from a legal page (opened the owner's job), the "yes or no by
+    email" promise on every business's behalf, and the wording nits.
+  - Left, with reasons: the per-business AI cap (2,000 a day, maybe 60-100
+    finished applicants; raising it is a cost decision for the owner); the
+    landing's story and "chat and phone" claim (owner inputs already);
+    an address field for in-person interviews and a preview of the pack's
+    questions in the builder (features for a later round); every business in
+    one industry sharing the pack's five questions (by design for now); the
+    resume PDF turned into images on a phone; the location lookup's provider
+    (OpenStreetMap's Nominatim) now refuses our server (403), so jobs fall
+    back to the typed place; a keyed geocoder is an owner choice.
 
 ### 2026-10-25 (afternoon) — staff columns shipped; Phase 4 round 7; Phase 5 round 5; Phase 6 round 3; npm
 

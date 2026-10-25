@@ -27,7 +27,7 @@ export interface ResumeApplicationLike {
   status?: string | null;
   notes?: unknown;
   voice_interview_result?: unknown;
-  jobs?: { workflow_steps?: unknown; quiz_questions?: unknown } | null;
+  jobs?: { workflow_steps?: unknown; quiz_questions?: unknown; is_remote?: boolean | null } | null;
 }
 
 export interface StepWaitingOnComputer {
@@ -60,7 +60,7 @@ export function stepWaitingOnComputer(
       notes: parseApplicationNotes(app.notes) as Record<string, unknown>,
       voiceInterviewResult: app.voice_interview_result,
     });
-    if (standing.kind !== "take" || !stepNeedsComputer(steps, standing.step.id)) continue;
+    if (standing.kind !== "take" || !stepNeedsComputer(steps, standing.step.id, { onSite: app.jobs?.is_remote === false })) continue;
     const route = stepRoute(app.id, standing.step);
     if (route) waiting.push({ applicationId: app.id, step: standing.step, route });
   }

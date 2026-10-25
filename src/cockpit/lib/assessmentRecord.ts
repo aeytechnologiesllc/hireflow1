@@ -2657,7 +2657,7 @@ export function buildAssessmentRecord(app: AssessmentAppInput | null | undefined
       Number.isFinite(waitingMs) &&
       inProgress &&
       (i === position.index || retakeOpen) &&
-      stepNeedsComputer(journey, step.id) &&
+      stepNeedsComputer(journey, step.id, { onSite: (app.jobs as { is_remote?: unknown } | null | undefined)?.is_remote === false }) &&
       !(live && TAKING_NOW.has(live.state)) &&
       attempts.all.every((a) => (toMillis(a.last_activity_at) ?? toMillis(a.started_at) ?? 0) < waitingMs)
         ? waitingLiveStatus(waiting!, step, now)

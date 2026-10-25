@@ -263,7 +263,7 @@ serve(async (req) => {
 
       const { data: interviewApplication, error: interviewApplicationError } = await adminClient
         .from("applications")
-        .select("id, candidate_id, job_id, phase, status, voice_interview_duration, jobs!inner(employer_id, workflow_steps)")
+        .select("id, candidate_id, job_id, phase, status, voice_interview_duration, jobs!inner(employer_id, workflow_steps, is_remote)")
         .eq("id", applicationId)
         .single();
 
@@ -314,7 +314,7 @@ serve(async (req) => {
         const voiceStepId = typeof voiceRequest.stepId === "string" && voiceRequest.stepId.trim()
           ? voiceRequest.stepId.trim()
           : (interviewWorkflowSteps.find((s) => s?.type === "voice_interview")?.id ?? "");
-        if (stepNeedsComputer(interviewWorkflowSteps, voiceStepId) !== false) {
+        if (stepNeedsComputer(interviewWorkflowSteps, voiceStepId, { onSite: (interviewApplication.jobs as { is_remote?: unknown } | null)?.is_remote === false }) !== false) {
           return new Response(
             JSON.stringify(computerRequiredBody(voiceDevice)),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },

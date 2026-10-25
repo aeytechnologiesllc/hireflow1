@@ -121,6 +121,17 @@ async function main() {
       const heavy = chunk ? [...(await staticClosure(chunk))].filter((f) => /^vendor-(pdf|charts|editor|stripe)-/.test(f)) : ["(no chunk)"];
       check(`${page} loads no PDF, charts, editor or payments code before it shows`, heavy.length === 0, heavy.join(", "));
     }
+    // The skills-check answers live in their own chunk, and no applicant page
+    // loads it (the Phase 7 product audit: the job page downloaded every
+    // answer and grading note through a chunk it shared with the dialog).
+    const answerChunks = [];
+    for (const f of jsNames) if ((await readFile(path.join(assets, f), "utf8")).includes("correct_answer")) answerChunks.push(f);
+    check("the scenario packs (answers) are in a chunk of their own", answerChunks.some((f) => f.startsWith("scenario-packs-")), answerChunks.join(", "));
+    for (const page of ["Auth", "CandidateAuth", "JobDetails", "OpenJobs", "ApplicationFormPhase", "QuizPhase", "ChatSimulationPhase"]) {
+      const chunk = jsNames.find((f) => f.startsWith(`${page}-`));
+      const loaded = chunk ? [...(await staticClosure(chunk))].filter((f) => f.startsWith("scenario-packs-")) : ["(no chunk)"];
+      check(`${page} never downloads the skills-check answers`, loaded.length === 0, loaded.join(", "));
+    }
   } finally {
     await rm(outDir, { recursive: true, force: true });
   }

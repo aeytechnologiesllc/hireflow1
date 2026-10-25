@@ -427,6 +427,7 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025300000_ai_budget_own_jobs.sql` | `20261025121138` | `ai_budget_own_jobs` |
 | `20261025310000_notification_and_message_limits.sql` | `20261025121142` | `notification_and_message_limits` |
 | `20261025320000_team_invite_codes_stronger.sql` | `20261025122545` | `team_invite_codes_stronger` |
+| `20261025330000_salary_keeps_cents.sql` | `20261025123012` | `salary_keeps_cents` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.

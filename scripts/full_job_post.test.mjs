@@ -43,7 +43,11 @@ const LEAD = "It's all online, on your computer. Apply here:";
 // --- pay, as the job states it ------------------------------------------------
 eq("a monthly figure", lib.payWords({ salary_min: 500, salary_max: 500, salary_currency: "USD", salary_period: "MONTH" }), "USD 500 a month");
 eq("a range", lib.payWords({ salary_min: 20000, salary_max: 25000, salary_currency: "php", salary_period: "MONTH" }), "PHP 20,000 to 25,000 a month");
-eq("from", lib.payWords({ salary_min: 5, salary_currency: "USD", salary_period: "HOUR" }), "USD 5+ an hour");
+eq("from", lib.payWords({ salary_min: 5, salary_currency: "USD", salary_period: "HOUR" }), "From USD 5 an hour");
+// The Phase 7 product audit: cents kept, no currency guessed.
+eq("an hourly rate keeps its cents", lib.payWords({ salary_min: 18.5, salary_max: 18.5, salary_currency: "USD", salary_period: "HOUR" }), "USD 18.50 an hour");
+eq("no currency named: the figure alone, never USD", lib.payWords({ salary_min: 20000, salary_max: 20000, salary_period: "MONTH" }), "20,000 a month");
+eq("a numeric column read as text still counts", lib.payWords({ salary_min: "18.50", salary_max: "18.50", salary_currency: "USD", salary_period: "HOUR" }), "USD 18.50 an hour");
 eq("up to", lib.payWords({ salary_max: 900, salary_currency: "USD", salary_period: "MONTH" }), "Up to USD 900 a month");
 eq("no pay named", lib.payWords({}), null);
 eq("job type words", [lib.jobTypeWords("full-time"), lib.jobTypeWords("part_time"), lib.jobTypeWords(""), lib.jobTypeWords(null)].join("|"), "Full-time|Part-time||");

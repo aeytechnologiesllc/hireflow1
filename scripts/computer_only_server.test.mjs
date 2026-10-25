@@ -328,6 +328,10 @@ check(
   COMPUTER_STEP_TYPES.size === TESTS_THAT_MATTER.length + 1 && COMPUTER_STEP_TYPES.has("equipment_check") && TESTS_THAT_MATTER.every((t) => COMPUTER_STEP_TYPES.has(t)),
 );
 check("a job with no check and no test puts nothing on a computer", stepNeedsComputer(JOB_NO_TESTS, "wf-video") === false);
+// The Phase 7 product audit: an on-site job is done on the business's computer.
+check("an on-site job with no connection check puts nothing on a computer", stepNeedsComputer(JOB_NO_CHECK, "wf-sales", { onSite: true }) === false && stepNeedsComputer(JOB_NO_CHECK, "wf-voice", { onSite: true }) === false);
+check("…an on-site job whose business added a connection check keeps the rule from the check on", stepNeedsComputer(JOB_WITH_CHECK, "wf-typing", { onSite: true }) === true && stepNeedsComputer(JOB_WITH_CHECK, "wf-chat-early", { onSite: true }) === false);
+check("…a step that is not in the journey is still treated as gated (null)", stepNeedsComputer(JOB_NO_CHECK, "nope", { onSite: true }) === null);
 check("a step not in the journey → null (callers treat it as gated)", stepNeedsComputer(JOB_WITH_CHECK, "wf-nope") === null && stepNeedsComputer(null, "wf-typing") === null);
 check("the job's raw workflow_steps give the same answer (the stages the journey adds are never gated)", stepNeedsComputer(JOB_WITH_CHECK.slice(2, 7), "wf-typing") === true && stepNeedsComputer(JOB_WITH_CHECK.slice(2, 7), "wf-chat-early") === false);
 check(
@@ -537,7 +541,7 @@ const importsGate = (text) => /from "\.\.\/_shared\/deviceKind\.ts"/.test(text) 
 {
   const text = await source("submit-typing-test");
   check("submit-typing-test reads the headers and the page's reading", importsGate(text) && text.includes("deviceKindOfRequest(req, payload)"));
-  check("submit-typing-test: the gate is for THIS caller, with the journey it already loaded", text.includes("computerOnlyGate(record, requestDevice, { applicationId, stepId, userId: user.id, purpose: \"submit\", steps, continuable })"));
+  check("submit-typing-test: the gate is for THIS caller, with the journey it already loaded (and where the job is done)", text.includes("computerOnlyGate(record, requestDevice, { applicationId, stepId, userId: user.id, purpose: \"submit\", steps, onSite: job.is_remote === false, continuable })") && text.includes("workflow_steps, quiz_questions, is_remote )"));
   const startFrom = text.indexOf('if (payload.action === "start") {');
   check("submit-typing-test start: a new run (continuable false), refused before the attempt is resolved", startFrom !== -1 && before(text, "await phoneRefused(false)", "await resolveRecord()", startFrom));
   check("submit-typing-test start: refused before the start row (the timer) is written", startFrom !== -1 && before(text, "await phoneRefused(false)", '.from("typing_test_starts")', startFrom));
@@ -611,7 +615,7 @@ const importsGate = (text) => /from "\.\.\/_shared\/deviceKind\.ts"/.test(text) 
   check("ava-voice-session reads the headers and the page's reading", importsGate(text));
   check(
     "ava-voice-session: FINDING 6, a phone interview start on a gated voice step is refused before any session is minted",
-    before(text, "stepNeedsComputer(interviewWorkflowSteps, voiceStepId) !== false", "hasSubscriptionBypassForUser(") && before(text, "computerRequiredBody(voiceDevice)", "voiceOwnerUserId = (interviewApplication.jobs"),
+    before(text, "stepNeedsComputer(interviewWorkflowSteps, voiceStepId, { onSite: (interviewApplication.jobs as { is_remote?: unknown } | null)?.is_remote === false }) !== false", "hasSubscriptionBypassForUser(") && before(text, "computerRequiredBody(voiceDevice)", "voiceOwnerUserId = (interviewApplication.jobs"),
   );
 }
 {

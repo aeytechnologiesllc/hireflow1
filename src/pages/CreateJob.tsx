@@ -188,10 +188,10 @@ const WIZARD_STEPS = [
 const DIFFICULTY_ORDER = ["easy", "medium", "hard", "intense"] as const;
 
 const DIFFICULTY_OPTIONS = [
-  { value: "easy", label: "Easy", description: "Quick screening (8-10 quiz questions)", icon: Clock, color: "text-action", borderColor: "border-action", bgColor: "bg-action/10", shadowColor: "shadow-action/20" },
-  { value: "medium", label: "Medium", description: "Balanced evaluation (12-15 quiz questions)", icon: Target, color: "text-action-bright", borderColor: "border-action-bright", bgColor: "bg-action-bright/10", shadowColor: "shadow-action-bright/20" },
-  { value: "hard", label: "Hard", description: "Intensive screening (18-25 quiz questions)", icon: Flame, color: "text-brass", borderColor: "border-brass", bgColor: "bg-brass/10", shadowColor: "shadow-brass/20" },
-  { value: "intense", label: "Intense", description: "Maximum rigor (25-30 quiz questions)", icon: Gauge, color: "text-destructive", borderColor: "border-destructive", bgColor: "bg-destructive/10", shadowColor: "shadow-destructive/20" },
+  { value: "easy", label: "Easy", description: "Quick screening, a short skills check", icon: Clock, color: "text-action", borderColor: "border-action", bgColor: "bg-action/10", shadowColor: "shadow-action/20" },
+  { value: "medium", label: "Medium", description: "Balanced evaluation", icon: Target, color: "text-action-bright", borderColor: "border-action-bright", bgColor: "bg-action-bright/10", shadowColor: "shadow-action-bright/20" },
+  { value: "hard", label: "Hard", description: "Intensive screening", icon: Flame, color: "text-brass", borderColor: "border-brass", bgColor: "bg-brass/10", shadowColor: "shadow-brass/20" },
+  { value: "intense", label: "Intense", description: "Maximum rigor", icon: Gauge, color: "text-destructive", borderColor: "border-destructive", bgColor: "bg-destructive/10", shadowColor: "shadow-destructive/20" },
 ];
 
 import { Mic } from "lucide-react";
@@ -2746,7 +2746,7 @@ export default function CreateJob() {
                           <AvaSeal size={16} className="shrink-0 mt-0.5" />
                           <div>
                             <span className="font-medium text-foreground">Autopilot default:</span>{" "}
-                            Ava scores every candidate against this threshold and can advance or reject automatically when the evidence is clear.
+                            Ava scores every candidate against this threshold and moves those who pass on to the next step by herself. She never declines anyone: your team does.
                           </div>
                         </div>
                         <div className="flex items-start gap-2">
@@ -3235,9 +3235,6 @@ export default function CreateJob() {
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
                         {applicationQuestions.length} application questions • {quizQuestions.length} assessment questions • {workflowSteps.length} screening steps
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-3">
-                        Use "View Screening Plan" from the job menu to see full details
                       </p>
                     </div>
                   </CardContent>

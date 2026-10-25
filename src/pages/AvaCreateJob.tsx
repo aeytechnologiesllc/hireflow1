@@ -94,6 +94,11 @@ const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["acc
  *  type. "written interview" also lands on the chat mark (glyphForKind). */
 const KIND_LABEL: Record<string, string> = {
   voice_interview: "written interview",
+  // The engine's "quiz" and "simulation" in the words the rest of the app
+  // uses (the Phase 7 product audit); each still lands on its own mark in
+  // glyphForKind ("scenario", "chat").
+  quiz: "scenario questions",
+  simulation: "chat practice",
 };
 
 function flowToReviewCards(flow: JobFlow): ReviewPhaseCard[] {
@@ -685,7 +690,7 @@ export default function AvaCreateJob() {
                   <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
                     <span className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · Question {fuIndex + 1} of {followUps.length}</span>
                     <span className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-action-bright))", border: "1px solid hsl(var(--primary) / 0.22)" }}>
-                      <AvaSeal size={11} /> Tailored to a {playbook.label} role
+                      <AvaSeal size={11} /> {playbook.label === "this role" ? "Tailored to this role" : `Tailored to ${/^[aeiou]/i.test(playbook.label) ? "an" : "a"} ${playbook.label} role`}
                     </span>
                     <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>{fu.question}</h2>
                     <div className="mt-7 flex flex-wrap justify-center gap-2.5">
@@ -758,6 +763,14 @@ export default function AvaCreateJob() {
                     </span>
                     <h2 className="mt-3 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Here's your hiring plan.</h2>
                     <p className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>Reorder, tweak, or remove anything — then publish.</p>
+                    {/* The template stood in for the writer (it took too long or
+                        failed): say so, the post is a plain first draft (the
+                        Phase 7 product audit: only the header's colour told). */}
+                    {genSource === "template" && (
+                      <p className="mx-auto mt-3 max-w-md text-[13px]" style={{ color: "hsl(var(--ck-brass))" }}>
+                        The job post is a short first draft this time. After you publish, read it on the job page and edit the wording from Jobs.
+                      </p>
+                    )}
                   </div>
                   <div className="mt-7">
                     {reviewCards.map((p, i) => (

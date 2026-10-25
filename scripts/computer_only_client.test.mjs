@@ -141,6 +141,15 @@ for (const test of TESTS_THAT_MATTER) {
   check("…and a job with no steps at all gates nothing", gatedTypes(journey([], false)).length === 0);
 }
 {
+  // The Phase 7 product audit: an on-site job is done on the business's computer.
+  const onSite = { onSite: true };
+  const noCheck = journey(["typing_test", "chat_simulation", "chat_interview"]);
+  check("an on-site job with no connection check puts nothing on a computer", computerPartStartsAt(noCheck, onSite) === -1 && noCheck.every((s) => !stepNeedsComputer(noCheck, s.id, onSite)));
+  check("…the same job remote still puts its first test and every step after it on a computer", computerPartStartsAt(noCheck) !== -1 && stepNeedsComputer(noCheck, noCheck.find((s) => s.type === "chat_simulation").id));
+  const withCheck = journey(["equipment_check", "chat_simulation"]);
+  check("…an on-site job whose business added a connection check keeps the rule from the check on", stepNeedsComputer(withCheck, withCheck.find((s) => s.type === "chat_simulation").id, onSite) === true);
+}
+{
   const steps = journey(["equipment_check", "typing_test"]);
   check("the application form is never gated, even asked by its own id", stepNeedsComputer(steps, "application") === false);
   check("the skills check is never gated", stepNeedsComputer(steps, "quiz") === false);
@@ -343,7 +352,7 @@ console.log("\nThe wiring — read from the source:\n");
   const screen = await read("src/components/candidate/ContinueOnComputer.tsx");
   const decide = gate.indexOf("needsComputer && kindNeedsComputer(deviceKind)");
   const children = gate.lastIndexOf("{children}");
-  check("the gate decides with the shared rule and the shared reading", /stepNeedsComputer\(steps, thisStep\.id\)/.test(gate) && /readThisDevice\(\)/.test(gate));
+  check("the gate decides with the shared rule and the shared reading", /stepNeedsComputer\(steps, thisStep\.id, \{ onSite: job\?\.is_remote === false \}\)/.test(gate) && /readThisDevice\(\)/.test(gate) && /jobs:job_id \( workflow_steps, quiz_questions, title, is_remote \)/.test(gate));
   check("…BEFORE the step page mounts (the screen is returned in place of children)", decide !== -1 && children !== -1 && decide < children && /<ContinueOnComputer\b/.test(gate));
   check("…and a gated step waits for the reading, so a phone never mounts it first", /if \(needsComputer && deviceKind === null\)/.test(gate));
   check("…a step behind them on a phone gets the live 'where things stand' card, not 'continue'", /stepBehind && !refusedHere/.test(gate) && /<NextStepCard\b/.test(gate));

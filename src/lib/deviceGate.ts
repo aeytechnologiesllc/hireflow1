@@ -62,11 +62,28 @@ function stepsOf(journeySteps: readonly (StepLike | null | undefined)[] | null |
   );
 }
 
-/** Pure: the index of the step where the computer-only part begins, or -1 when the job has none. */
-export function computerPartStartsAt(journeySteps: readonly (StepLike | null | undefined)[] | null | undefined): number {
+/** Where the job is done: an on-site job (jobs.is_remote false) is done on the business's own computer. */
+export interface WorkplaceOptions {
+  onSite?: boolean;
+}
+
+/**
+ * Pure: the index of the step where the computer-only part begins, or -1
+ * when the job has none. An on-site job has none unless the business added
+ * a connection check: its work is done on the business's computer, which an
+ * applicant cannot use before they are hired (the Phase 7 product audit: a
+ * phone-only applicant to a dental front desk was told to continue on "the
+ * computer you'd use for this job" and could never finish). The server's
+ * rule is the same (`stepNeedsComputer` in supabase/functions/_shared/deviceKind.ts).
+ */
+export function computerPartStartsAt(
+  journeySteps: readonly (StepLike | null | undefined)[] | null | undefined,
+  options: WorkplaceOptions = {},
+): number {
   const steps = stepsOf(journeySteps);
   const check = steps.findIndex((s) => s.type === CONNECTION_CHECK_TYPE);
   if (check !== -1) return check;
+  if (options.onSite) return -1;
   return steps.findIndex((s) => TESTS_THAT_MATTER.includes(s.type));
 }
 
@@ -79,12 +96,13 @@ export function computerPartStartsAt(journeySteps: readonly (StepLike | null | u
 export function stepNeedsComputer(
   journeySteps: readonly (StepLike | null | undefined)[] | null | undefined,
   stepId: string | null | undefined,
+  options: WorkplaceOptions = {},
 ): boolean {
   if (!stepId) return false;
   const steps = stepsOf(journeySteps);
   const at = steps.findIndex((s) => s.id === stepId);
   if (at === -1 || OPEN_ON_ANY_DEVICE.has(steps[at].type)) return false;
-  const start = computerPartStartsAt(steps);
+  const start = computerPartStartsAt(steps, options);
   return start !== -1 && at >= start;
 }
 
