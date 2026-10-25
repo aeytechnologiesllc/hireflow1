@@ -907,6 +907,52 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (midday) — Phase 4 rounds 5–6; Phase 5 rounds 3–4; Phase 6 rounds 1–2; staff columns built
+
+- **Phase 4, Pass C round 5** (936ea681): the guess reads the title's role
+  phrase ("Recruiter - BPO" is a recruiter); a voice brief asks the kind of
+  job before building; call questions in the pack's word ("a patient is
+  angry"); more look-alike labels folded. **Round 6** found three
+  regressions from it (phone titles read as chat, "Remote - Customer Support
+  Agent" and reversed titles not guessed, the voice confirm step dropping the
+  voice session) plus 6 more groups; fixed in 47ff0529: titles read in parts,
+  the channel read channel by channel, the voice session kept through the
+  confirm step and the screening level following the answer, help desk
+  analysts, after-sales agents, customer advisors and clinic words in;
+  pet-friendly offices, band bookers, counter and gate work and admin support
+  out; "Dr." ends no sentence; native digits with colon-like marks, uncased
+  labels and spaced-out labels neutralised. 141 new checks (127 fail on the
+  old code). ai-chat-simulation, ai-chat-interview and interview-guide
+  redeployed. Round 7 running, ranked by how common the wording is (the guess
+  is one click's default).
+- **Phase 5, Pass C rounds 3–4** (aacb8521, c88399bc): the help reply bell
+  rang only the owner again (a regression from round 2's migration; the test
+  now replays every Help migration in order); document AI for hiring accounts
+  only; a smaller AI day for a new business (300) until it confirms its
+  sign-in email (a job status was no test: "closed" without publishing got
+  the full 2,000). Migrations phase5_review3 (20261025083800) and
+  phase5_review4 (20261025085354), checked live in rolled-back probes. Round 5
+  running.
+- **Phase 6, Pass C rounds 1–2** (d725d9de, 569bff95): the team-lead hire is
+  the owner's own business, never "HireFlow's own team"; the build refuses
+  more (misspelt or repeated keys, an empty `draft:`, links to unpublished
+  guides however written, slugs the page counter hides, "https:x.com",
+  noncharacters); a future-dated draft no longer breaks deploys; every button
+  carries its page and a visitor's own campaign tags win. The age guide told
+  businesses to doubt the 18-or-older rule HireFlow enforces on every job: it
+  now says HireFlow requires it and why (RA 9231, no work 10 p.m.-6 a.m.
+  under 18), and every "a person makes every decision" names that check. The
+  three job writers now drop age, birth-date and marital-status questions and
+  age limits (`_shared/ageWording.ts`, test `age_wording.test.mjs`); deployed.
+  An unchecked "$500 a month" left the cost draft (still in public git
+  history). Round 3 running.
+- **Phase 7, task 6 (staff columns), built on a branch, not shipped:** the
+  worker's branch moves the five hiring-team columns into
+  `application_evaluations`; merged with main, full suite green (216 guards,
+  166 tests); a private backup of the moved values added (dropped after the
+  live check). Fresh review running; ships only after it, migration first,
+  then the eight functions and the front end together.
+
 ### 2026-10-25 (morning) — Phase 6 built and live; Phase 5 round 2; Phase 4 round 4
 
 - **Phase 6, built and live (docs/BLOG.md):** scripts/build-blog.mjs turns
