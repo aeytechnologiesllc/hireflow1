@@ -99,6 +99,24 @@ If one item blocks for more than two honest attempts, log it under "Open" in
 the phase's log entry with what was tried, and move on. Do not loop on a
 single stuck item for hours; the loop is for the phase, not the item.
 
+**Models.** The owner picks this session's model himself in the app's model
+menu (a session may not re-price its own turns); he uses a high-reasoning
+model for planning and review and a building model for the phases. Pick the
+model for helpers yourself: cheap models for wide read-only sweeps, the
+session's own model for anything that designs or writes code. Note in each
+Progress log entry which model did the phase.
+
+**Session start.** Besides `git fetch`, read `git log` since the last Progress
+log entry: another session may have landed work without logging it.
+Reconcile the log before continuing. If the dev server logs "Invalid hook
+call" from framer-motion or a page shows "Something went wrong" only in
+dev, the Vite dependency cache is stale: `rm -rf node_modules/.vite` and
+restart; it is not an app bug.
+
+**Owner interruptions.** When the owner changes a decision mid-phase, update
+the plan first (the phase's text and the log), then the code, so the plan
+never lags what was built.
+
 ### Repo rules that already exist (keep them)
 
 - Before touching the clone: `git fetch origin && git status -sb`.
@@ -205,12 +223,19 @@ audit found, where, and what "fixed" means.
      `src/cockpit/lib/integrityCards.ts`, `src/cockpit/pages/Applicants.tsx`),
      and `src/cockpit/pages/Messages.tsx:282-292, 476` where a raw `file_url`
      becomes an href;
-   - a Content-Security-Policy header in `vercel.json` for both hosts
-     (`default-src 'self'`; allow the Supabase project URL, Resend/Daily/
-     OpenAI endpoints the browser actually calls, Google Fonts, and inline
-     styles as needed). Build the list from the network tab, then verify
-     every screen in the dev preview under the CSP with zero console
-     violations.
+   - a Content-Security-Policy header in `vercel.json` for both hosts.
+     Roll it out in two steps so it cannot break a live applicant mid-test:
+     first `Content-Security-Policy-Report-Only` with `report-uri` pointing
+     at the `client-errors` function for at least 24 hours of real traffic,
+     then enforce once the report is clean. Build the allow-list from the
+     network tab, not from memory: the Supabase project URL (REST, auth,
+     realtime websocket, storage), Daily's iframe and media (`frame-src`,
+     `connect-src`), the ffmpeg wasm and PDF workers (`worker-src blob:`,
+     `'wasm-unsafe-eval'`), Google Fonts, the web-push service worker, and
+     the landing's own inline script and style (hash them; do not reach
+     for `'unsafe-inline'` on scripts). Verify every dev-preview screen and
+     every candidate phase page under the enforced policy with zero
+     console violations.
 2. **Applicants can re-run and steer their AI score (medium, confirmed).**
    `supabase/functions/trigger-ava-analysis/index.ts`: `force:true` from an
    applicant bypasses reuse (:892) and the already-rejected check (:2037); no
@@ -282,6 +307,17 @@ audit found, where, and what "fixed" means.
    only if the sign-up/invite pages call them signed out (check).
 8. **Re-run the Supabase security advisor** after the migrations and clear
    what it still flags where it is right.
+9. **Inventory of what is reachable without sign-in.** List every edge
+   function with `verify_jwt = false` in `supabase/config.toml` and every
+   `api/*.mjs` route, with one line each on why it is public and what
+   limits it. Put the list in docs/BACKEND-SCHEMA.md and lock it with a
+   guard: a new public function must be added to the allow-list in the
+   guard, with its reason, or the build fails.
+10. **Profiles.** Check the "Employers can view applicant profiles" policy
+    and `can_view_applicant_profile`: a business must only read the
+    profiles (phone, email, address) of people who applied to its own jobs,
+    and an applicant must not read other applicants or any business owner's
+    personal row. Prove it in PGlite.
 
 ### Verification (Pass B specifics)
 
@@ -419,13 +455,44 @@ before its job goes live; the share step is not OnlineJobs.ph-only.
 
 **Goal:** one brand, one colour direction, a front page that sells
 customer-service hiring to any business and sends every visitor to one
-button.
+button, and an applicants list whose "where they are" column reads at a
+glance.
 
-Colour: **brass/gold on black and ivory** (the owner was shown brass,
-terracotta and plum on 2026-10-24 and liked the plan that named brass; proceed
-with brass unless he says otherwise). The brass mark already exists at
-`branding/backup-icon-flow.png` ("Direction 5"); update BRANDING.md, whose
-"DO NOT REVIVE" section is about the old orb icon, not brass.
+**Colour (decision pending the owner's lock; recommendation below).** The
+landing is already black, ivory and brass; the owner likes it. The green he
+dislikes is the *app*: the jade action colour (`--jade`, `--primary`,
+`--hf-green`, `--ck-jade`), the jade "aurora" layer and the green-tinted
+backdrop on the sign-up page. Real screens were recoloured on 2026-10-24
+and shown to him (`design/mockups/2026-10-24-colour-and-rail/`): brass as
+the action colour, and "ink and ivory" with brass kept as an accent.
+
+Recommended direction: **Ink and ivory, brass accent.** Actions are
+monochrome (ink buttons on ivory paper by day, ivory buttons on near-black
+at night, which is what the landing's own "Start hiring free" button already
+is); **brass is reserved** for Ava's seal, the sealed score, "hired", and
+anything that costs money (the cockpit's existing rule, `cockpit.css:194`).
+No jade anywhere; no new accent colour. Reasons: it matches the landing
+without reading "casino" the way gold-on-black does inside a daily tool, it
+is calm for all-day use, and it keeps brass meaningful. Day (paper) becomes
+the default for the staff app, with Night one tap away; the sign-up page
+follows the same tokens. Do not start the colour work until the owner has
+said "lock it" on this (or named another); the mock-ups are the reference.
+
+The brass mark exists at `branding/backup-icon-flow.png` ("Direction 5");
+update BRANDING.md, whose "DO NOT REVIVE" section is about the old orb icon,
+not brass.
+
+**"Where they are" column (decided 2026-10-24: Option C).** The applicants
+list (`src/cockpit/pages/Applicants.tsx`, `src/cockpit/lib/applicantList.ts`)
+draws an 11-dot dashed rail per row; the owner: "I don't like how these
+weird dots appear." Replace it with four milestones, Applied → Tested →
+Interview → Hired, as small solid dots on a line, the current one larger and
+bright, with the step detail ("Testing · 8 of 11", "Offer made", "Declined")
+in small text under the current milestone. Reference:
+`design/mockups/2026-10-24-colour-and-rail/where-they-are-options.html`,
+Option C. Map every real application state onto the four milestones
+(including declined, withdrawn, waiting on computer, offer made, no-show)
+and show the mapping in docs/APPLICANTS-LIST.md.
 
 ### Tasks
 
@@ -434,12 +501,17 @@ with brass unless he says otherwise). The brass mark already exists at
    ivory "H" tile goes), the favicon, the manifest, the share image
    (`public/share/hireflow.jpg`), the sign-up page (the "A" seal stays Ava's
    badge-scale mark only), and `Wordmark.tsx`.
-2. **Colour tokens.** `src/index.css` (`--jade*`, `--primary`, `--accent` and
-   the dark-theme block at ~:219), `src/styles/candidate-jade.css`,
-   `src/cockpit/cockpit.css`, `tailwind.config.ts`; the landing's `--gold`
-   stays. Re-check contrast (WCAG AA) on every token pair; the guard
-   `design-tokens` family in `scripts/guardrails.mjs` must keep passing or
-   be updated with the new names.
+2. **Colour tokens.** `src/index.css` (`--jade*`, `--primary`, `--ring`,
+   `--accent`, `--success`, `--sidebar-*`, `--ck-jade`, `--hf-green`,
+   `--seal-disc`, `--slab*` in both the Day block and the Night block at
+   ~:219), `src/styles/candidate-jade.css`, `src/cockpit/cockpit.css` (the
+   gem ramp `--gem-*` at ~:724, the aurora layer at ~:385, the focus ring at
+   ~:450), `tailwind.config.ts`; the landing's `--gold` stays. Rename the
+   tokens to what they now mean (`--jade` → `--action`), keep the mapping
+   in one place, and re-check contrast (WCAG AA) on every token pair in both
+   themes. The `design-tokens` guards in `scripts/guardrails.mjs` must keep
+   passing or be updated with the new names. Make Day the staff default and
+   keep the toggle.
 3. **Landing rewrite** (`public/landing.html`; docs/LANDING.md):
    - headline: "Hire customer service agents while you sleep."; subhead for
      chat and phone, any business;
@@ -477,6 +549,9 @@ with brass unless he says otherwise). The brass mark already exists at
    URL.
 7. **Vercel:** `www` redirect 307 → 308 (domain settings; owner may need to
    click), confirm `hireflow1.vercel.app` keeps canonical to hireflownow.com.
+8. **"Where they are" → Option C** as described above, in both themes, on
+   desktop and at phone width (the owner reviews on a phone); the tooltip
+   that named the step goes, since the step is now written under the rail.
 
 ### Verification
 
@@ -485,8 +560,12 @@ with brass unless he says otherwise). The brass mark already exists at
 - Paste the landing and a `/c/…` job link into a share-preview checker (or
   fetch with the Facebook/WhatsApp/LinkedIn/Googlebot user agents as
   `scripts/seo_pages.test.mjs` does) and confirm title, description, image.
-- Dev preview: every cockpit and candidate screen in the new colours; a
-  fresh reviewer looks for any jade left over (`git grep -n "3FCE97\|0F6B4F\|jade"`).
+- Dev preview: every cockpit and candidate screen in the new colours, both
+  themes; a fresh reviewer looks for any jade left over
+  (`git grep -n -i "3FCE97\|0F6B4F\|4FBF95\|67E3AF\|jade\|mint"`), and for
+  brass used on anything that is not Ava, a score, "hired" or money.
+- Applicants list: every application state in the fixtures renders a
+  sensible milestone; none falls through to a blank.
 - `scripts/landing_page.test.mjs`, `scripts/seo_pages.test.mjs`,
   `scripts/careers_prerender.test.mjs` updated and passing.
 
@@ -502,12 +581,14 @@ with brass unless he says otherwise). The brass mark already exists at
 ### Lock-down
 
 - Guards: `one-logo-mark`, `landing-single-cta-pinned`, `no-jade-tokens-left`,
-  `share-image-neutral-for-other-businesses`.
+  `brass-only-for-ava-score-money`, `share-image-neutral-for-other-businesses`,
+  `applicant-rail-is-four-milestones`.
 - BRANDING.md, docs/LANDING.md, docs/SEO.md updated.
 
 ### Owner inputs
 
-- If he wants a different colour than brass, say so before this phase starts.
+- His "lock it" on the colour direction (ink and ivory, brass accent), or
+  another choice, before this phase starts.
 - The Vercel `www` 308 change if it needs his click.
 
 ---
@@ -612,7 +693,8 @@ up the owner's AI bill while billing is off.
    company's legal name and jurisdiction, a contact email, a data-protection
    contact (the Philippines Data Privacy Act expects one), retention
    (IDs deleted 24 hours after first opened — the doc says 30 days and is
-   wrong), sub-processors (Supabase, Vercel, OpenAI, Resend, Daily), what
+   wrong), the cookieless page counter and the sign-up source tag from
+   Phase 2, sub-processors (Supabase, Vercel, OpenAI, Resend, Daily), what
    businesses must do with applicant data (a short data-processing addendum
    businesses accept at sign-up), how to ask for deletion or a copy.
 2. **Consent where data is collected:** a one-line privacy notice with a
@@ -655,9 +737,10 @@ up the owner's AI bill while billing is off.
 
 ### Owner inputs (ask at the start of Phase 1 so they are ready)
 
-- Legal entity name and state/country of registration (the GitHub org is
-  "aeytechnologiesllc"; confirm).
-- A contact email for legal and privacy (can be an alias).
+- Legal entity: **Southern Digital Technologies LLC** (owner, 2026-10-24,
+  "that's the main one"). Still needed: its state of registration (for the
+  governing-law clause) and a contact email for legal and privacy (can be an
+  alias such as privacy@hireflownow.com).
 - A lawyer's review of the finished pages (recommended; log that it was
   recommended).
 
@@ -799,6 +882,23 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-24 (later) — Plan re-reviewed; mock-ups; two decisions
+
+- Model: Fable 5.1, high reasoning (the owner switched it for the review).
+- Re-review added: CSP rolls out report-only first; an allow-list guard for
+  everything reachable without sign-in; a profiles-visibility proof; model
+  and session-start rules; the "where they are" column; a clearer colour
+  section (the landing is already brass; the green is the app).
+- Mock-ups shown on real screens (sign-up, dashboard, candidate interview
+  card, applicants list) in `design/mockups/2026-10-24-colour-and-rail/`.
+- Decided: "where they are" = Option C (four milestones). Owner: "Milestone
+  looks a lot better."
+- Pending the owner's lock: colour. Recommended ink and ivory with brass as
+  the accent, Day default (see Phase 3).
+- Owner inputs received: legal entity Southern Digital Technologies LLC;
+  OpenAI cap later; Turnstile fine.
+- Nothing in the product changed. Phase 1 not started.
+
 ### 2026-10-24 — Plan written; Phase 0 (audit) closed
 
 - Audit of repo + live project (security, product/billing, growth/SEO).
@@ -809,6 +909,9 @@ session stops mid-phase (say exactly where).
 - Verified: build, typecheck, guards, 142 tests, CI green; all 341 live
   notification links clean; the two scary migration-file policies are not
   live.
-- Open: everything in Phases 1–7. Owner inputs to request at the start of
-  Phase 1: OpenAI spending cap; Turnstile keys; legal entity name and
-  contact email; colour confirmation (brass by default).
+- Open: everything in Phases 1–7.
+- Owner answers (2026-10-24, later the same day): OpenAI spending cap —
+  "later", not a blocker; Turnstile — fine (free), he will create the keys
+  when Phase 2 asks; legal entity — Southern Digital Technologies LLC;
+  colour — he wants to see the real app screens recoloured before Phase 3
+  starts (mock-up sent the same day; decision pending).

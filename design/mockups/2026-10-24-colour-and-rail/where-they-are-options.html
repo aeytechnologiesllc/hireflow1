@@ -1,0 +1,109 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Where they are — options</title>
+<style>
+  body{margin:0;background:#15120D;color:#F2EADB;font:14px/1.45 Inter,-apple-system,Segoe UI,sans-serif;padding:16px 14px;max-width:470px}
+  th:last-child,td.last{display:none}
+  h1{font:600 20px/1.2 Georgia,serif;margin:0 0 4px}
+  .sub{color:#9A9183;margin:0 0 18px;font-size:13px}
+  .opt{background:#1C1813;border:1px solid #2B251C;border-radius:12px;padding:14px 16px;margin:0 0 16px}
+  .opt h2{font:600 13px/1 Inter,sans-serif;letter-spacing:.08em;text-transform:uppercase;color:#D9B46A;margin:0 0 4px}
+  .opt p{margin:0 0 12px;color:#9A9183;font-size:13px}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-size:11px;letter-spacing:.1em;color:#9A9183;font-weight:500;padding:0 10px 8px 0}
+  td{padding:10px 10px 10px 0;border-top:1px solid #2B251C;vertical-align:middle}
+  td.name{width:150px}
+  td.last{width:130px;color:#9A9183;font-size:13px}
+  .nm{font-weight:600}
+  .ap{color:#9A9183;font-size:12px}
+  .stage{font-weight:600}
+  .meta{color:#9A9183;font-size:12px;margin-top:2px}
+  /* A: segmented bar */
+  .bar{display:flex;gap:3px;margin:6px 0 0;max-width:260px}
+  .bar i{flex:1;height:5px;border-radius:3px;background:#2B251C}
+  .bar i.on{background:#D9B46A}
+  .bar i.now{background:#F0D28E;box-shadow:0 0 0 2px rgba(240,210,142,.25)}
+  .bar.done i{background:#D9B46A}
+  /* B: chip */
+  .chip{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:600;border:1px solid #2B251C;color:#F2EADB}
+  .chip.test{border-color:rgba(217,180,106,.5);color:#D9B46A}
+  .chip.int{background:rgba(217,180,106,.18);border-color:transparent;color:#F0D28E}
+  .chip.offer{background:#D9B46A;border-color:transparent;color:#1A1407}
+  .chip.hired{background:#F2EADB;border-color:transparent;color:#1A1407}
+  .count{color:#9A9183;font-size:12px;margin-left:8px}
+  /* C: four milestones */
+  .ms{display:flex;align-items:center;max-width:280px}
+  .ms b{width:9px;height:9px;border-radius:50%;background:#2B251C;flex:none;position:relative}
+  .ms b.on{background:#D9B46A}
+  .ms b.now{width:13px;height:13px;background:#F0D28E;box-shadow:0 0 0 3px rgba(240,210,142,.22)}
+  .ms s{flex:1;height:2px;background:#2B251C;text-decoration:none}
+  .ms s.on{background:#D9B46A}
+  .msl{display:flex;justify-content:space-between;max-width:280px;font-size:10.5px;color:#9A9183;margin-top:4px;letter-spacing:.02em}
+  .msl span.on{color:#F2EADB}
+</style>
+<h1>“Where they are”, three ways</h1>
+<p class="sub">Same five applicants in each. The dotted 11-step rail is gone in all three. Shown in brass; the designs work in any colour.</p>
+
+<div class="opt">
+  <h2>Option A — stage word, then a thin progress bar</h2>
+  <p>You read the stage first. The bar shows how far through the steps they are; the bright segment is the step they are on. The small line under it names the step.</p>
+  <table>
+    <tr><th>APPLICANT</th><th>WHERE THEY ARE</th><th>LAST ACTIVE</th></tr>
+    <tr><td class="name"><div class="nm">Rosa M.</div><div class="ap">Applied Sep 9</div></td>
+        <td><div class="stage">Hired</div><div class="bar done"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><div class="meta">All 11 steps done</div></td>
+        <td class="last">Decided</td></tr>
+    <tr><td class="name"><div class="nm">Jun R.</div><div class="ap">Applied Oct 9</div></td>
+        <td><div class="stage">Interview</div><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="now"></i><i></i></div><div class="meta">Step 10 of 11 · Interview booked</div></td>
+        <td class="last">Interview Mon</td></tr>
+    <tr><td class="name"><div class="nm">Ana S.</div><div class="ap">Applied Oct 6</div></td>
+        <td><div class="stage">Offer made</div><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="now"></i></div><div class="meta">Waiting on her signature</div></td>
+        <td class="last">Decided</td></tr>
+    <tr><td class="name"><div class="nm">Liam T.</div><div class="ap">Applied Oct 12</div></td>
+        <td><div class="stage">In testing</div><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="now"></i><i></i><i></i><i></i></div><div class="meta">Step 8 of 11 · Upsell a pastry · not started</div></td>
+        <td class="last">Last active Oct 12</td></tr>
+    <tr><td class="name"><div class="nm">Mia K.</div><div class="ap">Applied Oct 15</div></td>
+        <td><div class="stage">In testing</div><div class="bar"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="now"></i><i></i><i></i><i></i><i></i><i></i></div><div class="meta">Step 6 of 11 · Handle a rush-hour order · in progress</div></td>
+        <td class="last">Last active today</td></tr>
+  </table>
+</div>
+
+<div class="opt">
+  <h2>Option B — a stage chip, nothing else</h2>
+  <p>The quietest version. One coloured chip says the stage; the count and step name sit beside it in small text. No bar, no dots.</p>
+  <table>
+    <tr><th>APPLICANT</th><th>WHERE THEY ARE</th><th>LAST ACTIVE</th></tr>
+    <tr><td class="name"><div class="nm">Rosa M.</div><div class="ap">Applied Sep 9</div></td>
+        <td><span class="chip hired">✓ Hired</span></td><td class="last">Decided</td></tr>
+    <tr><td class="name"><div class="nm">Jun R.</div><div class="ap">Applied Oct 9</div></td>
+        <td><span class="chip int">Interview</span><span class="count">booked for Mon</span></td><td class="last">Interview Mon</td></tr>
+    <tr><td class="name"><div class="nm">Ana S.</div><div class="ap">Applied Oct 6</div></td>
+        <td><span class="chip offer">Offer made</span><span class="count">waiting on signature</span></td><td class="last">Decided</td></tr>
+    <tr><td class="name"><div class="nm">Liam T.</div><div class="ap">Applied Oct 12</div></td>
+        <td><span class="chip test">Testing</span><span class="count">8 of 11 · Upsell a pastry · not started</span></td><td class="last">Last active Oct 12</td></tr>
+    <tr><td class="name"><div class="nm">Mia K.</div><div class="ap">Applied Oct 15</div></td>
+        <td><span class="chip test">Testing</span><span class="count">6 of 11 · Handle a rush-hour order · in progress</span></td><td class="last">Last active today</td></tr>
+  </table>
+</div>
+
+<div class="opt">
+  <h2>Option C — four milestones instead of eleven dots</h2>
+  <p>Keeps the idea of a rail, but with only the four moments that matter: Applied, Tested, Interview, Hired. The step detail stays in small text.</p>
+  <table>
+    <tr><th>APPLICANT</th><th>WHERE THEY ARE</th><th>LAST ACTIVE</th></tr>
+    <tr><td class="name"><div class="nm">Rosa M.</div><div class="ap">Applied Sep 9</div></td>
+        <td><div class="ms"><b class="on"></b><s class="on"></s><b class="on"></b><s class="on"></s><b class="on"></b><s class="on"></s><b class="on now"></b></div><div class="msl"><span>Applied</span><span>Tested</span><span>Interview</span><span class="on">Hired</span></div></td>
+        <td class="last">Decided</td></tr>
+    <tr><td class="name"><div class="nm">Jun R.</div><div class="ap">Applied Oct 9</div></td>
+        <td><div class="ms"><b class="on"></b><s class="on"></s><b class="on"></b><s class="on"></s><b class="now"></b><s></s><b></b></div><div class="msl"><span>Applied</span><span>Tested</span><span class="on">Interview</span><span>Hired</span></div></td>
+        <td class="last">Interview Mon</td></tr>
+    <tr><td class="name"><div class="nm">Ana S.</div><div class="ap">Applied Oct 6</div></td>
+        <td><div class="ms"><b class="on"></b><s class="on"></s><b class="on"></b><s class="on"></s><b class="on"></b><s class="on"></s><b class="now"></b></div><div class="msl"><span>Applied</span><span>Tested</span><span>Interview</span><span class="on">Offer made</span></div></td>
+        <td class="last">Decided</td></tr>
+    <tr><td class="name"><div class="nm">Liam T.</div><div class="ap">Applied Oct 12</div></td>
+        <td><div class="ms"><b class="on"></b><s class="on"></s><b class="now"></b><s></s><b></b><s></s><b></b></div><div class="msl"><span>Applied</span><span class="on">Testing · 8 of 11</span><span>Interview</span><span>Hired</span></div></td>
+        <td class="last">Last active Oct 12</td></tr>
+    <tr><td class="name"><div class="nm">Mia K.</div><div class="ap">Applied Oct 15</div></td>
+        <td><div class="ms"><b class="on"></b><s class="on"></s><b class="now"></b><s></s><b></b><s></s><b></b></div><div class="msl"><span>Applied</span><span class="on">Testing · 6 of 11</span><span>Interview</span><span>Hired</span></div></td>
+        <td class="last">Last active today</td></tr>
+  </table>
+</div>
