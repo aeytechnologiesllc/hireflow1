@@ -1,6 +1,6 @@
 /**
  * No age, birth date or marital status in what the job writers produce
- * (2026-10-25; the second to eighth Phase 6 reviews).
+ * (2026-10-25; the second to ninth Phase 6 reviews).
  *
  * Every application already starts with HireFlow's own "Are you 18 or
  * older?" (src/lib/ageCheck.ts), and RA 10911 Section 5(a) makes it unlawful
@@ -26,9 +26,10 @@
  *     "must be over 21", "over the age of 21", "ages 18-30", "21+ only",
  *     "in their 20s", "born after 1995", "of legal age", "age limit", "name,
  *     age and location"): the applicant's unless the person it is attached
- *     to, the last one named before it, is someone else ("patients aged 65
- *     and older", "Are you comfortable helping patients aged 65 and older?",
- *     "a 70-year-old caller", "check that the customer is of legal age",
+ *     to, the last one named before it or the one right after it, is
+ *     someone else ("patients aged 65 and older", "Are you comfortable
+ *     helping patients aged 65 and older?", "a 70-year-old caller",
+ *     "70-year-old patients", "check that the customer is of legal age",
  *     "people aged 65 and over", "loan applicants must be 21 or older",
  *     "take each caller's name, age and reason for the visit"), the business
  *     ("a 10 years old company", "our clinic is 25 years old"), or a product
@@ -49,24 +50,29 @@
  * shifts").
  *
  * What an agent asks or tells a customer is the customer's (the eighth
- * review: a medical front desk's identity check was dropped). Quoted speech
- * put to a caller ('Greet the caller and ask, "May I have your date of
- * birth?"', 'Say: "For security, please tell me your date of birth."'),
- * what the agent explains ("Explain that Medicare starts at age 65",
- * "Explain to the caller that you must be 21 or older to rent a car"), a
- * customer's dependents or filing status ("Ask the client if they are
- * filing single or married") stay. The same words put to the applicant go
- * ('Ask the candidate: "How old are you?"', "Number of dependents:"), and so
- * does an age in a hiring sentence however it is attached ("We want a
- * 25-year-old go-getter", "We hire students aged 18-24", "Retirees aged
- * 55-70 wanted").
+ * review: a medical front desk's identity check was dropped). Speech put to
+ * a caller ('Greet the caller and ask, "May I have your date of birth?"',
+ * "Say: For security, please confirm your date of birth."), what the agent
+ * explains ("Explain that Medicare starts at age 65", "Explain to the caller
+ * that you must be 21 or older to rent a car"), a benefit's or a rental's
+ * age said to "you" ("You can enroll in Medicare at age 65", "To rent a
+ * car, you must be 21 or older"; the ninth), a customer's dependents or
+ * filing status ("Ask the client if they are filing single or married")
+ * stay. The same words put to the applicant go ('Ask the candidate: "How
+ * old are you?"', "Number of dependents:", 'Ask: "Are you married? Just for
+ * our records."'), and so does an age in a hiring sentence however it is
+ * attached ("We want a 25-year-old go-getter", "We hire students aged
+ * 18-24", "Retirees aged 55-70 wanted"), and a range of ages wherever it is
+ * ("Remind them you must be 21-35 years old to apply"; the ninth).
  *
  * marksAgeOrFamily is the same rule for what a reviewer writes ABOUT an
  * applicant (the written interview's grader, the interview guide): "a mother
  * of three", "seems too young", "her children", "at 45, she may struggle",
  * "just had a baby", "recently married", "close to retirement age", and
  * since the eighth review "she's 45", "the applicant, 45, may tire",
- * "divorced, so flexible", "has five kids", "wants to start a family". A
+ * "divorced, so flexible", "has five kids", "wants to start a family", and
+ * since the ninth "a single parent", "a solo parent", "seems young for a
+ * lead role", "just got married". A
  * remark about a person in a practice case ("the single mom's billing
  * case", "the pregnant woman on the line") or about the work ("too
  * old-fashioned for chat", "single-handedly covering two queues", "mature
@@ -91,9 +97,11 @@ export const APPLICANT_AGE_RULE =
 
 const re = (parts: string[], flags = "i") => new RegExp(parts.join("|"), flags);
 
-// After a number: a unit, a score or a time, so not an age ("under 30 minutes", "24/7", "90% accuracy"), also after a
-// range ("claims aged 30-60 days"; the eighth review).
-const UNITS = String.raw`(?!\s*((-|–|to|or|and)\s*\d+\s*)?(%|percent|minutes?|mins?|seconds?|secs?|hours?|hrs?|days?|weeks?|months?|words?|wpm|km|kms|kilometers?|kilometres?|miles?|mbps|gb|mb|points?|calls|chats|tickets|replies|emails|messages|cases|orders|sales|leads|qa\b|csat|nps|per\b|or (higher|more|better)|on\b|in\b|am\b|pm\b|:|\/|x\s*\d|[.,]\d))`;
+// After a number: a unit, a score or a time, so not an age ("under 30 minutes", "24/7", "90% accuracy"). After a range or a
+// "+" only a real measure ("claims aged 30-60 days" in the eighth review, "accounts aged 90+ days" in the ninth): the ninth
+// found "aged 21-35 in Cebu", "21-30 on hire date" and "aged 21-35: apply now" read as a range of times.
+const MEASURE = String.raw`%|percent|minutes?|mins?|seconds?|secs?|hours?|hrs?|days?|weeks?|months?|words?|wpm|km|kms|kilometers?|kilometres?|miles?|mbps|gb|mb|points?|calls|chats|tickets|replies|emails|messages|cases|orders|sales|leads|qa\b|csat|nps`;
+const UNITS = String.raw`(?!\s*((\+|(-|–|to|or|and)\s*\d+)\s*(?=(${MEASURE})))?(${MEASURE}|per\b|or (higher|more|better)|on\b|in\b|am\b|pm\b|:|\/|x\s*\d|[.,]\d))`;
 // An adult age as an ad writes one, for the wordings that also fit years of
 // experience ("Ideally 22-30 years" but never "10-15 years of service").
 const AGE = String.raw`(1[5-9]|[2-6]\d)`;
@@ -108,8 +116,8 @@ const ALWAYS = re([
   // or "- optional"; "Age as of last birthday", "Spouse name" and "Name of husband/wife" too (the eighth). Never a bare "Birth
   // certificate" (a list of what a caller brings to a passport office).
   String.raw`^\s*[-•*]?\s*(your\s+|(the\s+)?(applicant|candidate)'?s\s+)?(age|current age|age as of (your )?(last birthday|today)|date of birth|birth ?date|birthday|birth year|dob|d\.o\.b\.?|year of birth|year born|place and date of birth|date and place of birth|marital status|civil status|relationship status|edad|kaarawan|petsa ng kapanganakan|age range|age group|age bracket|dependents|number of (dependents|children|kids)|no\.? of (dependents|children|kids)|children|kids|generation|graduation year|year graduated|spouse|(spouse|husband|wife)('?s)? (name|occupation|job|work|employer|income)|name of (your\s+)?(spouse|husband|wife)(\s*\/\s*(spouse|husband|wife))?|maiden name)\s*(\([^)]*\)|\s[-–—]\s*(optional|required|mandatory|if any))?\s*[:?]?\s*\*?\s*[_.…]*\s*$`,
-  // "Sex: ___ Age: ___", "Age is required." (the eighth review).
-  String.raw`\b(age|edad|date of birth|birth ?date|birthday|dob|d\.o\.b\.?|civil status|marital status)\s*:\s*[_…]{2,}|^\s*[-•*]?\s*(your\s+)?(age|date of birth|birth ?date|birthday|dob|d\.o\.b\.?|civil status|marital status)\s+(is\s+)?(required|optional|mandatory|a must)\s*[.!]?\s*$`,
+  // "Sex: ___ Age: ___", "Age is required." (the eighth review); never a patient's "Patient date of birth: ____" (the ninth).
+  String.raw`(^|[_…]\s*)\s*[-•*]?\s*(age|edad|date of birth|birth ?date|birthday|dob|d\.o\.b\.?|civil status|marital status)\s*:\s*[_…]{2,}|^\s*[-•*]?\s*(your\s+)?(age|date of birth|birth ?date|birthday|dob|d\.o\.b\.?|civil status|marital status)\s+(is\s+)?(required|optional|mandatory|a must)\s*[.!]?\s*$`,
   String.raw`^\s*[-•*]?\s*(?=[^?!]*\b(age|civil status|marital status|date of birth|birth ?date|birthday|dob|d\.o\.b)\b)(${LABEL})(\s*(,|\/|&|\+|\band\b)\s*(${LABEL}))+\s*(\([^)]*\))?\s*[:?]?\s*\*?\s*[_.…]*\s*$`,
   String.raw`^\s*[-•*]?\s*(marital|civil|relationship) status\s*(\([^)]*\))?\s*:`,
   String.raw`^\s*[-•*]?\s*status\s*:\s*(single|married|widowed|separated)\b`,
@@ -254,15 +262,17 @@ const APPLIED_FOR = String.raw`loans?|credit|credit cards?|cards?|scholarships?|
 // "Be patient" is a manner, not a patient. The seventh review: people, persons, folks, women and men, the clientele and owners
 // are customers too ("Answer calls from people aged 65 and over", "A woman in her 50s calls"), unless the sentence is hiring them
 // (HIRING_CUE: "We prefer people under 30"). The eighth: alumni ("Alumni who graduated within the last 2 years keep the rate").
-const SOMEONE_ELSE = new RegExp(String.raw`\b(customers?|clients?|callers?|(?<!\b(be|very|more|stay|remain|and|being|so|is|are)\s)patients?|members?|users?|players?|gamers?|guests?|child|children|kids?|students?|seniors?|senior citizens|parents?|policyholders?|account (holders?|owners?)|cardholders?|borrowers?|buyers?|shoppers?|drivers?|famil(y|ies)|travel+ers?|residents?|readers?|viewers?|subscribers?|visitors?|alumn(i|us|a|ae)|son|daughter|mother|father|grandmother|grandfather|grandparents?|she|he|they|minors?|teens?|teenagers?|toddlers?|babies|infants?|adults?|elderly|retirees?|pensioners?|tenants?|homeowners?|guardians?|beneficiar(y|ies)|dependents?|insured|consumers?|passengers?|riders?|learners?|audiences?|fans?|help|helps|helping|serve|serves|serving|assist|assists|assisting|care for|caring for|people|persons?|folks|individuals?|wom[ae]n|m[ae]n|lad(y|ies)|gentlem[ae]n|clientele|owners?|someone|anyone|(${APPLIED_PREFIX})\s+applicants?|applicants?\s+for\s+(an?\s+|our\s+|the\s+|their\s+|its\s+)?(${APPLIED_FOR}))\b`, "gi");
+// The ninth: renters ("Renters must be 21 or older").
+const SOMEONE_ELSE = new RegExp(String.raw`\b(customers?|clients?|callers?|(?<!\b(be|very|more|stay|remain|and|being|so|is|are)\s)patients?|members?|users?|players?|gamers?|guests?|child|children|kids?|students?|seniors?|senior citizens|parents?|policyholders?|account (holders?|owners?)|cardholders?|borrowers?|buyers?|shoppers?|drivers?|renters?|famil(y|ies)|travel+ers?|residents?|readers?|viewers?|subscribers?|visitors?|alumn(i|us|a|ae)|son|daughter|mother|father|grandmother|grandfather|grandparents?|she|he|they|minors?|teens?|teenagers?|toddlers?|babies|infants?|adults?|elderly|retirees?|pensioners?|tenants?|homeowners?|guardians?|beneficiar(y|ies)|dependents?|insured|consumers?|passengers?|riders?|learners?|audiences?|fans?|help|helps|helping|serve|serves|serving|assist|assists|assisting|care for|caring for|people|persons?|folks|individuals?|wom[ae]n|m[ae]n|lad(y|ies)|gentlem[ae]n|clientele|owners?|someone|anyone|(${APPLIED_PREFIX})\s+applicants?|applicants?\s+for\s+(an?\s+|our\s+|the\s+|their\s+|its\s+)?(${APPLIED_FOR}))\b`, "gi");
 // Words for a person that are the applicant when the sentence is hiring them.
 const NEUTRAL_PERSON = /^(people|persons?|folks|individuals?|wom[ae]n|m[ae]n|lad(y|ies)|gentlem[ae]n|someone|anyone|adults?)$/i;
 const HIRING_CUE = /\b(prefer\w*|want\w*|seek\w*|hiring|hire|looking for|need\w*|welcom\w*|accept\w*|only|ideal\w*|candidates?|applicants?|open to|calling all|must be|should be|preferabl[ey]|recruit\w*|employ\w*|join)\b[\s:,-]*((an?|the|our|young|younger|older|energetic|[\w-]+)\s+){0,2}$/i;
 // Customer-type groups a job can also be hiring, right after a hiring word: "We hire students aged 18-24", "We're hiring
 // retirees aged 55-70", "Calling all students aged 18-25!" (the eighth review). "Help students aged 18-24 with their loans"
-// and "Most callers are retirees aged 65 and older" stay theirs.
+// and "Most callers are retirees aged 65 and older" stay theirs. "We're recruiting", never "recruit": an outbound agent recruits
+// respondents ("Call households to recruit parents aged 25-45 for our product panels"; the ninth review).
 const APPLICANT_GROUP = /^(students?|seniors?|senior citizens|retirees?|pensioners?|parents?|mother|father|teens?|teenagers?|learners?)$/i;
-const GROUP_HIRING_CUE = /\b(hire|hires|hiring|looking for|seeking|seek|recruit(s|ing)?|calling all|prefer|prefers|preferring|employ|employs|employing)\s+((an?|the|our|more)\s+)?((college|university|uni|high school|senior high|working|stay-at-home|young|local|retired|active|graduating|part-time|full-time|filipino|pinoy)\s+){0,2}$/i;
+const GROUP_HIRING_CUE = /\b(hire|hires|hiring|looking for|seeking|seek|recruiting|calling all|prefer|prefers|preferring|employ|employs|employing)\s+((an?|the|our|more)\s+)?((college|university|uni|high school|senior high|working|stay-at-home|young|local|retired|active|graduating|part-time|full-time|filipino|pinoy)\s+){0,2}$/i;
 // The applicant, or the people being hired. A loan's or a card's applicants are customers (APPLIED_FOR).
 const APPLICANT = new RegExp(String.raw`\b(applicants?(?<!\b(${APPLIED_PREFIX})\s+applicants?)(?!\s+for\s+(an?\s+|our\s+|the\s+|their\s+|its\s+)?(${APPLIED_FOR})\b)|candidates?|ideal(ly)?|we('re| are) (looking|hiring|seeking)|seeking|looking for|hiring|hire|prefer\w*|want(ed)?|agents?|reps?|representatives?|staff|hires|team members?|you|your)\b|^\s*[-•*]?\s*must\b`, "gi");
 // "Students aged 18-22 preferred", "Seniors aged 60+ are welcome to apply", "Ideal for retirees aged 55 and over": a preference
@@ -276,17 +286,20 @@ const CUSTOMER_WORD = /^(customers?|clients?|callers?|patients?|members?|users?|
 const SOMEONE_ELSE_AT = /^\d{2}[\s-]*(years?|yrs?)[\s-]*old\s+([\w'-]+\s+){0,2}?(company|business|brand|firm|clinic|store|shop|app|website|platform|product|account|car|house|practice|agency|startup|restaurant|hotel|resort|bank|school|hospital|office|organi[sz]ation)\b/i;
 // "A 70-year-old caller", "a 16-year-old wants to sign up": an article, then the age (the eighth review: the person after it
 // says whose it is, and with no one named it is the applicant only when the sentence is hiring: "We want a 25-year-old
-// go-getter", "The ideal candidate is a 25-year-old graduate").
+// go-getter", "The ideal candidate is a 25-year-old graduate"). The ninth: the person right after the age says whose it is with
+// no article too ("70-year-old patients", "16-year-old players", "26-year-old dependents").
 const ARTICLE_BEFORE = /\b(an?|the|our|this|that|my|her|his|their|your|its|each|every)\s+((young|younger|old|older|little|teenage|elderly|retired|new|first-time)\s+)?(\d{2}[\s-]*(to|-|–|or|and)[\s-]*)?$/i;
-// The hiring word right before the article: never "The caller wants to add a 16-year-old" or "Agents must be able to calm a
-// 16-year-old".
-const HIRING_LEAD = /\b(we('re| are| would|'d)?\s+(want|need|prefer|seek|seeking|looking for|hiring)|looking for|seeking|hiring|to hire|hire|ideal(ly)?|ideal (candidate|hire|applicant|fit)|(candidate|applicant|hire|fit) (is|would be|should be)|preferabl[ey]|prefer(red)?|perfect for|great for|suits|suited (to|for)|recruiting|calling all|(must|should|needs? to|has to|have to) be)\s*[:,-]?\s*$/i;
+// The hiring word right before the age (or its article): never "The caller wants to add a 16-year-old" or "Agents must be able
+// to calm a 16-year-old", and never a product's "perfect for", "great for" or "suits" ("The starter phone is perfect for a
+// 12-year-old"; the ninth review): IDEAL_FOR reads those when they open the line ("Perfect for a 21-year-old starting out").
+const HIRING_LEAD = /\b(we('re| are| would|'d)?\s+(want|need|prefer|seek|seeking|looking for|hiring)|looking for|seeking|hiring|to hire|hire|ideal(ly)?|ideal (candidate|hire|applicant|fit)|(candidate|applicant|hire|fit) (is|would be|should be)|preferabl[ey]|prefer(red)?|recruiting|calling all|(must|should|needs? to|has to|have to) be)\s*[:,-]?\s*$/i;
 const WORDS_AFTER = /^[\s,]*((?:(?!(who|that|which|with|from|and|or|to|for|in|on|at|of|by|as|but|so|is|are|was|were)\b)[\w'’-]+\s*){0,3})/i;
 const SOMEONE_ELSE_WORD = new RegExp(SOMEONE_ELSE.source, "i");
 const SOMEONE_ELSE_AFTER = /^[^.]{0,15}\b(game|games|ratings?|rated|app|apps|content|movie|plan|plans|account|accounts|discount|discounts)\b/i;
 // An age limit on a product or for a customer: "the minimum age for a kid's savings account", "age limits on our insurance plans",
-// and "the age range of the group", "age restrictions apply to some tours" (the eighth review).
-const THING_AFTER = /^\s*(for|on|of|in|under|does|do|that|your|our|the|each|every|to|apply to|applies to)\b[^.:]{0,40}\b(plans?|accounts?|polic(y|ies)|insurance|coverage|cards?|loans?|products?|tickets?|cases?|claims?|games?|apps?|content|movies?|programs?|courses?|memberships?|discounts?|services?|tours?|trips?|classes?|camps?|vaccines?|benefits?|subscriptions?|tiers?|customers?|clients?|patients?|members?|users?|kids?|child(ren)?|minors?|students?|policyholders?|riders?|passengers?|guests?|players?|groups?|part(y|ies)|bookings?|reservations?)\b/i;
+// and "the age range of the group", "age restrictions apply to some tours" (the eighth review), "the minimum age to rent a car",
+// "the age limit for the youth fare", "the age requirement to callers" (the ninth).
+const THING_AFTER = /^\s*(for|on|of|in|under|does|do|that|your|our|the|each|every|to|apply to|applies to)\b[^.:]{0,40}\b(plans?|accounts?|polic(y|ies)|insurance|coverage|cards?|loans?|products?|tickets?|cases?|claims?|games?|apps?|content|movies?|programs?|courses?|memberships?|discounts?|services?|tours?|trips?|classes?|camps?|vaccines?|benefits?|subscriptions?|tiers?|customers?|clients?|callers?|patients?|members?|users?|kids?|child(ren)?|minors?|students?|policyholders?|riders?|passengers?|guests?|players?|groups?|part(y|ies)|bookings?|reservations?|cars?|vehicles?|rentals?|fares?)\b/i;
 // "The plan's age limit": a product's.
 const THING_BEFORE = /\b(plan|account|policy|insurance|product|program|card|loan|course|membership|game|app|service|tour|class|camp|subscription)('?s)?\s*$/i;
 // With a number too (the seventh review): "our youth plan for ages 18 to 25", "our ages 18-30 travel program", "our over-50s insurance line".
@@ -294,8 +307,9 @@ const THING_BEFORE = /\b(plan|account|policy|insurance|product|program|card|loan
 const JOB_PROGRAM = String.raw`(?<!\b(training|internship|intern|trainee|apprenticeship|ojt|work|job|career|hiring|recruitment|graduate|management|leadership)\s+)`;
 const PRODUCTS = String.raw`plans?|programs?|programmes?|insurance|polic(y|ies)|products?|accounts?|cards?|loans?|courses?|memberships?|tours?|trips?|classes?|camps?|subscriptions?|discounts?|coverage|packages?|lines?|fares?|rates?|tickets?|tiers?|bundles?`;
 const THING_FOR = new RegExp(String.raw`\b${JOB_PROGRAM}(${PRODUCTS})('?s)?\s+((is|are)\s+)?(for|covering|covers|open to|available (to|for)|limited to|restricted to)\s*$`, "i");
-// Right after the age, with no "for our" between: never "Agents aged 21-35 for our insurance line".
-const THING_NEXT = new RegExp(String.raw`^[\s\d+–-]*((years?|yrs?)\s*(old)?\s*)?(and (up|over|above)\s+)?((?!(and|or|with|for|to|in|on|at|of|our|the|a|an|your|this)\b)[\w'-]+\s+){0,2}${JOB_PROGRAM}(${PRODUCTS})\b`, "i");
+// Right after the age, with no "for our" between: never "Agents aged 21-35 for our insurance line", nor "Applicants aged 20-35
+// per company policy" (the ninth review).
+const THING_NEXT = new RegExp(String.raw`^[\s\d+–-]*((years?|yrs?)\s*(old)?\s*)?(and (up|over|above)\s+)?((?!(and|or|with|for|to|in|on|at|of|our|the|a|an|your|this|per)\b)[\w'-]+\s+){0,2}${JOB_PROGRAM}(${PRODUCTS})\b`, "i");
 // "Our clinic, 30 years old this year, …", "Our company is 25 years old", "Founded in 1999, our clinic is 25 years old":
 // the business's own age, as the sentence's (or the clause's) subject (the seventh review).
 const BUSINESS_FIRST = /(^|[,;:]\s*)(our|the|this|a|an)?\s*([\w'-]+\s+){0,2}(company|business|brand|clinic|firm|store|shop|startup|agency|practice),?\s*((is|was|has been|turned|turns|will be|will turn|just turned)\s+((now|over|almost|nearly|about|already)\s+)?)?$/i;
@@ -304,26 +318,45 @@ const THING_BORN = /\b(company|business|brand|idea|startup|clinic|store|firm|sho
 
 // The eighth review: what an agent asks or tells a customer was dropped as if it were asked of the applicant.
 const CUSTOMER_PEOPLE = String.raw`customers?|clients?|callers?|(?<!\b(be|very|more|stay|remain|and|being|so|is|are)\s)patients?|members?|guests?|policyholders?|account holders?|cardholders?|borrowers?|buyers?|shoppers?|users?|tenants?|passengers?|travel+ers?|residents?|subscribers?|visitors?|players?|taxpayers?|filers?`;
-// Told to a customer: "Explain that Medicare starts at age 65", "Explain to the caller that you must be 21 or older to rent
-// a car", "The agent explains that…", "Explain the age requirement to callers". Never the applicant's own duties ("Able to
-// explain policies clearly, 21-35 years old") or a sentence that names applicants (TO_APPLICANTS).
+// A customer's rule, not the applicant's (the eighth review), unless the sentence names applicants (TO_APPLICANTS) or the age
+// is a range ("21-35" is a hiring limit; the ninth review found "Remind them you must be 21-35 years old to apply",
+// "Eligible from age 21 to 35" and "Let our recruiter know you are 21-35" passing):
+//   - told to a customer: "Explain to the caller that, by law, you must be 21 or older to rent a car", "Let the guest know you
+//     must be 21" (never "Let us know", "Let our recruiter know": the ninth review), or told with no one named, in the same
+//     clause as the age: "Explain that Medicare starts at age 65", "Clarify the age requirement". Never an agent's duty and an
+//     age side by side ("Must explain how refunds work and be at least 21", "Able to explain how refunds work, at least 21": the
+//     ninth review).
 const TELL_VERB = String.raw`explain(s|ed|ing)?|remind(s|ed|ing)?|inform(s|ed|ing)?|advis(e|es|ed|ing)|warn(s|ed|ing)?|clarif(y|ies|ied|ying)|tell(s|ing)?|told`;
-const TOLD = new RegExp(String.raw`(\b(${TELL_VERB})(\s+to)?\s+((the|a|an|each|every|our|their)\s+)?([\w-]+\s+)?(${CUSTOMER_PEOPLE}|parents?|them|him|her)\b|\b(${TELL_VERB})\s+(that|how|why|when|whether|what)\b|\b(${TELL_VERB})\s+(the|our|their|its|any)\s+([\w-]+\s+){0,2}?(age|rules?|polic(y|ies)|requirements?|restrictions?|limits?|eligibility)\b|\blet(s|ting)?\s+(?!(us|me)\b)((the|a|an|each|every|our|their)\s+)?[\w'-]+\s+know\b)(?![^.]*(\band|,)\s*(be|are|is|have|has)\b)[^.]*$`, "i");
-const TO_APPLICANTS = /\b(applicants?|candidates?|interviewees?|job seekers?|new hires?)\b/i;
-// When a benefit or a rule starts or ends: "Medicare starts at age 65", "Coverage ends at age 26", "the age 26 rule for dependents".
-const BENEFIT_AT = /\b(starts?|starting|begins?|beginning|ends?|ending|stops?|kicks? in|eligible|eligibility|qualif(y|ies|ying)|retire(s|ment)?|covered|coverage)\s+(at|from|until|till|up to)\s+$/i;
+const TOLD_TO = String.raw`\b(${TELL_VERB})(\s+to)?\s+((the|a|an|each|every|our|their)\s+)?([\w-]+\s+)?(${CUSTOMER_PEOPLE}|parents?|them|him|her)\b|\blet(s|ting)?\s+(?!(us|me|hr)\b|(our|the|a)\s+(recruiters?|interviewers?|hiring|hr|team)\b)((the|a|an|each|every|our|their)\s+)?[\w'-]+\s+know\b`;
+const TOLD_WHAT = String.raw`\b(${TELL_VERB})\s+(that|how|why|when|whether|what)\b|\b(${TELL_VERB})\s+(the|our|their|its|any)\s+([\w-]+\s+){0,2}?(age|rules?|polic(y|ies)|requirements?|restrictions?|limits?|eligibility)\b`;
+const TOLD = new RegExp(String.raw`((${TOLD_TO})(?![^.]*(\band|,)\s*(be|are|is|have|has)\b)[^.]*|(${TOLD_WHAT})(?![^.,;]*\band\s+(be|are|is|have|has)\b)[^.,;]*)$`, "i");
+const TO_APPLICANTS = /\b(applicants?|candidates?|interview(s|ees?|ers?)?|job seekers?|new hires?)\b/i;
+//   - when a benefit starts or ends: "Medicare starts at age 65", "You can enroll in Medicare at age 65", "Insurance rates go up
+//     after age 50", "Your child can stay on your plan until age 26", "the age 26 rule for dependents" (the ninth: said to "you"
+//     too, whatever the verb). Never "from age 21" ("Eligible from age 21", "Agents qualify from age 21": hiring limits), nor a
+//     sentence with no benefit in it ("Eligibility starts at age 21", or a grader's "Led a team at age 19").
+const BENEFIT_AT = /\b(at|after|before|until|till|up to|as early as|as late as)\s+$/i;
+const BENEFIT = /\b(medicare|medicaid|social security|pensions?|retirement|plans?|coverage|covered|insurance|polic(y|ies)|rates?|premiums?|benefits?|discounts?|fares?|tickets?|pass(es)?|cards?|memberships?|prices?|fees?|tiers?|penalty|enrol\w*)\b/i;
 const RULE_AFTER = /^\s*rules?\b/i;
+//   - what renting or an account needs: "To rent a car, you must be 21 or older", "You must be 18 or older to open an account".
+const TO_RENT = /\bto (rent|open an? ([\w-]+ )?account)\b/i;
 // "Number of dependents" is the applicant's family on a form, and a customer's on a policy or a tax return ("Enter the number of
-// dependents the caller wants covered", "Ask the client for the number of dependents on their tax return").
+// dependents the caller wants covered", "Ask the client for the number of dependents on their tax return", "Update the number
+// of dependents on the policy"): only when a customer or their file is named. The ninth review: "Number of dependents for HMO
+// coverage", "Civil status and number of dependents (for tax and HMO):" and "Indicate the number of dependents you want covered
+// by the company HMO" are the employer's own forms.
 const NUMBER_OF_DEPENDENTS = /\bnumber of (children|dependents)\b/i;
-const CUSTOMER_FILE = new RegExp(String.raw`\b(${CUSTOMER_PEOPLE}|tax|returns?|polic(y|ies)|coverage|covered|insured|claims?|filing|household)\b`, "i");
-// Quoted speech an agent puts to a customer: 'Greet the caller and ask, "May I have your date of birth?"', 'Ask the member, "Do
-// you have dependents on your policy?"', 'Say: "For security, please tell me your date of birth."' (the identity check the
-// medical guide tells a business to test). It is the customer's when the line names a customer or a check (security, a chart,
-// an account, a policy), and never when it is put to the applicant ('Ask the candidate: "How old are you?"').
-const QUOTED = /"([^"\n]{1,400})"|“([^”\n]{1,400})”|‘([^’\n]{1,400})’|(?<=^|[\s:,(])'([^\n]{1,400}?)'(?=[\s.,;:!?)]|$)/g;
+const CUSTOMER_FILE = new RegExp(String.raw`\b(${CUSTOMER_PEOPLE}|insured|(the|their|each) (polic(y|ies)|accounts?|(tax )?returns?|claims?))\b`, "i");
+// Speech an agent puts to a customer: quoted ('Greet the caller and ask, "May I have your date of birth?"', 'Ask the member, "Do
+// you have dependents on your policy?"', 'Say: "For security, please tell me your date of birth."': the identity check the
+// medical guide tells a business to test), after a script's colon ("Say: For security, please confirm your date of birth.") or
+// asked of a named customer ("Ask the policyholder whether they are married or single"; the ninth review). It is the customer's
+// when the line names a customer or a check (security, confirming, a chart, an account), never when it is put to the applicant
+// ('Ask the candidate: "How old are you?"', 'Start the interview by asking, "Can you confirm your date of birth?"'), and never
+// an HR ask "for our records", "for your file" or "for the HMO policy" (the ninth review).
+const QUOTED = new RegExp(String.raw`"([^"\n]{1,400})"|“([^”\n]{1,400})”|‘([^’\n]{1,400})’|(?<=^|[\s:,(])'([^\n]{1,400}?)'(?=[\s.,;:!?)]|$)|(?<=\b(say|script|ask|opener|opening|greeting)\s*:\s*)([^"“‘'\s][^\n]{0,399})$|(?<=\bask(s|ed|ing)?\s+((the|a|an|each|every|this|that)\s+)?([\w-]+\s+)?(${CUSTOMER_PEOPLE})\s+(whether|if)\s+)([^.;!?\n]{1,400})`, "gi");
 const SPEECH_BEFORE = /\b(ask|asks|asked|asking|say|says|said|saying|tell|tells|telling|greet|greets|greeting|reply|replies|replying|respond|responds|responding|answer|answers|answering|confirm|confirms|confirming|verify|verifies|verifying|request|requests|requesting|script|line|opener|opening)\b[^"“”‘’]{0,40}$/i;
-const FOR_A_CUSTOMER = new RegExp(String.raw`\b(${CUSTOMER_PEOPLE}|parents?|guardians?|confirm\w*|verif\w*|security|secure|identity|identif\w*|charts?|records?|accounts?|files?|polic(y|ies)|portal|look (it |them )?up|pull (it |them )?up|before sharing|results|(thanks|thank you) for calling)\b`, "i");
+const FOR_A_CUSTOMER = new RegExp(String.raw`\b(${CUSTOMER_PEOPLE}|parents?|guardians?|confirm\w*|verif\w*|security|secure|identity|identif\w*|charts?|accounts?|portal|look (it |them )?up|pull (it |them )?up|before sharing|results|(thanks|thank you) for calling)\b`, "i");
 
 /** The text with each quoted line an agent says to a customer left out ("…"). */
 function withoutCustomerSpeech(text: string): string {
@@ -404,6 +437,10 @@ function sentenceAsks(raw: string): boolean {
   const plain = sentence.replace(/\b(customer|client|patient|member|user|caller|guest|player)\s+(service|support|care|success|experience|chats?|calls?|emails?|tickets?|complaints?|questions?|accounts?|issues?|quer(y|ies)|orders?|data|records?|inquir(y|ies)|requests?|satisfaction|feedback|needs|relations|portal|information|details|concerns|interactions?|facing)\b/gi, "service work");
   const matches = ageMatches(plain);
   const people = matches.length > 0 ? peopleIn(plain) : { others: [], applicants: [] };
+  // What the whole sentence says, read once.
+  const forApplicants = matches.length > 0 && TO_APPLICANTS.test(plain);
+  const benefit = matches.length > 0 && BENEFIT.test(plain);
+  const rental = matches.length > 0 && TO_RENT.test(plain);
   for (const m of matches) {
     const before = plain.slice(0, m.at);
     // The tests that read the end of `before` read only its last 200 characters (they never reach further back).
@@ -415,24 +452,27 @@ function sentenceAsks(raw: string): boolean {
     // A bare number ("must be 85", "be 90 and above") on a score, a time or a test.
     if (digit >= 0 && !/\b(years?|yrs?|y\.?o|y\/o|aged?|ages?|old|olds|born|graduat\w*|batch)\b|\d{2}s\b/i.test(m.text) && (METRIC_SUBJECT.test(near) || METRIC_AFTER.test(after))) continue;
     if (SOMEONE_ELSE_AT.test(fromNumber)) continue;
-    // Told to a customer, or when a benefit starts (the eighth review): "Explain to the caller that you must be 21 or older to
-    // rent a car", "Medicare starts at age 65", "the age 26 rule for dependents".
-    if (TOLD.test(plain.slice(0, m.at + m.text.length)) && !TO_APPLICANTS.test(plain)) continue;
-    if ((BENEFIT_AT.test(near) || RULE_AFTER.test(after)) && !TO_APPLICANTS.test(plain)) continue;
+    // "Accounts aged 90 and over": an account's age (the ninth review).
+    if (/^aged?\b/i.test(m.text) && /\b(accounts|tickets|claims|invoices|cases|orders|balances|bills|receivables)\s+$/i.test(near)) continue;
+    // A customer's rule (TOLD, BENEFIT_AT, RULE_AFTER, TO_RENT), never a range of ages nor a sentence about the job's applicants.
+    const range = /^\D{0,25}?\d{2}\s*(-|–|to|and)\s*\d{2}\b/i.test(plain.slice(m.at));
+    if (!range && !forApplicants && (rental || (benefit && BENEFIT_AT.test(near)) || RULE_AFTER.test(after) || TOLD.test(plain.slice(0, m.at + m.text.length)))) continue;
     // The person it belongs to is the last one named before it: "Are you comfortable helping
     // patients aged 65" is the patients', "Patients call us; agents aged 21-35" the agents'.
     // Unless the sentence prefers applicants of that age, whoever they are ("Students aged 18-22 preferred").
     const other = lastBy(people.others, (o) => o.end, m.at);
     const applicantEnd = lastBy(people.applicants, (end) => end, m.at) ?? -1;
     const preferred = !CUSTOMER_WORD.test(other?.word ?? "") && (PREFERRED_AFTER.test(plain.slice(m.at)) || IDEAL_FOR.test(before));
-    // "A 70 year old patient", "a 16-year-old wants to sign up": an article, then the age (ARTICLE_BEFORE). Never "born in the
-    // 90s" (a decade; the seventh review).
-    const article = digit >= 0 && !/^\d{2}s\b/i.test(fromNumber) ? ARTICLE_BEFORE.exec(plain.slice(Math.max(0, m.at + digit - 40), m.at + digit)) : null;
-    if (article) {
-      const person = SOMEONE_ELSE_WORD.exec(WORDS_AFTER.exec(after)?.[1] ?? "")?.[0];
-      const hiring = preferred || HIRING_LEAD.test(plain.slice(Math.max(0, m.at + digit - 40 - 60), m.at + digit - article[0].length));
+    // …or the person right after it: "a 70 year old patient", "70-year-old patients" (the ninth review), unless the sentence is
+    // hiring them ("We hire 18-24 year old students"). With an article (ARTICLE_BEFORE) and no one after it, the applicant's
+    // only when the sentence is hiring ("We want a 25-year-old go-getter"; never "a 16-year-old wants to sign up"). Never "born
+    // in the 90s" (a decade; the seventh review).
+    if (digit >= 0 && !/^\d{2}s\b/i.test(fromNumber)) {
+      const article = ARTICLE_BEFORE.exec(plain.slice(Math.max(0, m.at + digit - 40), m.at + digit));
+      const person = /^\s*[,;:(]/.test(after) ? undefined : SOMEONE_ELSE_WORD.exec(WORDS_AFTER.exec(after)?.[1] ?? "")?.[0];
+      const hiring = preferred || HIRING_LEAD.test(plain.slice(Math.max(0, m.at + digit - 100), m.at + digit - (article?.[0].length ?? 0)));
       if (person && !NEUTRAL_PERSON.test(person) && !(hiring && APPLICANT_GROUP.test(person))) continue;
-      if (!hiring) continue;
+      if (article && !hiring) continue;
     }
     if (!preferred && (other?.end ?? -1) > applicantEnd) continue;
     // "Ages 12+ game ratings", "the app is 18+": a product's rating.
@@ -466,37 +506,43 @@ const ABOUT_APPLICANT = re([
   String.raw`\b(candidate|applicant|she|he|they)(\s+(is|are|was|were|seems?|appears?|looks?|sounds?)|['’](s|re))\s+(too\s+|very\s+|quite\s+|rather\s+|fairly\s+|relatively\s+)?(young|old\b(?!-)|older|younger|elderly|youthful|married\b(?!\s+to\s+((the|this|that|a|an|her|his|their)\s+)?(script|scripts|process|job|work|rules|idea|routine|method|template|playbook))|single\b(?!-)|divorced|widowed|an? widow(er)?|separated\b(?!\s+(the|this|that|these|those|each|both|it|them|issues?|out)\b)|unmarried|engaged\b(?=\s*(to\b|[.,;:!?]|$))|pregnant|a (mother|father|mom|dad|parent)|a single (mother|mom|father|dad|parent))\b`,
   // A bare age (the eighth review): "The candidate is 52.", "She's 45.", "The applicant, 45, may tire on nights.", a remark
   // that opens with one ("A 52-year-old career agent with strong examples"); never "She is 20 chats ahead", "He is 30
-  // seconds faster" or the form's own "they are 18 or older".
-  String.raw`\b(candidate|applicant|she|he|they)(\s+(is|are|was|were)|['’](s|re))\s+((only|just|about|around|nearly|almost|over|under|barely|already|now|still)\s+)?${AGE}\b${UNITS}(?!\s*(out of|of|for|from|(or|and)\s+(older|over|above|up|younger|under|below))\b)|\b(candidate|applicant|she|he|they),\s*${AGE}\s*,|\b(candidate|applicant)\s*\(\s*(age\s*)?${AGE}\s*\)|^\s*[-•*]?\s*(an?\s+)?${AGE}[\s-]*(years?|yrs?)[\s-]*old\b`,
+  // seconds faster" or the form's own "they are 18 or older". The ninth: only an age that ends its clause or says "years"
+  // ("He's 23 and eager"), never "She was 35 lines into the script" or "He was 20 short of the bar".
+  String.raw`\b(candidate|applicant|she|he|they)(\s+(is|are|was|were)|['’](s|re))\s+((only|just|about|around|nearly|almost|over|under|barely|already|now|still)\s+)?${AGE}\b${UNITS}(?!\s*(or|and)\s+(older|over|above|up|younger|under|below)\b)(?=\s*([,;:!?)]|\.(?!\d)|$|(years?|yrs?|and|so|but|which|yet)\b))|\b(candidate|applicant|she|he|they),\s*${AGE}\s*,|\b(candidate|applicant)\s*\(\s*(age\s*)?${AGE}\s*\)|^\s*[-•*]?\s*(an?\s+)?${AGE}[\s-]*(years?|yrs?)[\s-]*old\b`,
   // Family plans and status at the start of a remark (the eighth review): "Wants to start a family soon", "Wants kids soon",
   // "Expecting her first child", "Just became a mother", "As a mom, she understands patience", "Divorced, so flexible",
   // "Widowed; wants steady work", "Unmarried and flexible"; never "Wants kids' accounts handled", "Separated the two issues" or
   // "Not married to one script".
-  String.raw`\b(wants?|wanting|plans?|planning|hopes?|hoping|intends?|intending|looking)\s+(to\s+)?(start|starting|have|having)\s+(a family|kids|children|a baby)\b(?!['’])|\bwants?\s+(kids|children|a baby)\b(?!['’])|\bexpecting (her|his|their) (first |second |third |next )?(child|baby)\b|\b(became|become|becoming) a (mother|father|mom|mum|dad|parent)\b|^\s*[-•*]?\s*as a (single |working |new |young |stay-at-home )?(mom|mother|mum|dad|father|parent)\b|^\s*[-•*]?\s*(divorced|widowed|unmarried|not married\b(?!\s+to\b)|a widow(er)?)\b|^\s*[-•*]?\s*(single|married|separated)\s*[,;:]\s*(so|and|which|but|may|might|could|likely|probably|no|with|has|lives|wants|needs|can)\b`,
-  // "He is in his late 50s", "Young for a lead" (the eighth review).
-  String.raw`\bin (his|her|their) ((early|mid|late)[\s-]?)?(20s|30s|40s|50s|60s|twenties|thirties|forties|fifties|sixties)\b|^\s*[-•*]?\s*((a bit|a little|rather|quite|very|too|fairly)\s+)?(young|old|older|younger)\s+for\s+(a|an|the|this)\s+(lead|team lead|leader|role|job|position|supervisor|manager|team)\b`,
+  String.raw`\b(wants?|wanting|plans?|planning|hopes?|hoping|intends?|intending|looking)\s+(to\s+)?(start|starting|have|having)\s+(a family|kids|children|a baby)\b(?!['’])|\bwants?\s+(kids|children|a baby)\b(?!['’])|\bexpecting (her|his|their) (first |second |third |next )?(child|baby)\b|\b(became|become|becoming) a (mother|father|mom|mum|dad|parent)\b(?![\s-]+figure)|^\s*[-•*]?\s*as a (single |working |new |young |stay-at-home )?(mom|mother|mum|dad|father|parent)\b|^\s*[-•*]?\s*(divorced|widowed|unmarried|not married\b(?!\s+to\b)|a widow(er)?)\b|^\s*[-•*]?\s*(single|married|separated)\s*[,;:]\s*(so|and|which|but|may|might|could|likely|probably|no|with|has|lives|wants|needs|can)\b`,
+  // "He is in his late 50s", "Young for a lead" (the eighth review), "Seems young for a lead role" (the ninth).
+  String.raw`\bin (his|her|their) ((early|mid|late)[\s-]?)?(20s|30s|40s|50s|60s|twenties|thirties|forties|fifties|sixties)\b|^\s*[-•*]?\s*((seems?|looks?|appears?|sounds?)\s+)?((a bit|a little|rather|quite|very|too|fairly)\s+)?(young|old|older|younger)\s+for\s+(a|an|the|this)\s+(lead|team lead|leader|role|job|position|supervisor|manager|team)\b`,
   // "Seems too young to lead"; never "their laptop is too old", "too old-fashioned for chat" or "a very old example".
   String.raw`(?<!\b(laptop|computer|device|phone|browser|headset|machine|pc|system|software|equipment|headphones|tone|style|wording|language|example|examples|reference|references|approach|script|template|slang|joke|jokes|phrasing)\b[^.]{0,30})\b(too|very|rather|relatively)\s+(young|old)\b(?=\s*([,.;:!?)]|$|to\b|for\b|and\b|but\b|so\b|compared\b|relative\b|than\b))`,
   String.raw`\b(young|younger|older|elderly|youthful|mature)\s+(candidate|applicant)\b`,
-  String.raw`\b(mother|father|mom|mum|dad|parent) of (one|two|three|four|five|six|\d+|twins|a (newborn|baby|toddler)|an infant|(young|small|little) (kids|children|ones))\b|\b(single|working|stay-at-home|new|young) (mother|mom|father|dad|parent)\b`,
+  // "A solo parent" is a legal status in the Philippines (RA 8972; the ninth review).
+  String.raw`\b(mother|father|mom|mum|dad|parent) of (one|two|three|four|five|six|\d+|twins|a (newborn|baby|toddler)|an infant|(young|small|little) (kids|children|ones))\b|\b(single|solo|working|stay-at-home|new|young) (mother|mom|father|dad|parent)\b`,
   // "Has five kids at home", "Mentioned her 3 kids" too (the eighth review).
   String.raw`\b(has|have|having|with|lives with|living with) (her |his |their )?(young |small |little |\d+ |one |two |three |four |five |six |seven |eight |nine |ten |several |many |a few |multiple )?(kids|children|a baby|a family|dependents|a newborn|a toddler|toddlers|an infant|twins|a child)\b(?!['’]|[\s-]+(business|owned|run|plan|medicine|practice|doctor|clinic|members?))`,
   // Never "Handled the pregnancy leave question for the employee correctly" (the eighth review).
   String.raw`\bpregnan\w*\b(?!\s+(leave|benefits?|coverage|polic(y|ies)|questions?|claims?|tests?|care|scans?|appointments?|cases?|discrimination|rules?)\b)|\b(family|childcare|child care|parenting) (duties|responsibilities|obligations|commitments)\b`,
   // The seventh review: an age named ("Mentions being 45", "At 45, she may struggle", "Only 19, may lack maturity"), age next to
   // the team, retirement, a new baby, a marriage, parental leave, childcare against the shift.
-  String.raw`(?<!\b(company|business|brand|clinic|firm|store|shop|startup|agency|practice|team|it)\s+)\b(being|turned|turning)\s+${AGE}\b(?=\s*([,.;:!?)]|$|(this|next|last|soon|years?|in|on|and|so|which|but)\b))|^\s*(at|only|just|aged?)\s+${AGE}\s*(years old\s*)?[,;:]|^\s*at\s+${AGE}\s+(she|he|they)\b`,
+  // Never a time ("At 21:30 he ended the chat early"; the ninth review).
+  String.raw`(?<!\b(company|business|brand|clinic|firm|store|shop|startup|agency|practice|team|it)\s+)\b(being|turned|turning)\s+${AGE}\b(?=\s*([,.;:!?)]|$|(this|next|last|soon|years?|in|on|and|so|which|but)\b))|^\s*(at|only|just|aged?)\s+${AGE}\s*(years old\s*)?([,;]|:(?!\d))|^\s*at\s+${AGE}\s+(she|he|they)\b`,
   String.raw`\b(older|younger) than (the rest of |most of |all of )?(the |his |her |their |our |other |most )?(team|teammates|colleagues|peers|others|agents|staff|team members|applicants|candidates|rest)\b`,
   String.raw`\b(close to|near|nearing|approaching|reaching|past) (the )?retirement( age)?\b|\b(about|due|planning|plans|going|set) to retire\b|\bretiring soon\b|\b(she|he|they|candidate|applicant)\s+(is|was|are)\s+(semi-)?retired\b`,
   String.raw`\b(just|recently) had (a baby|a child|twins|a son|a daughter)\b|\bbaby on the way\b|\bexpecting (a baby|a child|twins)\b`,
-  String.raw`\b(recently|newly|just|getting|soon to be|about to be|planning to get|plans to get) (married|wed|engaged|divorced)\b|\bnewly ?weds?\b`,
+  String.raw`\b(recently|newly|just|getting|soon to be|about to be|planning to get|plans to get) (got )?(married|wed|engaged|divorced)\b|\bnewly ?weds?\b`,
   String.raw`\b(on|back from|returning from|returned from|going on|due for|currently on|after) (her |his |their )?(maternity|paternity|parental|pregnancy) leave\b`,
   String.raw`\b(childcare|child care|babysitter|school runs?)\b[^.]{0,40}\b(clash|clashes|conflict|conflicts|limit|limits|risk|issue|problem|hard|harder|difficult|unlikely|unclear|get in the way|interfere)\b`,
 ]);
-const NAMES_SOMEONE_ELSE = /\b(customers?|clients?|callers?|(?<!\b(be|very|more|stay|remain|and|being|so|is|are)\s)patients?|members?|users?|players?|guests?|policyholders?|account holders?|borrowers?|buyers?|shoppers?|students?|residents?|parents?)\b/i;
-// "The single mom", "the new mom", "the father who has small kids on the line", "the newlywed couple": a person in a practice case, never the applicant
-// (who is "she", "the candidate" or "a single mom"; the seventh review).
-const THE_PERSON = /\b(the|that|this)\s+([\w'-]+\s+){0,2}(woman|man|lady|gentleman|mother|father|mom|mum|dad|grandmother|grandfather|grandma|grandpa|couple|wife|husband|widow|widower)\b(?!\s+of\s+(one|two|three|four|five|\d+)\b)/i;
+// Never the applicant's own "a single parent", "a solo parent", "is a parent of two" (the ninth review: every sentence saying
+// "parent" was skipped); "calmed a parent with two kids on the line" is still a customer.
+const NAMES_SOMEONE_ELSE = /\b(customers?|clients?|callers?|(?<!\b(be|very|more|stay|remain|and|being|so|is|are)\s)patients?|members?|users?|players?|guests?|policyholders?|account holders?|borrowers?|buyers?|shoppers?|students?|residents?|parents|(?<!\b(single|solo|working|stay-at-home|(is|as|am|being|became|become) an?)\s)parent(?!\s+of\b))\b/i;
+// "The single mom", "the new mom", "the father who has small kids on the line", "the newlywed couple", and "the single parent's
+// billing case" (the ninth): a person in a practice case, never the applicant (who is "she", "the candidate" or "a single mom";
+// the seventh review).
+const THE_PERSON = /\b(the|that|this)\s+([\w'-]+\s+){0,2}(woman|man|lady|gentleman|mother|father|mom|mum|dad|parent|grandmother|grandfather|grandma|grandpa|couple|wife|husband|widow|widower)\b(?!\s+of\s+(one|two|three|four|five|\d+)\b)/i;
 
 /**
  * True when what a reviewer wrote about an applicant marks their age, family
@@ -537,8 +583,12 @@ const MEASURED = /\b(hours?|wpm|speed|typing|calls?|chats?|tickets?|experience|y
 export function questionAsksAge(question: unknown, options: readonly unknown[] | null | undefined = []): boolean {
   if (asksAgeOrStatus(question)) return true;
   const texts = (Array.isArray(options) ? options : []).filter((option): option is string => typeof option === "string");
-  if (texts.some((option) => /\b(years?\s*old|yrs?\s*old|y\/o|of age|age|born|birth|marital|civil status|\d0s|twenties|thirties|forties)\b/i.test(option) && asksAgeOrStatus(option))) return true;
   const q = typeof question === "string" ? question : "";
+  // An option is read as the end of its question (the ninth review: "When does Medicare usually start? At age 65" is Medicare's,
+  // and "Which details should you verify before sharing lab results? Full name and date of birth" is a caller's check, not a
+  // form label; both questions were dropped whole).
+  const asked = q.replace(/[\s?.!:]+$/, "");
+  if (texts.some((option) => /\b(years?\s*old|yrs?\s*old|y\/o|of age|age|born|birth|marital|civil status|\d0s|twenties|thirties|forties)\b/i.test(option) && asksAgeOrStatus(`${asked} ${option}`))) return true;
   if (NAMES_SOMEONE_ELSE.test(q)) return false;
   if (texts.filter((option) => MARITAL_OPTION.test(option)).length >= 2) return true;
   if (texts.filter((option) => GENERATION_OPTION.test(option)).length >= 2) return true;

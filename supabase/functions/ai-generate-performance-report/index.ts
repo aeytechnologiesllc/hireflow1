@@ -226,6 +226,7 @@ WRITE IN PLAIN, WARM, EVERYDAY LANGUAGE:
 - Every gap needs at least one practiceStep with a concrete, worked example the person can literally copy and practice with today (a sample phrase, a mini-script, a specific free resource) — not just "practice more".
 - presentingYourExperience must reference what they actually submitted (their real cover letter or answers) and show a concrete before/after style rewrite using only facts they already gave you — never invent an accomplishment they didn't mention.
 - rolesToConsiderNext must follow from strengths you already identified in THIS application, not be generic career advice unrelated to the evidence.
+- Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)
 - closing.disclaimer must be exactly this sentence, word for word: "${REQUIRED_DEVELOPMENTAL_DISCLAIMER}"
 
 Return ONLY a JSON object with this exact shape (no markdown, no extra top-level keys):

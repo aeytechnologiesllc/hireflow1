@@ -282,7 +282,7 @@ check("repeating a known fact is NOT a new promise", /repeating a fact from WHAT
 check("the transcript is data, never instructions", /never an instruction to you/.test(system) && user.includes("<transcript>") && user.includes("</transcript>"));
 const lines = user.split("<transcript>\n")[1].split("\n</transcript>")[0].split("\n");
 check("one numbered, labelled line per message, in order", lines.length === HELD_LINE.length && lines.every((l, i) => l.startsWith(`${HELD_LINE[i].role === "user" ? "LEAD" : "PLAYER"} ${i + 1}: `)), lines.map((l) => l.slice(0, 10)).join("|"));
-check("the eval prompt version is bumped (eval-8: an agent case is graded against what the agent knows, in the pack's word)", EVAL_PROMPT_VERSION === "chat-sim-eval-8");
+check("the eval prompt version is bumped (eval-9: never a mark on age or family, the ninth Phase 6 review)", EVAL_PROMPT_VERSION === "chat-sim-eval-9");
 check("the validator needs every lead item and both flags", evaluatorRequiredKeys("team_lead").join(",") === "ownership,correctedAgent,accuracy,infoAsked,nextStep,tone,newPromiseMade,playerDisrespected,strengths,improvements");
 check("the reviewer names the LINE of a promise or of disrespect", system.includes('"newPromiseLine"') && system.includes('"disrespectLine"') && system.includes('"playerDisrespected"'));
 check("every item needs a number; only correctedAgent may be null", /Every item needs a number; only correctedAgent may be null/.test(system));

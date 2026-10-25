@@ -1400,7 +1400,7 @@ console.log("\n-- the server: the step's pack, the grader, the person played --"
   check("a step with no pack is graded as before: CUSTOMER, no facts block, no note", /marked CUSTOMER/.test(plain) && !plain.includes("WHAT THE AGENT KNOWS") && !plain.includes("WHAT GOOD LOOKS LIKE"));
   const persona = P.customerPromptFor(medicalCase.customerName, medicalCase.scenario, 0);
   check("the person played by the test is given the agent's facts only as behind-the-scenes knowledge", persona.includes("BEHIND THE SCENES") && persona.includes("YOUR SITUATION"));
-  check("the eval prompt version moved on", P.EVAL_PROMPT_VERSION === "chat-sim-eval-8");
+  check("the eval prompt version moved on", P.EVAL_PROMPT_VERSION === "chat-sim-eval-9");
 }
 {
   const fn = read("supabase/functions/ai-chat-simulation/index.ts");

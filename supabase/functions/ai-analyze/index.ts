@@ -476,7 +476,7 @@ Compare information across ALL provided sources (resume, cover letter, applicati
 Check for signs of AI-generated or template content:
 - ChatGPT-style writing patterns (overly formal, perfect grammar, generic phrasing)
 - Cookie-cutter phrases like "I am writing to express my interest" or "I believe I would be a great fit"
-- Lack of specific personal details or unique examples
+- No specific examples from their own work (named employers, real tasks, real numbers); a resume's personal details (age, birth date, civil status, family) count for nothing either way
 - Buzzword stuffing without substance
 - Inconsistent writing quality between resume and application answers
 - Perfect but impersonal language
@@ -789,7 +789,7 @@ Compare information across ALL provided sources (resume, cover letter, applicati
 Check for signs of AI-generated or template content:
 - ChatGPT-style writing patterns (overly formal, perfect grammar, generic phrasing)
 - Cookie-cutter phrases like "I am writing to express my interest" or "I believe I would be a great fit"
-- Lack of specific personal details or unique examples
+- No specific examples from their own work (named employers, real tasks, real numbers); a resume's personal details (age, birth date, civil status, family) count for nothing either way
 - Buzzword stuffing without substance
 - Inconsistent writing quality between resume and application answers
 - Perfect but impersonal language
@@ -1103,7 +1103,7 @@ IMPORTANT RULES:
 - Be creative - avoid overused questions like "Tell me about yourself" or "What's your greatest weakness"
 - Each question must assess different aspects of the candidate's fit for this specific role
 
-Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)`,
+Never ask applicants their age, date of birth, birth year, graduation year, marital status or family plans, and never write an age preference or limit (an age range, 'below 30', 'young', 'fresh graduates only') in the post, its requirements or its questions: every application already asks 'Are you 18 or older?' on its own. The same holds when their resume or profile lists their age, birth date, civil status or children: build no question on them.`,
 
   "phase": `You are an expert at evaluating candidate progress through hiring phases.
 Analyze the candidate's current status and performance in the hiring process.

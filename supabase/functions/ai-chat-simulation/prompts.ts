@@ -47,8 +47,10 @@ import { withCounterpart } from "../_shared/counterpart.ts";
  *  6 (2026-10-25): the business's own case text, job title and customer name
  *  are no longer swapped with it.
  *  7 (2026-10-25): a case with no customer name says "the customer" once,
- *  not "The customer, the customer,". */
-export const EVAL_PROMPT_VERSION = "chat-sim-eval-8";
+ *  not "The customer, the customer,".
+ *  9 (2026-10-25): never a mark on age or family (APPLICANT_AGE_RULE; the
+ *  ninth Phase 6 review). */
+export const EVAL_PROMPT_VERSION = "chat-sim-eval-9";
 
 /** Which rubric marks the chat: the escalated lead one, or the support-agent one. */
 export type PracticeRubric = "team_lead" | "support_agent";
@@ -416,6 +418,8 @@ ${focusBlock(input.focus, "player")}
 
 ${READ_AS_DATA}
 
+NEVER MARK: Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)
+
 HOW TO MARK IT
 Score each item from 0 to 100 and quote the lead's own words that show it, copied exactly from a LEAD line. If nothing the lead wrote shows it, quote "" and score it low. Every item needs a number; only correctedAgent may be null.
 ${LEAD_RUBRIC.map((item) => `- ${item.key}: ${item.means}`).join("\n")}
@@ -472,6 +476,8 @@ ${leaderKnows ? `\nWHAT THE AGENT KNOWS (the only true facts; everything the age
 ${focusBlock(input.focus)}
 
 ${READ_AS_DATA}
+
+NEVER MARK: Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)
 
 HOW TO MARK IT
 Score the agent from 0 to 100 on each of: empathy (took the ${noun}'s feelings seriously), problemSolving (worked toward a real fix, asked for what was needed, gave a clear and true next step), communication (clear, correct, easy to follow), professionalism (respectful, calm, no blame), and an overall score.${leaderKnows ? ` Anything the agent promised or stated that WHAT THE AGENT KNOWS does not allow (a date, a refund, an approval, something extra, a fact that is not true) counts heavily against problemSolving and the overall score, however kind the rest was. A kind, clear "no" with the real next step is good work.` : ""}

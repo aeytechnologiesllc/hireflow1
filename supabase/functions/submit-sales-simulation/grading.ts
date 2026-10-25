@@ -46,7 +46,8 @@ export interface SalesEvaluation {
 // prompt (the parts that apply regardless of mode, plus the EVALUATION MODE
 // JSON block) — same scenario framing, same required JSON keys. Keep this in
 // sync if that prompt is ever intentionally changed; this is the identical
-// grading call, just moved out of the public, unauthenticated endpoint.
+// grading call, just moved out of the public, unauthenticated endpoint. Since
+// the ninth Phase 6 review it also carries the NEVER MARK rule on age and family.
 export function buildEvaluationPrompt(params: {
   prospectName: string;
   prospectCompany: string;
@@ -107,7 +108,9 @@ EVALUATION MODE: Analyze the sales rep's performance and return JSON:
   "improvements": ["area1", "area2"],
   "wouldBuy": "yes" | "maybe" | "no",
   "overallFeedback": "Summary of sales performance"
-}`);
+}
+
+NEVER MARK: Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)`);
 }
 
 // ai-sales-simulation/index.ts's own callOpenAIJson fallback for evaluate

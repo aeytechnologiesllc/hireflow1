@@ -83,8 +83,9 @@ const corsHeaders = {
 
 const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
 const OPENAI_SALES_SIMULATION_EVAL_MODEL = Deno.env.get("OPENAI_SALES_SIMULATION_EVAL_MODEL") || "gpt-5.6-luna";
-/** Named in session.grading.prompt_version; bump when the evaluation prompt changes. */
-const EVAL_PROMPT_VERSION = "sales-sim-eval-1";
+/** Named in session.grading.prompt_version; bump when the evaluation prompt changes.
+ *  2 (2026-10-25): never a mark on age or family (the ninth Phase 6 review). */
+const EVAL_PROMPT_VERSION = "sales-sim-eval-2";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

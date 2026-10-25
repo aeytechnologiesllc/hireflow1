@@ -365,7 +365,9 @@ Provide your analysis in this exact JSON format:
   "recommendation": "<STRONG_HIRE/HIRE/CONSIDER/LEAN_PASS/PASS with brief justification>"
 }
 
-BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios score 55-70.`;
+BE CRITICAL AND HONEST. A score of 85+ should be exceptional. Average portfolios score 55-70.
+
+NEVER MARK: Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)`;
 
     // Attach files. Images go in as data-URL image parts; PDFs as Chat
     // Completions `file` parts. Each attachment is preceded by a short text
