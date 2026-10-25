@@ -458,7 +458,8 @@ customer-service hiring to any business and sends every visitor to one
 button, and an applicants list whose "where they are" column reads at a
 glance.
 
-**Colour (decision pending the owner's lock; recommendation below).** The
+**Colour: LOCKED by the owner on 2026-10-24 ("lock it"): ink and ivory,
+brass accent — "paper and brass".** The
 landing is already black, ivory and brass; the owner likes it. The green he
 dislikes is the *app*: the jade action colour (`--jade`, `--primary`,
 `--hf-green`, `--ck-jade`), the jade "aurora" layer and the green-tinted
@@ -466,17 +467,23 @@ backdrop on the sign-up page. Real screens were recoloured on 2026-10-24
 and shown to him (`design/mockups/2026-10-24-colour-and-rail/`): brass as
 the action colour, and "ink and ivory" with brass kept as an accent.
 
-Recommended direction: **Ink and ivory, brass accent.** Actions are
+The locked direction: **Ink and ivory, brass accent.** Actions are
 monochrome (ink buttons on ivory paper by day, ivory buttons on near-black
 at night, which is what the landing's own "Start hiring free" button already
 is); **brass is reserved** for Ava's seal, the sealed score, "hired", and
 anything that costs money (the cockpit's existing rule, `cockpit.css:194`).
 No jade anywhere; no new accent colour. Reasons: it matches the landing
 without reading "casino" the way gold-on-black does inside a daily tool, it
-is calm for all-day use, and it keeps brass meaningful. Day (paper) becomes
-the default for the staff app, with Night one tap away; the sign-up page
-follows the same tokens. Do not start the colour work until the owner has
-said "lock it" on this (or named another); the mock-ups are the reference.
+is calm for all-day use, and it keeps brass meaningful.
+
+Which theme when: the **landing stays dark** (it is a marketing page; its
+black, ivory and gold do not change). The **sign-up page stays dark** too,
+in the ink-and-ivory tokens, because it is the bridge from the landing.
+Once signed in, the **app follows the device's light/dark setting** (most
+desktops by day → Day/paper; phones at night → Night), and the existing
+toggle overrides it and is remembered per account. The applicant side
+follows the same rule. The mock-ups in
+`design/mockups/2026-10-24-colour-and-rail/` are the reference.
 
 The brass mark exists at `branding/backup-icon-flow.png` ("Direction 5");
 update BRANDING.md, whose "DO NOT REVIVE" section is about the old orb icon,
@@ -510,8 +517,8 @@ and show the mapping in docs/APPLICANTS-LIST.md.
    tokens to what they now mean (`--jade` → `--action`), keep the mapping
    in one place, and re-check contrast (WCAG AA) on every token pair in both
    themes. The `design-tokens` guards in `scripts/guardrails.mjs` must keep
-   passing or be updated with the new names. Make Day the staff default and
-   keep the toggle.
+   passing or be updated with the new names. The app follows the device's
+   light/dark setting by default; the toggle overrides and is remembered.
 3. **Landing rewrite** (`public/landing.html`; docs/LANDING.md):
    - headline: "Hire customer service agents while you sleep."; subhead for
      chat and phone, any business;
@@ -587,8 +594,7 @@ and show the mapping in docs/APPLICANTS-LIST.md.
 
 ### Owner inputs
 
-- His "lock it" on the colour direction (ink and ivory, brass accent), or
-  another choice, before this phase starts.
+- Colour: locked ("lock it", 2026-10-24). Nothing further needed.
 - The Vercel `www` 308 change if it needs his click.
 
 ---
@@ -893,8 +899,9 @@ session stops mid-phase (say exactly where).
   card, applicants list) in `design/mockups/2026-10-24-colour-and-rail/`.
 - Decided: "where they are" = Option C (four milestones). Owner: "Milestone
   looks a lot better."
-- Pending the owner's lock: colour. Recommended ink and ivory with brass as
-  the accent, Day default (see Phase 3).
+- Decided (later the same evening, "lock it"): colour = ink and ivory with
+  brass as the accent; landing and sign-up stay dark; the app follows the
+  device setting with the toggle to override (see Phase 3).
 - Owner inputs received: legal entity Southern Digital Technologies LLC;
   OpenAI cap later; Turnstile fine.
 - Nothing in the product changed. Phase 1 not started.
