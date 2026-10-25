@@ -11,33 +11,45 @@ own words. docs/LAUNCH-PLAN.md, Phase 4, is the plan this follows.
 `src/lib/avaEngine/playbook.ts`: the `customer_service` family is checked
 before every other (`detectFamily` → `isCustomerService`), in this order:
 
-1. a main-street or trade role in the title keeps its family, whatever else
-   it says ("Customer Service Cashier", a barista, a plumber, a pharmacy
-   technician; the owner: not main-street roles);
+1. a main-street, trade or clinical role in the title keeps its family,
+   whatever else it says ("Customer Service Cashier", a barista, a plumber, a
+   pharmacy technician, a dental or medical assistant; the owner: not
+   main-street roles). Role nouns only: "Online Store Chat Agent", "Driver
+   Support Agent" and "Pharmacy Customer Care Representative" name the
+   business, not the role, and are support jobs;
 2. a support title is customer service: customer / client service(s),
    support, care, success; support or chat agents, reps, specialists;
-   support managers and leads; help desk; call or contact centre; CSR
+   customer, chat, technical or IT support managers and leads (not an
+   operations or facilities one); technical / IT support technicians (not a
+   field or cell-phone one); help desk; call or contact centre; CSR
    (non-voice too); front desk; patient services and appointment schedulers;
 3. a front-office role at a clinic (a receptionist, a medical **office**
    assistant, an appointment setter, with patients or a clinic in the
    words), but never a clinical medical assistant;
 4. a title with "support" and support work ("Support Engineer — answer
    customer tickets");
-5. another role named in the title (engineer, manager, analyst, writer,
-   tester, a non-clinic receptionist) keeps its family;
-6. else the description has to say the job IS answering people: a verb and a
-   channel ("answer calls and chats", "handle customer tickets", "calls from
-   our customers"), or "customer service for / by …". A bare mention ("our
-   live chat widget", "help desk articles") or a quality ("great customer
-   service") does not count.
+5. another role named in the title keeps its family: engineer, manager,
+   analyst, writer, tester, a non-clinic receptionist, and the admin and
+   sales roles that also answer phones (administrative, executive, personal
+   or legal assistant, secretary, coordinator, telemarketer, cold caller,
+   appointment setter outside a clinic, real estate, insurance or
+   collections agent);
+6. else the description has to say the job IS answering people: a verb, a
+   customer-type word (customer, client, patient, caller, player, guest,
+   member) and a channel ("handle customer tickets", "calls from our
+   customers"); incoming or inbound calls; answering chats; staffing a live
+   chat or help desk; "customer service for / by …"; or, at a clinic,
+   answering the phones. A bare mention ("our live chat widget", "help desk
+   articles"), a quality ("great customer service"), outbound calling and
+   "answer phones, manage calendars" do not count.
 
-Both Phase 4 reviews' cases, about sixty, are in the test.
+All three Phase 4 reviews' cases, about a hundred and ten, are in the test.
 
 Its follow-ups (one chip each, the default in brackets):
 
 | id | Question | Chips |
 |---|---|---|
-| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say: phone ("Phone CSR", "inbound calls", "on the phones"), a mix (calls and emails), never phone for "non-voice", "chat only, no phone calls" or a chat or email CSR |
+| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say: phone ("Phone CSR", "inbound calls", "on the phones"), a mix (calls and emails, "Phone & Email Support Rep", "voice and email support"), never phone for "non-voice", "chat only", "no phone calls" or a chat or email CSR |
 | `cs-industry` | What kind of business is it? | Medical or dental office, Online store, Software or app, Home services, Gaming, Something else; the default is what the business's own words point to (`industryFromText`) |
 | `cs-load` | How many chats or messages at once? | One at a time, [Two or three], Four or more |
 | `cs-hours` | When will they work? | [Daytime], Evenings or nights, Weekends too, Rotating shifts |
@@ -64,9 +76,11 @@ the same things:
    server picks one case per applicant (the stable pick in
    `ai-chat-simulation/prompts.ts`), and typing speed and reply time are
    measured inside it (docs/TYPING-IN-CHAT.md);
-5. the written interview. A phone job's interview starts with the two
-   questions about calls (`PHONE_INTERVIEW_QUESTIONS`), each unless the model
-   already asked the same thing (an angry caller; hold or transfer), and
+5. the written interview. A phone or mixed job's interview starts with the
+   two questions about calls (`PHONE_INTERVIEW_QUESTIONS`), each unless one of
+   the model's questions already asks the same thing about a call (an angry
+   caller; putting someone on hold or passing the call on; "transferable
+   skills" and "hold yourself accountable" are not that), and
    always keeps at least one of the model's own, until the practice call
    exists (docs/LAUNCH-PLAN.md, "Later"); an interview the model left empty
    gets the customer-service bank's questions.
@@ -152,8 +166,11 @@ as a support agent (`rubricForCase`), with:
   default-ignorable character removed (zero-width, bidi isolates, variation
   selectors, tag characters); then "Word 3:", "WORD_4:", "WORD (4):", any
   capitals with a colon, and a word mixing Latin with look-alike letters
-  lose their colon, colon look-alikes included. Times ("10:30"), ratios and
-  "John 3:16" are left alone. Quotes are checked on the same folded words;
+  lose their colon, colon look-alikes included (modifier-letter, Armenian,
+  Hebrew, Syriac, Devanagari, Bengali, Gujarati, Ethiopic, Runic, Khmer, Lisu
+  and math colons). Numbers count in any digits ("PATIENT ٤:"), with or
+  without "No." ("Patient No. 4:"), and small capitals ("ɪɴᴛᴇʀᴠɪᴇᴡᴇʀ:") are
+  read as capitals. Times ("10:30"), ratios and "John 3:16" are left alone. Quotes are checked on the same folded words;
 - WHAT THE AGENT KNOWS as the only true facts, and anything promised or stated
   that they do not allow counting heavily against the mark;
 - the pack's note, WHAT GOOD LOOKS LIKE IN THIS KIND OF BUSINESS.
@@ -168,8 +185,10 @@ chat practice with a pack, `customerServiceStepOf`; not any job the scorer
 calls "support", which a "supportive team" also is) gets its own plan. It
 lists the chat practice as already done and hears them speak, with a
 one-minute practice where the interviewer is the customer. A phone job (the
-step's `config.channel` is "phone") also asks how they hold and pass on a
-call. A team lead's job keeps the team-lead plan. The plan, the guide's
+step's `config.channel` is "phone", or "mixed": phones among its channels)
+also asks how they hold and pass on a call. The pack's word replaces
+"customer" except in "customer service" (the name of the work) and in the
+question about their last job, whose customers were not this business's. A team lead's job keeps the team-lead plan. The plan, the guide's
 prompt and the written-interview grader all use the pack's word ("patient")
 where the job has a pack; only a pack the app knows counts.
 

@@ -94,7 +94,14 @@ console.log("\nThe plan every applicant gets\n");
   check("…whatever the scorer calls it (a 'Front desk' job reads general to it)", G.interviewPlanFor("general", { customerService: { channel: "chat" } }).family === "support");
   check("a job the scorer calls support but with no pack keeps the general plan ('supportive team')", G.interviewPlanFor("support").family === "general");
   const patient = G.interviewPlanFor("support", { customerService: { channel: "chat", noun: "patient" } });
-  check("a medical pack's plan says patient, never customer", /patient/i.test(words(patient)) && !/\bcustomers?\b/i.test(words(patient)), words(patient).match(/.{30}customer.{30}/i)?.[0]);
+  const patientWithoutLastJob = words({ ...patient, core: patient.core.filter((q) => q.id !== "recent_support") }).replace(/\bcustomer (service|support|care|success|experience)\b/gi, "");
+  check("a medical pack's plan says patient, never customer (but for the name of the work)", /patient/i.test(words(patient)) && !/\bcustomers?\b/i.test(patientWithoutLastJob), patientWithoutLastJob.match(/.{30}customer.{30}/i)?.[0]);
+  // The third Phase 4 review: "your most recent patient service job".
+  check("…'customer service' stays the name of the work, never 'patient service'", !/\bpatient (service|support|care|success|experience)\b/i.test(words(patient)), words(patient).match(/.{20}patient (service|support).{20}/i)?.[0]);
+  const lastJob = patient.core.find((q) => q.id === "recent_support");
+  check("…and the question about their last job keeps its customers (it was not a clinic)", /most recent customer service job\? Who were the customers/.test(lastJob.question), lastJob.question);
+  check("…while the practice makes the interviewer a patient", /Let's say I am a patient/.test(patient.core.find((q) => q.id === "live_practice").question));
+  check("a mixed job (phones among its channels) gets the phone plan (the third Phase 4 review)", words(G.interviewPlanFor("support", { customerService: { channel: "mixed" } })) === words(supportPhone));
   check("…and an odd noun is ignored (the plan keeps customer)", words(G.interviewPlanFor("support", { customerService: { channel: "chat", noun: "<b>x" } })) === words(support));
   check("the guide's word follows the pack ('patient'), else the business ('player' for the owner)", M.guideNoun({ homeBusiness: true, customerService: { pack: "medical", channel: "chat" } }) === "patient" && M.guideNoun({ homeBusiness: true, customerService: null }) === "player" && M.guideNoun({ homeBusiness: false, customerService: { pack: "nope", channel: null } }) === "customer");
   check("a team lead's job keeps the team-lead plan even with a pack", G.interviewPlanFor("team_lead", { homeBusiness: true, customerService: { channel: "chat" } }).family === "team_lead");

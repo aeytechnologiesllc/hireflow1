@@ -39,13 +39,30 @@ export function readLineNumber(value: unknown): number | null {
 }
 
 /** Every speaker label a reviewer's transcript uses (chat practice and interview). */
-const SPEAKER_LABEL = /\b(LEAD|PLAYER|AGENT|CUSTOMER|PATIENT|CALLER|INTERVIEWER|CANDIDATE)(\s*#?\s*\d+)?\s*:/gi;
+const SPEAKER_LABEL = /\b(LEAD|PLAYER|AGENT|CUSTOMER|PATIENT|CALLER|INTERVIEWER|CANDIDATE)(\s*#?\s*\p{Nd}+)?\s*:/giu;
 
-/** Colons that look like ":" (NFKC folds the full-width and small ones; these it leaves). */
-const COLON_LIKE = "[:\\u02F8\\u0589\\u05C3\\u2236\\uA789]";
-const NUMBERED_LABEL = new RegExp(String.raw`(\p{L}{3,24})([\s_.#()\[\]\-\u2013\u2014]{0,4}\d{1,4}[)\]]?)\s*${COLON_LIKE}(?!\d)`, "gu");
+/**
+ * Colons that look like ":" (NFKC folds the full-width and small ones; these
+ * it leaves): modifier-letter, Armenian, Hebrew, Syriac, Devanagari, Gujarati,
+ * Bengali, Ethiopic, Runic, Khmer, Lisu and math colons, and two-dot marks.
+ */
+const COLON_LIKE = "[:\\u02D0\\u02F8\\u0589\\u05C3\\u0703\\u0704\\u0903\\u0983\\u0A83\\u1361\\u1365\\u16EC\\u17D6\\u205A\\u2236\\uA4FD\\uA789]";
+// A word, a separator, maybe "No." / "Nr." / "Number", a number in any digits, a colon.
+const NUMBERED_LABEL = new RegExp(
+  String.raw`(\p{L}{3,24})([\s_.#()\[\]\-\u2013\u2014]{0,4}(?:(?:[Nn][Oo]|[Nn][Rr]|[Nn]um(?:ber)?|NUM(?:BER)?)[\s_.#]{0,3})?\p{Nd}{1,4}[)\]]?)\s*${COLON_LIKE}(?!\p{Nd})`,
+  "gu",
+);
 const CAPS_LABEL = new RegExp(String.raw`(?<!\p{L})(\p{Lu}{3,24})\s*${COLON_LIKE}`, "gu");
 const WORD_BEFORE_COLON = new RegExp(String.raw`(?<!\p{L})(\p{L}{3,24})\s*${COLON_LIKE}`, "gu");
+
+/** Small capitals ("ɪɴᴛᴇʀᴠɪᴇᴡᴇʀ") NFKC leaves alone: read as the capitals they look like. */
+const SMALL_CAPS: Record<string, string> = {
+  "\u1D00": "A", "\u0299": "B", "\u1D04": "C", "\u1D05": "D", "\u1D07": "E", "\uA730": "F", "\u0262": "G",
+  "\u029C": "H", "\u026A": "I", "\u1D0A": "J", "\u1D0B": "K", "\u029F": "L", "\u1D0D": "M", "\u0274": "N",
+  "\u1D0F": "O", "\u1D18": "P", "\uA7AF": "Q", "\u0280": "R", "\uA731": "S", "\u1D1B": "T", "\u1D1C": "U",
+  "\u1D20": "V", "\u1D21": "W", "\u028F": "Y", "\u1D22": "Z",
+};
+const SMALL_CAP = new RegExp(`[${Object.keys(SMALL_CAPS).join("")}]`, "gu");
 
 /** One script's letters only? A word mixing Latin with look-alikes ("PаTIENT") is not. */
 function mixesScripts(word: string): boolean {
@@ -54,7 +71,8 @@ function mixesScripts(word: string): boolean {
 
 /**
  * The same text a reviewer is shown, before any label rule: look-alike
- * letters and colons folded (NFKC), and every invisible character removed
+ * letters and colons folded (NFKC, then small capitals to capitals), and
+ * every invisible character removed
  * (zero-width, bidi controls and isolates, variation selectors, tag
  * characters: Unicode's default-ignorable set). words() compares on this
  * too, so a quote from the folded text still matches the applicant's line.
@@ -62,7 +80,8 @@ function mixesScripts(word: string): boolean {
 export function foldForReview(content: string): string {
   return String(content ?? "")
     .normalize("NFKC")
-    .replace(/[\u00AD\p{Default_Ignorable_Code_Point}]/gu, "");
+    .replace(/[\u00AD\p{Default_Ignorable_Code_Point}]/gu, "")
+    .replace(SMALL_CAP, (c) => SMALL_CAPS[c] ?? c);
 }
 
 /**
