@@ -21,6 +21,8 @@
  *     account) removes it (the sixth product review).
  */
 
+import { grantsToBrowser, latestDefinition, triggerProblems } from "./phase-7-launch-locks.mjs";
+
 const ENTITY = "Southern Digital Technologies LLC";
 
 /** Each call of `fn(` with its object argument, as text (balanced braces). */
@@ -119,19 +121,12 @@ export default [
       }
       // The LATEST definition is the live one (the second Phase 5 review: the
       // guard read only the first): it still counts the business and refuses past its cap.
-      const migrations = (await walk("supabase/migrations", [".sql"])).sort();
-      let latest = "";
-      let latestFile = "";
-      for (const rel of migrations) {
-        const text = (await read(rel)) ?? "";
-        const at = text.search(/create (?:or replace )?function public\.ai_budget_take\(/i);
-        if (at >= 0) {
-          // Its code, not its comments (the fifth and sixth reviews: a commented-out check passed).
-          // Block comments too (the seventh review: a /* */-wrapped line passed).
-          latest = text.slice(at).replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
-          latestFile = rel;
-        }
-      }
+      // Its code, not its comments (the fifth, sixth and seventh reviews), read
+      // in any case and with any dollar-quote tag (latestDefinition; the sixth
+      // security review).
+      const def = await latestDefinition({ read, walk }, "ai_budget_take");
+      const latest = def?.statement ?? "";
+      const latestFile = def?.rel ?? "supabase/migrations";
       // The business branch itself says no: the platform's own "return false"
       // further down used to satisfy this alone (the tenth Phase 5 review).
       const businessBranch = latest.slice(latest.search(/if v_business_calls > v_business_cap then/), latest.search(/select coalesce\(\(value #>> '\{\}'\)::integer, 10000\)/));
@@ -156,6 +151,42 @@ export default [
       ) {
         detail.push(`${latestFile}: the live ai_budget_take no longer gives an unconfirmed business the smaller day`);
       }
+      // Nothing says yes before the counting, and nothing moves a cap or a
+      // count after it is read (the sixth security review: an early
+      // "return true;" and "v_business_cap := v_business_cap * 100000" passed).
+      // The only yes is the last statement; the caps and counts are set only
+      // as written, with defaults no larger than 300 / 2,000 / 6,000 / 10,000.
+      const body = (def?.body ?? "").replace(/\s+/g, " ");
+      if ((body.match(/\breturn\s+true\b/gi) ?? []).length !== 1 || !/\breturn true; end;?\s*$/i.test(body)) detail.push(`${latestFile}: ai_budget_take says yes somewhere other than its last statement`);
+      const allowedSets = [
+        /^v_take integer := greatest\(1, least\(coalesce\(p_calls, 1\), 100\)\)$/i,
+        /^v_business_cap := coalesce\(\(select \(value #>> '\{\}'\)::integer from public\.app_settings where key = 'ai_platform_business_daily_call_cap'\), (\d+)\)$/i,
+        /^v_business_cap := coalesce\(v_business_cap, (\d+)\)$/i,
+        /^v_business_cap := v_new_cap$/i,
+        /^v_cap := coalesce\(v_cap, (\d+)\)$/i,
+      ];
+      for (const m of body.matchAll(/\b(v_take|v_cap|v_calls|v_business_cap|v_business_calls)\b(?:\s+integer)?\s*:=\s*([^;]*)/gi)) {
+        const set = m[0].trim();
+        if (!allowedSets.some((re) => re.test(set))) detail.push(`${latestFile}: ai_budget_take sets ${m[1]} other than as written (${set.slice(0, 80)})`);
+      }
+      for (const [what, re, most] of [
+        ["HireFlow's own day", /'ai_platform_business_daily_call_cap'\), (\d+)\)/i, 6000],
+        ["a business's day", /v_business_cap := coalesce\(v_business_cap, (\d+)\)/i, 2000],
+        ["a business's day (its setting)", /select coalesce\(\(value #>> '\{\}'\)::integer, (\d+)\) into v_business_cap/i, 2000],
+        ["a new business's day", /'ai_new_business_daily_call_cap'\), (\d+)\)/i, 300],
+        ["the platform's day", /v_cap := coalesce\(v_cap, (\d+)\)/i, 10000],
+        ["the platform's day (its setting)", /select coalesce\(\(value #>> '\{\}'\)::integer, (\d+)\) into v_cap/i, 10000],
+      ]) {
+        const n = body.match(re);
+        if (!n || Number(n[1]) > most) detail.push(`${latestFile}: ai_budget_take's default for ${what} is missing or above ${most}`);
+      }
+      if (!/values \(v_business, v_today, v_take\) on conflict \(business_id, day\) do update set calls = u\.calls \+ excluded\.calls, updated_at = now\(\) returning u\.calls into v_business_calls;/i.test(body) || !/values \(v_today, v_take\) on conflict \(day\) do update set calls = u\.calls \+ excluded\.calls, updated_at = now\(\) returning u\.calls into v_calls; if v_calls > v_cap then/i.test(body)) {
+        detail.push(`${latestFile}: ai_budget_take no longer adds each call's units to the business's and the platform's day before comparing`);
+      }
+      // The server's only, however a grant is written.
+      for (const rel of await grantsToBrowser({ read, walk }, "ai_budget_take")) detail.push(`${rel}: ai_budget_take granted to a browser role`);
+      const latestText = ((await read(latestFile)) ?? "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
+      if (!/revoke all on function public\.ai_budget_take\(integer, uuid\) from public, anon, authenticated;/i.test(latestText)) detail.push(`${latestFile}: ai_budget_take must be revoked from public, anon and authenticated where it is made`);
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },
@@ -226,44 +257,42 @@ export default [
       // Comments stripped first: a rule kept only in a comment is no rule (the
       // eighth review: a later remove_applicant without the owner check, the
       // check mentioned in a comment, passed).
+      // Its own body, read in any case and with any dollar-quote tag
+      // (latestDefinition; the sixth security review), and its file.
       const noComments = (t) => t.replace(/\/\*[\s\S]*?\*\//g, "").replace(/--[^\n]*/g, "");
-      let sql = "";
-      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
-        const text = noComments((await read(rel)) ?? "");
-        if (/create (?:or replace )?function public\.remove_applicant\(/i.test(text)) sql = text;
-      }
+      const removal = await latestDefinition({ read, walk }, "remove_applicant");
+      const removalBody = (removal?.body ?? "").replace(/\s+/g, " ");
+      const sql = removal ? noComments((await read(removal.rel)) ?? "") : "";
       if (!/grant execute on function public\.remove_applicant\(uuid, uuid, text\) to service_role;/.test(sql) || !/revoke all on function public\.remove_applicant\(uuid, uuid, text\) from public, anon, authenticated;/.test(sql)) {
         detail.push("remove_applicant must be callable by the system only (it trusts the actor it is given)");
       }
-      if (!/tm\.can_manage_pipeline is true/.test(sql) || !/p_actor = v_app\.employer_id/.test(sql)) detail.push("remove_applicant no longer limits it to the owner and teammates who manage applicants");
+      if (!/tm\.can_manage_pipeline is true/.test(removalBody) || !/if not \( p_actor = v_app\.employer_id or exists \(/.test(removalBody) || !/then return jsonb_build_object\('ok', false, 'reason', 'not_allowed'\); end if;/.test(removalBody)) detail.push("remove_applicant no longer limits it to the owner and teammates who manage applicants");
       // A check written but switched off ("… or true") is no check, and no later
-      // migration may hand the function to a browser (the ninth review).
-      if (/\bor\s*\(*\s*true\b|\bor\s*\(*\s*1\s*=\s*1\b/i.test(sql)) detail.push("remove_applicant's checks are switched off with an \"or true\"");
-      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
-        const text = noComments((await read(rel)) ?? "");
-        if (/grant\s+(?:execute|all)(?:\s+privileges)?\s+on\s+(?:function\s+)?public\.remove_applicant[^;]*\bto\s+[^;]*\b(authenticated|anon|public)\b/i.test(text)) detail.push(`${rel}: remove_applicant granted to a browser role`);
-      }
-      if (!/insert into private\.applicant_removals/.test(sql)) detail.push("remove_applicant no longer logs the removal");
+      // migration may hand the function to a browser (the ninth review), with or
+      // without "public." or as ON ROUTINE (the sixth security review).
+      if (/\bor\s*\(*\s*true\b|\bor\s*\(*\s*1\s*=\s*1\b|\bif\s+false\b|\bfalse\s+and\b/i.test(removalBody)) detail.push("remove_applicant's checks are switched off (\"or true\", \"false and\")");
+      for (const rel of await grantsToBrowser({ read, walk }, "remove_applicant")) detail.push(`${rel}: remove_applicant granted to a browser role`);
+      if (!/insert into private\.applicant_removals/.test(removalBody)) detail.push("remove_applicant no longer logs the removal");
       // A deleted application (a withdrawal, Delete Account, a job deleted) queues
       // its recordings, video introduction and work samples, always, with the
       // function's own rights: an applicant's own delete cannot write the queue
       // (the tenth Phase 5 review: nothing held this, and it ran only for rows
       // that named a recording).
-      let queue = "";
-      let queueTrigger = false;
-      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
-        const text = noComments((await read(rel)) ?? "");
-        const at = text.search(/create (?:or replace )?function public\.applications_queue_voice_recordings\(/i);
-        if (at >= 0) queue = text.slice(at, text.indexOf("$$;", at));
-        if (/create (?:or replace )?trigger applications_queue_voice_recordings\s+after delete on public\.applications\s+for each row/i.test(text)) queueTrigger = true;
-        if (/drop trigger (?:if exists )?applications_queue_voice_recordings\b|drop function (?:if exists )?public\.applications_queue_voice_recordings\b|disable trigger (?:applications_queue_voice_recordings|all|user)\b/i.test(text) && !/create (?:or replace )?trigger applications_queue_voice_recordings/i.test(text)) detail.push(`${rel}: the trigger that queues a deleted application's files is dropped or switched off`);
+      // Read as Postgres reads it (the sixth security review: WHEN (false), FOR
+      // EACH STATEMENT, ENABLE REPLICA, ALTER FUNCTION … SECURITY INVOKER, a
+      // trigger moved to another table, a body returning before its insert or
+      // inserting "select … where false" all passed): the latest trigger is
+      // AFTER DELETE ON public.applications FOR EACH ROW and in force, the
+      // latest function runs with its own rights and inserts the three folders
+      // as its first statement.
+      detail.push(...(await triggerProblems({ read, walk }, { name: "applications_queue_voice_recordings", table: "applications", timing: "AFTER", event: "DELETE", fn: "applications_queue_voice_recordings" })));
+      const queueDef = await latestDefinition({ read, walk }, "applications_queue_voice_recordings");
+      const queue = (queueDef?.body ?? "").replace(/\s+/g, " ");
+      if (!queueDef?.securityDefiner) detail.push(`${queueDef?.alteredIn ?? queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must run with its own rights (an applicant's own delete cannot write storage_file_trash)`);
+      const tuples = [["voice-interview-recordings", "old\\.id::text", "''"], ["videos", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"], ["portfolios", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"]].map(([bucket, folder, prefix]) => `\\('${bucket}', ${folder}, ${prefix}, old\\.id\\)`);
+      if (!new RegExp(`^\\s*begin begin insert into public\\.storage_file_trash \\(bucket, folder, starts_with, application_id\\) values ${tuples.join(", ")}; exception when others then raise log [^;]*; end; return old; end;?\\s*$`, "i").test(queue)) {
+        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the recordings, videos and portfolios folders of every deleted application, first thing, as written`);
       }
-      if (!queueTrigger) detail.push("supabase/migrations: no AFTER DELETE trigger on applications queues a deleted application's files");
-      if (!/\bsecurity definer\b/i.test(queue)) detail.push("applications_queue_voice_recordings must run with its own rights (an applicant's own delete cannot write storage_file_trash)");
-      for (const [bucket, folder, prefix] of [["voice-interview-recordings", "old\\.id::text", "''"], ["videos", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"], ["portfolios", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"]]) {
-        if (!new RegExp(`\\('${bucket}', ${folder}, ${prefix}, old\\.id\\)`).test(queue)) detail.push(`applications_queue_voice_recordings no longer queues ${bucket} for every deleted application`);
-      }
-      if (/\bif\b[^;]*\bthen\b[\s\S]*insert into public\.storage_file_trash/i.test(queue.slice(0, queue.search(/insert into public\.storage_file_trash/i) + 40))) detail.push("applications_queue_voice_recordings must queue every deleted application's folders, not only some");
       const fn = (await read("supabase/functions/remove-applicant/index.ts")) ?? "";
       if (!/p_actor: caller\.userId/.test(fn) || !/requireSignedInUser\(req, corsHeaders\)/.test(fn)) detail.push("remove-applicant: the actor must come from the caller's sign-in");
       const menu = (await read("src/cockpit/components/ApplicantRowMenu.tsx")) ?? "";

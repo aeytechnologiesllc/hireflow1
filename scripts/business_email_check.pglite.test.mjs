@@ -65,6 +65,7 @@ const NOT_THE_CHECK = {
   "20261025470000_security_round4.sql": "a sent document's content is fixed and an applicant's resume link on insert; nothing of jobs, profiles or the check",
   "20261025480000_growth_app_sources.sql": "Admin → Growth's channel names for app referrers; nothing of jobs, profiles or the check",
   "20261025490000_application_files_go_with_it.sql": "a deleted application queues its own files for removal; nothing of jobs, profiles or the check",
+  "20261025500000_plain_file_paths.sql": "an applicant's resume link, the form's file paths and a requested document's file are plain paths; nothing of jobs, profiles or the check",
   "20261025510000_growth_google_is_search.sql": "Admin → Growth's channel names (google is search only, Lite apps named); nothing of jobs, profiles or the check",
   "20261025520000_growth_front_page_not_staff.sql": "admin_growth's front-page count leaves out the staff host; reads page counts and sign-up tags, nothing of the check",
   "20261025270000_phase5_review6.sql": "the AI budget's new-business day only when smaller (no change to the check)",

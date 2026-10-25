@@ -1,7 +1,7 @@
 /**
  * Which stored files an application lists — the only paths applicant-file-url
- * will sign. Pure and import-free, so scripts/applicant_file_url.test.mjs runs
- * it under plain Node.
+ * will sign. Pure, and its one import (_shared/ownDocumentFile.ts) is
+ * import-free, so scripts/applicant_file_url.test.mjs runs it under plain Node.
  *
  * Files a candidate attaches on the application form are uploaded to the
  * private `resumes` bucket under their own user id
@@ -25,6 +25,8 @@
  * file is signed only when it is also in THIS application's candidate's
  * folder.
  */
+
+import { isPlainObjectPath } from "../_shared/ownDocumentFile.ts";
 
 export const APPLICANT_FILES_BUCKET = "resumes";
 const MAX_PATH = 1024;
@@ -51,7 +53,7 @@ function notesObject(notes: unknown): Record<string, unknown> {
  * is, or the part after `/resumes/` of a full (public or signed) URL. Null
  * for anything else (an external link, an empty value) and for anything
  * that is not a plain relative path: `..` segments, a backslash, a control
- * character.
+ * character, a `%` (isPlainObjectPath).
  */
 export function storagePathFrom(stored: unknown, bucket = APPLICANT_FILES_BUCKET): string | null {
   if (typeof stored !== "string") return null;
@@ -72,11 +74,12 @@ export function storagePathFrom(stored: unknown, bucket = APPLICANT_FILES_BUCKET
   }
   path = path.replace(/^\/+/, "");
   if (!path || path.length > MAX_PATH) return null;
-  for (const ch of path) {
-    const code = ch.charCodeAt(0);
-    if (code < 0x20 || code === 0x7f || ch === "\\") return null;
-  }
-  if (path.split("/").some((segment) => segment === ".." || segment === "." || segment === "")) return null;
+  // Every part a plain name, as document-signing and _shared/resume.ts hold
+  // theirs: the path is signed with the service key, and storage-js puts it
+  // into the request address as it is, so a "%2e%2e" (or a stored URL's
+  // "%252e%252e", decoded once above) became a parent step and signed a file
+  // in another person's folder (the sixth security review).
+  if (!isPlainObjectPath(path)) return null;
   return path;
 }
 

@@ -64,6 +64,22 @@ for (const bad of [`${UID}/../${OTHER}/cv.pdf`, `../${RESUME}`, `${UID}/./cv.pdf
 }
 check("non-strings are refused", storagePathFrom(null) === null && storagePathFrom(42) === null && storagePathFrom({}) === null);
 check("a malformed escape is refused, not thrown", storagePathFrom(PUBLIC_URL(`${UID}/%E0%A4%A.pdf`)) === null);
+// The sixth security review: the path is signed with the service key and
+// storage-js puts it into the request address as it is, where "%2e%2e" is a
+// parent step. Every part must be a plain name (isPlainObjectPath).
+{
+  const stored = `${UID}/%2e%2e/x/y.pdf`; // the reviewer's value (path_rule_check.mjs)
+  check("(why) once in an address, that stored path leaves the owner's folder", new URL(`https://p.supabase.co/storage/v1/object/sign/resumes/${stored}`).pathname === `/storage/v1/object/sign/resumes/x/y.pdf`);
+  check("a stored path with %2e%2e in it is refused", storagePathFrom(stored) === null);
+  check("…and so is a stored URL whose path is %2e%2e after one decode (%252e%252e)", storagePathFrom(PUBLIC_URL(`${UID}/%252e%252e/${OTHER}/cv.pdf`)) === null);
+  for (const bad of [`${UID}/cv%20final.pdf`, `${UID}/%2E%2E/${OTHER}/cv.pdf`, `${UID}/cv\u007f.pdf`, `${UID}/cv\u001f.pdf`, `${UID}/a%5c..%5c${OTHER}.pdf`]) {
+    check(`refused (not a plain name): ${JSON.stringify(bad).slice(0, 70)}`, storagePathFrom(bad) === null);
+  }
+  const listedBad = JSON.stringify({ fileUploads: { fq5: { url: stored, imageUrls: [`${UID}/%2e%2e/${OTHER}/page1.png`] } }, resumeImageUrls: [`${UID}/%2e%2e/z.png`] });
+  check("a listed %2e%2e path is not signed (invalid, the same answer as a path outside the folder)", authorizeApplicantFilePath(stored, { notes: listedBad, resume_url: stored, candidate_id: UID }).reason === "invalid_path");
+  check("…and nothing such a list holds is listed at all", listedApplicantFilePaths(listedBad, stored).length === 0);
+  check("ordinary names still pass: digits, underscores, spaces, brackets", storagePathFrom(`${UID}/1759700000000_fq5.pdf`) === `${UID}/1759700000000_fq5.pdf` && storagePathFrom(`${UID}/My Resume (final).pdf`) === `${UID}/My Resume (final).pdf`);
+}
 
 console.log("\nlistedApplicantFilePaths:\n");
 const listed = listedApplicantFilePaths(notes, PUBLIC_URL(RESUME));

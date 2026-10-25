@@ -36,6 +36,9 @@
  *      sets or clears it; a new file from the applicant starts it over.
  *   8. *_cancel_only_unanswered_requests.sql: the owner cancels a request
  *      only while nothing was sent for it.
+ *   9. 20261025500000_plain_file_paths.sql: the applicant's file is a plain
+ *      path (no "%", backslash or control character), so the signed link
+ *      cannot climb out of their folder (the sixth security review).
  *
  * anon / authenticated / service_role are real, separate roles, so RLS and
  * GRANT/REVOKE are genuinely in force.
@@ -414,6 +417,38 @@ async function main() {
   check("8. …but never one with a file in it (it would stay in the bucket, out of the cleanup's sight)", withFile.ok && withFile.rows.length === 0 && (await pg(`select 1 from public.document_requests where id = $1`, [nbi])).length === 1, show(withFile));
   const withAnswer = await as(OWNER, "authenticated", `delete from public.document_requests where id = $1 returning id`, [payReq]);
   check("8. …nor one with a typed answer", withAnswer.ok && withAnswer.rows.length === 0, show(withAnswer));
+
+  // 9 ──────────────────────────────────────────────────────────────────────
+  // 20261025500000_plain_file_paths.sql (the sixth security review): the file
+  // is a plain path, since requested-document-url signs it with the service
+  // key and "%2e%2e" is a parent step once it is in an address.
+  const sql9 = await readFile(path.join(MIGRATIONS, "20261025500000_plain_file_paths.sql"), "utf8");
+  let applied9 = true;
+  try {
+    await db.exec(sql9);
+    await db.exec(sql9);
+  } catch (e) {
+    applied9 = false;
+    console.log(e.message);
+  }
+  check("9. the plain-path migration applies, and applies again", applied9);
+  const plainReq = (await as(OWNER, "authenticated", `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'nbi_clearance') returning id`, [APP_ANA, OWNER, ANA])).rows[0].id;
+  for (const [what, value] of [
+    ["%2e%2e", `${ANA}/%2e%2e/${BEN}/r9/id.jpg`],
+    ["any %", `${ANA}/${plainReq}/id%20card.jpg`],
+    ["a backslash", `${ANA}/${plainReq}\\id.jpg`],
+    ["a control character", `${ANA}/${plainReq}/id\u0001.jpg`],
+    ["a DEL", `${ANA}/${plainReq}/id\u007f.jpg`],
+  ]) {
+    const bad = await as(ANA, "authenticated", `update public.document_requests set file_url = $2, status = 'submitted' where id = $1`, [plainReq, value]);
+    check(`9. the applicant cannot store a file path with ${what}`, !bad.ok && /request_file_not_yours/.test(bad.error), show(bad));
+  }
+  const plainSent = await as(ANA, "authenticated", `update public.document_requests set file_url = $2, file_name = 'NBI clearance (1).jpg', status = 'submitted' where id = $1 returning file_url`, [plainReq, `${ANA}/${plainReq}/id-1.jpg`]);
+  check("9. …while an ordinary path in their own folder still goes in", plainSent.ok && plainSent.rows[0]?.file_url === `${ANA}/${plainReq}/id-1.jpg`, show(plainSent));
+  const stillOther = await as(ANA, "authenticated", `update public.document_requests set file_url = $2 where id = $1`, [plainReq, `${BEN}/r9/id.jpg`]);
+  check("9. …and another folder is still refused", !stillOther.ok && /request_file_not_yours/.test(stillOther.error), show(stillOther));
+  const ownerStill = await as(OWNER, "authenticated", `update public.document_requests set status = 'approved' where id = $1 returning status, file_url`, [plainReq]);
+  check("9. the hiring side still approves, and never changes the file", ownerStill.ok && ownerStill.rows[0]?.status === "approved" && ownerStill.rows[0]?.file_url === `${ANA}/${plainReq}/id-1.jpg`, show(ownerStill));
 }
 
 await main();

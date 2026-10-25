@@ -5,7 +5,9 @@
  * moves their status only from in_progress to pending, rewrites the cover
  * letter and the form's answers only while the form is theirs, and cannot
  * withdraw a sent application and apply again within 30 days. The hiring
- * team, the server and the database's own functions are untouched.
+ * team, the server and the database's own functions are untouched. Since
+ * 20261025500000 (the sixth security review) the resume link and the form's
+ * file paths hold no "%", backslash or control character.
  *
  * Run with: node scripts/applicant_writes_round2.pglite.test.mjs
  */
@@ -165,6 +167,57 @@ console.log("\nRound 4 (20261025470000)\n");
   const bad = await as(ANA, "authenticated", `insert into public.applications (job_id, candidate_id, resume_url) values ($1, $2, 'https://evil.example/cv.pdf') returning resume_url`, [JOB2, ANA]);
   const good = await as(ANA, "authenticated", `insert into public.applications (job_id, candidate_id, resume_url) values ($1, $2, $3) returning resume_url`, [JOB2, ANA, `${ANA}/cv.pdf`]);
   check("a new application keeps a resume link only when it is a file in the applicant's own folder", bad.ok && bad.rows[0]?.resume_url === null && good.ok && good.rows[0]?.resume_url === `${ANA}/cv.pdf`, JSON.stringify({ bad, good }));
+}
+
+console.log("\nPlain file paths (20261025500000)\n");
+{
+  // The sixth security review: applicant-file-url signs these paths with the
+  // service key, and "%2e%2e" is a parent step once the path is in an address.
+  const plainPaths = readFileSync(path.join(ROOT, "supabase/migrations/20261025500000_plain_file_paths.sql"), "utf8");
+  await db.exec(plainPaths);
+  await db.exec(plainPaths);
+  check("the migration applies, and applies again", true);
+  const open6 = await newApp("in_progress", "application", null);
+  const NOT_PLAIN = [["a %", `${ANA}/%2e%2e/${BIZ}/cv.pdf`], ["a backslash", `${ANA}/cv\\x.pdf`], ["a control character", `${ANA}/cv\u0001.pdf`], ["a DEL", `${ANA}/cv\u007f.pdf`]];
+  for (const [label, value] of NOT_PLAIN) {
+    const bad = await as(ANA, "authenticated", `update public.applications set resume_url = $2 where id = $1`, [open6, value]);
+    check(`the resume is never a path with ${label}`, !bad.ok && /resume_not_own_file/.test(bad.error), JSON.stringify(bad));
+    const ins = await as(ANA, "authenticated", `insert into public.applications (job_id, candidate_id, resume_url) values ($1, $2, $3) returning id, resume_url`, [JOB2, ANA, value]);
+    check(`…nor on a new application (${label}: the link is dropped)`, ins.ok && ins.rows[0]?.resume_url === null, JSON.stringify(ins));
+    if (ins.ok) await db.query(`delete from public.applications where id = $1`, [ins.rows[0].id]);
+  }
+  let w = await as(ANA, "authenticated", `update public.applications set resume_url = $2 where id = $1`, [open6, `${ANA}/1729000000000_q1.pdf`]);
+  check("an ordinary resume path still goes in", w.ok, w.error);
+  w = await as(ANA, "authenticated", `update public.applications set resume_url = $2 where id = $1`, [open6, `${ANA}/My Resume (final).pdf`]);
+  check("…a name with spaces and brackets too", w.ok, w.error);
+  const ins = await as(ANA, "authenticated", `insert into public.applications (job_id, candidate_id, resume_url) values ($1, $2, $3) returning id, resume_url`, [JOB2, ANA, `${ANA}/resume-1.pdf`]);
+  check("…and on a new application", ins.ok && ins.rows[0]?.resume_url === `${ANA}/resume-1.pdf`, JSON.stringify(ins));
+  if (ins.ok) await db.query(`delete from public.applications where id = $1`, [ins.rows[0].id]);
+
+  const files = (uploads, pages) => JSON.stringify({ applicationAnswers: [{ q: "a" }], fileUploads: uploads, ...(pages ? { resumeImageUrls: pages } : {}) });
+  const good = files({ q1: { url: `${ANA}/1729000000000_q1.pdf`, imageUrls: [`${ANA}/1729000000001_q1_page1.png`], isResume: true } }, [`${ANA}/1729000000001_q1_page1.png`]);
+  w = await as(ANA, "authenticated", `update public.applications set notes = $2 where id = $1`, [open6, good]);
+  check("the form's ordinary file paths go in", w.ok, w.error);
+  for (const [label, value] of NOT_PLAIN) {
+    for (const [where, notes] of [
+      ["fileUploads' url", files({ q1: { url: value, imageUrls: [], isResume: true } })],
+      ["fileUploads' fileUrl", files({ q1: { fileUrl: value } })],
+      ["fileUploads' imageUrls", files({ q1: { url: `${ANA}/1729000000000_q1.pdf`, imageUrls: [`${ANA}/ok.png`, value] } })],
+      ["resumeImageUrls", files({ q1: { url: `${ANA}/1729000000000_q1.pdf` } }, [value])],
+    ]) {
+      const bad = await as(ANA, "authenticated", `update public.applications set notes = $2 where id = $1`, [open6, notes]);
+      check(`${where} is never a path with ${label}`, !bad.ok && /file_path_not_plain/.test(bad.error), JSON.stringify(bad));
+    }
+  }
+  check("…and the row keeps its plain paths", (await db.query(`select notes from public.applications where id = $1`, [open6])).rows[0].notes === good);
+  // Checked when the applicant changes the files: a value the server wrote
+  // before stays readable, and other notes still change around it.
+  const srvNotes = files({ q1: { url: `${ANA}/%2e%2e/legacy.pdf` } });
+  await as(null, "service_role", `update public.applications set notes = '${srvNotes}' where id = '${open6}'`);
+  w = await as(ANA, "authenticated", `update public.applications set notes = $2 where id = $1`, [open6, JSON.stringify({ ...JSON.parse(srvNotes), applicationAnswers: [{ q: "b" }] })]);
+  check("…other notes still change when the files are left as they were", w.ok, w.error);
+  const srv6 = await as(null, "service_role", `update public.applications set resume_url = '${ANA}/%2e%2e/x.pdf' where id = '${open6}'`);
+  check("…while the server is untouched", srv6.ok, srv6.error);
 }
 
 console.log("\nThe note goes with the account (20261025420000)\n");

@@ -18,8 +18,9 @@
  * RPC error denies.
  *
  * What is signed: only that request's own file_url, and only when it sits in
- * that applicant's folder (the database's guard already refuses anything
- * else; this checks again). A deleted file answers 410.
+ * that applicant's folder with every part a plain name (ownFolder.ts; the
+ * database's guard already refuses anything else; this checks again). A path
+ * that is not gets the same answer as no file. A deleted file answers 410.
  *
  * The first time someone on the hiring side opens a file, this records it
  * (document_requests.team_opened_at, which only the service role can write):
@@ -31,6 +32,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
+import { inOwnFolder } from "./ownFolder.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,11 +45,6 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 function jsonResponse(body: Record<string, unknown>, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-}
-
-/** True when a stored path is a file in this applicant's own folder. */
-function inOwnFolder(path: unknown, candidateId: string): path is string {
-  return typeof path === "string" && path.startsWith(`${candidateId}/`) && !path.includes("..") && path.length <= 1024;
 }
 
 Deno.serve(async (req) => {

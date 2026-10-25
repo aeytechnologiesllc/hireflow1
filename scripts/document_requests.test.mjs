@@ -112,6 +112,30 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   check("…and answers 410 once a file was deleted", /file_deleted_at && !request\.file_url\) return jsonResponse\([^)]*410\)/.test(fn));
   check("…records the hiring side's first opening, only while unset (opening again never moves the deletion)", /user\.id !== request\.candidate_id && !teamOpenedAt/.test(fn) && /\.is\("team_opened_at", null\)/.test(fn));
   check("…and can save the file instead of showing it", /download \? \{ download:/.test(fn));
+  // Only a plain path in the applicant's own folder is signed (the sixth
+  // security review: storage-js puts the path into the request address as it
+  // is, where "%2e%2e" is a parent step, and the link is signed with the
+  // service key).
+  check("…and checks the stored path with ownFolder.ts before it signs", /import \{ inOwnFolder \} from "\.\/ownFolder\.ts";/.test(fn) && !/function inOwnFolder/.test(fn) && fn.search(/if \(!inOwnFolder\(request\.file_url, request\.candidate_id\)\) return jsonResponse\(\{ error: "Nothing has been sent for this request" \}, 404\);/) > 0 && fn.search(/if \(!inOwnFolder\(request\.file_url, request\.candidate_id\)\)/) < fn.search(/\.createSignedUrl\(/));
+  const { inOwnFolder } = await import(pathToFileURL(resolve(root, "supabase/functions/requested-document-url/ownFolder.ts")).href);
+  const owner = "aaaaaaaa-0000-4000-8000-000000000001";
+  const stored = `${owner}/%2e%2e/x/y.pdf`; // the reviewer's value (path_rule_check.mjs)
+  check("(why) once in an address, that stored path leaves the applicant's folder", new URL(`https://p.supabase.co/storage/v1/object/sign/requested-documents/${stored}`).pathname === "/storage/v1/object/sign/requested-documents/x/y.pdf");
+  check("a file in the applicant's own folder is signed", inOwnFolder(`${owner}/req-1/id-1.jpg`, owner) && inOwnFolder(`${owner}/req-1/NBI clearance (1).pdf`, owner));
+  for (const [what, bad] of [
+    ["%2e%2e (the reviewer's value)", stored],
+    ["%252e%252e", `${owner}/%252e%252e/x/y.pdf`],
+    ["any %", `${owner}/req-1/id%20card.jpg`],
+    ["a backslash", `${owner}/req-1\\x.pdf`],
+    ["a control character", `${owner}/req-1/id\u0001.jpg`],
+    ["a tab", `${owner}/req-1/id\t.jpg`],
+    ["an empty part", `${owner}//id.jpg`],
+    ["a dot part", `${owner}/./id.jpg`],
+    ["..", `${owner}/../x/id.jpg`],
+    ["another folder", `bbbbbbbb-0000-4000-8000-000000000002/id.jpg`],
+    ["a long path", `${owner}/${"x".repeat(1100)}`],
+    ["no path", null],
+  ]) check(`…but not a path with ${what}`, !inOwnFolder(bad, owner));
   const hook = read("src/cockpit/hooks/useApplicantRequests.ts");
   const panel = read("src/cockpit/components/ApplicantDocumentsPanel.tsx");
   check("the team's screens open files through the function, never the bucket", /functions\.invoke\("requested-document-url"/.test(hook) && !/requested-documents/.test(hook + panel) && !/createSignedUrl/.test(hook + panel));
