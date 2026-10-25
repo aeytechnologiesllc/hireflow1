@@ -1147,19 +1147,27 @@ console.log("\n10. Live: an UPDATE merges in place with no refetch; an INSERT re
   const live = [...client.channels.values()].find((c) => c.topic.startsWith("employer-sessions-"));
   const counts = () => ({ list: list.fetches, attempts: attempts.fetches, employer: employer.fetches, panel: panel.fetches });
 
-  // Ava scores CANDIDATE 2 again: the payload is the whole row, heavy columns included.
+  // Ava scores CANDIDATE 2 again. The application's own event is the whole
+  // row, heavy columns included, with NULL for the hiring team's five (they
+  // live in application_evaluations since 2026-10-25); the score arrives on
+  // the evaluation's own event.
   const { profiles: _p, ...c2Row } = CANDIDATE_2;
-  apps.emit({ eventType: "UPDATE", errors: null, new: { ...c2Row, ai_score: 52, phase: "step_connection", ai_analysis: "x".repeat(8000), updated_at: "2026-10-06T11:59:00Z" }, old: { id: CANDIDATE_2.id } });
-  const merged = queryClient.getQueryData(appsKey);
-  check("the UPDATE is in the list at once", merged[1].ai_score === 52 && merged[1].phase === "step_connection");
-  check("…without the columns the list never selected", !("ai_analysis" in merged[1]) && merged[1].profiles?.full_name === "CANDIDATE 2");
+  const scoreBefore = queryClient.getQueryData(appsKey)[1].ai_score;
+  apps.emit({ eventType: "UPDATE", errors: null, new: { ...c2Row, ai_score: null, ai_scorecard: null, phase: "step_connection", ai_analysis: null, notes: "x".repeat(8000), updated_at: "2026-10-06T11:59:00Z" }, old: { id: CANDIDATE_2.id } });
+  let merged = queryClient.getQueryData(appsKey);
+  check("the UPDATE is in the list at once", merged[1].phase === "step_connection" && merged[1].ai_score === scoreBefore, `${merged[1].phase} ${merged[1].ai_score}`);
+  const evaluations = [...client.channels.values()].find((c) => c.topic.startsWith("employer-evaluations-"));
+  evaluations.emit({ eventType: "UPDATE", errors: null, new: { application_id: CANDIDATE_2.id, ai_score: 52, ai_scorecard: { overallScore: 52 }, ai_analysis: "x".repeat(8000), employer_notes: null, phase_ai_analysis: null }, old: { application_id: CANDIDATE_2.id } });
+  merged = queryClient.getQueryData(appsKey);
+  check("…and the new score from its evaluation", merged[1].ai_score === 52 && merged[1].ai_scorecard?.overallScore === 52);
+  check("…without the columns the list never selected", !("ai_analysis" in merged[1]) && !("employer_notes" in merged[1]) && merged[1].profiles?.full_name === "CANDIDATE 2");
   check("…and the other row keeps its identity", merged[0] === appRows[0]);
   await timers.fire();
   check("…no refetch of the list (the employer query still refreshes)", counts().list === 0 && counts().employer === 1, show(counts()));
 
-  apps.emit({ eventType: "UPDATE", errors: null, new: { ...c2Row, ai_score: 10, updated_at: "2026-10-01T00:00:00Z" }, old: { id: CANDIDATE_2.id } });
+  apps.emit({ eventType: "UPDATE", errors: null, new: { ...c2Row, phase: "step_chat", updated_at: "2026-10-01T00:00:00Z" }, old: { id: CANDIDATE_2.id } });
   await timers.fire();
-  check("an older UPDATE never rolls the list back, and refetches nothing", queryClient.getQueryData(appsKey)[1].ai_score === 52 && counts().list === 0);
+  check("an older UPDATE never rolls the list back, and refetches nothing", queryClient.getQueryData(appsKey)[1].phase === "step_connection" && queryClient.getQueryData(appsKey)[1].ai_score === 52 && counts().list === 0);
 
   apps.emit({ eventType: "INSERT", errors: null, new: { id: "new-app", job_id: JOB_ID, status: "in_progress" }, old: {} });
   await timers.fire();

@@ -579,7 +579,7 @@ console.log("\nThe owner's own changes to a job's questions (2026-10-09)\n");
 
   const code = (src) => src.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
   const hook = code(await read("src/cockpit/hooks/useInterviewGuide.ts"));
-  check("the page reads the job's changes for the applicant's own job, and only reads", /\.from\("applications"\)\.select\("ai_scorecard, job_id, jobs\(workflow_steps\)"\)/.test(hook) && /\.from\("interview_plans"\)\.select\("edits"\)\.eq\("job_id", jobId\)\.maybeSingle\(\)/.test(hook) && !/\.from\("interview_plans"\)[\s\S]{0,80}\.(insert|update|upsert|delete)\(/.test(hook));
+  check("the page reads the job's changes for the applicant's own job, and only reads", /\.from\("applications"\)\.select\("job_id, jobs\(workflow_steps\), application_evaluations\(ai_scorecard\)"\)/.test(hook) && /\.from\("interview_plans"\)\.select\("edits"\)\.eq\("job_id", jobId\)\.maybeSingle\(\)/.test(hook) && !/\.from\("interview_plans"\)[\s\S]{0,80}\.(insert|update|upsert|delete)\(/.test(hook));
   check("a plans table that is not there yet reads as no changes; any other failure is a failure (never the wrong questions)", /if \(!isRecordNotDeployed\(plan\.error\)\) throw plan\.error;\s*plansDeployed = false;/.test(hook));
   check("changes are saved through the one function, cleaned first, and what comes back is what is shown", /supabase\.rpc\("save_interview_plan", \{ p_job_id: jobId, p_edits: \(edits \? readPlanEdits\(edits\) : null\) as never \}\)/.test(hook) && /return readPlanEdits\(data\);/.test(hook));
   check("each way saving can fail has plain words", ["not_allowed", "too_long", "not_deployed", "failed"].every((k) => new RegExp(`${k}: "[A-Z]`).test(hook)));

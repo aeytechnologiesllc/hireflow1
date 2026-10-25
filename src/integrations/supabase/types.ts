@@ -188,6 +188,44 @@ export type Database = {
           },
         ]
       }
+      application_evaluations: {
+        Row: {
+          ai_analysis: string | null
+          ai_score: number | null
+          ai_scorecard: Json | null
+          application_id: string
+          employer_notes: string | null
+          phase_ai_analysis: string | null
+          updated_at: string
+        }
+        Insert: {
+          ai_analysis?: string | null
+          ai_score?: number | null
+          ai_scorecard?: Json | null
+          application_id: string
+          employer_notes?: string | null
+          phase_ai_analysis?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ai_analysis?: string | null
+          ai_score?: number | null
+          ai_scorecard?: Json | null
+          application_id?: string
+          employer_notes?: string | null
+          phase_ai_analysis?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "application_evaluations_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: true
+            referencedRelation: "applications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       applications: {
         Row: {
           ai_analysis: string | null

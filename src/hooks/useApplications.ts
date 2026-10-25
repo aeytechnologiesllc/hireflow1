@@ -9,7 +9,6 @@ import {
   notifyStatusRejected,
   notifyStatusHired,
   notifyPhaseAdvanced,
-  notifyPhaseCompleted,
 } from "@/utils/emailNotifications";
 
 export type Application = Tables<"applications">;
@@ -315,7 +314,12 @@ export function useUpdateApplication() {
       id,
       phaseTitle,
       ...updates
-    }: Partial<Application> & {
+    }: Partial<Omit<Application, "ai_score" | "ai_analysis" | "ai_scorecard" | "phase_ai_analysis">> & {
+      // Both sides call this: applicants (the form's resume, answers and
+      // submit) and the hiring team (moves, declines with employer_notes).
+      // Ava's score, report, scorecard and summary are written by the server
+      // alone (application_evaluations, 2026-10-25), so they are not here;
+      // the team's employer_notes still is (a trigger files it there).
       id: string;
       /**
        * The step's name as the applicant knows it ("Chat interview"), for the
@@ -326,9 +330,11 @@ export function useUpdateApplication() {
     }) => {
       // Best-effort read of the prior state for notifications.
       // Do not block the actual application update if this lookup stalls.
+      // Only columns both sides may read: an applicant's own row never holds
+      // the hiring team's evaluation (application_evaluations).
       const currentAppLookup = supabase
         .from("applications")
-        .select("status, phase, phase_ai_analysis, candidate_id, job_id")
+        .select("status, phase, candidate_id, job_id")
         .eq("id", id)
         .single();
 
@@ -386,19 +392,11 @@ export function useUpdateApplication() {
                 if (updates.phase && updates.phase !== currentApp.phase) {
                   notifyPhaseAdvanced(currentApp.candidate_id, phaseTitle?.trim() || updates.phase, job.title, job.companyName);
                 }
-
-                // Phase completed by candidate (phase_ai_analysis added/updated while in same phase)
-                if (updates.phase_ai_analysis && updates.phase_ai_analysis !== currentApp.phase_ai_analysis) {
-                  const { data: candidateProfile } = await supabase
-                    .from("profiles")
-                    .select("full_name, email")
-                    .eq("user_id", currentApp.candidate_id)
-                    .single();
-
-                  const candidateName = candidateProfile?.full_name || candidateProfile?.email || "A candidate";
-                  const phaseName = currentApp.phase || "a phase";
-                  notifyPhaseCompleted(job.employer_id, candidateName, phaseName, job.title);
-                }
+                // "Phase completed" used to be sent from here when a write
+                // carried a new phase_ai_analysis. No caller has sent one
+                // since the graders moved server-side (applicants may not
+                // write it; protect_application_staff_columns), and the
+                // summary is the hiring team's own table now.
               }
             }
           } catch (err) {

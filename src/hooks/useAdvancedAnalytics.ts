@@ -93,9 +93,11 @@ export function useAdvancedAnalytics() {
         };
       }
 
-      // Get all applications for employer's jobs
+      // Get all applications for employer's jobs. The staff lists' view: the
+      // same rows, with Ava's score joined in from the hiring team's own
+      // table (application_evaluations; applications holds NULL for it).
       const { data: applications, error: appsError } = await supabase
-        .from("applications")
+        .from("applications_staff_list")
         .select("*")
         .in("job_id", jobIds);
 

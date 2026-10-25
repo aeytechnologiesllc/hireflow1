@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useSchemaMode } from "@/hooks/useSchemaMode";
 import type { ApplicationWithCandidate } from "@/hooks/useApplications";
+import { EVALUATION_FIELDS, withoutEvaluationFields } from "@/lib/applicationEvaluation";
 
 /**
  * Staff live sync: one realtime subscription, mounted once by the staff
@@ -82,6 +83,18 @@ import type { ApplicationWithCandidate } from "@/hooks/useApplications";
  * page's Documents section and the Documents page's "ID & papers" list;
  * `documents` (an offer letter signed by the applicant, declined, completed)
  * refreshes the Documents page, the open letter and the Hire box.
+ *
+ * Wave 6 (2026-10-25): Ava's score, report, scorecard and summary and the
+ * team's notes moved out of the applicant's row into
+ * `application_evaluations` (supabase/migrations/20261025230000). The
+ * applications row now always carries NULL for those five, so they are taken
+ * out of every applications event before it is merged (merging them would
+ * wipe the score on screen), and a sixth channel of its own merges each
+ * evaluation change into the cached rows in place, by application id, so a
+ * new score still shows the moment it lands. No refetch for it: the same
+ * write also updates the application, whose event refreshes everything else.
+ * A rejoin of that channel (not its first join) runs a full round, lists
+ * included, for any score missed while it was down.
  */
 
 /** Coalescing window for a burst of row changes. */
@@ -332,6 +345,57 @@ export function applySessionChange<T extends SessionRowLike>(rows: T[] | undefin
 }
 
 /**
+ * An applications event without the hiring team's five evaluation columns
+ * (wave 6): the row holds NULL for them now, and merging that NULL would
+ * wipe what the evaluation's own event brought.
+ */
+export function withoutEvaluationColumns(payload: ApplicationChange): ApplicationChange {
+  const next = payload.new as Record<string, unknown> | null | undefined;
+  const old = payload.old as Record<string, unknown> | null | undefined;
+  const strippedNew = next && typeof next === "object" ? withoutEvaluationFields(next) : next;
+  const strippedOld = old && typeof old === "object" ? withoutEvaluationFields(old) : old;
+  if (strippedNew === next && strippedOld === old) return payload;
+  return { ...payload, new: strippedNew, old: strippedOld } as ApplicationChange;
+}
+
+/**
+ * Applies one change to public.application_evaluations (one row per
+ * application, keyed by application_id) to a cached list of applications,
+ * returning the same array when there is nothing to apply. Only the five
+ * evaluation fields are written; `onlySelected` keeps a narrow list narrow
+ * (the merged Applicants lists select ai_score and ai_scorecard only). A
+ * DELETE goes with its application (that row's own DELETE drops it); a row
+ * the list does not hold is left to the applications channel.
+ */
+export function applyEvaluationChange<T extends { id: string }>(
+  rows: T[] | undefined,
+  payload: ApplicationChange,
+  onlySelected = false,
+): T[] | undefined {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+  if (Array.isArray(payload.errors) && payload.errors.length > 0) return rows;
+  if (payload.eventType === "DELETE") return rows;
+  const next = payload.new as Record<string, unknown> | null;
+  const applicationId = next?.application_id;
+  if (!next || typeof applicationId !== "string") return rows;
+  const index = rows.findIndex((row) => row.id === applicationId);
+  if (index === -1) return rows;
+  const cached = rows[index] as unknown as Record<string, unknown>;
+  let merged: Record<string, unknown> | null = null;
+  for (const field of EVALUATION_FIELDS) {
+    if (!(field in next) || next[field] === undefined) continue;
+    if (onlySelected && !(field in cached)) continue;
+    if (cached[field] === next[field]) continue;
+    merged ??= { ...cached };
+    merged[field] = next[field];
+  }
+  if (!merged) return rows;
+  const out = rows.slice();
+  out[index] = merged as unknown as T;
+  return out;
+}
+
+/**
  * Opens the live-sync channel for one staff user and returns its cleanup.
  * Plain function (no React) so scripts/employer_live_sync.test.mjs can drive
  * it with a fake client and a real QueryClient.
@@ -413,7 +477,9 @@ export function startEmployerLiveSync({
     .on(
       "postgres_changes",
       { event: "*", schema: "public", table: "applications" },
-      (payload: ApplicationChange) => {
+      (event: ApplicationChange) => {
+        // Never the five evaluation columns: NULL on this row since wave 6.
+        const payload = withoutEvaluationColumns(event);
         // Only write when something changed: setQueryData bumps the row
         // set's timestamp and re-renders every reader even for a no-op.
         const rows = queryClient.getQueryData<ApplicationWithCandidate[]>(listKey);
@@ -594,6 +660,41 @@ export function startEmployerLiveSync({
       }
     });
 
+  // ── Ava's score and the team's notes (wave 6), on a channel of their own. ──
+  // Merged in place, by application id, into the employer list and the
+  // Applicants lists (their own columns only). No round of its own for a
+  // change: the write that made it also updated the application, and that
+  // event refreshes the rest. A rejoin (not the first join) refetches in
+  // full, lists included, for anything missed while it was down.
+  let evaluationsJoined = false;
+  const evaluationChannel = client
+    .channel(`employer-evaluations-${userId}-${instanceId}`)
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "application_evaluations" },
+      (payload: ApplicationChange) => {
+        const rows = queryClient.getQueryData<ApplicationWithCandidate[]>(listKey);
+        const next = applyEvaluationChange(rows, payload);
+        if (next !== rows) queryClient.setQueryData(listKey, next);
+        for (const [queryKey, held] of queryClient.getQueriesData<SessionRowLike[]>({ queryKey: LIVE_SYNC_LIST_KEYS.applications })) {
+          const merged = applyEvaluationChange(held, payload, true);
+          if (merged !== held) queryClient.setQueryData(queryKey, merged);
+        }
+      },
+    )
+    .subscribe((status) => {
+      if (status !== "SUBSCRIBED") return;
+      if (!evaluationsJoined) {
+        evaluationsJoined = true;
+        return;
+      }
+      // A catch-up round on the applications coalescer, lists included. It
+      // uses that channel's gate as it stands (by now its first round has
+      // run, so nothing is spared).
+      applicationListsStale = true;
+      coalescer.schedule(false);
+    });
+
   return () => {
     coalescer.dispose();
     sessionCoalescer.dispose();
@@ -605,6 +706,7 @@ export function startEmployerLiveSync({
     void client.removeChannel(interviewChannel);
     void client.removeChannel(requestChannel);
     void client.removeChannel(documentChannel);
+    void client.removeChannel(evaluationChannel);
   };
 }
 

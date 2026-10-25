@@ -301,11 +301,20 @@ export function useDeveloperAnalytics() {
       // Get applications for feature-specific counts
       const { data: applications, error: appsError } = await supabase
         .from('applications')
-        .select('ai_analysis, voice_interview_result, notes');
-      
+        .select('voice_interview_result, notes');
+
       if (appsError) throw appsError;
 
-      const aiAnalysisCount = applications?.filter(a => a.ai_analysis).length || 0;
+      // Ava's reports are the hiring team's own table (application_evaluations);
+      // a developer reads every row of it, as of applications.
+      const { count: analysedCount, error: analysedError } = await supabase
+        .from('application_evaluations')
+        .select('application_id', { count: 'exact', head: true })
+        .not('ai_analysis', 'is', null);
+
+      if (analysedError) throw analysedError;
+
+      const aiAnalysisCount = analysedCount || 0;
       const voiceInterviewCount = applications?.filter(a => a.voice_interview_result).length || 0;
 
       // Get document signing stats

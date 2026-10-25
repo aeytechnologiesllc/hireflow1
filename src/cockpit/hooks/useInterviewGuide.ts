@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { scenarioPack } from "@/content/scenarioPacks/packs";
 import { customerServiceStepOf, NO_PLAN_EDITS, readPersonalGuide, readPlanEdits, type PersonalGuide, type PlanEdits } from "@/lib/interviewGuide";
 import { isRecordNotDeployed } from "./useAssessmentSessions";
+import { withEvaluation } from "@/lib/applicationEvaluation";
 
 /**
  * One applicant's interview guide, the staff side (src/lib/interviewGuide.ts;
@@ -105,7 +106,8 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
     queryFn: async (): Promise<InterviewGuideRecord> => {
       const [guide, application] = await Promise.all([
         supabase.from("interview_guides").select("guide, generated_at").eq("application_id", applicationId!).maybeSingle(),
-        supabase.from("applications").select("ai_scorecard, job_id, jobs(workflow_steps)").eq("id", applicationId!).maybeSingle(),
+        // Ava's scorecard is the hiring team's own table (application_evaluations).
+        supabase.from("applications").select("job_id, jobs(workflow_steps), application_evaluations(ai_scorecard)").eq("id", applicationId!).maybeSingle(),
       ]);
       const jobId = typeof application.data?.job_id === "string" ? application.data.job_id : null;
       // The job's own changes to the plan. A table that is not there yet
@@ -123,7 +125,7 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
           planEdits = readPlanEdits(plan.data?.edits);
         }
       }
-      const scorecard = application.data?.ai_scorecard;
+      const scorecard = application.data ? withEvaluation(application.data).ai_scorecard : null;
       const family =
         scorecard && typeof scorecard === "object" && !Array.isArray(scorecard) && typeof (scorecard as Record<string, unknown>).jobFamily === "string"
           ? ((scorecard as Record<string, unknown>).jobFamily as string)

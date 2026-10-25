@@ -27,7 +27,10 @@
  *    events; its SUBSCRIBED catch-up refetches every events query on screen;
  *  - wave 4: one applicant's own attempts (the open profile's) refetch only
  *    for THEIR attempts, never for another applicant's heartbeat; booked
- *    interviews have a third per-instance channel that refreshes ["interviews"].
+ *    interviews have a third per-instance channel that refreshes ["interviews"];
+ *  - wave 6: an applications event never wipes a score with the NULLs that
+ *    row carries now, and Ava's score (application_evaluations, a channel of
+ *    its own) lands in the cached rows at once, by application id.
  *
  * The hook file imports "@/..." aliases, so it is bundled with esbuild (a Vite
  * dependency) with those three modules stubbed; nothing else is mocked.
@@ -68,6 +71,8 @@ const bundle = await build({
       name: "stub-aliases",
       setup(b) {
         b.onResolve({ filter: /^@\// }, (args) => {
+          // The evaluation field list is the real module (plain code, no imports at run time).
+          if (args.path === "@/lib/applicationEvaluation") return { path: path.join(ROOT, "src/lib/applicationEvaluation.ts") };
           if (!(args.path in STUBS)) throw new Error(`no stub for ${args.path}`);
           return { path: args.path, namespace: "stub" };
         });
@@ -87,7 +92,9 @@ const {
   LIVE_SYNC_REQUEST_KEYS,
   LIVE_SYNC_COALESCE_MS,
   applyApplicationChange,
+  applyEvaluationChange,
   applySessionChange,
+  withoutEvaluationColumns,
   createLiveSyncCoalescer,
   startEmployerLiveSync,
 } = mod;
@@ -241,7 +248,15 @@ console.log("one channel per mounted instance, bound before subscribe");
   const requestTopics = all.filter((t) => t.startsWith(`employer-requests-${USER}-`));
   const documentTopics = all.filter((t) => t.startsWith(`employer-documents-${USER}-`));
   assert(interviewTopics.length === 2, `…two interview channels of their own (got ${all.join(", ")})`);
-  assert(requestTopics.length === 2 && documentTopics.length === 2 && all.length === 10, `…and two each for document requests and documents (got ${all.join(", ")})`);
+  const evaluationTopics = all.filter((t) => t.startsWith(`employer-evaluations-${USER}-`));
+  assert(requestTopics.length === 2 && documentTopics.length === 2, `…and two each for document requests and documents (got ${all.join(", ")})`);
+  assert(evaluationTopics.length === 2 && all.length === 12, `…and two for the hiring team's evaluations (got ${all.join(", ")})`);
+  const ev = client.channels.get(evaluationTopics[0]);
+  const evf = ev.bindings[0]?.filter ?? {};
+  assert(
+    !ev.boundAfterSubscribe && ev.bindings.length === 1 && ev.bindings[0].type === "postgres_changes" && evf.event === "*" && evf.schema === "public" && evf.table === "application_evaluations" && evf.filter === undefined,
+    "the evaluations channel listens to every change on public.application_evaluations, bound before subscribe() (RLS scopes delivery)",
+  );
   assert(
     [...topics, ...sessionTopics, ...interviewTopics].every((t) => t.endsWith(":r1:") || t.endsWith(":r7:")),
     "every topic carries its instance id",
@@ -275,7 +290,7 @@ console.log("one channel per mounted instance, bound before subscribe");
   stopA();
   stopB();
   await settle();
-  assert(client.removed.length === 10 && client.channels.size === 0, "cleanup removes all ten channels");
+  assert(client.removed.length === 12 && client.channels.size === 0, "cleanup removes all twelve channels");
 }
 
 console.log("\nSUBSCRIBED runs a catch-up round that never cancels a fetch in flight");
@@ -441,7 +456,7 @@ console.log("\ncleanup stops everything");
   chan.status("SUBSCRIBED");
   await timers.fire();
   assert(calls.length === 0, "nothing refetches after cleanup");
-  assert(client.removed.length === 5, "all five channels are removed");
+  assert(client.removed.length === 6, "all six channels are removed");
 }
 
 console.log("\nthe test record: an attempt's change lands at once and refetches only its own events");
@@ -604,6 +619,71 @@ console.log("\nthe paperwork stays live (the owner, 2026-10-10: \"I sent the ID,
   await timers.fire();
   assert(calls.some((c) => c.key === '["documents"]') && calls.some((c) => c.key === '["document-audit-log"]'), `a signature refreshes the Documents page and the open letter (got ${calls.map((c) => c.key).join(" ")})`);
   stop();
+}
+
+console.log("\nwave 6: Ava's score and the team's notes come from their own table");
+{
+  const client = fakeClient();
+  const { queryClient, calls } = spyClient();
+  const timers = fakeTimers();
+  const listKey = ["applications", "employer", USER];
+  const before = [row("a1", { ai_score: 61, ai_scorecard: { overallScore: 61 }, employer_notes: "Call Monday." }), row("a2", { ai_score: null })];
+  queryClient.setQueryData(listKey, before);
+  const narrowKey = ["applications", "list", job.id];
+  const narrow = [{ id: "a1", job_id: job.id, status: "reviewing", ai_score: 61, ai_scorecard: { overallScore: 61 }, updated_at: "2026-10-05T15:46:31.000+00:00" }];
+  queryClient.setQueryData(narrowKey, narrow);
+  const stop = startEmployerLiveSync({ client, queryClient, userId: USER, instanceId: ":r1:", timers });
+  const apps = [...client.channels.values()].find((c) => c.topic.startsWith("employer-live-"));
+  const evals = [...client.channels.values()].find((c) => c.topic.startsWith("employer-evaluations-"));
+
+  // The applications row now always carries NULL for the five: merging that would wipe the score.
+  const { jobs: _j, profiles: _p, ...columns } = row("a1");
+  apps.emit(update({ ...columns, phase: "step_chat", ai_score: null, ai_analysis: null, ai_scorecard: null, phase_ai_analysis: null, employer_notes: null, updated_at: "2026-10-05T15:52:00.000+00:00" }));
+  let list = queryClient.getQueryData(listKey);
+  assert(list[0].phase === "step_chat", "an applications change still lands at once");
+  assert(list[0].ai_score === 61 && list[0].ai_scorecard?.overallScore === 61 && list[0].employer_notes === "Call Monday.", "…and its NULL evaluation columns never wipe what is on screen");
+  assert(queryClient.getQueryData(narrowKey)[0].ai_score === 61, "…in the Applicants list too");
+  await timers.fire();
+
+  // Ava's new score lands in application_evaluations.
+  calls.length = 0;
+  evals.emit({
+    eventType: "UPDATE", schema: "public", table: "application_evaluations", errors: null,
+    new: { application_id: "a1", ai_score: 74, ai_analysis: "x".repeat(4000), ai_scorecard: { overallScore: 74 }, phase_ai_analysis: "Chat practice: solid.", employer_notes: "Call Monday.", updated_at: "2026-10-05T15:52:01Z" },
+    old: { application_id: "a1" },
+  });
+  list = queryClient.getQueryData(listKey);
+  assert(list[0].ai_score === 74 && list[0].ai_scorecard?.overallScore === 74 && list[0].phase_ai_analysis === "Chat practice: solid.", "a new score shows at once, by application id");
+  assert(list[0].jobs === job && list[0].phase === "step_chat" && list[1] === before[1], "…keeping the joins, the other columns and the other rows");
+  const narrowAfter = queryClient.getQueryData(narrowKey)[0];
+  assert(narrowAfter.ai_score === 74 && narrowAfter.ai_scorecard?.overallScore === 74 && !("ai_analysis" in narrowAfter) && !("employer_notes" in narrowAfter), "…and in the Applicants list, its own columns only");
+  await timers.fire();
+  assert(calls.length === 0, `an evaluation change refetches nothing by itself (the application's own event does) (got ${calls.map((c) => c.key).join(" ")})`);
+
+  evals.emit({ eventType: "INSERT", schema: "public", table: "application_evaluations", errors: null, new: { application_id: "a2", ai_score: 40 }, old: {} });
+  assert(queryClient.getQueryData(listKey)[1].ai_score === 40, "an application's first evaluation (an INSERT) lands too");
+  const held = queryClient.getQueryData(listKey);
+  evals.emit({ eventType: "UPDATE", errors: null, new: { application_id: "zz", ai_score: 99 }, old: {} });
+  evals.emit({ eventType: "DELETE", errors: null, new: {}, old: { application_id: "a1" } });
+  evals.emit({ eventType: "UPDATE", errors: ["too large"], new: { application_id: "a1", ai_score: 1 }, old: {} });
+  assert(queryClient.getQueryData(listKey) === held, "a row it does not hold, a DELETE (it goes with its application) and a truncated payload change nothing");
+
+  // The channel's first join adds nothing; a rejoin refetches in full, lists included.
+  calls.length = 0;
+  evals.status("SUBSCRIBED");
+  await timers.fire();
+  assert(calls.length === 0, "its first join runs no round of its own");
+  evals.status("SUBSCRIBED");
+  await timers.fire();
+  assert(calls.some((c) => c.key === '["applications"]'), `a rejoin runs a full round for any score missed while it was down (got ${calls.map((c) => c.key).join(" ")})`);
+  stop();
+
+  assert(withoutEvaluationColumns(update({ id: "a1", phase: "x" })).new.phase === "x", "withoutEvaluationColumns keeps every other column");
+  const stripped = withoutEvaluationColumns(update({ id: "a1", ai_score: null, employer_notes: null }));
+  assert(!("ai_score" in stripped.new) && !("employer_notes" in stripped.new), "…and drops the five");
+  const untouched = update({ id: "a1", phase: "x" });
+  assert(withoutEvaluationColumns(untouched) === untouched, "…returning the same payload when there is nothing to drop");
+  assert(applyEvaluationChange(undefined, { eventType: "UPDATE", errors: null, new: { application_id: "a1", ai_score: 1 } }) === undefined, "nothing cached: nothing written");
 }
 
 console.log("\napplySessionChange");

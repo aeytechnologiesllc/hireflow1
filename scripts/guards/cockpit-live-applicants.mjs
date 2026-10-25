@@ -46,6 +46,11 @@
  *    the skeleton back (placeholderData: keepPreviousData), or stops drawing
  *    the rows through the memoised ApplicantListItem (a flood's every event
  *    redrew all 300 rows).
+ *  - (wave 6, 2026-10-25) Ava's score and the team's notes live in
+ *    application_evaluations: the applications channel stops stripping the
+ *    five (NULL on that row now) before it merges, or the evaluations
+ *    channel (its own, per instance) disappears or stops merging into the
+ *    employer list and the Applicants lists.
  */
 
 const HOOK = "src/cockpit/hooks/useEmployerLiveSync.ts";
@@ -151,13 +156,14 @@ export default [
       if (!/startEmployerLiveSync\(\{[^}]*\binstanceId\b/.test(hookBody)) {
         detail.push(`${HOOK}: useEmployerLiveSync no longer passes its useId() value to startEmployerLiveSync`);
       }
-      // Five channels, never fewer: applications, the test record, booked
-      // interviews, and (2026-10-10) document requests and documents, each on
-      // its own (binding a table that is missing or failing fails the channel
-      // it is on, and the applicant list must not stall).
+      // Six channels, never fewer: applications, the test record, booked
+      // interviews, (2026-10-10) document requests and documents, and
+      // (2026-10-25) the hiring team's evaluation, each on its own (binding a
+      // table that is missing or failing fails the channel it is on, and the
+      // applicant list must not stall).
       const topics = channelTopics(hook);
-      if (topics.length !== 5) {
-        detail.push(`${HOOK}: expected exactly five .channel( calls (applications, the test record, interviews, document requests, documents), found ${topics.length}`);
+      if (topics.length !== 6) {
+        detail.push(`${HOOK}: expected exactly six .channel( calls (applications, the test record, interviews, document requests, documents, evaluations), found ${topics.length}`);
       }
       /** The text from a channel's .channel( to its own .subscribe(. */
       const chainFor = (prefix) => {
@@ -165,8 +171,8 @@ export default [
         const sub = at === -1 ? -1 : hook.indexOf(".subscribe(", at);
         return at === -1 || sub === -1 ? "" : hook.slice(at, sub);
       };
-      const TABLES = ["applications", "assessment_sessions", "interviews", "document_requests", "documents"];
-      for (const [prefix, table] of [["employer-live-", "applications"], ["employer-sessions-", "assessment_sessions"], ["employer-interviews-", "interviews"], ["employer-requests-", "document_requests"], ["employer-documents-", "documents"]]) {
+      const TABLES = ["applications", "assessment_sessions", "interviews", "document_requests", "documents", "application_evaluations"];
+      for (const [prefix, table] of [["employer-live-", "applications"], ["employer-sessions-", "assessment_sessions"], ["employer-interviews-", "interviews"], ["employer-requests-", "document_requests"], ["employer-documents-", "documents"], ["employer-evaluations-", "application_evaluations"]]) {
         const t = topics.find((x) => x.quote === "`" && x.topic.startsWith(prefix));
         if (!t) {
           detail.push(`${HOOK}: no channel topic starts \`${prefix}\``);
@@ -182,6 +188,19 @@ export default [
         const others = TABLES.filter((t) => t !== table).filter((t) => new RegExp(`table:\\s*["']${t}["']`).test(chain));
         if (others.length > 0) {
           detail.push(`${HOOK}: the \`${prefix}\` channel binds ${others.join(", ")} too — each table needs its own channel`);
+        }
+      }
+      // (wave 6, 2026-10-25) The applications row carries NULL for the hiring
+      // team's five evaluation columns: its events lose them before any
+      // merge, and the evaluation's own events are merged into both lists.
+      {
+        const appsChain = chainFor("employer-live-");
+        if (!/const payload = withoutEvaluationColumns\(event\);/.test(appsChain)) {
+          detail.push(`${HOOK}: the applications channel must strip the five evaluation columns (withoutEvaluationColumns) before merging — its NULLs would wipe the scores on screen`);
+        }
+        const evalChain = chainFor("employer-evaluations-");
+        if (!/applyEvaluationChange\(rows, payload\)/.test(evalChain) || !/applyEvaluationChange\(held, payload, true\)/.test(evalChain)) {
+          detail.push(`${HOOK}: the evaluations channel must merge each change into the employer list and the Applicants lists (applyEvaluationChange) — a new score would not show until a refetch`);
         }
       }
       if (!/LIVE_SYNC_SESSION_KEYS[^=]*=\s*\[\s*\[\s*["']assessment-sessions["']\s*\]/.test(hook)) {
