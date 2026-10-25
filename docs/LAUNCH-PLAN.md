@@ -912,8 +912,10 @@ session stops mid-phase (say exactly where).
 
 - Model: Opus 5.5 (a helper session in its own worktree).
 - **Built, not shipped:** branch `worktree-agent-ad7a09ee48bb6021d`
-  (085abab1 … eb44301b, plus the docs commit). Nothing pushed, no migration
-  applied, no function deployed. "Applicants stop reading staff columns of
+  (from 085abab1; main merged in at 918e42e6 with no conflicts, and the
+  migration renumbered to 20261025235000 because main had taken
+  20261025230000). Nothing pushed, no migration applied, no function
+  deployed. "Applicants stop reading staff columns of
   their own application": `ai_score`, `ai_analysis`, `ai_scorecard`,
   `phase_ai_analysis` and `employer_notes` move to
   `application_evaluations` (migration
