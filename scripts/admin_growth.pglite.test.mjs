@@ -34,7 +34,7 @@ await db.exec(`
   create schema auth;
   create or replace function auth.uid() returns uuid language sql stable as $$
     select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-  create role anon nologin; create role authenticated nologin;
+  create role anon nologin; create role authenticated nologin; create role service_role nologin;
   grant usage on schema auth, public to anon, authenticated;
   grant execute on function auth.uid() to anon, authenticated;
   create table auth.users (id uuid primary key, created_at timestamptz default now(), raw_user_meta_data jsonb default '{}');
@@ -81,6 +81,13 @@ await db.exec(readFileSync(path.join(ROOT, "supabase/migrations/20261025120000_a
 const channels = readFileSync(path.join(ROOT, "supabase/migrations/20261025390000_admin_growth_channels.sql"), "utf8");
 await db.exec(channels);
 await db.exec(channels);
+// The fourth growth review: each channel named once (growth_source_name).
+const sources = readFileSync(path.join(ROOT, "supabase/migrations/20261025440000_growth_sources.sql"), "utf8");
+await db.exec(sources);
+await db.exec(sources);
+await db.exec(`insert into public.page_view_daily (day, path, referrer_host, utm_source, view_count) values
+  (current_date, '/', 'l.facebook.com', '', 2), (current_date, '/', 'm.facebook.com', '', 1), (current_date, '/', 'www.facebook.com', 'facebook', 1),
+  (current_date, '/', 'com.google.android.googlequicksearchbox', '', 1), (current_date, '/', 'www.google.com.ph', '', 1)`);
 
 async function as(uid, sql) {
   await db.exec(`select set_config('request.jwt.claim.sub', '${uid ?? ""}', false); set role authenticated;`);
@@ -103,7 +110,8 @@ check("someone signed out cannot call it at all", /permission denied/i.test(anon
 const g = (await as(ADMIN, "select public.admin_growth(30) as g")).rows[0]?.g;
 check("the admin gets the report", !!g && g.days === 30, JSON.stringify(g));
 const front = Object.fromEntries((g?.front_page ?? []).map((r) => [r.source, r.visits]));
-check("front-page visits by source: campaign tag, else referring site, else direct", front.youtube === 15 && front["quora.com"] === 3 && front.direct === 5, JSON.stringify(front));
+check("front-page visits by source: campaign tag, else referring site, else direct", front.youtube === 15 && front.quora === 3 && front.direct === 5, JSON.stringify(front));
+check("…each channel named once: Facebook's hosts and its tag are one \"facebook\", Google's app and country sites one \"google\"", front.facebook === 4 && front.google === 2 && !Object.keys(front).some((k) => /facebook\.com|google\./.test(k)), JSON.stringify(front));
 check("visits older than the window are left out", front.old === undefined);
 check("the sign-in and sign-up page is counted on its own", g?.signup_page === 4);
 const accounts = g?.accounts ?? [];
@@ -111,14 +119,14 @@ const total = accounts.reduce((n, r) => n + r.accounts, 0);
 check("each new account counted once, even with two roles", total === 6, JSON.stringify(accounts));
 const yt = accounts.filter((r) => r.source === "youtube").reduce((n, r) => n + r.accounts, 0);
 check("accounts by source: the campaign tag", yt === 3);
-check("…else the referring site", accounts.some((r) => r.source === "quora.com" && r.role === "employer" && r.accounts === 1));
+check("…else the referring site, by its channel name", accounts.some((r) => r.source === "quora" && r.role === "employer" && r.accounts === 1));
 check("…else unknown, and an account with no role says so", accounts.some((r) => r.source === "unknown" && r.role === "none"));
 const pages = Object.fromEntries((g?.pages ?? []).map((r) => [r.kind, r]));
-check("every kind of public page is counted: front page, blog, Open jobs, job pages, careers pages", pages.front_page?.visits === 23 && pages.blog?.visits === 5 && pages.open_jobs?.visits === 3 && pages.job_page?.visits === 4 && pages.careers_page?.visits === 2, JSON.stringify(pages));
+check("every kind of public page is counted: front page, blog, Open jobs, job pages, careers pages", pages.front_page?.visits === 29 && pages.blog?.visits === 5 && pages.open_jobs?.visits === 3 && pages.job_page?.visits === 4 && pages.careers_page?.visits === 2, JSON.stringify(pages));
 check("…a short link counts as a job page only when it is a job's own slug", pages.job_page?.sources?.some((r) => r.source === "flyer" && r.visits === 2) && !Object.values(pages).some((p) => p.sources?.some((r) => r.visits === 9)), JSON.stringify(pages.job_page));
 check("…the app's own pages are not public pages", !Object.values(pages).some((p) => p.visits >= 50));
 check("…the hiring team's own clicks from the staff host are left out", pages.open_jobs?.visits === 3);
-check("…each with its sources", pages.blog?.sources?.some((r) => r.source === "google.com" && r.visits === 4));
+check("…each with its sources", pages.blog?.sources?.some((r) => r.source === "google" && r.visits === 4));
 const campaigns = g?.campaigns ?? [];
 check("campaigns by name, with source and medium", campaigns.some((c) => c.source === "youtube" && c.medium === "video" && c.campaign === "v1" && c.visits === 6) && campaigns.some((c) => c.source === "facebook" && c.campaign === "clinic-week" && c.visits === 3), JSON.stringify(campaigns));
 check("…a medium alone is listed too (a flyer's hiring link)", campaigns.some((c) => c.source === "flyer" && c.medium === "hiring_link" && c.campaign === ""));

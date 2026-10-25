@@ -366,11 +366,11 @@ export default function JoinTeam() {
               <form onSubmit={handleSignIn} className="space-y-3" data-join-signin>
                 <div className="space-y-2">
                   <Label htmlFor="closed-signin-email">Email</Label>
-                  <Input id="closed-signin-email" type="email" placeholder="john@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <Input id="closed-signin-email" type="email" autoComplete="email" placeholder="john@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="closed-signin-password">Password</Label>
-                  <Input id="closed-signin-password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                  <Input id="closed-signin-password" type="password" autoComplete="current-password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
                 <Button type="submit" className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? (
@@ -548,6 +548,7 @@ export default function JoinTeam() {
                       <Label htmlFor="signup-name">Full Name</Label>
                       <Input
                         id="signup-name"
+                        autoComplete="name"
                         placeholder="John Doe"
                         value={fullName}
                         onChange={(e) => setFullName(e.target.value)}
@@ -558,6 +559,7 @@ export default function JoinTeam() {
                       <Label htmlFor="signup-email">Email</Label>
                       <Input
                         id="signup-email"
+                        autoComplete="email"
                         type="email"
                         placeholder="john@company.com"
                         value={email}
@@ -598,6 +600,7 @@ export default function JoinTeam() {
                       <Label htmlFor="signin-email">Email</Label>
                       <Input
                         id="signin-email"
+                        autoComplete="email"
                         type="email"
                         placeholder="john@company.com"
                         value={email}
@@ -610,6 +613,7 @@ export default function JoinTeam() {
                       <Label htmlFor="signin-password">Password</Label>
                       <Input
                         id="signin-password"
+                        autoComplete="current-password"
                         type="password"
                         placeholder="••••••••"
                         value={password}

@@ -39,9 +39,9 @@ const REVIEWED = {
   "src/cockpit/components/journey/GuideStepper.tsx": ["s.href"], // static guide steps
   "src/components/GettingStartedChecklist.tsx": ["item.link"], // static checklist
   "src/cockpit/components/ApplicantRow.tsx": ["applicantPath(row.id"], // built route
-  "src/pages/BusinessCareers.tsx": ["jobPagePath(role", 'hiringLink("careers_page"'], // hiringLink: a fixed hireflownow.com address
+  "src/pages/BusinessCareers.tsx": ["jobPagePath(role", 'hiringLink("careers_page"', 'withVisitorTags(hiringLink("careers_page"'], // hiringLink: a fixed hireflownow.com address; withVisitorTags adds only tidied a-z0-9._- tags
   "src/components/EvaluationScreen.tsx": ['hiringLink("application_done"'], // a fixed hireflownow.com address
-  "src/pages/JobDetails.tsx": ['hiringLink("job_page"'], // a fixed hireflownow.com address
+  "src/pages/JobDetails.tsx": ['hiringLink("job_page"', 'withVisitorTags(hiringLink("job_page"'], // a fixed hireflownow.com address; withVisitorTags adds only tidied a-z0-9._- tags
   "src/pages/OpenJobs.tsx": ["jobPagePath(job", "`${staffOrigin(", 'hiringLink("open_jobs"', 'withVisitorTags("/"', 'withVisitorTags(hiringLink("open_jobs"'], // withVisitorTags: a fixed HireFlow address with only plain a-z0-9._- tags added (src/lib/hiringLink.ts)
   "src/pages/Index.tsx": ["CAREERS_PATH", "account.to", "jobPagePath(job", "staffSignInHref("],
   "src/pages/CandidateContinue.tsx": ["openRolesPath("],
@@ -83,7 +83,7 @@ const SAFE_ASSIGNMENTS = {
   "src/pages/Notifications.tsx": /const link = inAppPath\(/,
   "src/cockpit/pages/Messages.tsx": /const fileHref = file \? externalHref\(file\.url\) : null;/,
   "src/cockpit/components/AvasRead.tsx": /const recording = externalHref\(/,
-  "src/components/documents/SignedDocumentViewer.tsx": /const address = externalHref\(documentData\?\.uploadedFileUrl\);[\s\S]*?const response = await fetch\(address\);[\s\S]*?blobUrl = URL\.createObjectURL\(new Blob\(\[bytes\], \{ type: "application\/pdf" \}\)\);\s*setShownPdf\(\{ src: blobUrl, hash \}\);/,
+  "src/components/documents/SignedDocumentViewer.tsx": /const sent = externalHref\(documentData\?\.uploadedFileUrl\);[\s\S]*?let address = sent;[\s\S]*?const kept = externalHref\([\s\S]*?address = kept;[\s\S]*?const response = await fetch\(address\);[\s\S]*?blobUrl = URL\.createObjectURL\(new Blob\(\[bytes\], \{ type: "application\/pdf" \}\)\);\s*setShownPdf\(\{ src: blobUrl, hash \}\);/,
   "src/pages/CandidateAuth.tsx": /const safeRedirectTarget = inAppPath\(redirectTarget\);/,
   "src/pages/AuthCallback.tsx": /return inAppPath\(value\);/,
 };

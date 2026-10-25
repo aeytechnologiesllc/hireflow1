@@ -195,7 +195,16 @@ export default [
           continue;
         }
         const lastMade = made[made.length - 1];
-        const undone = new RegExp(`DROP TRIGGER (?:IF EXISTS )?${name}\\b[^;]*;(?![\\s\\S]*CREATE TRIGGER ${name}\\b)|ALTER TABLE (?:ONLY )?public\\.${table} DISABLE TRIGGER (?:${name}|ALL|USER)\\b`, "i");
+        // …and every later CREATE of it is BEFORE INSERT with no WHEN.
+        all.forEach((text, i) => {
+          for (const m of text.matchAll(new RegExp(`CREATE (?:OR REPLACE )?TRIGGER "?${name}"?[^;]*;`, "gi"))) {
+            if (!/BEFORE INSERT ON public\./i.test(m[0]) || /\bWHEN\s*\(/i.test(m[0])) detail.push(`supabase/migrations: ${name} is made again other than BEFORE INSERT, or with a WHEN`);
+          }
+        });
+        // Any way a later migration undoes it: dropping the trigger (quoted or
+        // not) or its function (CASCADE), switching it off or to replica only,
+        // with or without the schema (the ninth Phase 5 review).
+        const undone = new RegExp(`DROP TRIGGER (?:IF EXISTS )?"?${name}"?[^;]*;(?![\\s\\S]*CREATE TRIGGER "?${name}"?\\b)|DROP FUNCTION (?:IF EXISTS )?(?:public\\.)?"?${name}"?[^;]*\\bCASCADE|ALTER TABLE (?:ONLY )?(?:public\\.)?${table} (?:DISABLE|ENABLE REPLICA|ENABLE ALWAYS) TRIGGER (?:"?${name}"?|ALL|USER)\\b`, "i");
         all.forEach((text, i) => {
           if (i >= lastMade && undone.test(text)) detail.push(`supabase/migrations: ${name} is dropped or switched off after it was made`);
         });
@@ -375,12 +384,19 @@ export default [
         if (/create or replace function public\.ai_budget_take\(/i.test(text)) take = text;
         if (/create or replace function public\.claim_daily_alert\(/i.test(text)) claim = text;
       }
-      if (!/values \(v_today, 'business-told:' \|\| v_business::text\)/.test(take) || !/if not v_own then/.test(take)) detail.push("ai_budget_take no longer tells the business (once a day, never HireFlow's own) when its AI day is used");
+      if (!/values \(v_today, 'business-told:' \|\| case when v_new_business then 'new:' else '' end \|\| v_business::text\)/.test(take) || !/if not v_own then/.test(take)) detail.push("ai_budget_take no longer tells the business (once a day for each card, never HireFlow's own) when its AI day is used");
+      if (!/set refused = refused \+ 1,\s*calls = greatest\(0, calls - v_take\)\s*where business_id = v_business/.test(take)) detail.push("ai_budget_take: a refused call must give the business its units back (the ninth Phase 5 review)");
       if (!/if v_new_business then[\s\S]*Confirm your email[\s\S]*else[\s\S]*paused until tomorrow/.test(take)) detail.push("ai_budget_take's card no longer tells a new business that confirming its email gives the full day");
       if (!/exception\s+when others then\s+raise log 'ai_budget_take: telling business/.test(take)) detail.push("ai_budget_take's business card must never turn the budget's answer into an error");
       if (!/revoke all on function public\.claim_daily_alert\(text\) from public, anon, authenticated;/.test(claim) || !/grant execute on function public\.claim_daily_alert\(text\) to service_role;/.test(claim)) detail.push("claim_daily_alert must be the server's only");
+      if (!/on conflict do nothing;\s*return found;/.test(claim)) detail.push("claim_daily_alert must answer true only the first time a key is claimed that day");
+      // No later migration grants it to a browser (the ninth Phase 5 review).
+      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
+        const text = noComments((await read(rel)) ?? "");
+        if (/grant\s+execute\s+on\s+function\s+public\.claim_daily_alert[^;]*\bto\s+[^;]*\b(authenticated|anon|public)\b/i.test(text) || /grant\s+execute\s+on\s+all\s+functions\s+in\s+schema\s+public\s+to\s+[^;]*\b(authenticated|anon)\b/i.test(text)) detail.push(`${rel}: claim_daily_alert (or every function) granted to a browser role`);
+      }
       const cleanup = (await read("supabase/functions/document-cleanup/index.ts")) ?? "";
-      if (!/admin\.rpc\("claim_daily_alert"/.test(cleanup) || /from\("notifications"\)\s*\.select/.test(cleanup)) detail.push("document-cleanup must decide \"told today\" with claim_daily_alert, never by reading the admins' bells");
+      if (!/admin\.rpc\("claim_daily_alert"/.test(cleanup) || !/if \(first !== true\) return;/.test(cleanup) || /from\(\s*["'`]notifications["'`]\s*\)\s*\.select/.test(cleanup)) detail.push("document-cleanup must decide \"told today\" with claim_daily_alert and heed its answer, never by reading the admins' bells");
       return { ok: detail.length === 0, detail };
     },
   },

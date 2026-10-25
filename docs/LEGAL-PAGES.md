@@ -75,8 +75,11 @@ On 2026-10-09, against the repo and the live project.
    hours after first opened, or 7 days after sending, since 2026-10-10),
    nothing is deleted on a timer. A set
    period for the rest would be better, and needs a job that enforces it.
-5. **Delete Account leaves four technical records behind.** The policy says
-   so. Removing them with the account would be cleaner.
+5. **Delete Account leaves a few technical records behind** (test-attempt
+   counts, typing-test starts, a block-list entry, a business's removal note
+   with its reason, spoken-interview minutes, error reports). The policy names
+   each. Removing them with the account would be cleaner. A withdrawal note
+   and spoken-interview recordings now go with the account (2026-10-25).
 6. **A profile photo is at a public address.** The policy says so. A private
    bucket would be better.
 7. **A copy of your information** is promised on request and is done by hand:

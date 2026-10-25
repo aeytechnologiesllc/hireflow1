@@ -1,5 +1,238 @@
 {
   "trailingSlash": false,
+  "redirects": [
+    {
+      "source": "/youtube",
+      "destination": "/?utm_source=youtube&utm_medium=video",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/yt",
+      "destination": "/?utm_source=youtube&utm_medium=video",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/tiktok",
+      "destination": "/?utm_source=tiktok&utm_medium=video",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/facebook",
+      "destination": "/?utm_source=facebook&utm_medium=social",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/fb",
+      "destination": "/?utm_source=facebook&utm_medium=social",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/instagram",
+      "destination": "/?utm_source=instagram&utm_medium=social",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/ig",
+      "destination": "/?utm_source=instagram&utm_medium=social",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/linkedin",
+      "destination": "/?utm_source=linkedin&utm_medium=social",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/signup",
+      "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=signup",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/sign-up",
+      "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=signup",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/start",
+      "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=start",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/post-a-job",
+      "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=post-a-job",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/hire",
+      "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=hire",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/business",
+      "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=business",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/employers",
+      "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=employers",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/login",
+      "destination": "https://staff.hireflownow.com/auth",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/log-in",
+      "destination": "https://staff.hireflownow.com/auth",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/signin",
+      "destination": "https://staff.hireflownow.com/auth",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/pricing",
+      "destination": "/",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/demo",
+      "destination": "/",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    },
+    {
+      "source": "/about",
+      "destination": "/",
+      "permanent": false,
+      "missing": [
+        {
+          "type": "host",
+          "value": "staff.hireflownow.com"
+        }
+      ]
+    }
+  ],
   "rewrites": [
     {
       "source": "/sitemap.xml",

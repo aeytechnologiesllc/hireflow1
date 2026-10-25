@@ -153,6 +153,20 @@ await db.exec(round3);
   check("…while the server is untouched", srv3.ok, srv3.error);
 }
 
+console.log("\nRound 4 (20261025470000)\n");
+{
+  const round4 = readFileSync(path.join(ROOT, "supabase/migrations/20261025470000_security_round4.sql"), "utf8");
+  await db.exec(round4.slice(round4.indexOf("CREATE OR REPLACE FUNCTION public.applications_applicant_write_rules()")));
+  const noNotes = (await db.query(`insert into public.applications (job_id, candidate_id, status, phase, notes) values ($1, $2, 'reviewing', 'step2', null) returning id`, [JOB, ANA])).rows[0].id;
+  let w = await as(ANA, "authenticated", `update public.applications set notes = '{"improvementReport":{"cached":true}}' where id = $1`, [noNotes]);
+  check("an application with no notes yet still takes other notes once it has moved on (the fourth security review)", w.ok, w.error);
+  w = await as(ANA, "authenticated", `update public.applications set notes = '{"applicationAnswers":[{"q":"late"}]}' where id = $1`, [noNotes]);
+  check("…but never answers added after the fact", !w.ok && /applicant_answers_locked/.test(w.error), JSON.stringify(w));
+  const bad = await as(ANA, "authenticated", `insert into public.applications (job_id, candidate_id, resume_url) values ($1, $2, 'https://evil.example/cv.pdf') returning resume_url`, [JOB2, ANA]);
+  const good = await as(ANA, "authenticated", `insert into public.applications (job_id, candidate_id, resume_url) values ($1, $2, $3) returning resume_url`, [JOB2, ANA, `${ANA}/cv.pdf`]);
+  check("a new application keeps a resume link only when it is a file in the applicant's own folder", bad.ok && bad.rows[0]?.resume_url === null && good.ok && good.rows[0]?.resume_url === `${ANA}/cv.pdf`, JSON.stringify({ bad, good }));
+}
+
 console.log("\nThe note goes with the account (20261025420000)\n");
 const OTHER = "20000000-0000-4000-8000-000000000009";
 await db.exec(`insert into auth.users values ('${ANA}'), ('${OTHER}')`);

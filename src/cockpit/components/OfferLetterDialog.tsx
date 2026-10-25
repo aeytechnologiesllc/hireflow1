@@ -237,6 +237,8 @@ export function OfferLetterDialog({
   const [payMethod, setPayMethod] = useState("");
   const [workerType, setWorkerType] = useState<WorkerType>(OFFER_DEFAULTS.workerType);
   const [remote, setRemote] = useState<boolean>(OFFER_DEFAULTS.remote);
+  // Where an on-site job is done, from the job's own place (the fourth product audit).
+  const [place, setPlace] = useState("");
   const [trialDays, setTrialDays] = useState<number>(OFFER_DEFAULTS.trialDays);
   const [noticeDays, setNoticeDays] = useState<number>(OFFER_DEFAULTS.noticeDays);
   const [ownEquipment, setOwnEquipment] = useState<boolean>(OFFER_DEFAULTS.ownEquipment);
@@ -271,6 +273,7 @@ export function OfferLetterDialog({
     setName(person.name === "Applicant" ? "" : person.name);
     setRoleTitle(person.jobTitle);
     setRemote(person.jobRemote);
+    setPlace((person.jobLocation ?? "").trim());
     if (person.jobPay) {
       const pay = person.jobPay;
       setPayAmount((now) => now || pay.payAmount);
@@ -324,6 +327,7 @@ export function OfferLetterDialog({
     hours,
     shift,
     remote,
+    place,
     reportsTo,
     trialDays,
     noticeDays,

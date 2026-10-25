@@ -9,6 +9,7 @@ import { Wordmark } from "@/cockpit/components/Wordmark";
 import { jobPagePath } from "@/lib/jobSlug";
 import { payWords } from "@/lib/jobPost";
 import { hiringLink, withVisitorTags } from "@/lib/hiringLink";
+import { placeLine } from "@/lib/jobLocation";
 
 /**
  * Open jobs: hireflownow.com/open-jobs (the owner approved the mock-up,
@@ -96,7 +97,7 @@ export default function OpenJobs() {
     <main className="min-h-[100dvh] bg-background px-4 py-8 sm:py-12" data-open-jobs>
       <div className="mx-auto max-w-2xl">
         <div className="flex items-center justify-between gap-3">
-          <a href={withVisitorTags("/", window.location.href)} aria-label="HireFlow home" className="text-foreground">
+          <a href={withVisitorTags("/", window.location.href, document.referrer)} aria-label="HireFlow home" className="text-foreground">
             <Wordmark size={28} />
           </a>
           {signedInApplicant ? (
@@ -155,7 +156,7 @@ export default function OpenJobs() {
                 {shown.map((job) => {
                   const brand = brands.get(job.employer_id);
                   const name = brand?.name ?? "A business on HireFlow";
-                  const where = job.is_remote !== false ? "Remote" : (job.location ?? "").trim() || null;
+                  const where = placeLine(job.location, job.is_remote !== false);
                   const pay = payWords(job);
                   return (
                     <li key={job.id}>
@@ -197,7 +198,7 @@ export default function OpenJobs() {
           Hiring?{" "}
           {/* Tagged like the other pages' links, so Admin → Growth sees what this page brings (the Phase 7 growth audit);
               a visitor's own tags, carried here, win (withVisitorTags; the third growth review). */}
-          <a href={withVisitorTags(hiringLink("open_jobs"), window.location.href)} className="font-semibold text-primary hover:underline">
+          <a href={withVisitorTags(hiringLink("open_jobs"), window.location.href, document.referrer)} className="font-semibold text-primary hover:underline">
             Post a job free
           </a>
         </footer>

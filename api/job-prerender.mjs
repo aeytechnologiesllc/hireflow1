@@ -55,14 +55,16 @@ const BUSINESS_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
  * canonical to the job, at hireflownow.com/privacy. Never looked up.
  */
 const RESERVED_SLUGS = new Set([
-  "__preview", "about", "admin", "adzuna.xml", "analytics", "api", "applicants", "applications",
-  "apply", "assets", "auth", "ava-preview", "blog", "blog-sitemap.xml", "c", "candidate", "careers", "contact", "dashboard",
-  "developer", "documents", "favicon.ico", "flow-lab", "fonts", "help", "home", "index.html", "interviews",
-  "job", "jobs", "jobs.xml", "join-team", "jooble.xml", "landing-assets", "landing.html", "login", "logout",
-  "manifest.webmanifest", "marketing-demo", "media", "messages", "more", "my-documents",
-  "notifications", "oauth", "open-jobs", "preview", "privacy", "profile", "register", "robots.txt",
-  "screenshots", "search", "settings", "share", "signin", "signup", "site.webmanifest", "sitemap.xml",
-  "staff", "support", "team", "team-portal", "terms", "verify"
+  "__preview", "about", "admin", "adzuna.xml", "analytics", "api", "applicants", "applications", "apply",
+  "assets", "auth", "ava-preview", "blog", "blog-sitemap.xml", "business", "c", "candidate", "careers",
+  "contact", "dashboard", "demo", "developer", "documents", "employers", "facebook", "favicon.ico", "fb",
+  "flow-lab", "fonts", "help", "hire", "home", "ig", "index.html", "instagram", "interviews", "job", "jobs",
+  "jobs.xml", "join-team", "jooble.xml", "landing-assets", "landing.html", "linkedin", "log-in", "login",
+  "logout", "manifest.webmanifest", "marketing-demo", "media", "messages", "more", "my-documents",
+  "notifications", "oauth", "open-jobs", "post-a-job", "preview", "pricing", "privacy", "profile",
+  "register", "robots.txt", "screenshots", "search", "settings", "share", "sign-up", "signin", "signup",
+  "site.webmanifest", "sitemap.xml", "staff", "start", "support", "team", "team-portal", "terms", "tiktok",
+  "verify", "youtube", "yt"
 ]);
 
 function esc(s) {

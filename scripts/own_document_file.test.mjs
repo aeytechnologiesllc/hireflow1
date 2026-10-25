@@ -55,8 +55,10 @@ check("countersign never fetches the sender's address itself", !/fetch\(contentD
 // The third Phase 7 security review: v1 is the server's, fixed when the applicant signs.
 check("signing reads the sender's own upload from the documents bucket by its own path", /const ownPath = ownDocumentsPath\(shownBody\.uploadedFileUrl, Deno\.env\.get\("SUPABASE_URL"\) \?\? ""\);\s*if \(!ownPath \|\| !document\.sender_id \|\| !ownPath\.startsWith\(`\$\{document\.sender_id\}\/`\)\)/.test(signing) && /admin\.storage\.from\("documents"\)\.download\(ownPath\)/.test(signing));
 check("…refuses unless the applicant's screen hashed the same thing, and makes that hash v1", /if \(!shownMatches\(payload\.viewedHash, shownHash\)\) \{\s*return errorResponse\("document_changed"/.test(signing) && /v1Hash: shownHash,/.test(signing) && /file_url: document\.file_url,\s*v1_hash: shownHash,/.test(signing));
-check("…and keeps a copy of an uploaded file where only the server writes", /\.upload\(sealedOriginalPath\(documentId\), shownBytes/.test(signing));
-check("countersign reads only that copy, never the sender's folder, and refuses one that does not hash to v1", /\.download\(sealedOriginalPath\(documentId\)\)/.test(signing) && !/download\(ownPath\)[\s\S]*renderSignedUploadedPdf/.test(signing.slice(signing.indexOf('action === "countersign"'))) && /if \(\(await sha256HexOfBytes\(new Uint8Array\(originalBytes\)\)\) !== reserved\.v1_hash\) \{\s*throw new ChainReconciliationError\(/.test(signing));
+check("…and keeps a copy of an uploaded file where only the server writes, named by its hash (the fourth review)", /\.upload\(sealedOriginalPath\(documentId, shownHash\), shownBytes/.test(signing));
+check("…a PDF only: a Word or text file is refused at signing, never signed blind", /if \(!isPdfBytes\(shownBytes\)\) \{\s*return errorResponse\(/.test(signing));
+check("…and either party views the signed copy after signing, never the sender's folder", /if \(action === "original"\) \{[\s\S]*createSignedUrl\(sealedOriginalPath\(documentId, document\.v1_hash\), 300\)/.test(signing) && /\["view", "original", "sign"/.test(signing));
+check("countersign reads only that copy, never the sender's folder, and refuses one that does not hash to v1", /\.download\(sealedOriginalPath\(documentId, reserved\.v1_hash\)\)/.test(signing) && !/download\(ownPath\)[\s\S]*renderSignedUploadedPdf/.test(signing.slice(signing.indexOf('action === "countersign"'))) && /if \(\(await sha256HexOfBytes\(new Uint8Array\(originalBytes\)\)\) !== reserved\.v1_hash\) \{\s*throw new ChainReconciliationError\(/.test(signing));
 check("…and a written letter must still hash to v1", /if \(\(await writtenDocumentHash\(contentData\.content \?\? ""\)\) !== reserved\.v1_hash\) \{\s*throw new ChainReconciliationError\(/.test(signing));
 const viewer = read("src/components/documents/SignedDocumentViewer.tsx");
 check("the signing view keeps an uploaded address only when it is this project's documents file", /parsed\.uploadedFileUrl && !ownDocumentsPath\(parsed\.uploadedFileUrl, SUPABASE_URL\)\s*\?\s*\{ \.\.\.parsed, uploadedFileUrl: undefined \}/.test(viewer));
@@ -74,7 +76,7 @@ check("/verify says verified only for a document signed by both and finalized (l
 {
   const { build } = await import("esbuild");
   const out = await build({
-    stdin: { contents: 'export { generateV1Hash } from "./src/lib/documentHash.ts"; export { writtenDocumentHash, shownMatches, sealedOriginalPath } from "./supabase/functions/_shared/documentShown.ts";', resolveDir: ROOT, loader: "ts" },
+    stdin: { contents: 'export { generateV1Hash } from "./src/lib/documentHash.ts"; export { writtenDocumentHash, shownMatches, sealedOriginalPath, isPdfBytes } from "./supabase/functions/_shared/documentShown.ts";', resolveDir: ROOT, loader: "ts" },
     bundle: true, write: false, format: "esm", platform: "neutral", logLevel: "silent",
     // documentHash.ts imports the app's Supabase client for its other helpers.
     plugins: [{ name: "no-client", setup(b) {
@@ -88,7 +90,8 @@ check("/verify says verified only for a document signed by both and finalized (l
   check("the server's hash of a letter is the browser's v1 (peso sign, curly quotes, ñ, empty)", same.every(Boolean), JSON.stringify(same));
   const h = await H.writtenDocumentHash("x");
   check("…the screen's hash must match exactly (any case), and nothing else passes", H.shownMatches(h, h) && H.shownMatches(h.toUpperCase(), h) && !H.shownMatches(undefined, h) && !H.shownMatches("", h) && !H.shownMatches(h.slice(1), h) && !H.shownMatches({ toString: () => h }, h));
-  check("…and the kept copy lives under documents/<id>/, which no business's own folder reaches", H.sealedOriginalPath("abc") === "documents/abc/original.pdf");
+  check("…and the kept copy lives under documents/<id>/, which no business's own folder reaches, named by its hash", H.sealedOriginalPath("abc", "f00") === "documents/abc/original-f00.pdf");
+  check("…only a PDF's bytes count as a PDF", H.isPdfBytes(new TextEncoder().encode("%PDF-1.7\n")) && !H.isPdfBytes(new TextEncoder().encode("PK\u0003\u0004")) && !H.isPdfBytes(new Uint8Array(0)));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

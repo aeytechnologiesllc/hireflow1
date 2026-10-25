@@ -484,8 +484,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   const handleDownloadSignedUploadedPdf = async () => {
     if (!document || !documentData?.uploadedFileUrl) return;
 
-    // Fetch original PDF
-    const response = await fetch(documentData.uploadedFileUrl);
+    // The PDF this screen shows (after signing, the server's kept copy), never
+    // the sender's folder again (the fourth security review).
+    if (!shownPdf) throw new Error("The document is not open yet");
+    const response = await fetch(shownPdf.src);
     if (!response.ok) throw new Error("Failed to fetch original PDF");
     const originalPdfBytes = await response.arrayBuffer();
 
@@ -736,17 +738,31 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   };
 
   useEffect(() => {
-    const address = externalHref(documentData?.uploadedFileUrl);
+    const sent = externalHref(documentData?.uploadedFileUrl);
     setShownPdf(null);
     setShownPdfFailed(false);
-    if (!address) return;
+    if (!sent) return;
     let cancelled = false;
     let blobUrl: string | null = null;
+    const signedByApplicant = !!document?.candidate_signed_at;
     (async () => {
       try {
+        // After the applicant signs, the copy the server kept, which is what
+        // was signed; the sender's own folder could hold another file by then
+        // (the fourth security review).
+        let address = sent;
+        if (signedByApplicant && document) {
+          const { data } = await supabase.functions.invoke("document-signing", { body: { documentId: document.id, action: "original" } });
+          const kept = externalHref((data as { url?: string } | null)?.url);
+          if (!kept) throw new Error("no signed copy");
+          address = kept;
+        }
         const response = await fetch(address);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const bytes = await response.arrayBuffer();
+        // A PDF only: a Word or text file cannot be shown or signed here.
+        const head = new Uint8Array(bytes.slice(0, 5));
+        if (String.fromCharCode(...head) !== "%PDF-") throw new Error("not a pdf");
         const hash = await generatePdfHash(bytes);
         if (cancelled) return;
         blobUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
@@ -759,7 +775,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       cancelled = true;
       if (blobUrl) URL.revokeObjectURL(blobUrl);
     };
-  }, [documentData?.uploadedFileUrl]);
+  }, [documentData?.uploadedFileUrl, document?.id, document?.candidate_signed_at]);
 
   useEffect(() => {
     let cancelled = false;
@@ -786,7 +802,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       if (!shownPdf) {
         return (
           <span className="text-muted-foreground">
-            {shownPdfFailed ? "This document could not be opened. Close it and open it again." : "Loading document..."}
+            {shownPdfFailed
+              ? "This document could not be opened here. If it is not a PDF, ask the hiring team to send it as a PDF; otherwise close it and open it again."
+              : "Loading document..."}
           </span>
         );
       }
@@ -797,8 +815,16 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
             className="w-full h-[500px] border border-border rounded-lg bg-background"
             title="Signed Document"
           />
+          {/* A phone may not show a PDF in a frame: the same bytes open in their own tab. */}
+          <p className="text-center text-sm">
+            <a href={shownPdf.src} target="_blank" rel="noopener" className="font-medium underline underline-offset-2">
+              Open the document
+            </a>
+          </p>
           <p className="text-sm text-muted-foreground text-center">
-            Signatures have been applied to this document. Download the signed PDF to view the final version.
+            {document?.status === "signed"
+              ? "Signatures have been applied to this document. Download the signed PDF to view the final version."
+              : "Read it here, or open it in its own tab, before you sign."}
           </p>
         </div>
       );

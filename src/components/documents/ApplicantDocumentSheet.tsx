@@ -110,7 +110,19 @@ export function ApplicantDocumentSheet({
   onShowRecord: (document: DocumentWithApplication) => void;
 }) {
   const queryClient = useQueryClient();
-  const body = useMemo(() => readDocumentBody(document?.file_url), [document?.file_url]);
+  // The letter as it was when this sheet opened: the screen never changes it
+  // under a half-typed signature. If the stored one ever differs (the database
+  // refuses a change to a sent letter since 20261025470000), it says so and
+  // signing waits until they read the new one (the fourth security review).
+  const [shownFileUrl, setShownFileUrl] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    setShownFileUrl(document?.file_url ?? null);
+    // Only when another document opens: a refetch of this one must not replace what is shown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [document?.id]);
+  const shownLetter = shownFileUrl === undefined ? document?.file_url : shownFileUrl;
+  const body = useMemo(() => readDocumentBody(shownLetter), [shownLetter]);
+  const letterChanged = shownFileUrl !== undefined && (document?.file_url ?? null) !== shownFileUrl;
   const [typed, setTyped] = useState("");
   const [drawn, setDrawn] = useState<string | null>(null);
   const [how, setHow] = useState<"typed" | "drawn">("typed");
@@ -160,7 +172,7 @@ export function ApplicantDocumentSheet({
   const mine = signatureOf(document.candidate_signature_data, "recipient");
   const theirs = signatureOf(document.employer_signature_data, "employer");
   const signature = how === "typed" ? typed.trim() : drawn;
-  const canSign = consent && !!signature && (how === "drawn" || typed.trim().length >= 2) && !busy;
+  const canSign = consent && !!signature && (how === "drawn" || typed.trim().length >= 2) && !busy && !letterChanged;
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -279,6 +291,21 @@ export function ApplicantDocumentSheet({
               {state === "withdrawn" && <p className="mb-4 text-sm text-muted-foreground">{company === "the hiring team" ? "The hiring team" : company} withdrew this. There's nothing to sign.</p>}
               {state === "expired" && <p className="mb-4 text-sm text-muted-foreground">The date to sign has passed. If you still want it, message {company === "the hiring team" ? "the hiring team" : company}.</p>}
 
+              {letterChanged && (
+                <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground" role="alert" data-applicant-document-changed>
+                  This letter was changed while you were reading it.{" "}
+                  <button
+                    type="button"
+                    className="font-medium underline underline-offset-2"
+                    onClick={() => {
+                      setShownFileUrl(document.file_url ?? null);
+                      setConsent(false);
+                    }}
+                  >
+                    Show the new version
+                  </button>
+                </div>
+              )}
               {/* The letter itself */}
               <article className="rounded-xl border border-border bg-card px-5 py-5 text-[14.5px] leading-[1.65] text-foreground shadow-sm" data-applicant-document-letter>
                 {body?.content ? <LetterText text={body.content} /> : <p className="text-muted-foreground">This document can't be shown here.</p>}

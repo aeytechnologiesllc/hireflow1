@@ -41,7 +41,7 @@ import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
 import { APPLICANT_BLOCKED_MESSAGE, applicationClosedMessage, isApplicantBlockedError } from "@/lib/applicantBlocked";
 import { openRolesPath, rememberBusiness } from "@/lib/openRoles";
 import { SafetyNote } from "@/components/trust/SafetyNote";
-import { HIRING_LINK_WORDS, hiringLink } from "@/lib/hiringLink";
+import { HIRING_LINK_WORDS, hiringLink, withVisitorTags } from "@/lib/hiringLink";
 
 export default function JobDetails() {
   // Four doors to this one page (docs/SHORT-JOB-LINKS.md): the job's address
@@ -864,7 +864,7 @@ export default function JobDetails() {
         {/* A business that likes what it sees can make its own (Phase 3, task 6). */}
         {job && !isEmployer && (
           <p className="mt-6 text-center text-xs text-muted-foreground">
-            <a href={hiringLink("job_page")} className="underline underline-offset-2 hover:text-foreground">
+            <a href={withVisitorTags(hiringLink("job_page"), window.location.href, document.referrer)} className="underline underline-offset-2 hover:text-foreground">
               {HIRING_LINK_WORDS}
             </a>
           </p>

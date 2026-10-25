@@ -599,6 +599,7 @@ const JOB_EDIT_FIELD_COLUMNS: Readonly<Record<string, ReadonlyArray<string>>> = 
   responsibilities: ["responsibilities"],
   location: JOB_LOCATION_COLUMNS,
   job_type: ["job_type"],
+  is_remote: ["is_remote"],
   experience_level: ["experience_level"],
   department: ["department"],
   salary_type: ["salary_min", "salary_max"],
@@ -1030,6 +1031,7 @@ export default function CreateJob() {
         requirements: existingJob.requirements || "",
         responsibilities: existingJob.responsibilities || "",
         location: existingJob.location || "",
+        is_remote: (existingJob as { is_remote?: boolean | null }).is_remote === true,
         job_type: existingJob.job_type || "full-time",
         experience_level: existingJob.experience_level || "",
         department: existingJob.department || "",
@@ -1038,7 +1040,8 @@ export default function CreateJob() {
         salary_min: existingJob.salary_min?.toString() || "",
         salary_max: existingJob.salary_max?.toString() || "",
         salary_fixed: existingJob.salary_min === existingJob.salary_max ? existingJob.salary_min?.toString() || "" : "",
-        salary_currency: existingJob.salary_currency || "USD",
+        // Never a guessed USD: a job saved with none stays none until the business picks one (the fourth product audit).
+        salary_currency: existingJob.salary_currency || "",
         skills_required: existingJob.skills_required?.join(", ") || "",
         benefits: existingJob.benefits?.join(", ") || "",
         application_deadline: existingJob.application_deadline ? new Date(existingJob.application_deadline) : null,
@@ -1663,12 +1666,12 @@ export default function CreateJob() {
     setIsSubmitting(true);
     try {
       const locationText = formData.location.trim();
-      // On an edit, a place that says neither remote nor on-site ("Cebu")
-      // keeps what the job was (remoteAfterPlaceEdit): a job made remote by the
-      // builder's Type field turned on-site when its city was edited (the third
-      // Phase 7 product audit). is_remote is written only when the place changes.
+      // On an edit, remote work is the business's own switch beside the place
+      // (the fourth product audit: worked out from the place and the
+      // description, it flipped without the business knowing). The switch
+      // follows a place that says so as it is typed (remoteAfterPlaceEdit).
       const isRemote = isEditMode && existingJob
-        ? remoteAfterPlaceEdit((existingJob as { is_remote?: boolean | null }).is_remote, locationText, formData.job_type, formData.description)
+        ? formData.is_remote === true
         : isFullyRemoteText(locationText, formData.job_type, formData.description);
       // A location is for candidates. It used to also need a country "for Google
       // Jobs", which blocked publishing (and saving) a worldwide remote role;
@@ -2619,8 +2622,20 @@ export default function CreateJob() {
                         placeholder="e.g., Remote, New York, NY"
                         className="bg-background"
                         value={formData.location}
-                        onChange={(e) => handleChange("location", e.target.value)}
+                        onChange={(e) => {
+                          const place = e.target.value;
+                          handleChange("location", place);
+                          // A place that says remote or on-site sets the switch; one
+                          // that says neither ("Cebu") leaves it as it was.
+                          if (isEditMode) handleChange("is_remote", remoteAfterPlaceEdit(formData.is_remote === true, place, formData.job_type, formData.description));
+                        }}
                       />
+                      {isEditMode && (
+                        <label className="flex items-center justify-between gap-3 pt-1 text-sm text-foreground" data-edit-remote>
+                          <span>Done from home (remote)</span>
+                          <Switch checked={formData.is_remote === true} onCheckedChange={(on) => handleChange("is_remote", on)} aria-label="Done from home (remote)" />
+                        </label>
+                      )}
                     </div>
                   </div>
 

@@ -40,5 +40,13 @@ for (const [input, want] of [
   check(`${JSON.stringify(input)} → ${JSON.stringify(want)}`, got === want, JSON.stringify(got));
 }
 
+// The fourth product audit: no currency, no pay in the feeds (a guessed USD read as dollars).
+{
+  const { readFileSync } = await import("node:fs");
+  const feedSrc = readFileSync(new URL("../api/job-feed.mjs", import.meta.url), "utf8");
+  const adzunaSrc = readFileSync(new URL("../api/job-feed-adzuna.mjs", import.meta.url), "utf8");
+  check("the feeds never guess USD, and print pay only with its currency", !/salary_currency \|\| "USD"/.test(feedSrc + adzunaSrc) && /if \(!job\.salary_currency\) return "";/.test(feedSrc) && /hasStructuredSalary: \(job\.salary_min != null \|\| job\.salary_max != null\) && !!job\.salary_currency,/.test(feedSrc));
+}
+
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

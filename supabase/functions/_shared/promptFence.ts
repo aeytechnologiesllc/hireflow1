@@ -14,8 +14,20 @@
  * Pure, no imports: scripts/ava_analysis_applicant_limits.test.mjs loads it in Node.
  */
 
-export const FENCE_OPEN = "<<APPLICANT_TEXT";
-export const FENCE_CLOSE = "<</APPLICANT_TEXT>>";
+/** A word no applicant can know, made when the function starts and named in
+ *  the system prompt's own rule: a list of look-alike closers can never be
+ *  complete (invisible letters, Cyrillic, "≪…≫"; the fourth security
+ *  review), but a closer without this word is no closer. */
+const FENCE_TOKEN = (() => {
+  try {
+    return crypto.randomUUID().replace(/-/g, "").slice(0, 12);
+  } catch {
+    return Math.random().toString(36).slice(2, 14);
+  }
+})();
+
+export const FENCE_OPEN = `<<APPLICANT_TEXT_${FENCE_TOKEN}`;
+export const FENCE_CLOSE = `<</APPLICANT_TEXT_${FENCE_TOKEN}>>`;
 
 /** The paragraph every scoring system prompt ends with. */
 export const APPLICANT_TEXT_RULE = `

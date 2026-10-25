@@ -644,7 +644,7 @@ export default function AvaCreateJob() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Location</label>
-                        <input value={briefFields.location} onChange={(e) => { setBrief("location", e.target.value); setGeoPreview(null); }} onBlur={resolveLocation} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Any city or country — e.g. Islamabad, Austin, or 'Remote'" />
+                        <input value={briefFields.location} onChange={(e) => { setBrief("location", e.target.value); setGeoPreview(null); }} onBlur={resolveLocation} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Any city or country — e.g. Makati, Austin, or 'Remote'" />
                         {geoLoading && (
                           <div className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(var(--muted-foreground))" }}>
                             <Loader2 className="h-3 w-3 animate-spin" /> Finding that place…

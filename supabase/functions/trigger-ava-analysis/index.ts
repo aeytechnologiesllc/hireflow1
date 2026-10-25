@@ -672,7 +672,9 @@ async function runAvaAnalysis(ctx: AnalysisContext): Promise<AnalysisOutcome> {
     // write the form's answers, and this write is the server's, so a "Resume"
     // answer pointing at another file had the server store it, and storage
     // then let the team open it (the third Phase 7 security review).
-    if (!application.resume_url && detectedResumeUrl && isOwnResumeObject(parseStorageUrl(detectedResumeUrl), application.candidate_id)) {
+    // A plain path only: parseStorageUrl reads the folder out of any host's
+    // address, so a link on another site passed (the fourth review).
+    if (!application.resume_url && detectedResumeUrl && !/:\/\//.test(detectedResumeUrl) && isOwnResumeObject(parseStorageUrl(detectedResumeUrl), application.candidate_id)) {
       console.log("[trigger-ava-analysis] BACKFILLING applications.resume_url from detected value...");
       const { error: backfillError } = await supabaseAdmin
         .from("applications")

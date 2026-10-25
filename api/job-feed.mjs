@@ -298,7 +298,10 @@ function salaryPeriod(job) {
 }
 
 function salaryText(job) {
-  const cur = job.salary_currency || "USD";
+  // No currency, no pay in the feed: a number with a guessed USD on a
+  // Philippine job read as dollars (the fourth product audit).
+  if (!job.salary_currency) return "";
+  const cur = job.salary_currency;
   const per = salaryPeriod(job);
   const perText = per ? ` per ${per}` : "";
   if (job.salary_min && job.salary_max) return `${cur} ${job.salary_min} - ${job.salary_max}${perText}`;
@@ -383,7 +386,7 @@ export async function loadFeedJobs() {
       html,
       plainLength: plainTextLength(html),
       salary: salaryText(job),
-      hasStructuredSalary: job.salary_min != null || job.salary_max != null,
+      hasStructuredSalary: (job.salary_min != null || job.salary_max != null) && !!job.salary_currency,
       period: salaryPeriod(job),
       expires: job.application_deadline ? isoDay(job.application_deadline) : "",
       jobType: jobTypeText(job.job_type),
@@ -424,9 +427,9 @@ export default async function handler(req, res) {
         `    <country>${cdata(e.country)}</country>`,
         `    <description>${cdata(e.html)}</description>`,
         e.salary ? `    <salary>${cdata(e.salary)}</salary>` : null,
-        job.salary_min != null ? `    <salarymin>${cdata(job.salary_min)}</salarymin>` : null,
-        job.salary_max != null ? `    <salarymax>${cdata(job.salary_max)}</salarymax>` : null,
-        e.hasStructuredSalary ? `    <salarycurrency>${cdata(job.salary_currency || "USD")}</salarycurrency>` : null,
+        e.hasStructuredSalary && job.salary_min != null ? `    <salarymin>${cdata(job.salary_min)}</salarymin>` : null,
+        e.hasStructuredSalary && job.salary_max != null ? `    <salarymax>${cdata(job.salary_max)}</salarymax>` : null,
+        e.hasStructuredSalary ? `    <salarycurrency>${cdata(job.salary_currency)}</salarycurrency>` : null,
         e.hasStructuredSalary && e.period ? `    <salaryperiod>${cdata(e.period)}</salaryperiod>` : null,
         `    <jobtype>${cdata(e.jobType)}</jobtype>`,
         `    <isremote>${cdata(e.isRemote ? "yes" : "no")}</isremote>`,

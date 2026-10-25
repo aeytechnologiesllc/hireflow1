@@ -23,7 +23,7 @@ import {
 import { computeV2Hash, computeV3Hash, sha256HexOfBytes, signatureHashInput } from "../_shared/documentHashChain.ts";
 import { reconcileCandidateSignatureChain } from "../_shared/countersignReconciliation.ts";
 import { ownDocumentsPath } from "../_shared/ownDocumentFile.ts";
-import { sealedOriginalPath, shownMatches, writtenDocumentHash } from "../_shared/documentShown.ts";
+import { isPdfBytes, sealedOriginalPath, shownMatches, writtenDocumentHash } from "../_shared/documentShown.ts";
 import { buildCompletionCertificate, type CertificateAuditEntry } from "../_shared/completionCertificateServer.ts";
 import { renderSignedUploadedPdf, renderTextDocumentPdf, type SignatureOverlay } from "../_shared/renderFinalPdf.ts";
 import { bestEffortIp } from "../_shared/bestEffortIp.ts";
@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
     if (!documentId || !action) {
       return errorResponse("bad_request", "documentId and action are required.", 400);
     }
-    if (!["view", "sign", "countersign", "decline", "download", "withdraw", "void"].includes(action)) {
+    if (!["view", "original", "sign", "countersign", "decline", "download", "withdraw", "void"].includes(action)) {
       return errorResponse("bad_request", `Unknown action: ${action}`, 400);
     }
 
@@ -365,6 +365,24 @@ Deno.serve(async (req) => {
     // match the `documents/<documentId>/...` path this design stores the
     // final PDF under).
     // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // original — once the applicant has signed an uploaded file, the copy
+    // the server kept (what was signed), for either party to view: the
+    // sender's own folder could hold another file by then (the fourth
+    // security review: the record view and the in-browser download read it).
+    // ------------------------------------------------------------------
+    if (action === "original") {
+      const kept = parseDocumentData(document.file_url ?? "");
+      if (!document.candidate_signed_at || !document.v1_hash || !kept.uploadedFileUrl) {
+        return errorResponse("not_pending", "There is no signed copy of this file yet.", 409);
+      }
+      const { data: signed, error: signErr } = await admin.storage
+        .from("documents")
+        .createSignedUrl(sealedOriginalPath(documentId, document.v1_hash), 300);
+      if (signErr || !signed) return errorResponse("internal_error", "Could not open the signed file.", 500);
+      return json({ ok: true, url: signed.signedUrl });
+    }
+
     if (action === "download") {
       if (document.status !== "signed" || !document.final_pdf_hash) {
         return errorResponse("not_pending", "This document has no finished PDF yet.", 409);
@@ -412,6 +430,9 @@ Deno.serve(async (req) => {
         const { data: shownFile, error: shownError } = await admin.storage.from("documents").download(ownPath);
         if (shownError || !shownFile) return errorResponse("internal_error", "Could not read the document. Please try again.", 500);
         shownBytes = new Uint8Array(await shownFile.arrayBuffer());
+        if (!isPdfBytes(shownBytes)) {
+          return errorResponse("not_pending", "This file can't be signed here. Ask the hiring team to send it as a PDF.", 409);
+        }
         shownHash = await sha256HexOfBytes(shownBytes);
       } else {
         shownHash = await writtenDocumentHash(shownBody.content ?? "");
@@ -422,7 +443,7 @@ Deno.serve(async (req) => {
       if (shownBytes) {
         const { error: sealError } = await admin.storage
           .from("documents")
-          .upload(sealedOriginalPath(documentId), shownBytes, { contentType: "application/pdf", upsert: true });
+          .upload(sealedOriginalPath(documentId, shownHash), shownBytes, { contentType: "application/pdf", upsert: true });
         if (sealError) return errorResponse("internal_error", "Could not keep a copy of the document. Please try again.", 500);
       }
 
@@ -734,7 +755,7 @@ Deno.serve(async (req) => {
           // (_shared/documentShown.ts), never the sender's own folder, where
           // the file could be swapped after the signature (the third Phase 7
           // security review). Its bytes must still hash to v1.
-          const { data: original, error: originalError } = await admin.storage.from("documents").download(sealedOriginalPath(documentId));
+          const { data: original, error: originalError } = await admin.storage.from("documents").download(sealedOriginalPath(documentId, reserved.v1_hash));
           if (originalError || !original) throw new ChainReconciliationError("there is no copy of the file the applicant signed");
           const originalBytes = await original.arrayBuffer();
           if ((await sha256HexOfBytes(new Uint8Array(originalBytes))) !== reserved.v1_hash) {

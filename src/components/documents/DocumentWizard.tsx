@@ -143,11 +143,12 @@ const UPLOAD_STEPS = [
   { id: "review", title: "Review & Sign", subtitle: "Configure signature fields" },
 ];
 
+// A PDF only: a Word or text file cannot be shown to the applicant to read,
+// nor finished into the signed PDF, so it was signed blind and could never be
+// countersigned (the fourth product audit and security review; the signing
+// function refuses one too).
 const ACCEPTED_FILE_TYPES = {
   "application/pdf": [".pdf"],
-  "application/msword": [".doc"],
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-  "text/plain": [".txt"],
 };
 
 export function DocumentWizard({ 
@@ -417,7 +418,7 @@ export function DocumentWizard({
     if (!validTypes.includes(file.type)) {
       toast({
         title: "Invalid File Type",
-        description: "Please upload a PDF, Word document, or text file.",
+        description: "Please upload a PDF. Save a Word file as a PDF first.",
         variant: "destructive",
       });
       return;
@@ -893,7 +894,7 @@ export function DocumentWizard({
                 <div>
                   <h3 className="text-lg font-semibold mb-1">Upload Your Own</h3>
                   <p className="text-sm text-muted-foreground">
-                    Upload an existing PDF, Word document, or text file. Add electronic signature fields.
+                    Upload an existing PDF. Add electronic signature fields.
                   </p>
                 </div>
               </div>
@@ -1271,7 +1272,7 @@ export function DocumentWizard({
                   </div>
                   <input
                     type="file"
-                    accept=".pdf,.doc,.docx,.txt"
+                    accept=".pdf"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) handleFileSelect(file);
@@ -1297,7 +1298,7 @@ export function DocumentWizard({
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Supported formats: PDF, DOC, DOCX, TXT • Max size: 10MB
+                    PDF only (save a Word file as a PDF first) • Max size: 10MB
                   </p>
                 </div>
               </div>

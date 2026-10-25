@@ -104,6 +104,16 @@
   // for every subsequent track() call in this tab.
   var sessionUtm = (function () {
     try {
+      // A page opened from another of HireFlow's own pages is the same visit
+      // moving on: the tags it carries (carry-source.js puts them on the
+      // logo, the guides and Open jobs so the sign-up can say where the
+      // visitor came from) were counted when they arrived, so they are not
+      // counted again (the fourth growth review: one YouTube visitor read as
+      // three campaign visits, a Quora one as one).
+      var from = hostOf(document.referrer);
+      if (!staffSite && from && (from === window.location.hostname || /(^|\.)hireflownow\.com$/.test(from))) {
+        return { source: null, medium: null, campaign: null };
+      }
       var params = new URLSearchParams(window.location.search);
       // The same tidy value carry-source.js puts on the sign-up link, so a
       // visit and the account it makes say the same source ("YouTube" and

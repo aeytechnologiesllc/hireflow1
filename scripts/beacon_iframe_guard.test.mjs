@@ -96,5 +96,33 @@ console.log("\nbeacon.js same-origin-iframe guard:\n");
   check("a single homepage view (outer + its landing.html iframe) produces exactly ONE auto-fired page-view POST total, not two", outer.fetchCalls + iframe.fetchCalls === 1, `total=${outer.fetchCalls + iframe.fetchCalls}`);
 }
 
+// The fourth growth review: carried tags are not counted again on a move inside the site.
+function countedFrom({ search, referrer, host = "hireflownow.com" }) {
+  const bodies = [];
+  const sandbox = {
+    console,
+    fetch: (_url, init) => {
+      bodies.push(JSON.parse(init.body));
+      return Promise.resolve();
+    },
+    URL,
+    URLSearchParams,
+    navigator: { userAgent: "test-agent", doNotTrack: null, globalPrivacyControl: false },
+    document: { referrer, documentElement: { clientWidth: 1024 } },
+  };
+  sandbox.window = { innerWidth: 1024, location: { pathname: "/blog", href: `https://${host}/blog${search}`, search, hostname: host }, doNotTrack: null };
+  sandbox.window.self = sandbox.window;
+  sandbox.window.top = sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(beaconSource, sandbox, { filename: "beacon.js" });
+  return bodies[0];
+}
+{
+  const landed = countedFrom({ search: "?utm_source=youtube&utm_campaign=v1", referrer: "https://www.youtube.com/watch?v=x" });
+  check("a visit that arrives tagged is counted with its tags", landed?.utmSource === "youtube" && landed?.utmCampaign === "v1", JSON.stringify(landed));
+  const moved = countedFrom({ search: "?utm_source=youtube&utm_campaign=v1", referrer: "https://hireflownow.com/" });
+  check("…the same visit moving on inside the site is not counted as another campaign visit", moved && moved.utmSource === null && moved.utmCampaign === null && moved.referrerHost === "hireflownow.com", JSON.stringify(moved));
+}
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

@@ -116,6 +116,27 @@ export const HELD_BACK: readonly string[] = [
   "signup",
   "staff",
   "support",
+  // The short ways in (vercel.json "redirects"; the fourth growth review): an
+  // address a video can say (hireflownow.com/youtube) lands on the front page
+  // tagged, and a business's guess (/sign-up, /pricing) reaches the right page,
+  // never a job's "This role isn't open".
+  "youtube",
+  "yt",
+  "tiktok",
+  "facebook",
+  "fb",
+  "instagram",
+  "ig",
+  "linkedin",
+  "sign-up",
+  "start",
+  "post-a-job",
+  "hire",
+  "business",
+  "employers",
+  "log-in",
+  "pricing",
+  "demo",
 ];
 
 export const RESERVED_SLUGS: ReadonlySet<string> = new Set([...ROUTE_SEGMENTS, ...SITE_PATHS, ...HELD_BACK]);

@@ -307,6 +307,8 @@ if (saveStart < 0 || saveEnd < saveStart) {
     "a new location writes the location columns (and is_remote), nothing else");
   const typed = save.changedJobEditColumns(loaded, { ...clone(loaded), job_type: "part-time" });
   assert(!typed.has("is_remote") && typed.has("job_type") && !typed.has("location_city"), "a new job type leaves is_remote alone and never re-geocodes");
+  const switched = save.changedJobEditColumns(loaded, { ...clone(loaded), is_remote: !loaded.is_remote });
+  assert(isDeepStrictEqual([...switched], ["is_remote"]), `the remote switch writes is_remote only (the fourth product audit; got ${[...switched].join(", ")})`);
   const described = save.changedJobEditColumns(loaded, { ...clone(loaded), description: "Answer calls for our dental office." });
   assert(isDeepStrictEqual([...described], ["description"]), `a new description writes the description only, never is_remote (got ${[...described].join(", ")})`);
   const pay = save.changedJobEditColumns(loaded, { ...clone(loaded), salary_currency: "EUR" });

@@ -9,7 +9,8 @@ import { businessSlugFromParam, jobPagePath } from "@/lib/jobSlug";
 import { CAREERS_PATH } from "@/lib/hosts";
 import { payWords } from "@/lib/jobPost";
 import { rememberBusiness } from "@/lib/openRoles";
-import { HIRING_LINK_WORDS, hiringLink } from "@/lib/hiringLink";
+import { HIRING_LINK_WORDS, hiringLink, withVisitorTags } from "@/lib/hiringLink";
+import { placeLine } from "@/lib/jobLocation";
 
 /**
  * A business's careers page: hireflownow.com/c/<business> (docs/BUSINESS-TRUST.md,
@@ -135,7 +136,7 @@ export default function BusinessCareers() {
           ) : (
             <ul className="mt-3 flex flex-col gap-2.5">
               {list.map((role) => {
-                const where = role.is_remote !== false ? "Remote" : (role.location ?? "").trim() || null;
+                const where = placeLine(role.location, role.is_remote !== false);
                 const pay = payWords(role);
                 return (
                   <li key={role.id}>
@@ -159,7 +160,7 @@ export default function BusinessCareers() {
 
         <footer className="mt-10 text-xs text-muted-foreground">
           Hiring with HireFlow.{" "}
-          <a href={hiringLink("careers_page")} className="underline underline-offset-2 hover:text-foreground">
+          <a href={withVisitorTags(hiringLink("careers_page"), window.location.href, document.referrer)} className="underline underline-offset-2 hover:text-foreground">
             {HIRING_LINK_WORDS}
           </a>
         </footer>

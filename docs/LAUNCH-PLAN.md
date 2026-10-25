@@ -943,6 +943,60 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (late night) — round 4 of security, product and growth; Phase 5 round 9; Phase 6 round 7; Phase 4 round 11
+
+Six fresh reviewers read 84688c10 (live). Fixed:
+
+- **Security, round 4** (2 medium, the rest low): a business could change a
+  letter while the applicant read it, and the screen showed the new one in
+  place, so the "what was shown" hash covered it: a sent document's content
+  is now fixed for every browser (`security_round4`, live as 20261025155540) and the letter
+  screen keeps the letter as it opened, warning if it ever differs. Word and
+  text uploads were signed blind and never countersigned: signing takes PDFs
+  only (the wizard, the viewer and the signing function). The kept copy is
+  named by its own hash, so racing signs cannot overwrite it, and both sides
+  view that copy after the applicant signs (`original`). The fence markers
+  carry a word made when the function starts, so no look-alike closes them.
+  An applicant's new application keeps a resume link only from their own
+  folder, the backfill takes plain paths only, and an application with no
+  notes yet takes notes again once it has moved on. Left: a departed
+  teammate's uploaded, unsigned document cannot be signed after their
+  account is deleted (0 live); reminders crowded by interviews changed in the
+  last 30 minutes (plausible only).
+- **Product, round 4:** any "office" in the place made a remote job on-site
+  ("Remote (home office required)", "Remote, US office hours"); "Work at
+  home", "Telework", "Virtual" are remote, "Not WFH" is not. Edit job has a
+  "Done from home (remote)" switch beside the place, which a place that says
+  so sets as it is typed: remote work never flips unseen. No USD is guessed
+  anywhere (feeds print pay only with its currency, the offer letter and
+  Edit job leave it to the business). Lists show a remote job's own place
+  ("Remote (US only)"). A phone can open an uploaded PDF in its own tab, and
+  the viewer no longer says signatures were applied before anyone signed.
+  The on-site offer letter names the job's place. "US Account", "US Shift"
+  and ", or" no longer pick a country.
+- **Growth, round 4:** short addresses a video can say
+  (hireflownow.com/youtube, /tiktok, /facebook, /instagram, /linkedin) land on
+  the front page tagged, and a business's guesses (/signup, /login, /pricing)
+  reach the right page; those names are reserved for jobs. Open jobs, job
+  pages and careers pages carry the visitor's channel on, the referring site
+  as the source with the page kept as the campaign. A move inside the site
+  counts no campaign visit again. Admin → Growth names each channel once
+  ("facebook" for its tag and its four hosts; `growth_sources`, live as 20261025155516).
+- **Phase 5, round 9:** a spoken-interview recording goes with its
+  application, so Delete Account and a withdrawal remove it
+  (`voice_recordings_go_with_application`, live as 20261025155532); a refused AI call gives
+  its units back and the two business cards are told apart; the admins'
+  alerts count units (`phase5_review9`, live as 20261025155525); each cleanup list's read
+  failure has its own alert; the Privacy Policy names Daily, the spoken
+  interview's AI, the papers kept by their own name and the minutes record;
+  the guards catch a later DROP FUNCTION CASCADE, a disabled or replica-only
+  trigger, an AFTER INSERT remake, a browser grant and an "or true". Left: a
+  PDF's pages are not counted by the budget (only the work-sample review sends
+  PDFs, ten a day per application), and no business is told when the whole
+  platform's day is used (the admins are).
+- **Phase 6, round 7** and **Phase 4, round 11:** see the next entry when
+  their fixes land.
+
 ### 2026-10-25 (night) — Phase 7 security, product and growth, round 3; Phase 5 round 8; Phase 6 round 6; Phase 4 round 10
 
 Six fresh reviewers read 3344aa6b (live). Fixed:

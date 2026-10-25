@@ -273,6 +273,12 @@ these either; each has a guard or a test that CI runs:
   The server's "told today" alerts are its own record, never a card in a
   bell (`claim_daily_alert`, `20261025400000`). Guards
   `alerts-reach-the-right-people`; `scripts/own_document_file.test.mjs`.
+- (Round 4.) A sent document's letter, file, name, type and v1 are fixed for
+  every browser (`20261025470000_security_round4.sql`): a change is a new
+  document. Signing takes PDFs only; the kept copy is
+  `documents/<id>/original-<v1>.pdf`, which both sides view after the
+  applicant signs (document-signing `original`). The prompt fence's markers
+  carry a word made when the function starts (`_shared/promptFence.ts`).
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

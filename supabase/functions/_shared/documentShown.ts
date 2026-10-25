@@ -27,9 +27,20 @@ export async function writtenDocumentHash(content: string): Promise<string> {
 }
 
 /** Where the server keeps the uploaded file the applicant signed: under
- *  documents/<id>/, which no business's own folder (<their id>/) can reach. */
-export function sealedOriginalPath(documentId: string): string {
-  return `documents/${documentId}/original.pdf`;
+ *  documents/<id>/, which no business's own folder (<their id>/) can reach,
+ *  named by its own hash, so two signs racing a swapped file each write their
+ *  own copy and the one whose v1 is kept is the one the countersign reads
+ *  (the fourth security review: one shared name could be overwritten). */
+export function sealedOriginalPath(documentId: string, hash: string): string {
+  return `documents/${documentId}/original-${hash}.pdf`;
+}
+
+/** An uploaded file is signed only as a PDF: a Word or text file cannot be
+ *  shown to the applicant here, nor finished into the final PDF (the fourth
+ *  security review and product audit: one was signed blind, then never
+ *  countersigned). */
+export function isPdfBytes(bytes: Uint8Array): boolean {
+  return bytes.length >= 5 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d;
 }
 
 /** The applicant's screen and the server agree on what is being signed. */

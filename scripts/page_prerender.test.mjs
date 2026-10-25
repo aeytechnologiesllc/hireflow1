@@ -83,5 +83,16 @@ for (const key of Object.keys(PAGES)) {
   check(`vercel.json sends /${key} here, before the crawler rule and the app`, at(`/${key}`) >= 0 && rewrites[at(`/${key}`)].destination === `/api/page-prerender?page=${key}` && at(`/${key}`) < at("/:slug") && at(`/${key}`) < at("/:path+"));
 }
 
+// The fourth growth review: short addresses a video can say, and a business's guesses.
+const redirects = JSON.parse(read("vercel.json")).redirects ?? [];
+const to = (source) => redirects.find((r) => r.source === source);
+for (const [name, dest] of [["/youtube", "/?utm_source=youtube&utm_medium=video"], ["/tiktok", "/?utm_source=tiktok&utm_medium=video"], ["/facebook", "/?utm_source=facebook&utm_medium=social"], ["/fb", "/?utm_source=facebook&utm_medium=social"]]) {
+  check(`${name} lands on the front page tagged (${dest})`, to(name)?.destination === dest && to(name)?.permanent === false);
+}
+check("a business's guesses reach the sign-up or sign-in page, or the front page", to("/signup")?.destination.startsWith("https://staff.hireflownow.com/auth?mode=signup") && to("/post-a-job")?.destination.startsWith("https://staff.hireflownow.com/auth?mode=signup") && to("/login")?.destination === "https://staff.hireflownow.com/auth" && to("/pricing")?.destination === "/");
+check("…never on the staff site", redirects.length > 0 && redirects.every((r) => r.missing?.some((m) => m.type === "host" && m.value === "staff.hireflownow.com")));
+const slugLib = read("src/lib/jobSlug.ts");
+check("…and no job can take one of those names", redirects.every((r) => new RegExp(`"${r.source.slice(1)}"`).test(slugLib)) && redirects.every((r) => read("api/job-prerender.mjs").includes(`"${r.source.slice(1)}"`)));
+
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

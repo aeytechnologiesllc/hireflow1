@@ -7,6 +7,9 @@ export interface AvaJobFormData extends GuidedJobSetup {
   requirements: string;
   responsibilities: string;
   location: string;
+  /** Edit job only: done from home, as the business set it (the fourth
+   *  product audit: worked out from the place alone, it flipped unseen). */
+  is_remote?: boolean;
   job_type: string;
   experience_level: string;
   department: string;

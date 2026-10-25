@@ -32,7 +32,7 @@ const bundle = await build({
   stdin: {
     contents:
       'export { briefFromForm } from "./src/lib/avaEngine/playbook.ts";\n' +
-      'export { inferCountryCode, isFullyRemoteText, placeSaysRemote, remoteAfterPlaceEdit } from "./src/lib/jobLocation.ts";\n',
+      'export { inferCountryCode, isFullyRemoteText, placeLine, placeSaysRemote, remoteAfterPlaceEdit } from "./src/lib/jobLocation.ts";\n',
     resolveDir: ROOT,
     loader: "ts",
   },
@@ -85,6 +85,26 @@ check("…a new job with no history reads the text", M.remoteAfterPlaceEdit(null
 for (const [text, code] of [["Laguna Beach, CA", "US"], ["Laguna Niguel, California, USA", "US"], ["Laguna Hills", null], ["Santa Rosa, Laguna", "PH"], ["Albuquerque, New Mexico", "US"], ["Mexico City", "MX"], ["Makati, Metro Manila", "PH"]]) {
   check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
 }
+
+// The fourth product audit and the eleventh Phase 4 review.
+for (const place of ["Remote (home office required)", "Remote, US office hours", "Fully remote (no office)", "Remote - back office support", "Work at home", "Telework", "Virtual", "WFH - US office hours", "Remote (US office hours)"]) {
+  check(`place ${JSON.stringify(place)} is a remote job`, brief(place).workMode === "remote" && R(place, "full-time", "") === true, brief(place).workMode);
+}
+for (const place of ["Makati City (Not WFH)", "Ortigas (No WFH)", "Anywhere in Metro Manila", "Makati office"]) {
+  check(`place ${JSON.stringify(place)} is not a remote job`, brief(place).workMode !== "remote", brief(place).workMode);
+}
+check("Type \"Full-time · No WFH\" is not remote", brief("Cebu", "Full-time · No WFH").workMode !== "remote");
+check("a description's in-office appointments and office manager are not where the agent sits", R("Remote", "full-time", "Book in-office appointments for our dentists and report to our office manager.") === true);
+for (const [text, code] of [["Makati City (US Account)", "PH"], ["Cebu City (US Shift)", "PH"], ["Quezon City - UK Account", "PH"], ["Makati (Canada account)", "PH"], ["Pasig, Mandaluyong, or Makati", "PH"], ["Portland, OR", "US"], ["Remote (US only)", "US"]]) {
+  check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
+}
+
+{
+  const editor = (await import("node:fs")).readFileSync(path.join(ROOT, "src/pages/CreateJob.tsx"), "utf8");
+  check("Edit job: remote work is the business's own switch, shown beside the place, never re-worked unseen", /isEditMode && existingJob\s*\? formData\.is_remote === true/.test(editor) && /data-edit-remote/.test(editor) && /handleChange\("is_remote", remoteAfterPlaceEdit\(/.test(editor));
+}
+
+check("lists show a remote job's own place, never just \"Remote\"", M.placeLine("Remote (US only)", true) === "Remote (US only)" && M.placeLine("Philippines", true) === "Remote · Philippines" && M.placeLine("", true) === "Remote" && M.placeLine("Makati", false) === "Makati" && M.placeLine("", false) === null);
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

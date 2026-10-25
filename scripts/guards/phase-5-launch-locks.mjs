@@ -228,6 +228,13 @@ export default [
         detail.push("remove_applicant must be callable by the system only (it trusts the actor it is given)");
       }
       if (!/tm\.can_manage_pipeline is true/.test(sql) || !/p_actor = v_app\.employer_id/.test(sql)) detail.push("remove_applicant no longer limits it to the owner and teammates who manage applicants");
+      // A check written but switched off ("… or true") is no check, and no later
+      // migration may hand the function to a browser (the ninth review).
+      if (/\bor\s+true\b|\bor\s+1\s*=\s*1\b/i.test(sql)) detail.push("remove_applicant's checks are switched off with an \"or true\"");
+      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
+        const text = noComments((await read(rel)) ?? "");
+        if (/grant\s+execute\s+on\s+function\s+public\.remove_applicant[^;]*\bto\s+[^;]*\b(authenticated|anon|public)\b/i.test(text)) detail.push(`${rel}: remove_applicant granted to a browser role`);
+      }
       if (!/insert into private\.applicant_removals/.test(sql)) detail.push("remove_applicant no longer logs the removal");
       const fn = (await read("supabase/functions/remove-applicant/index.ts")) ?? "";
       if (!/p_actor: caller\.userId/.test(fn) || !/requireSignedInUser\(req, corsHeaders\)/.test(fn)) detail.push("remove-applicant: the actor must come from the caller's sign-in");

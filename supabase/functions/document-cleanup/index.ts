@@ -195,14 +195,19 @@ Deno.serve(async (req) => {
   // delete, and files left in the retry queue are told too (the seventh
   // review). A list that could not be read is told as well (the eighth: the
   // two retry queues' reads were only logged).
-  const unread = [
-    error ? `the ID-paper requests (${String(error.message ?? error).slice(0, 160)}): no ID is deleted until they can be` : "",
-    trashError ? `the files of deleted requests (${String(trashError.message).slice(0, 120)})` : "",
-    leftoverError ? `the files left by "Delete their information" (${String(leftoverError.message).slice(0, 120)})` : "",
-  ].filter(Boolean);
-  if (unread.length > 0) {
-    await tell("read", "ID papers are not being deleted", `document-cleanup could not read ${unread.join("; ")}. It tries again every hour.`);
+  // Each list's read failure on its own day's alert, so a brief failure of one
+  // queue never hides a later "no ID is deleted" (the ninth review: one key
+  // for all three did).
+  if (error) {
+    await tell("read-requests", "ID papers are not being deleted", `document-cleanup could not read the ID-paper requests (${String(error.message ?? error).slice(0, 160)}): no ID is deleted until it can. It tries again every hour.`);
   }
+  if (trashError) {
+    await tell("read-trash", "Files of deleted requests are not being deleted", `document-cleanup could not read the files of deleted requests (${String(trashError.message).slice(0, 160)}). It tries again every hour.`);
+  }
+  if (leftoverError) {
+    await tell("read-leftovers", "Removed applicants' files are not being deleted", `document-cleanup could not read the files left by "Delete their information" (${String(leftoverError.message).slice(0, 160)}). It tries again every hour.`);
+  }
+  const unread = [error, trashError, leftoverError].filter(Boolean);
   if (counts.failed > 0 || orphansFailed > 0) {
     const parts = [
       counts.failed > 0 ? `${counts.failed} ID file${counts.failed === 1 ? "" : "s"} past 24 hours` : "",

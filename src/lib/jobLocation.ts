@@ -25,7 +25,9 @@ const COUNTRY_TEXT_HINTS: Array<[RegExp, string]> = [
   [/\bireland\b/i, "IE"],
 ];
 
-const US_STATE_HINT = /,\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY)\b/i;
+// In capitals, as a state is written: ", or Makati" is no Oregon (the eleventh
+// Phase 4 review: "Pasig, Mandaluyong, or Makati" was a US job).
+const US_STATE_HINT = /,\s*(AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY)\b/;
 const US_STATE_NAME_HINT = /,\s*(alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming)\b/i;
 const NOT_FULLY_REMOTE_HINT = /\b(hybrid|remote[-\s]?friendly|remote optional|occasional(?:ly)? remote|some remote|partly remote|partial(?:ly)? remote|negotiable|office|on[-\s]?site|onsite)\b/i;
 const DEFINITIVE_REMOTE_HINT = /\b(fully remote|100% remote|remote only|work from home|wfh|telecommute)\b/i;
@@ -36,9 +38,14 @@ const REMOTE_PREFIX = /^remote(?:\b|[\s—–\-,:|])/i;
  *  audit: it was the Philippines). */
 const PH_PLACE_HINT = /\b(metro manila|manila|quezon city|makati|pasig|taguig|cebu|davao|baguio|iloilo|cagayan de oro|bacolod|pampanga|cavite|laguna(?!\s+(?:niguel|hills|beach|woods)))\b/i;
 
+/** A country named for the clients or the hours, not the place: "Makati City
+ *  (US Account)", "Cebu City (US Shift)" (the eleventh Phase 4 review: those
+ *  became US jobs). */
+const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)\s+(?:accounts?|shifts?|clients?|customers?|time(?:zone)?|hours|market|campaigns?|based clients)\b/gi;
+
 export function inferCountryCode(locationText?: string | null): string | null {
-  const text = (locationText ?? "").trim();
-  if (!text) return null;
+  const text = (locationText ?? "").trim().replace(CLIENT_COUNTRY, " ");
+  if (!text.trim()) return null;
   for (const [pattern, code] of COUNTRY_TEXT_HINTS) {
     if (pattern.test(text)) return code;
   }
@@ -53,13 +60,19 @@ export function inferCountryCode(locationText?: string | null): string | null {
  *  "Remote": "Home-based, Philippines", "Philippines (Remote)", "Makati
  *  (WFH)", "Anywhere" and "100% Remote" are how businesses write it (the third
  *  Phase 7 product audit: those were built as on-site jobs). */
-const PLACE_NOT_REMOTE = /\b(hybrid|on[-\s]?site|onsite|in[-\s]?office|office|remote[-\s]?friendly|remote[-\s]optional|partly remote|partially remote|some remote|occasional(?:ly)? remote|not remote|no remote)\b/i;
-const PLACE_REMOTE = /\b(remote|work(?:ing)?[-\s]?from[-\s]?home|wfh|home[-\s]?based|telecommut\w*|anywhere|worldwide)\b/i;
+const PLACE_NOT_REMOTE = /\b(hybrid|on[-\s]?site|onsite|in[-\s]?office|office[-\s]based|remote[-\s]?friendly|remote[-\s]optional|partly remote|partially remote|some remote|occasional(?:ly)? remote|not remote|no remote|non[-\s]?remote|(?:not|no)\s+(?:wfh|work(?:ing)?[-\s]from[-\s]home))\b/i;
+const PLACE_REMOTE = /\b(remote|work(?:ing)?[-\s]?(?:from|at)[-\s]?home|wfh|home[-\s]?based|telecommut\w*|telework\w*|virtual|anywhere(?!\s+in\b)|worldwide)\b/i;
+/** An office named with no remote word ("Makati office") is on-site; with
+ *  one, it is the hours or the kind of work ("Remote (US office hours)",
+ *  "Remote - back office support", "Fully remote (no office)"): the fourth
+ *  product audit, where any "office" made those on-site. */
+const PLACE_OFFICE = /\boffice\b/i;
 export function placeSaysRemote(text?: string | null): "remote" | "not_remote" | null {
   const t = (text ?? "").trim();
   if (!t) return null;
   if (PLACE_NOT_REMOTE.test(t)) return "not_remote";
-  return PLACE_REMOTE.test(t) ? "remote" : null;
+  if (PLACE_REMOTE.test(t)) return "remote";
+  return PLACE_OFFICE.test(t) ? "not_remote" : null;
 }
 
 // What a description says about the place of work. Not every "office" in it:
@@ -67,7 +80,9 @@ export function placeSaysRemote(text?: string | null): "remote" | "not_remote" |
 // Remote (the second Phase 7 product audit: that word made it on-site), and
 // not every "on-site" either: "book on-site repair visits" is a home-services
 // business's work, not where its agent sits (the third).
-const DESCRIPTION_ON_SITE_HINT = /\b(hybrid|in[-\s]office|office[-\s]based|(?<!\bno\s)(?<!\bnot\s(?:an?\s)?)on[-\s]?site (?:role|position|job|work)|(?:work|working|report|reporting|based) on[-\s]?site|(?:work|working|report|reporting|come|based)\s+(?:in|to|at|from|out of)\s+(?:the|our)\s+office)\b/i;
+// …nor "book in-office appointments" or "report to our office manager" (the
+// fourth product audit: those turned a remote job on-site).
+const DESCRIPTION_ON_SITE_HINT = /\b(hybrid(?! (?:coffee|car|plans?)\b)|in[-\s]office(?!\s+(?:appointments?|visits?|consultations?|procedures?|hours|staff))|office[-\s]based|(?<!\bno\s)(?<!\bnot\s(?:an?\s)?)on[-\s]?site (?:role|position|job|work)|(?:work|working|report|reporting|based) on[-\s]?site|(?:work|working|report|reporting|come|based)\s+(?:in|to|at|from|out of)\s+(?:the|our)\s+office(?!\s+(?:manager|administrator|hours|staff|team|supplies)))\b/i;
 
 /** Whether a job is fully remote, from what the business wrote: the place
  *  first, then the job type, and the description only when it says so in so
@@ -94,4 +109,15 @@ export function remoteAfterPlaceEdit(wasRemote: boolean | null | undefined, loca
   if (place === "remote") return !DESCRIPTION_ON_SITE_HINT.test((description ?? "").trim());
   if (typeof wasRemote === "boolean") return wasRemote;
   return isFullyRemoteText(location, jobType, description);
+}
+
+/** The place as a list shows it: a remote job keeps what the business wrote
+ *  ("Remote (US only)", "Philippines"), never just "Remote" (the fourth
+ *  product audit: "Remote (US only)" reached Philippine applicants as
+ *  "Remote"). */
+export function placeLine(location: string | null | undefined, isRemote: boolean | null | undefined): string | null {
+  const place = (location ?? "").trim();
+  if (isRemote === false) return place || null;
+  if (!place) return "Remote";
+  return placeSaysRemote(place) === "remote" ? place : `Remote · ${place}`;
 }

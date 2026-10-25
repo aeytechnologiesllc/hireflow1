@@ -593,7 +593,8 @@ function GrowthTab() {
         Tag every link you post, for example <code>hireflownow.com/?utm_source=youtube&amp;utm_campaign=v1</code>, and the campaign shows here by name.
         The hiring team's own clicks from the staff site are not counted. An account shows as unknown when it brought no tags and no site sent it
         (a typed address, a bookmark, a browser that asks sites not to track), and so does every account made before 25 October 2026.
-        Say a tagged address out loud in videos, for example <code>hireflownow.com/?utm_source=youtube</code>.
+        In a video or post, say a short address: <code>hireflownow.com/youtube</code>, <code>/tiktok</code>, <code>/facebook</code>,{" "}
+        <code>/instagram</code> or <code>/linkedin</code> lands on the front page already tagged.
       </p>
     </div>
   );

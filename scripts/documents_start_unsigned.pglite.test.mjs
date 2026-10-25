@@ -108,5 +108,19 @@ check("the document-signing function's own writes (service role) are untouched",
   check("…the server's own inserts are untouched", svcDoc.ok && sd?.sender_id === OTHER_SENDER && new Date(sd.created_at).getFullYear() === 2021, JSON.stringify(sd));
 }
 
+// The fourth security review (20261025470000): a sent document's content is fixed.
+{
+  const round4 = readFileSync(path.join(ROOT, "supabase/migrations/20261025470000_security_round4.sql"), "utf8");
+  await db.exec(`grant update on public.documents to authenticated, service_role;`);
+  await db.exec(round4.slice(0, round4.indexOf("CREATE OR REPLACE FUNCTION public.applications_applicant_write_rules()")));
+  const docId = (await db.query(`select id from public.documents where name = 'Backdated'`)).rows[0].id;
+  for (const [what, set] of [["the letter", "file_url = 'data:application/json;base64,e30='"], ["the name", "name = 'Training bond'"], ["the type", "document_type = 'agreement'"], ["v1", "v1_hash = 'other'"]]) {
+    const r = await as(BIZ, "authenticated", `update public.documents set ${set} where id = '${docId}'`);
+    check(`a business cannot change ${what} of a sent document (the fourth security review)`, !r.ok && /document_content_fixed/.test(r.error), JSON.stringify(r));
+  }
+  const svcEdit = await as(null, "service_role", `update public.documents set v1_hash = 'server' where id = '${docId}'`);
+  check("…while the signing function (service role) still writes v1", svcEdit.ok, svcEdit.error);
+}
+
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

@@ -129,7 +129,7 @@ export default [
       if (!src) return { ok: false, detail: [`${FUNCTION} not found`] };
       const bad = [];
 
-      if (!/\[\s*"view"\s*,\s*"sign"\s*,\s*"countersign"\s*,\s*"decline"\s*,\s*"download"\s*,\s*"withdraw"\s*,\s*"void"\s*\]/.test(src)) {
+      if (!/\[\s*"view"\s*,\s*(?:"original"\s*,\s*)?"sign"\s*,\s*"countersign"\s*,\s*"decline"\s*,\s*"download"\s*,\s*"withdraw"\s*,\s*"void"\s*\]/.test(src)) {
         bad.push('the allowed-actions list does not include "withdraw" and "void"');
       }
 

@@ -156,10 +156,10 @@ export const PRIVACY_POLICY: LegalDocument = {
           list: [
             "Supabase: the database, sign-in and file storage.",
             "Vercel: hosting the site.",
-            "OpenAI: the AI scoring (the review of work samples included), the chat practice and the written interview.",
+            "OpenAI: the AI scoring (the review of work samples included), the chat practice, the written interview and, if a job has one, the spoken interview.",
             "Resend: sending email.",
             "Your browser's own push service (Google, Apple, Mozilla or Microsoft, depending on your browser): phone and desktop notifications, if you turn them on. Notifications travel through it encrypted.",
-            "A video-call provider, if the hiring team uses the site's built-in call for your interview.",
+            "Daily (daily.co), the video-call provider, if the hiring team uses the site's built-in call for your interview.",
           ],
         },
         "Your browser also loads fonts and small pieces of code from public networks (Google Fonts and jsDelivr). Like any website you visit, they see your IP address when it does.",
@@ -179,10 +179,10 @@ export const PRIVACY_POLICY: LegalDocument = {
       title: "How long we keep it",
       body: [
         "Most things are not deleted on a timer. We keep your account and your applications until you delete them or the hiring team removes them. If you ask us to delete an application, we pass your request to its hiring team, which can delete it, and we help you delete your account if you want that too.",
-        "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 24 hours after someone on the hiring team first opens it, or 7 days after you send it if nobody opens it.",
+        "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 24 hours after someone on the hiring team first opens it, or 7 days after you send it if nobody opens it. Any other paper the team asks for by its own name is kept until it, the application or your account is deleted.",
         "In that time the hiring team may download a copy. A copy they keep is theirs to look after, under their own duties to protect it.",
         "When you delete your account, your profile, your applications, your test records and your files are deleted with it.",
-        "A few technical records stay behind: a count of your test attempts, the start times of typing tests, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account. Signed documents and their records may also be kept where both sides may still need them or the law requires it.",
+        "A few technical records stay behind: a count of your test attempts, the start times of typing tests, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), how many minutes a spoken interview used, and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account. Signed documents and their records may also be kept where both sides may still need them or the law requires it.",
       ],
     },
     {

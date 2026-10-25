@@ -65,6 +65,8 @@ export interface OfferLetterFields {
   shift: string;
   /** True for a role done from home. */
   remote: boolean;
+  /** Where an on-site job is done: the job's own place, as the business wrote it. */
+  place?: string;
   /** "Zack, Owner". Optional. */
   reportsTo: string;
   /** 0 for none. */
@@ -244,6 +246,7 @@ export function cleanFields(fields: OfferLetterFields): OfferLetterFields {
     hours: oneLine(fields.hours, OFFER_LIMITS.line),
     shift: oneLine(fields.shift, OFFER_LIMITS.line),
     remote: fields.remote !== false,
+    place: oneLine(fields.place ?? "", OFFER_LIMITS.line),
     reportsTo: oneLine(fields.reportsTo, OFFER_LIMITS.name),
     trialDays: pick(Number(fields.trialDays), TRIAL_CHOICES, 0),
     noticeDays: pick(Number(fields.noticeDays), NOTICE_CHOICES, OFFER_DEFAULTS.noticeDays),
@@ -271,7 +274,10 @@ export function payFromJob(job: { salary_min?: number | null; salary_max?: numbe
   if (amount === null) return "";
   // A range is not an offer: the letter says one figure, and he sets it.
   if (low !== null && high !== null && low !== high) return "";
-  const currency = (job.salary_currency ?? "USD").trim().toUpperCase() || "USD";
+  // No currency, no figure: the business says it (the fourth product audit:
+  // a guessed USD on a Philippine job's offer).
+  const currency = (job.salary_currency ?? "").trim().toUpperCase();
+  if (!currency) return "";
   const period: Record<string, string> = { HOUR: "an hour", DAY: "a day", WEEK: "a week", MONTH: "a month", YEAR: "a year" };
   const per = period[(job.salary_period ?? "").trim().toUpperCase()];
   if (!per) return "";
@@ -284,7 +290,7 @@ export function payPartsFromJob(job: { salary_min?: number | null; salary_max?: 
   const per = (job.salary_period ?? "").trim().toLowerCase();
   if (per !== "month" && per !== "week" && per !== "hour") return null;
   const amount = typeof job.salary_min === "number" && job.salary_min > 0 ? job.salary_min : (job.salary_max as number);
-  return { payAmount: amount.toLocaleString("en-US"), payCurrency: (job.salary_currency ?? "USD").trim().toUpperCase() || "USD", payPer: per };
+  return { payAmount: amount.toLocaleString("en-US"), payCurrency: (job.salary_currency ?? "").trim().toUpperCase(), payPer: per };
 }
 
 export interface OfferProblem {
@@ -350,7 +356,7 @@ export function offerLetterText(fields: OfferLetterFields): string {
   role.push(`Type: ${arrangementWords(f)}`);
   // An on-site offer said nothing about where the work is (the third product
   // audit): in person, at the business's own place.
-  role.push(f.remote ? "Where: Remote, working from home" : `Where: In person, at ${f.companyName ? `${f.companyName}'s` : "our"} workplace`);
+  role.push(f.remote ? "Where: Remote, working from home" : f.place ? `Where: In person, at ${f.place}` : `Where: In person, at ${f.companyName ? `${f.companyName}'s` : "our"} workplace`);
   if (f.hours) role.push(`Hours: ${f.hours}`);
   if (f.shift) role.push(`Shift: ${f.shift}`);
   if (f.reportsTo) role.push(`Reports to: ${f.reportsTo}`);

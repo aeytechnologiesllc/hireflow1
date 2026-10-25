@@ -381,6 +381,25 @@ check("the old one-argument function is gone (one budget function, no way round 
   check("…a confirmed business gets the paused-until-tomorrow card", fullCards.length === 1 && /paused until tomorrow/.test(fullCards[0].title) && /place is kept/.test(fullCards[0].message), JSON.stringify(fullCards));
   check("…and neither card counts \"calls\"", ![...newCards, ...fullCards].some((c) => /calls/.test(c.message)));
 }
+// The ninth Phase 5 review: refusals give their units back, the two cards are
+// told apart, and the admins' alerts count units.
+{
+  const v9 = read("supabase/migrations/20261025450000_phase5_review9.sql");
+  await db.exec(v9);
+  await db.exec(v9);
+  const B_NINE = "30000000-0000-4000-8000-000000000011";
+  await db.exec(`update public.app_settings set value = '2'::jsonb where key = 'ai_business_daily_call_cap'; update public.app_settings set value = '1'::jsonb where key = 'ai_new_business_daily_call_cap';`);
+  const first = [await b_take(B_NINE), await b_take(B_NINE), await b_take(B_NINE)];
+  const used = (await db.query(`select calls from private.ai_business_daily_usage where business_id = '${B_NINE}' and day = (now() at time zone 'utc')::date`)).rows[0].calls;
+  check("refused calls give their units back (one allowed on the new-account day, two refused, one used)", JSON.stringify(first) === JSON.stringify([true, false, false]) && used === 1, JSON.stringify({ first, used }));
+  await db.exec(`insert into public.zz_verified values ('${B_NINE}') on conflict do nothing`);
+  const after = [await b_take(B_NINE), await b_take(B_NINE)];
+  check("…so confirming the email gives the full day at once (one more of two)", JSON.stringify(after) === JSON.stringify([true, false]), JSON.stringify(after));
+  const cards = (await db.query(`select title from public.notifications where user_id = '${B_NINE}' order by created_at`)).rows.map((r) => r.title);
+  check("…and the new-account card and the full-day card both reach the business the same day", cards.length === 2 && /new accounts/.test(cards[0]) && /paused until tomorrow/.test(cards[1]), JSON.stringify(cards));
+  const adminTexts = (await db.query(`select message from public.notifications where message like '%${B_NINE}%'`)).rows.map((r) => r.message);
+  check("…the admins' alerts count units, not calls", adminTexts.length > 0 && adminTexts.every((m) => /AI units/.test(m) && !/AI calls/.test(m)), JSON.stringify(adminTexts));
+}
 const b_aiBudgetTs = read("supabase/functions/_shared/aiBudget.ts");
 check("the helper sends the business only when it is a uuid", /UUID\.test\(business\) \? \{ p_calls: calls, p_business: business \} : \{ p_calls: calls \}/.test(b_aiBudgetTs));
 

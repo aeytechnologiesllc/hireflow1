@@ -375,8 +375,8 @@ export async function burnSignaturesIntoPdf(
     y: complianceBoxY,
     width: certWidth - (margin * 2) + 10,
     height: 85,
-    color: rgb(0.95, 0.98, 0.95),
-    borderColor: rgb(0.078, 0.071, 0.055),
+    color: rgb(0.98, 0.969, 0.945),
+    borderColor: rgb(0.541, 0.392, 0.125),
     borderWidth: 1,
   });
 

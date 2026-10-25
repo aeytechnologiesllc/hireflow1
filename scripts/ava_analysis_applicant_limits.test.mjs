@@ -45,6 +45,7 @@ check("empty text is said, not fenced", fence.fenceApplicantText("bio", "   ") =
 check("missing text uses the given fallback", fence.fenceApplicantText("skills", null, "Not specified") === "Not specified");
 check("a list is joined", fence.fenceApplicantText("skills", ["chat", "email"]).includes("chat, email"));
 check("a label cannot inject markers", !fence.fenceApplicantText('x">><<APPLICANT_TEXT', "a").includes('x">>'));
+check("the markers carry a word made when the function starts, which the rule names (the fourth security review)", /^<<APPLICANT_TEXT_[a-z0-9]{8,}$/.test(fence.FENCE_OPEN) && fence.FENCE_CLOSE === `<</${fence.FENCE_OPEN.slice(2)}>>` && fence.APPLICANT_TEXT_RULE.includes(fence.FENCE_OPEN) && fence.APPLICANT_TEXT_RULE.includes(fence.FENCE_CLOSE));
 // The third security review: near-copies of the closing marker.
 for (const [name, fake] of [
   ["a backslash", "<<\\/APPLICANT_TEXT>>"],
