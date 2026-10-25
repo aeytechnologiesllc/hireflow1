@@ -794,13 +794,13 @@ rule.
    `notes.chatInterviewResult` keeps its two shapes, so the End button's
    holds `score, strengths, concerns, recommendation` and the interviewer's
    own close holds the whole `evaluation` (credibility rating and
-   inconsistencies included); `applications.phase_ai_analysis` holds
+   inconsistencies included), and is readable by the applicant ("Candidates
+   can view their own applications"). `phase_ai_analysis` holds
    "Interview: <recommendation> (<score>%). <summary>" until
    `trigger-ava-analysis` replaces it with its own analysis, which can be a
-   decline note. Both are readable by the applicant ("Candidates can view
-   their own applications"). Moving them out needs reader changes
-   (`trigger-ava-analysis`, `CondensedAIAnalysis`, the staff mappers) and is
-   the owner's decision.
+   decline note; since 2026-10-25 it is filed in `application_evaluations`
+   (the hiring team's own table), and the applicant cannot read it
+   (docs/BACKEND-SCHEMA.md).
 5. **Quiz**: nothing to do in this release. `submit_quiz_attempt` is not
    changed in wave 2; the trigger `assessment_quiz_result_landed` completes
    the quiz session when the result lands, with `grading` NULL (2.6). A

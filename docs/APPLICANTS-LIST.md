@@ -269,10 +269,15 @@ One slim load per job, filtered and sorted in the browser, 25 drawn at a time:
 
 1. Jobs from `useEmployerJobs` (already loaded); attach each job to its rows on
    the client. No `jobs!inner(*)` embed (it repeats a 17 KB job per row).
-2. `applications` by `job_id`, only the columns the record builder reads
-   (`id, job_id, candidate_id, status, phase, created_at, updated_at, notes,
-   ai_score, ai_scorecard, resume_url, voice_interview_result`), paged past
-   PostgREST's 1,000-row cap.
+2. `applications` by `job_id`, through the staff view `applications_staff_list`,
+   only the columns the record builder reads (`id, job_id, candidate_id,
+   status, phase, created_at, updated_at, notes, ai_score, ai_scorecard,
+   resume_url, voice_interview_result`), paged past PostgREST's 1,000-row
+   cap. `ai_score` and `ai_scorecard` are the hiring team's own table
+   (`application_evaluations`, 2026-10-25), joined on by the view; the
+   applicant's row holds NULL for them. Live, an applications event never
+   carries them (the shell strips them before merging) and a new score comes
+   on the evaluations channel of `useEmployerLiveSync`, merged in place.
 3. `profiles` (`user_id, full_name, email, avatar_url`) in chunks of 150 ids.
 4. EVERY attempt for those jobs (not only open ones: open-only loading makes
    flag counts and last-active wrong), without `grading`, `context` or `draft`,
@@ -412,7 +417,9 @@ shows the note they will get, word for word, with Cancel and Pass. The note is
 email; `scripts/decline_note.test.mjs` keeps the two identical): thanks for
 the work they put in, "not the right fit for this role at the moment", and
 welcome to apply again. No reason is asked for or sent. (The private reason
-went to `applications.employer_notes`, which no screen in the cockpit shows.)
+went to `employer_notes`, which no screen in the cockpit shows; since
+2026-10-25 it is filed in `application_evaluations`, which the applicant
+cannot read.)
 
 - **Where**: the ⋯ on every row and phone card (Open profile, Select, Pass or
   Take back offer, Remove and block; Unblock on a blocked one), the profile's

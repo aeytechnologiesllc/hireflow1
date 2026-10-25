@@ -845,7 +845,8 @@ customer-service hiring searches to the sign-up button.
      per application, RLS for the business and its team), writing it from
      trigger-ava-analysis and the graders, and moving every cockpit read to
      it. Writes are already blocked (Phase 1 task 4). Prove with PGlite that
-     an applicant session reads none of it.
+     an applicant session reads none of it. *(Built on a branch 2026-10-25,
+     not shipped: see the Progress log. `notes.avaScorecard` is still open.)*
    - **Applicants stop reading internal job columns** once they have applied
      (`passing_score`, `processing_mode`, `ai_bias_feedback`, step configs):
      same constraint (embedded selects on applications), same kind of fix.
@@ -906,6 +907,53 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
+
+### 2026-10-25 (late morning) — Phase 7, task 6 built on a branch, NOT shipped
+
+- Model: Opus 5.5 (a helper session in its own worktree).
+- **Built, not shipped:** branch `worktree-agent-ad7a09ee48bb6021d`
+  (085abab1 … eb44301b, plus the docs commit). Nothing pushed, no migration
+  applied, no function deployed. "Applicants stop reading staff columns of
+  their own application": `ai_score`, `ai_analysis`, `ai_scorecard`,
+  `phase_ai_analysis` and `employer_notes` move to
+  `application_evaluations` (migration
+  `20261025230000_application_evaluations.sql`: table with the
+  business/team/developer read rules of `applications`, a direct
+  `employer_notes` update for the owner and pipeline teammates, six
+  per-column `zz_` triggers that fire after the protect triggers, backfill
+  without touching `updated_at`, `applications_staff_list` reading the five
+  from it, realtime publication). Every reader moved: eight edge functions
+  through `_shared/applicationEvaluation.ts`, the interview guide, analytics,
+  the update hook, the staff shell's live sync (a sixth channel; applications
+  events lose the five before merging), the form page's "reconsidered" rule
+  (now the journey's own `isRetakeOpen`), the three live-check scripts, the
+  dev preview's stand-in database.
+- **Verified locally:** PGlite proof (78 checks: applicant reads none of the
+  five from `applications`, the staff view or the new table; owner, assigned
+  teammate and developer read them; unassigned teammate, another business and
+  anon do not; each column's write lands and leaves `applications` NULL, a
+  clear clears it, an applicant's write never lands; backfill; cascade;
+  trigger order; second run safe); guard `staff-evaluation-columns` fails on
+  the pre-move tree naming every moved reader (and
+  `staff_evaluation_columns_guard.test.mjs`); `dev_preview_evaluations.test.mjs`;
+  build, typecheck 0, all guards, every test, `deno check` of every function;
+  the dev preview's Applicants list, profile (Ava's read and flags), dashboard
+  and interview guide (lead plan from the embedded scorecard) looked at.
+- **To ship (order matters):** apply the migration first, then deploy
+  trigger-ava-analysis, autopilot-batch, ai-shortlist, ava-voice-tools,
+  ava-voice-session, generate-applicant-dossier,
+  ai-generate-performance-report and get-subscription, and push the front
+  end, all at once. Between the migration and the deploys the old functions
+  read NULL scores (autopilot-batch would force a re-score of every
+  application); before the migration the new code's embeds fail.
+- **Open (owner decisions):** `notes.avaScorecard` / `avaAnalysisMeta` are
+  still in the applicant-readable `notes` (not part of this task); the
+  applicant's improvement report still feeds the team's score and Ava's
+  report into its prompt (its returned `overallScore` no longer carries the
+  score for an applicant; older reports cached in notes still do); the voice
+  interview's brief to the realtime model still includes the earlier score
+  (voice is admin-only); a dossier an applicant requests themselves is built
+  without the evaluation (no screen offers it to them).
 
 ### 2026-10-25 (morning) — Phase 6 built and live; Phase 5 round 2; Phase 4 round 4
 
