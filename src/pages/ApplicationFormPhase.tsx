@@ -57,6 +57,7 @@ import { resolveResumeUrl } from "@/utils/resumeSignedUrl";
 import { GlyphLetter } from "@/components/candidate/glyphs";
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
+import { isRetakeOpen } from "@/lib/journeyProgress";
 import { draftToFormState, formStateToDraft, useAssessmentSession } from "@/hooks/useAssessmentSession";
 import { useTestIntegrity } from "@/hooks/useTestIntegrity";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
@@ -89,7 +90,6 @@ interface ApplicationDetails {
   resume_url: string | null;
   cover_letter: string | null;
   status: string;
-  ai_analysis: string | null;
   jobs: {
     title: string;
     processing_mode: string | null;
@@ -513,10 +513,15 @@ export default function ApplicationFormPhase() {
   // anything here, so ask.
   const hasApplicationAnswers = Array.isArray(notes.applicationAnswers) && notes.applicationAnswers.length > 0;
   
-  // If application was reconsidered (status reset to pending), allow re-submission
-  const isReconsidered = application?.status === "pending" && 
-                         application?.phase === stepId && 
-                         !application?.ai_analysis;
+  // A step the hiring team handed back is open again (the journey's own rule,
+  // the one the overview reads). The form never is: submitting it is what
+  // sets "pending" while phase still says "application", and nothing hands
+  // it back (assessment_step_reopened skips it). This used to also ask
+  // whether Ava's report (ai_analysis) was in yet, which made a form sent a
+  // moment ago, or one whose report failed, look unsent here while the
+  // overview called it done. That report is the hiring team's own now
+  // (application_evaluations) and the applicant's row never holds it.
+  const isReconsidered = !!application && isRetakeOpen(application, { id: stepId || "application", type: "application" });
   const alreadySubmitted = hasApplicationAnswers && !isReconsidered;
   // "Already done" for RENDERING is decided once, from the first read after
   // this page mounted. The scoring write that lands seconds after Continue
