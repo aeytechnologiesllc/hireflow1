@@ -23,8 +23,9 @@ Brief: scratchpad `p4r12_fix_brief.md`. Work commit: 121f6b8c (on top of bd5c5e9
 
 - LOW not done: "Customer Service - Hospitality Staff / answer calls and
   emails from hotel guests" (no small safe rule).
-- `node scripts/guardrails.mjs` and `npx tsc --noEmit -p tsconfig.app.json`
-  not yet run at 121f6b8c.
+- Nothing else. `node scripts/guardrails.mjs` (226/226) and
+  `tsc --noEmit -p tsconfig.app.json` (no errors) pass at 121f6b8c; 200 KB
+  adversarial inputs on the new rules run in under 100 ms.
 
 ## Counts (before → after)
 
