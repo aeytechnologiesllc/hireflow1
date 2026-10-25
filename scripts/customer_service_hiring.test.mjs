@@ -196,7 +196,26 @@ const CS = [
   ["Veterinary Receptionist", "Answer calls from pet owners, book appointments"], ["Receptionist", "Front desk at our vet clinic"],
   ["Reservations Agent", "Take hotel reservations by phone and email"], ["Booking Agent", "Take bookings by phone for our resort"], ["Reservation Specialist", "Handle group reservations for our tour company by email"],
   ["Virtual Receptionist", "Answer calls for a law firm"], ["Answering Service Operator", ""], ["CS Agent", ""], ["Medical Scheduler", "Book patients over the phone"],
-  ["Healthcare Account - Voice", "Handle inquiries of US members"], ["Front Desk Associate", "Greet members at our gym, answer the phone"],
+  ["Healthcare Account - Voice", "Handle inquiries of US members"],
+  // The seventh Phase 4 review: clinic check-ins, benefits lines, real reservations agents, a payroll app's support.
+  ["Medical Receptionist", "Check in patients, verify insurance, schedule appointments"], ["Dental Receptionist", "Greet patients, check them in and schedule appointments"],
+  ["Patient Coordinator", "Check in patients and schedule appointments"], ["Patient Service Representative", "Check in patients, verify insurance and collect co-pays"],
+  ["Dental Office Front Desk", "Scheduling, check-in, insurance verification"], ["Optometry Front Desk", "Greet patients, check them in, schedule eye exams, process payments"],
+  ["Customer Support Specialist", "Check in with customers after their order arrives"], ["Guest Services Agent", "Help guests with check-in questions by phone and email"],
+  ["Customer Service Representative", "Resolve billing disputes and counter offers"], ["Customer Service Representative", "Greet customers warmly and solve their problems"],
+  ["Virtual Assistant", "Answer customer emails and chats for our Shopify store\nWork from home\nBenefits: HMO, 13th month pay"],
+  ["Receptionist", "- Answer patient calls\n- Book appointments for our dental clinic\n- Benefits: HMO"],
+  ["Assistant", "Answer calls from our customers, health insurance provided"], ["Virtual Assistant", "Answer patient calls about their dental benefits and book appointments"],
+  ["Reservations Agent", "Answer guest calls and emails for our resort. Spanish speakers preferred."],
+  ["Reservations Agent", "This role acts as the first point of contact for our guests by phone and email"],
+  ["Airline Reservations Agent", "Handle seat changes and cancellations over the phone"], ["Reservations Agent", "Talk to customers on WhatsApp"], ["Booking Agent", ""],
+  ["Payroll Support Specialist", "Answer customer calls and emails about our payroll software"], ["HR Support Specialist", "Answer customer tickets about our HR platform"],
+  ["Finance Support Agent", "Answer customer emails about refunds and billing"], ["Logistics Support Agent", "Answer customer calls about late deliveries"],
+  ["Healthcare Account - CSR", ""], ["Telco Account | Customer Service Representative", ""], ["Financial Services - CSR", ""], ["Tech - Customer Support Agent", ""],
+  ["Head Office - Customer Service Officer", ""], ["Retail Account - Chat Support", ""], ["E-commerce Account | Email Support", ""],
+  ["Virtual Assistant - Customer Service", "Respond to customer concerns and process refunds"], ["Level 1 Support", ""], ["L1 Support Engineer", ""], ["TSR", ""], ["CSA", ""],
+  ["Sales and Service Representative", "Answer inbound calls about orders"], ["Sales and Customer Support Representative", "Answer inbound calls and help customers choose the right plan"],
+  ["Customer Service Representative (Sales & Service)", "Answer inbound billing calls"],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -338,6 +357,16 @@ const NOT_CS = [
   ["Nurse Triage", "Answer patient calls", "clinical"], ["Customer Service Representative", "Work the counter at our auto parts store", "cash"],
   ["Airline Customer Service Agent", "Check in passengers at the gate", "general"], ["Bank Customer Service Representative", "Help customers at the branch with deposits", "cash"],
   ["Recruiter - BPO", "Recruit call center agents", "admin"], ["Customer Experience Analyst", "", "general"], ["Customer Service / Cashier", "Ring up customers", "cash"],
+  // The seventh: a hotel, gym or spa front desk is the venue's, phone or not; a store named as its own part.
+  ["Front Desk Associate", "Greet members at our gym, answer the phone", "general"], ["Gym Front Desk Associate", "", "general"], ["Hotel Front Desk Agent", "", "general"],
+  ["Front Desk Agent", "Answer guest calls and handle reservations at our hotel", "general"], ["Spa Front Desk Coordinator", "Book appointments and answer calls for our day spa", "general"],
+  ["Retail - Customer Service Associate", "", "cash"], ["Grocery | Customer Service Clerk", "", "cash"], ["Pharmacy - Customer Service Associate", "", "general"],
+  ["Medical Biller | Patient Services", "", "general"], ["Analyst - Customer Support", "", "general"], ["Consultant - Customer Service", "", "general"],
+  ["Customer Service & Sales Rep", "Cold call leads and close deals", "cash"], ["Customer Service and Sales Representative", "Make outbound calls to existing customers to upsell", "cash"],
+  ["Customer Service and Sales Rep", "Hit monthly sales quotas by upselling", "cash"], ["Retail Sales and Customer Service Associate", "", "cash"],
+  ["Inside Sales and Customer Service Rep", "", "cash"], ["Sales & Customer Service Associate", "Assist customers in our showroom and process sales", "cash"],
+  ["Administrative Support Assistant", "Answer customer calls and emails, schedule meetings, data entry", "admin"],
+  ["Customer Service Associate", "Work the service desk at our grocery store, handle returns and lottery", "cash"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -357,6 +386,7 @@ for (const [title, work, want] of NOT_CS) {
   // The fifth review: the voice path never asked.
   check("after a voice brief the builder asks the kind of job (and, for customer service, the channel) before building", /setVoiceConfirm\(true\);\s*setStep\(1\);/.test(page) && /voiceConfirm\s*\?\s*\[jobKind, \.\.\.\(family === "customer_service" \? playbook\.followUps\(chipAnswers, formBrief\)\.filter\(\(f\) => f\.id === "cs-channel"\) : \[\]\)\]/.test(page) && /if \(step === 1 && voiceConfirm\) \{\s*\/\/[^\n]*\n\s*setVoiceConfirm\(false\);\s*setStep\(3\);/.test(page));
   // The sixth review: the voice session stays up through the confirm step, and the screening level follows the answer.
+  check("Back from the confirm step clears the building state, so the voice brief carries on (the seventh review)", /if \(step === 0 && prevStep\.current === 1\) \{\s*finishing\.current = false;\s*handedOff\.current = false;\s*setCreating\(false\);/.test(read("src/components/ava/createFlow/TalkToAva.tsx")));
   check("the voice session stays mounted while the business confirms the kind of job (step 1)", /const voiceLed = inputMode === "voice" && !publishedCode && \(step === 0 \|\| \(step === 1 && voiceConfirm\) \|\| step === 3 \|\| step === 4\);/.test(page) && /if \(step === 1 \|\| step === 3\) return <div aria-hidden className="hidden" \/>;/.test(read("src/components/ava/createFlow/TalkToAva.tsx")));
   {
     const onComplete = page.slice(page.indexOf("onComplete={(payload) => {"), page.indexOf("onPreferType="));
@@ -454,6 +484,26 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Support Agent", "Mostly email, some phone", "mixed"], ["Support Agent", "Respond to support tickets and occasional phone calls", "mixed"],
     ["Support Agent", "Answer customer emails about our call center software", "email"],
     ["Customer Support Agent", "No calls, only tickets", "email"], ["Customer Support Agent", "Tickets only, no phone", "email"],
+    // The seventh: a "no ... experience", a rule about how or when, a rule without its verb, device and product phones, how to apply.
+    ["Customer Service Representative (Voice)", "No voice account experience needed. Fresh grads welcome.", "phone"], ["Voice CSR", "No voice account experience? No problem, we train you.", "phone"],
+    ["Phone Support Specialist", "No phone support experience required.", "phone"], ["Call Center Agent", "All calls are handled from home using our softphone.", "phone"],
+    ["Bilingual Call Center Agent", "Calls are handled in English and Spanish.", "phone"], ["Phone Support Specialist", "All calls are answered within three rings.", "phone"],
+    ["Phone Support Agent", "Never call a customer by their first name unless they ask.", "phone"],
+    ["Email Support Specialist", "Reply to customer emails. The role also calls for excellent written English.", "email"],
+    ["Chat Support Agent", "Answer live chats. This job also calls for patience and fast typing.", "chat"],
+    ["Email Support Specialist", "Respond to emails. You will receive a company laptop and phone.", "email"],
+    ["Chat Support Agent", "Handle orders for phones and accessories from our online store", "chat"], ["Chat Support Agent", "Handle warranty claims for phones and tablets", "chat"],
+    ["Customer Support", "Answer emails; no need to take calls.", "email"], ["Customer Support", "Answer emails. You won't need to make or take calls.", "email"],
+    ["Customer Support", "Answer emails. You will never have to pick up the phone.", "email"], ["Customer Support", "Answer emails; phone support isn't required.", "email"],
+    ["Customer Support Agent", "You won't need to make calls. You will answer incoming calls.", "phone"],
+    ["Customer Service Representative", "Answer customer calls. No phone calls after 8pm.", "phone"], ["Customer Service Representative", "Answer customer calls Monday to Friday. No calls on weekends.", "phone"],
+    ["Customer Service Representative", "Answer customer calls. We don't take calls outside business hours.", "phone"],
+    ["Customer Service Representative", "This role does not involve any phone calls.", "chat"], ["Customer Service Representative", "chat/email only", "chat"],
+    ["Chat Support Agent", "Answer customer chats. Send your resume by email or call us.", "chat"], ["Customer Service Representative", "Answer customer calls. Send your CV by email.", "phone"],
+    ["Call Center Customer Service Representative", "", "phone"], ["Customer Service Representative - Call Center", "", "phone"], ["Contact Center Agent", "", "phone"],
+    ["Call Center Agent - Chat", "", "chat"], ["Customer Support Specialist - On Call", "Answer customer emails and chats", "chat"], ["Customer Support | Brand Voice", "Reply to customer emails", "email"],
+    ["CSR - Blended Account", "", "mixed"], ["Customer Service Representative", "Omni-channel support: phone, chat and email", "mixed"],
+    ["Customer Service Representative", "Assist customers who call in with billing questions", "phone"], ["Customer Service Rep", "Help callers with their prescriptions", "phone"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
 }
 
@@ -677,6 +727,10 @@ let aiFlow;
   for (const prompt of ["Have you ever had to put a project on hold? What happened?", "When would you put a ticket on hold in Zendesk instead of solving it?", "How do you put frustration on hold when a customer is rude in chat?"])
     check(`a project, a ticket or a feeling on hold is not the hold question: ${JSON.stringify(prompt)}`, callQs([prompt, "Why us?", "Q3"]).includes("vphone1"));
   check("…but an angry customer on hold, or a patient, is", !callQs(["When do you put an angry customer on hold?", "Why us?", "Q3"]).includes("vphone1"));
+  // The seventh: a call set up first and then a question about it is the call question (no duplicate added).
+  for (const prompt of ["You're on the phone with a customer. How do you handle it if they start yelling?", "A customer calls about a late order. What do you say if they get angry?", "You are on a call with a customer. What do you do when they become rude?"])
+    check(`a call set up, then the angry-caller question, counts: ${JSON.stringify(prompt)}`, !callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
+  check("…and a caller who asks for a manager, then how to pass them on, is the hold-or-transfer question", !callQs(["A caller asks for a manager. How do you pass them on?", "Why us?", "Q3"]).includes("vphone1"));
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ jobPost: { title: "Front desk", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [], voiceQuestions: ["Why us?", "How do you stay calm?", "What hours?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
   const worded = (await M.generateJobFlow({ brief: formFor("Medical or dental office", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;

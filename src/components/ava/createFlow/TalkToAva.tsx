@@ -232,9 +232,19 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
     return () => window.clearTimeout(t);
   }, [creating, isSpeaking, handoff]);
 
-  // Once the plan is on screen (review step), clear the building state.
+  // Once the plan is on screen (review step), clear the building state. Back
+  // from the confirm step (step 1) to the brief clears it too, with its
+  // latches, so the conversation carries on and can hand off again (the
+  // seventh Phase 4 review: it stayed on "Building your hiring workflow…").
+  const prevStep = useRef(step);
   useEffect(() => {
     if (step >= 4) setCreating(false);
+    if (step === 0 && prevStep.current === 1) {
+      finishing.current = false;
+      handedOff.current = false;
+      setCreating(false);
+    }
+    prevStep.current = step;
   }, [step]);
 
   // Safety net: "creating" only ever clears by `step` moving on to the build/review pipeline
