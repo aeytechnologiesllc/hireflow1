@@ -171,7 +171,9 @@ check("…to this project's own address", /https:\/\/yqklrkpptnhubsnijqze\.supab
   // so interviews whose reminder is not due yet never fill the pick.
   const sender = await readFile(path.join(ROOT, "supabase/functions/interview-reminders/index.ts"), "utf8");
   check("the sender looks for each reminder only in its own window, still owed, soonest first",
-    /\.gt\("scheduled_at", at\(REMINDER_WINDOWS\[kind\]\.from\)\)\s*\.lte\("scheduled_at", at\(REMINDER_WINDOWS\[kind\]\.to\)\)\s*\.is\(reminderColumn\(kind\), null\)\s*\.order\("scheduled_at", \{ ascending: true \}\)/.test(sender) &&
+    /\.gt\("scheduled_at", at\(REMINDER_WINDOWS\[kind\]\.from\)\)\s*\.lte\("scheduled_at", at\(REMINDER_WINDOWS\[kind\]\.to\)\)\s*\.is\(reminderColumn\(kind\), null\)\s*\.or\(`updated_at\.is\.null,updated_at\.lt\.\$\{quietSince\}`\)\s*\.order\("scheduled_at", \{ ascending: true \}\)/.test(sender) &&
+    // …and never one changed in the quiet half hour, which could crowd out a due one (the fifth security review).
+    /const quietSince = new Date\(now\.getTime\(\) - REMINDER_QUIET_MINUTES \* 60_000\)\.toISOString\(\);/.test(sender) &&
     /Promise\.all\(\[owed\("hour"\), owed\("day"\)\]\)/.test(sender) && !/\.or\("reminder_day_sent_at\.is\.null/.test(sender));
 }
 

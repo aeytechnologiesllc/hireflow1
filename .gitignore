@@ -40,3 +40,4 @@ screenshots-verify/
 
 # Agent worktrees (local only)
 /.claude/worktrees/
+/.claude/handoff/

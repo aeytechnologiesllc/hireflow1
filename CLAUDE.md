@@ -6,6 +6,9 @@
 > autonomously, until a re-check finds nothing). Read its Rules, Known facts
 > and Progress log before starting anything, then continue the first phase
 > that is not closed.
+> **The 2026-10-25 session stopped mid-loop** (weekly credits): its top
+> Progress-log entry ("HANDOFF") lists the work in flight (two agent
+> worktrees and three reviews) and how to pick each up. Start there.
 
 > ⚠️ The project ref below is load-bearing. It was previously wrong here
 > (`kcotpxlggfvgclwksmhl`), and that wrong value was copied into a database

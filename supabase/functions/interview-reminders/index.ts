@@ -18,7 +18,7 @@
 //
 // The answer is counts only: no name, address or time leaves in it.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
-import { REMINDER_WINDOWS, dayWord, reminderColumn, reminderDue, reminderEmail, type ReminderKind } from "../_shared/interviewReminders.ts";
+import { REMINDER_QUIET_MINUTES, REMINDER_WINDOWS, dayWord, reminderColumn, reminderDue, reminderEmail, type ReminderKind } from "../_shared/interviewReminders.ts";
 import { applicantEmailTime, applicantTimeZone, knownTimeZone } from "../_shared/interviewTimes.ts";
 import { interviewKindPhrase, joinNoteFor, lengthWords, teamZoneOf } from "../_shared/interviewAnswer.ts";
 
@@ -38,7 +38,11 @@ Deno.serve(async (req) => {
   // Each reminder is looked for in its own window only, soonest first: one
   // pick of everything still owed either reminder let a business fill it with
   // interviews whose reminder was not due yet and starve everyone else's (the
-  // Phase 7 security review, rounds 2 and 3).
+  // Phase 7 security review, rounds 2 and 3). Nor one changed in the last 30
+  // minutes, which reminderDue skips anyway: rescheduling 500 interviews again
+  // and again could fill the window and crowd out a reminder that is due
+  // (the fifth security review).
+  const quietSince = new Date(now.getTime() - REMINDER_QUIET_MINUTES * 60_000).toISOString();
   const owed = (kind: ReminderKind) =>
     admin
       .from("interviews")
@@ -48,6 +52,7 @@ Deno.serve(async (req) => {
       .gt("scheduled_at", at(REMINDER_WINDOWS[kind].from))
       .lte("scheduled_at", at(REMINDER_WINDOWS[kind].to))
       .is(reminderColumn(kind), null)
+      .or(`updated_at.is.null,updated_at.lt.${quietSince}`)
       .order("scheduled_at", { ascending: true })
       .limit(500);
   const [hourOwed, dayOwed] = await Promise.all([owed("hour"), owed("day")]);

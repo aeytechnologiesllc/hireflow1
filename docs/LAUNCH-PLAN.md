@@ -943,6 +943,242 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (1:15 PM EDT) — HANDOFF: the session stopped mid-loop (the account's weekly credits ran out)
+
+**Read this first, then the entry below it.** Everything up to and including
+round 5 is live. Three pieces of work were in flight when the session
+stopped. Pick each one up as described here.
+
+**Live state when it stopped**
+- App: Vercel production is 43f38221 (READY), checked in a browser (the blog's
+  new wording; `/jobs.xml` parses, 0 jobs because the one live job has no
+  country).
+- Database: every repo migration through `20261025490000` is applied. Live
+  versions are in docs/MIGRATION-HISTORY.md §4.
+- Edge functions: everything touched through 43f38221 is deployed.
+  `interview-reminders` goes out with the handoff commit (it leaves
+  interviews changed in the last 30 minutes out of its query; the fifth
+  security review's leftover).
+- `main` has no uncommitted work after the handoff commit. The review
+  materials (briefs, reports, probe scripts) are copied, not committed, to
+  `.claude/handoff/2026-10-25/review-materials/` (gitignored, about 70 MB,
+  on the owner's Mac). The session's scratch folder under /private/tmp will
+  not survive a restart.
+- Helper scripts are now in the repo: `scripts/ops/` (full suite, apply one
+  migration, deploy functions, which functions a change reaches, smoke
+  checks; see its README).
+
+**Phase status:** Phase 1 is closed. Phases 2–7 are built and live, and
+each is still in its Pass C loop: no entry records any of them closed. The
+latest rounds:
+- security review 5;
+- product review 5;
+- growth review 5;
+- Phase 4 review 12;
+- Phase 5 review 10;
+- Phase 6 review 8.
+
+Every one of those rounds' findings is fixed and live, except the two fix
+jobs below.
+
+**The whole plan, in one place** (the phases above hold the detail):
+- **Why:** launch HireFlow for its niche, hiring customer-service agents (chat
+  and phone) for any kind of business, safe and honest before outside
+  businesses are invited. Stripe and marketing are out of scope; billing
+  stays off and nothing may be paywalled.
+- **How:** seven phases. Each one runs build → verify (the full suite plus a
+  look in the app) → a fresh re-check by reviewers who get a brief and no
+  conclusions → lock-down (a guard or test for every fix) → ship and check
+  live. Then the re-check runs again, until a round finds nothing. The
+  owner's rule: work autonomously and don't stop until it is done.
+- **Phases and what is left:**
+  1. **Security holes:** closed.
+  2. **Quick fixes before outside businesses** ("player" wording, the Zulu
+     script, landing counting, the business email check, bot check, share
+     step): built and live. Turnstile waits on the owner's keys. Its
+     re-checks now run inside the security, product and growth reviews.
+  3. **Look and landing** (ink, ivory and brass, no green; one logo; the
+     landing rewrite): built and live. The www → apex 308 is the owner's.
+  4. **Ava for customer-service hiring** (the classifier, channel, packs,
+     grading, question banks, interview guide): built and live. Round 12's
+     fixes are ready in their worktree (below). After they ship, run review
+     round 13. The classifier has needed many rounds: keep the "undo before
+     you add" rule in its briefs.
+  5. **Legal, consent, cost guardrails** (the legal pages, the privacy line at
+     sign-up and on the form, "Delete their information", per-business AI
+     budgets): built and live. Review 10's fixes are live. Run review 11.
+     The owner's inputs are still missing (the LLC's state, a privacy email).
+  6. **Blog** (the build pipeline, the no-age guide, the posts): built and
+     live. The blog part of review 8 is live; its age-filter part is in
+     flight (below). Then run review 9.
+  7. **Final audit loop:** the security, product and growth reviews, round
+     after round. Round 5's fixes are live; round 6 is in flight (below).
+     Also left: enforce the Content-Security-Policy after a day of clean
+     reports (`node scripts/csp.mjs --write --enforce`).
+
+**In flight 1: Phase 4, round 12 fixes. DONE in the worktree, NOT yet merged
+or shipped (as of 1:30 PM).** Commits 121f6b8c (the fixes), then 2732b34e
+and c4c82c44 (HANDOFF.md). Results:
+- all 48 report cases pass, and so do 84/84 of every listed case;
+- the earlier probes have the same 50 old failures and 0 new;
+- customer_service_hiring has 1755 checks and remote_from_location 105, all
+  passing; guards and tsc pass.
+
+Its HANDOFF.md says what it narrowed back and why. One LOW is left: "Customer
+Service - Hospitality Staff" answering hotel guests' calls and emails. To
+ship:
+1. Bring it over with
+   `git -C .claude/worktrees/agent-ac0b35b8fa3d25d86 diff bd5c5e98 121f6b8c > p && git apply -3 p`.
+   Leave out HANDOFF.md.
+2. Run `scripts/offer_letter.test.mjs` (it imports `placeSaysRemote`) and
+   then `scripts/ops/fullsuite.sh`.
+3. Commit and push. It is front end only, so there are no functions to
+   deploy.
+4. Update the stale line in this plan that says the plan promises a
+   practice call. The builder no longer does.
+
+The original instructions follow.
+
+**In flight 1 (original instructions): Phase 4, round 12 fixes (the job classifier and place reader).**
+- Worktree: `.claude/worktrees/agent-ac0b35b8fa3d25d86`, branch
+  `worktree-agent-ac0b35b8fa3d25d86`, cut from bd5c5e98. It was told to commit
+  its work in progress and write `HANDOFF.md` at its root before the credits
+  ran out.
+- Brief: `review-materials/p4r12_fix_brief.md`. Report:
+  `review-materials/p4r12_report.md`. Cases and probes:
+  `review-materials/r15/`, with earlier probes in r7–r14.
+- Two items were added by message after the brief, both in
+  `src/lib/avaEngine/customerService.ts` around line 310:
+  - the builder still tells the business that typing speed is measured for
+    an on-site job (it is not, since round 5);
+  - for a US dental office it says "written so a careful second-language
+    reader can answer in time" and "A practice call is coming", as if a step
+    were promised.
+- To finish:
+  1. Read `git -C <worktree> log` and `diff`, and its HANDOFF.md.
+  2. Run the tests the brief lists, plus `check_report.mjs` and `reg.mjs`.
+  3. Finish what is left.
+  4. Bring it to main with `git -C <worktree> diff bd5c5e98 HEAD > p && git apply -3 p`.
+     Main has moved to 43f38221 since. `src/cockpit/lib/offerLetter.ts` now
+     imports `placeSaysRemote` from `src/lib/jobLocation.ts`, so run
+     `scripts/offer_letter.test.mjs` after the merge.
+- If the worktree is empty or broken, start the brief again in a new
+  worktree, with the brief's paths changed to the handoff folder.
+
+**In flight 2: Phase 6, round 8 fixes (the age filter). STILL RUNNING at 1:30 PM.**
+It committed work in progress (f3f0f394, "partial, tests not yet added") and
+d6db4de2 (HANDOFF.md). It then kept working, with uncommitted changes to
+ageWording.ts, its test, ai-analyze, ai-shortlist and trigger-ava-analysis.
+If the session ended before it finished, read its HANDOFF.md and
+`git -C .claude/worktrees/agent-a07c1ca3f90e54023 diff`, and finish from
+there.
+- Worktree: `.claude/worktrees/agent-a07c1ca3f90e54023`, branch
+  `worktree-agent-a07c1ca3f90e54023`, cut from bd5c5e98. The same
+  instructions apply: committed work in progress plus HANDOFF.md.
+- Brief: `review-materials/age8_fix_brief.md`. Report:
+  `review-materials/p6r8_report.md`. Probes: `review-materials/p6r8/`.
+- The must-fix part is that ordinary medical, insurance and tax
+  customer-service text is dropped: a caller's identity check ("please
+  confirm your date of birth"), "Medicare starts at age 65", "Are you a
+  parent or guardian?", dependents.
+- It may also add the no-age prompt rule to trigger-ava-analysis,
+  ai-analyze, generate-applicant-dossier and ai-shortlist. Main changed
+  trigger-ava-analysis and ai-analyze in 43f38221 (the fence rule, on-site
+  typing), so merge with `git apply -3` and re-run
+  `scripts/ava_analysis_applicant_limits.test.mjs` and
+  `scripts/lead_scoring_scenarios.test.mjs`.
+
+**In flight 3: round 6 reviews of 43f38221. The growth review is DONE**
+(`review-materials/growth6_report.md`); security and product were still
+running at 1:30 PM. The growth findings to fix:
+1. **Medium, regression:** the staff sign-up's new "← hireflownow.com" link
+   (`src/pages/Auth.tsx` ~597) drops the visitor's tags. Wrap it in
+   `withVisitorTags`, or carry the tags.
+2. **Medium, regression:** the `hiring_link` exception in `public/beacon.js`
+   (~118) counts too much and too little.
+   - Too much: carry-source.js copies `job_page/hiring_link` onto the front
+     page's own links, so one "Post a job free" click counted 4 campaign
+     visits.
+   - Too little: a visitor who arrived tagged gets a link that no longer
+     says `hiring_link`.
+
+   Count a hiring link once: on landing from another page of the site, and
+   only the first time.
+3. **Medium, old:** every applicant account shows as "unknown". Apply goes to
+   `/candidate/auth?redirect=…&tab=signup` with no tags
+   (`src/pages/JobDetails.tsx` ~278), and the candidate sign-up reads only
+   its own address.
+4. **Medium-low:** "google" is still not search only.
+   `20261025480000_growth_app_sources.sql` line 27 matches every `com.google.*`
+   app (Gmail Go, Messages, Drive, Chat, Meet, YouTube Music) and
+   sites.google.com / news.google.com. Name only the search app and
+   `www.google.*` / `google.*` hosts as google.
+5. **Low-medium:** `/YouTube` typed with capitals forwards from inside the app
+   (`JobDetails.tsx` ~67), so the front page drops the tags. Do the forward
+   case-insensitively in vercel.json, or carry the tags.
+
+The LOW items are in the report.
+
+The original instructions follow.
+
+**In flight 3 (original instructions): round 6 reviews of 43f38221 (security, product, growth).**
+- Briefs: `review-materials/sec6_brief.md`, `product6_brief.md` and
+  `growth6_brief.md`. Each saves its report to the old scratch folder.
+- If a `*6_report.md` is not in the handoff folder, the review did not
+  finish. Run the brief again with its save path changed to the handoff
+  folder.
+
+**Then the loop goes on:**
+1. Ship the two fix jobs: run `scripts/ops/fullsuite.sh`, deploy what
+   `scripts/ops/deps.mjs` names, commit and push.
+2. Run Phase 4 review 13 and Phase 6 review 9 on what shipped. Copy the
+   shape of `p4r12_brief.md` and `p6r8_brief.md`.
+3. Fix whatever the round 6 reviews find.
+4. Close each phase on a Pass C that finds nothing.
+
+Every review brief since round 5 tells the reviewer to report every
+regression and anything MEDIUM or worse, and at most five real LOW items, so
+the rounds converge. Keep that.
+
+**How this session worked (keep doing it)**
+- Run the full suite before every push.
+- Migrations:
+  - apply them one at a time, 3 seconds apart, by name;
+  - stop at the first failure;
+  - before replacing a function, compare the live body's md5
+    (whitespace stripped) with the repo's;
+  - record the live version in MIGRATION-HISTORY §4 and in this log.
+- Add every new migration to `NOT_THE_CHECK` in
+  `scripts/business_email_check.pglite.test.mjs`, with its reason.
+- Deploy every function a change reaches.
+- End commits with "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>".
+- Never use a bare `git stash`.
+- Since 2026-10-25, Vercel's automatic bot check answers plain requests to
+  hireflownow.com with 403 (`x-vercel-mitigated: challenge`).
+  staff.hireflownow.com and the Supabase functions are not affected.
+  - Check the site in a browser, and don't poll it.
+  - Use Vercel's deployment list for build state.
+  - Pausing the check (`vercel firewall system-mitigations pause`) is the
+    owner's decision.
+- Big parallel fixes went to agents in their own worktrees; their commits were
+  brought over with `git diff`/`git apply`. Fresh reviewers got a brief file
+  and no conclusions.
+
+**Still the owner's to give or decide:**
+- the LLC's state of registration and a legal/privacy contact email;
+- Turnstile keys;
+- the www → apex redirect as 308;
+- an OpenAI spending cap;
+- Google for Jobs;
+- a lawyer's read of the offer letter's trial and notice terms;
+- whether to pause Vercel's bot check;
+- whether the landing's "153 applied, 71 finished, 3 worth a call" stands
+  (live rows: 155 applications, 2 hires).
+
+**Old worktrees:** those from earlier rounds (`agent-a1459f6b…`, `a298cd82…`,
+`a3ecb7a5…`, `a9a2c6f6…`, `affd8ddb…`) are merged. They can be removed with
+`git worktree remove`.
+
 ### 2026-10-25 (small hours) — round 5 of security, product and growth; Phase 5 round 10; Phase 6 round 8; Phase 4 round 12
 
 Six fresh reviewers read bd5c5e98 (live). No reviewer made a request to the
