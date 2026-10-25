@@ -133,10 +133,17 @@ export default [
       // review). Grants are read from the file that holds the latest body.
       const files = (await walk("supabase/migrations", [".sql"])).sort();
       const latest = new Map();
+      // Bodies between their own dollar-quote tags ($$ or $function$), with
+      // "--" comments taken out, so words in a comment or in the next function
+      // never count (fourth Pass C review).
+      const noComments = (sql) => sql.replace(/--[^\n]*/g, "");
       for (const rel of files) {
         const text = (await read(rel)) ?? "";
-        for (const m of text.matchAll(/create\s+(?:or\s+replace\s+)?function\s+(?:(?:public|private)\.)?"?(\w+)"?\s*\(([\s\S]*?)\$\$;/gi)) {
-          latest.set(m[1], { rel, text: m[2], file: text });
+        const bodies = /create\s+(?:or\s+replace\s+)?function\s+(?:(?:public|private)\.)?"?(\w+)"?\s*\([\s\S]*?\bas\s+(\$\w*\$)([\s\S]*?)\2/gi;
+        for (const m of text.matchAll(bodies)) latest.set(m[1], { rel, text: noComments(m[3]), file: text });
+        // A grant anywhere, in any later file, that lets anyone but the system make a code.
+        if (/grant\s+execute\s+on\s+function\s+(public\.)?issue_business_email_code\s*\([^)]*\)\s+to\s+[^;]*\b(authenticated|anon|public)\b/i.test(noComments(text))) {
+          detail.push(`${rel}: lets someone other than the system make a code (a grant on issue_business_email_code)`);
         }
         if (/drop\s+trigger\s+(if\s+exists\s+)?(jobs_publish_needs_email_check|profiles_email_verified_from_server)\b/i.test(text) &&
             !/create trigger (jobs_publish_needs_email_check|profiles_email_verified_from_server)\b/i.test(text)) {
@@ -156,6 +163,8 @@ export default [
         ["issue_business_email_code", /private\.inbox_key\(/, "limits each inbox, however it is written"],
         ["issue_business_email_code", /business_email_code:/, "serialises one account's requests"],
         ["issue_business_email_code", /business_email_inbox:/, "serialises one inbox's requests"],
+        ["issue_business_email_code", /business_email_all/, "serialises the overall count"],
+        ["business_email_verified", /i\.identity_data ->> 'email'/, "passes a Google sign-in only while its Google address is the sign-in address"],
         ["verify_business_email_code", /'address_changed'/, "takes a code only for the address it went to"],
       ];
       for (const [fn, pattern, what] of must) {
@@ -165,7 +174,7 @@ export default [
       }
       const issueDef = latest.get("issue_business_email_code");
       if (issueDef && !/'email', v_email/.test(issueDef.text)) detail.push(`${issueDef.rel}: issue_business_email_code no longer says which address the code is for`);
-      if (issueDef && (!/grant execute on function public\.issue_business_email_code\(uuid\) to service_role;/.test(issueDef.file) || /issue_business_email_code\(uuid\) to (authenticated|anon|public)/i.test(issueDef.file))) {
+      if (issueDef && !/grant execute on function public\.issue_business_email_code\(uuid\) to service_role;/.test(issueDef.file)) {
         detail.push(`${issueDef.rel}: only the system may make a code`);
       }
       const first = (await read("supabase/migrations/20261025100000_business_email_check.sql")) ?? "";

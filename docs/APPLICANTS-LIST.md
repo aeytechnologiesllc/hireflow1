@@ -220,7 +220,8 @@ Hired, once reached, is the one brass moment on the rail (brass means Ava,
 a score, "hired" or money); everything else is ink on paper by day and ivory
 on ink at night. Milestones not reached, and the line to them, are `--ink-3`
 at 75% (at least 3:1 on the card in both themes). The aria-label reads
-"Where they are: Tested"; the line under the rail says the rest. The full
+"Where they are: Tested"; the row's own line says the rest (under the rail
+on the list and the phone card, under the name in the first-hire guide). The full
 profile keeps its detailed per-step rail (section 4).
 
 ### Dot states: decided by the RECORD, never by position

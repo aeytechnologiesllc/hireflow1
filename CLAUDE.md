@@ -144,8 +144,9 @@ these either; each has a guard or a test that CI runs:
   job goes live (`20261025100000_business_email_check.sql`, trigger
   `jobs_publish_needs_email_check`, HINT `email_not_verified`; the code is
   `send-notification-email`'s `business_email_code` kind, to the signed-in
-  caller only). Applicants are never asked. Google sign-ins and platform
-  admins pass. Guard `publish-requires-verified-email`.
+  caller only). Applicants are never asked. A Google sign-in passes while its
+  Google address is still the sign-in address; platform admins pass. The
+  stamp is for an address and lapses when the sign-in address changes. Guard `publish-requires-verified-email`.
 - The front page counts visits and carries campaign tags to sign-up; a new
   account keeps `signup_source`; Admin → Growth reads `admin_growth()`.
   Guards `landing-has-beacon`, `signup-carries-utm`.

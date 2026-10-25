@@ -107,6 +107,16 @@ const fixtures = [
     expectBoards: true,
   },
   {
+    name: "a US night shift with no weekends is still the Philippines",
+    job: { ...baseJob, id: "j-remote-ph-night", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote - Philippines (US night shift, no weekends)" },
+    expectBoards: true,
+  },
+  {
+    name: "US/Canada clients on EST hours, in the Philippines",
+    job: { ...baseJob, id: "j-remote-ph-est", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote - Philippines (US/Canada clients, US EST hours)" },
+    expectBoards: true,
+  },
+  {
     name: "'US clients' alone names no country for the job",
     job: { ...baseJob, id: "j-remote-us-clients", location_country_code: null, location_country: null, location_city: null, is_remote: true, location: "Remote, US clients" },
     expectBoards: false,

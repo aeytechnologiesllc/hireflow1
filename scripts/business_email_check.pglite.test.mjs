@@ -225,13 +225,18 @@ console.log("\nThe hardening (second Pass C review)\n");
   for (let i = 1; i <= 11; i += 1) {
     const uid = `30000000-0000-4000-8000-0000000000${String(i).padStart(2, "0")}`;
     await db.exec(`insert into auth.users values ('${uid}', 'victim+${i}@gmail.com'); insert into public.profiles (user_id, email) values ('${uid}', 'victim+${i}@gmail.com'); insert into public.user_roles values ('${uid}', 'employer');`);
+    // Half an hour before the eleventh, so the wait it gives can be told
+    // apart from a flat hour (fourth Pass C review).
+    if (i === 11) await db.exec(`update private.business_email_code_sends set sent_at = sent_at - interval '30 minutes' where address_key = 'victim@gmail.com'`);
     const r = await issue(uid);
     flood.push(r?.ok === true);
     if (!r?.ok) refusal = r;
   }
+  // (One connection here: the advisory locks that keep a parallel burst from
+  // slipping past are checked by the guard, not run concurrently.)
   check("eleven new accounts at victim+N@gmail.com: ten codes reach that inbox in an hour, the eleventh does not", flood.slice(0, 10).every(Boolean) && flood[10] === false, JSON.stringify(flood));
-  check("…and the wait it gives is the real one, not always an hour", refusal?.reason === "too_many" && refusal.retry_after > 3000 && refusal.retry_after <= 3600, JSON.stringify(refusal));
-  await db.exec(`update private.business_email_code_sends set sent_at = sent_at - interval '61 minutes' where address_key = 'victim@gmail.com'`);
+  check("…and the wait it gives is the real one, not always an hour", refusal?.reason === "too_many" && refusal.retry_after > 1700 && refusal.retry_after <= 1800, JSON.stringify(refusal));
+  await db.exec(`update private.business_email_code_sends set sent_at = sent_at - interval '31 minutes' where address_key = 'victim@gmail.com'`);
   const more = [];
   for (let i = 12; i <= 21; i += 1) {
     const uid = `30000000-0000-4000-8000-0000000000${String(i).padStart(2, "0")}`;
@@ -324,7 +329,7 @@ console.log("\nThe email and its answers (_shared/businessEmailCode.ts)\n");
   const soon = words.readIssuedCode({ ok: false, reason: "too_soon", retry_after: 42 });
   check("too soon: 429 with the seconds", soon.status === 429 && soon.retryAfter === 42 && /42 seconds/.test(soon.error));
   const many = words.readIssuedCode({ ok: false, reason: "too_many", retry_after: 1500 });
-  check("too many: 429 with the minutes", many.status === 429 && /25 minutes/.test(many.error));
+  check("too many: 429 with the minutes, never 'you asked five times' (the inbox's limit can be someone else's doing)", many.status === 429 && /25 minutes/.test(many.error) && !/five codes/.test(many.error));
   check("already confirmed: not an error for the page", words.readIssuedCode({ ok: false, reason: "already_verified" }).status === 200);
   check("anything unreadable: try later", words.readIssuedCode(null).status === 503 && words.readIssuedCode({ ok: false, reason: "made_up" }).code === "try_later");
   check("an applicant account: refused in words", words.readIssuedCode({ ok: false, reason: "not_a_business" }).status === 403);

@@ -12,9 +12,11 @@
 --    inbox, and the overall count, are serialised with advisory locks (the
 --    per-account lock alone let parallel requests from many accounts at one
 --    inbox all read "none sent yet").
--- 3. A stranger cannot use up a real business's limit so easily: ten codes an
---    hour and twenty a day per inbox (an account still has its own five an
---    hour), and the wait it reports is the real one, not always an hour.
+-- 3. Ten codes an hour and twenty a day per inbox (an account still has its
+--    own five an hour), and the wait it reports is the real one, not always
+--    an hour. This does not stop a stranger: twenty sign-ups at you+N@ still
+--    use up an inbox's day (docs/BUSINESS-TRUST.md, "Known limit"; a bot
+--    check on sign-up is the fix).
 -- 4. A Google sign-in passes only while its Google address is still the
 --    account's sign-in address.
 -- 5. A platform admin's own writes (reopening a paused business's jobs) are

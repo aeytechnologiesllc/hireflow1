@@ -68,7 +68,9 @@ export function readIssuedCode(issued: unknown): BusinessEmailCodeAnswer {
     case "too_soon":
       return { ok: false, status: 429, code: "too_soon", error: `A code is on its way. You can ask for another in ${waitWords(retry ?? 60)}.`, retryAfter: retry ?? 60 };
     case "too_many":
-      return { ok: false, status: 429, code: "too_many", error: `That's five codes this hour. You can ask again in ${waitWords(retry ?? 3600)}.`, retryAfter: retry ?? 3600 };
+      // Said for both limits (five an hour for the account, ten for the inbox,
+      // which strangers can use up too): never "you asked five times".
+      return { ok: false, status: 429, code: "too_many", error: `That's a lot of codes for this address this hour. You can ask again in ${waitWords(retry ?? 3600)}.`, retryAfter: retry ?? 3600 };
     case "too_many_today":
       return { ok: false, status: 429, code: "too_many_today", error: "That's a lot of codes for this address today. Try again tomorrow, or message us from Help.", retryAfter: 86400 };
     case "not_a_business":
