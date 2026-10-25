@@ -93,6 +93,10 @@ console.log("\nThe plan every applicant gets\n");
   check("a customer-service job (a chat practice with a pack) gets the support plan; a phone one the phone version", support.family === "support" && supportPhone.family === "support" && words(support) !== words(supportPhone));
   check("…whatever the scorer calls it (a 'Front desk' job reads general to it)", G.interviewPlanFor("general", { customerService: { channel: "chat" } }).family === "support");
   check("a job the scorer calls support but with no pack keeps the general plan ('supportive team')", G.interviewPlanFor("support").family === "general");
+  const patient = G.interviewPlanFor("support", { customerService: { channel: "chat", noun: "patient" } });
+  check("a medical pack's plan says patient, never customer", /patient/i.test(words(patient)) && !/\bcustomers?\b/i.test(words(patient)), words(patient).match(/.{30}customer.{30}/i)?.[0]);
+  check("…and an odd noun is ignored (the plan keeps customer)", words(G.interviewPlanFor("support", { customerService: { channel: "chat", noun: "<b>x" } })) === words(support));
+  check("the guide's word follows the pack ('patient'), else the business ('player' for the owner)", M.guideNoun({ homeBusiness: true, customerService: { pack: "medical", channel: "chat" } }) === "patient" && M.guideNoun({ homeBusiness: true, customerService: null }) === "player" && M.guideNoun({ homeBusiness: false, customerService: { pack: "nope", channel: null } }) === "customer");
   check("a team lead's job keeps the team-lead plan even with a pack", G.interviewPlanFor("team_lead", { homeBusiness: true, customerService: { channel: "chat" } }).family === "team_lead");
   check("…which hears them speak: a one-minute practice with the interviewer as the customer", support.core.some((q) => q.id === "live_practice" && /What do you say first\?$/.test(q.question)));
   check("…the phone version asks how they hold and pass on a call", supportPhone.core.some((q) => q.id === "hold_transfer") && !support.core.some((q) => q.id === "hold_transfer"));
@@ -361,7 +365,7 @@ console.log("\nWhere it is kept, and where it shows\n");
   check("each way it can fail has plain words", ["ai_unavailable", "nothing_yet", "rate_limited", "not_deployed", "failed"].every((k) => new RegExp(`${k}: "[A-Z]`).test(hook)));
 
   const dialog = await read("src/cockpit/components/InterviewGuideDialog.tsx");
-  check("the plan shows without any call; the personal part is asked for with one button", /interviewPlanFor\(record\?\.family, \{ homeBusiness, customerService: record\?\.customerService \}\)/.test(dialog) && dialog.includes("data-guide-write") && /Write \{first\}'s questions/.test(dialog));
+  check("the plan shows without any call; the personal part is asked for with one button", /interviewPlanFor\(record\?\.family, \{\s*homeBusiness,\s*customerService: record\?\.customerService \? \{ channel: record\.customerService\.channel, noun: scenarioPack\(record\.customerService\.pack\)\?\.counterpart \?\? null \} : null,\s*\}\)/.test(dialog) && dialog.includes("data-guide-write") && /Write \{first\}'s questions/.test(dialog));
   check("the applicant is told nothing: the card says so", /\{first\} never sees them/.test(dialog));
   check("nothing is folded away: no collapsible, no accordion", !/Collapsible|Accordion|aria-expanded/.test(dialog));
   check("the screen never swaps one plan for another while it loads", /\{isLoading \? \(/.test(dialog) && dialog.includes("data-guide-loading"));
@@ -576,7 +580,7 @@ console.log("\nThe owner's own changes to a job's questions (2026-10-09)\n");
   check("the function reads the job's changes itself, by the job it took from the application", /admin\.from\("interview_plans"\)\.select\("edits"\)\.eq\("job_id", jobId\)\.maybeSingle\(\)/.test(fn) && /planEdits: \(planRow\.data as \{ edits\?: unknown \} \| null\)\?\.edits \?\? null,/.test(fn));
 
   const dialog = code(await read("src/cockpit/components/InterviewGuideDialog.tsx"));
-  check("the guide shows the job's own plan: the plan as written with the changes laid over it", /const basePlan = useMemo\(\(\) => interviewPlanFor\(record\?\.family, \{ homeBusiness, customerService: record\?\.customerService \}\), \[record\?\.family, homeBusiness, record\?\.customerService\]\);\s*const plan = useMemo\(\(\) => applyPlanEdits\(basePlan, record\?\.planEdits\), \[basePlan, record\?\.planEdits\]\);/.test(dialog));
+  check("the guide shows the job's own plan: the plan as written with the changes laid over it", /const basePlan = useMemo\(\s*\(\) =>\s*interviewPlanFor\(record\?\.family, \{[\s\S]*?\}\),\s*\[record\?\.family, homeBusiness, record\?\.customerService\],\s*\);\s*const plan = useMemo\(\(\) => applyPlanEdits\(basePlan, record\?\.planEdits\), \[basePlan, record\?\.planEdits\]\);/.test(dialog));
   check("'Edit questions' opens the editor on a copy; nothing changes until Save", /setDraft\(record\?\.planEdits \?\? NO_PLAN_EDITS\);/.test(dialog) && dialog.includes("data-guide-edit") && /Nothing changes until you save\./.test(dialog) && (dialog.match(/savePlan\(/g) ?? []).length === 1);
   check("the opener can be reworded, not removed; the others can be taken out and put back", /<QuestionEditor id=\{base\.opener\.id\} base=\{base\} edits=\{edits\} removable=\{false\}/.test(dialog) && dialog.includes("data-plan-remove") && dialog.includes("data-plan-back") && /Do not ask this one/.test(dialog));
   check("'Back to the original questions' takes two presses", /resetArmed \? void savePlanEdits\(null\) : setResetArmed\(true\)/.test(dialog) && /Yes, back to the original/.test(dialog));

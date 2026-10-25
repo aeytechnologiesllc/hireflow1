@@ -60,10 +60,16 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const index = CS_CHANNEL_CHIPS.findIndex((label) => label === chosen);
   if (index >= 0) return CHANNELS[index];
   const s = `${brief.roleTitle ?? ""} ${brief.whatTheyDo ?? ""}`.toLowerCase();
-  // "Chat only, no phone calls" is not a phone job (the Phase 4 review).
-  const notPhone = /\b(no (phone|calls?)|chat only|written only|never on the phone|not (on the )?phone)\b/.test(s);
-  if (!notPhone && /\b(phone (support|agent|rep|csr|calls?)|calls? (from|with) (customers|clients|patients)|call cent(er|re)|inbound calls?|csr|answer(ing)? (the )?phones?|by phone|on the phone)\b/.test(s)) return "phone";
-  if (/\bemail\b/.test(s) && !/\bchat\b/.test(s)) return "email";
+  // Never phone: "non-voice", "chat only, no phone calls", a chat or email CSR (the Phase 4 reviews).
+  const notPhone = /\b(non-?voice|chat only|email only|written only|no (phone|calls?|voice)|never on the phone|not (on the )?phone|(chat|email) (csr|agent|rep|support))\b/.test(s);
+  const phone =
+    !notPhone &&
+    /\b(phone (support|agent|rep|csr|calls?)|voice (agent|csr|support|account)|(customer|client|patient|inbound|outbound) calls?|calls? (from|with) (our |the )?(customers|clients|patients)|call cent(er|re)|csr|answer(ing)? (the )?phones?|(on|at) the phones?|by phone|on the phone)\b/.test(s);
+  const chat = /\b(chats?|live chat|messages|messaging)\b/.test(s);
+  const email = /\b(e-?mails?)\b/.test(s);
+  if (phone && (chat || email)) return "mixed";
+  if (phone) return "phone";
+  if (email && !chat) return "email";
   return "chat";
 }
 
@@ -171,8 +177,15 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
       questions = bankForFamily("customer_service").interview.slice(0, 6).map((prompt, i) => ({ id: `v${i}`, prompt }));
     }
     if (channel === "phone") {
-      const phone = PHONE_INTERVIEW_QUESTIONS.map((prompt, i) => ({ id: `vphone${i}`, prompt }));
-      questions = [...phone, ...questions.slice(0, Math.max(0, questions.length - phone.length))];
+      // Each call question unless the model already asked the same thing
+      // (an angry caller; putting someone on hold or passing them on), and
+      // always at least one of the model's own (the second Phase 4 review).
+      const asked = questions.map((q) => q.prompt).join(" ");
+      const phone = PHONE_INTERVIEW_QUESTIONS.map((prompt, i) => ({ id: `vphone${i}`, prompt })).filter((q, i) =>
+        i === 0 ? !/\b(angry|upset|shout\w*|talk\w* over)\b[^.?]*\b(call|caller|phone)/i.test(asked) : !/\b(on hold|hold\b|transfer\w*|pass\w* (them|the call|it) (on|to))/i.test(asked),
+      );
+      const keep = questions.length > 0 ? Math.max(1, questions.length - phone.length) : 0;
+      questions = [...phone, ...questions.slice(0, keep)];
     }
     out[interviewIndex] = { ...interview, config: { ...cfg, questions } satisfies VoiceConfig, countLabel: `${questions.length} questions` };
   }

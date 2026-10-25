@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { scenarioPack } from "@/content/scenarioPacks/packs";
 import { customerServiceStepOf, NO_PLAN_EDITS, readPersonalGuide, readPlanEdits, type PersonalGuide, type PlanEdits } from "@/lib/interviewGuide";
 import { isRecordNotDeployed } from "./useAssessmentSessions";
 
@@ -128,7 +129,9 @@ export function useInterviewGuide(applicationId: string | null | undefined, enab
           ? ((scorecard as Record<string, unknown>).jobFamily as string)
           : null;
       const job = (application.data as { jobs?: { workflow_steps?: unknown } | null } | null)?.jobs ?? null;
-      const customerService = customerServiceStepOf(job?.workflow_steps);
+      // Only a pack this app knows (the server checks the same against its copy).
+      const step = customerServiceStepOf(job?.workflow_steps);
+      const customerService = step && scenarioPack(step.pack) ? step : null;
       if (guide.error) {
         if (isRecordNotDeployed(guide.error)) return { family, customerService, personal: null, generatedAt: null, deployed: false, jobId, planEdits, plansDeployed };
         throw guide.error;

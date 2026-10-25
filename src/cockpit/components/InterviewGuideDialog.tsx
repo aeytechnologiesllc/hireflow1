@@ -35,6 +35,7 @@ import {
   type PlanEdits,
   type QuestionPart,
 } from "@/lib/interviewGuide";
+import { scenarioPack } from "@/content/scenarioPacks/packs";
 import { interviewScore } from "../lib/interviewScore";
 import { GUIDE_WRITE_WORDS, PLAN_SAVE_WORDS, useInterviewGuide, type PlanSaveFailure } from "../hooks/useInterviewGuide";
 import { RATINGS_SAVE_WORDS, useInterviewRatings } from "../hooks/useInterviewRatings";
@@ -445,7 +446,14 @@ export function InterviewGuideDialog({
   const { data: ownBusiness } = useOwnBusiness();
   const { data: ownPage } = useBusinessPageFor(ownBusiness?.employerId);
   const homeBusiness = ownPage ? ownPage.home_alias : undefined;
-  const basePlan = useMemo(() => interviewPlanFor(record?.family, { homeBusiness, customerService: record?.customerService }), [record?.family, homeBusiness, record?.customerService]);
+  const basePlan = useMemo(
+    () =>
+      interviewPlanFor(record?.family, {
+        homeBusiness,
+        customerService: record?.customerService ? { channel: record.customerService.channel, noun: scenarioPack(record.customerService.pack)?.counterpart ?? null } : null,
+      }),
+    [record?.family, homeBusiness, record?.customerService],
+  );
   const plan = useMemo(() => applyPlanEdits(basePlan, record?.planEdits), [basePlan, record?.planEdits]);
   const personal = record?.personal ?? null;
   // Changing the questions: `draft` holds what is being typed; null = reading.

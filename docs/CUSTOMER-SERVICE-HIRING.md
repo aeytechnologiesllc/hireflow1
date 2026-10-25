@@ -9,24 +9,35 @@ own words. docs/LAUNCH-PLAN.md, Phase 4, is the plan this follows.
 ## What Ava asks
 
 `src/lib/avaEngine/playbook.ts`: the `customer_service` family is checked
-before every other (`detectFamily` → `isCustomerService`), read from the
-job's **title** where the role is named (customer service / support / care /
-success, support or chat agents and reps, help desk, call or contact centre,
-CSR, front desk, a receptionist or medical office assistant at a clinic,
-patient services or coordinators), or from a description that says the job
-**is** answering customers ("answer customer chats", "live chat", "support
-tickets", "customer service for an online store"). A description that only
-asks for good service does not count, and a title that names another role
-wins: a barista, cashier or cleaner who gives "great customer service", an
-engineer who makes something "support 10k requests", an SDR making outbound
-calls, a law-office receptionist and a patient care aide keep their own
-families (the Phase 4 review found all of these misread).
+before every other (`detectFamily` → `isCustomerService`), in this order:
+
+1. a main-street or trade role in the title keeps its family, whatever else
+   it says ("Customer Service Cashier", a barista, a plumber, a pharmacy
+   technician; the owner: not main-street roles);
+2. a support title is customer service: customer / client service(s),
+   support, care, success; support or chat agents, reps, specialists;
+   support managers and leads; help desk; call or contact centre; CSR
+   (non-voice too); front desk; patient services and appointment schedulers;
+3. a front-office role at a clinic (a receptionist, a medical **office**
+   assistant, an appointment setter, with patients or a clinic in the
+   words), but never a clinical medical assistant;
+4. a title with "support" and support work ("Support Engineer — answer
+   customer tickets");
+5. another role named in the title (engineer, manager, analyst, writer,
+   tester, a non-clinic receptionist) keeps its family;
+6. else the description has to say the job IS answering people: a verb and a
+   channel ("answer calls and chats", "handle customer tickets", "calls from
+   our customers"), or "customer service for / by …". A bare mention ("our
+   live chat widget", "help desk articles") or a quality ("great customer
+   service") does not count.
+
+Both Phase 4 reviews' cases, about sixty, are in the test.
 
 Its follow-ups (one chip each, the default in brackets):
 
 | id | Question | Chips |
 |---|---|---|
-| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say ("Phone CSR", "inbound calls"; "chat only, no phone calls" stays Chat) |
+| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say: phone ("Phone CSR", "inbound calls", "on the phones"), a mix (calls and emails), never phone for "non-voice", "chat only, no phone calls" or a chat or email CSR |
 | `cs-industry` | What kind of business is it? | Medical or dental office, Online store, Software or app, Home services, Gaming, Something else; the default is what the business's own words point to (`industryFromText`) |
 | `cs-load` | How many chats or messages at once? | One at a time, [Two or three], Four or more |
 | `cs-hours` | When will they work? | [Daytime], Evenings or nights, Weekends too, Rotating shifts |
@@ -53,10 +64,12 @@ the same things:
    server picks one case per applicant (the stable pick in
    `ai-chat-simulation/prompts.ts`), and typing speed and reply time are
    measured inside it (docs/TYPING-IN-CHAT.md);
-5. the written interview. A phone job's interview always starts with the two
-   questions about calls (`PHONE_INTERVIEW_QUESTIONS`, in place of its last
-   two) until the practice call exists (docs/LAUNCH-PLAN.md, "Later"), and an
-   interview the model left empty gets the customer-service bank's questions.
+5. the written interview. A phone job's interview starts with the two
+   questions about calls (`PHONE_INTERVIEW_QUESTIONS`), each unless the model
+   already asked the same thing (an angry caller; hold or transfer), and
+   always keeps at least one of the model's own, until the practice call
+   exists (docs/LAUNCH-PLAN.md, "Later"); an interview the model left empty
+   gets the customer-service bank's questions.
 
 The chat step also keeps the channel the business chose (`config.channel`),
 which the interview guide reads.
@@ -135,9 +148,12 @@ as a support agent (`rubricForCase`), with:
   word wins; a step with no pack says the business's word: "player" for the
   owner's own, "customer" for any other). Lines read `PATIENT 4:`. Anything
   an applicant types that is shaped like a label is neutralised
-  (`_shared/reviewText.ts`): look-alike letters and full-width colons are
-  folded first, invisible characters removed, then any "Word 3:" or
-  "WORD:" in any script loses its colon;
+  (`_shared/reviewText.ts`): look-alikes are folded first (NFKC) and every
+  default-ignorable character removed (zero-width, bidi isolates, variation
+  selectors, tag characters); then "Word 3:", "WORD_4:", "WORD (4):", any
+  capitals with a colon, and a word mixing Latin with look-alike letters
+  lose their colon, colon look-alikes included. Times ("10:30"), ratios and
+  "John 3:16" are left alone. Quotes are checked on the same folded words;
 - WHAT THE AGENT KNOWS as the only true facts, and anything promised or stated
   that they do not allow counting heavily against the mark;
 - the pack's note, WHAT GOOD LOOKS LIKE IN THIS KIND OF BUSINESS.
@@ -153,7 +169,9 @@ calls "support", which a "supportive team" also is) gets its own plan. It
 lists the chat practice as already done and hears them speak, with a
 one-minute practice where the interviewer is the customer. A phone job (the
 step's `config.channel` is "phone") also asks how they hold and pass on a
-call. A team lead's job keeps the team-lead plan.
+call. A team lead's job keeps the team-lead plan. The plan, the guide's
+prompt and the written-interview grader all use the pack's word ("patient")
+where the job has a pack; only a pack the app knows counts.
 
 ## Locks
 
