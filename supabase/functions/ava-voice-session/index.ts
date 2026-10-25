@@ -7,6 +7,7 @@ import { hasSubscriptionBypassForUser } from "../_shared/subscriptionBypass.ts";
 import { computeSessionTimeLimitMinutes, HARD_CAP_MINUTES } from "../_shared/voiceSessionCharge.ts";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer, stepNeedsComputer } from "../_shared/deviceKind.ts";
 import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
+import { readEvaluation, withEvaluation } from "../_shared/applicationEvaluation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -628,16 +629,21 @@ serve(async (req) => {
       let currentApplicantContext = "";
       if (applicationId) {
         console.log("Fetching comprehensive applicant context for:", applicationId);
-        const { data: currentApp } = await supabaseClient
+        // Ava's score, report and summary: the hiring team's own table since
+        // 2026-10-25 (application_evaluations), embedded under this owner's
+        // own sign-in and laid back onto the row.
+        const { data: currentAppRow } = await supabaseClient
           .from("applications")
           .select(`
-            id, status, phase, ai_score, ai_analysis, phase_ai_analysis, notes, created_at, candidate_id,
+            id, status, phase, notes, created_at, candidate_id,
             voice_interview_result, voice_interview_transcript, voice_interview_duration,
-            jobs!inner(id, title, employer_id, workflow_steps, quiz_questions)
+            jobs!inner(id, title, employer_id, workflow_steps, quiz_questions),
+            application_evaluations(ai_score, ai_analysis, phase_ai_analysis)
           `)
           .eq("id", applicationId)
           .eq("jobs.employer_id", user.id)
           .single();
+        const currentApp = currentAppRow ? withEvaluation(currentAppRow) : null;
 
         if (currentApp) {
           // Fetch candidate profile separately
@@ -1456,7 +1462,7 @@ Keep greetings to ONE short sentence - don't ramble.`;
         throw new Error("Application ID required for interview mode");
       }
 
-      const { data: application } = await supabaseClient
+      const { data: applicationRow } = await supabaseClient
         .from("applications")
         .select(`
           *,
@@ -1465,9 +1471,14 @@ Keep greetings to ONE short sentence - don't ramble.`;
         .eq("id", applicationId)
         .single();
 
-      if (!application) {
+      if (!applicationRow) {
         throw new Error("Application not found");
       }
+      // The interviewer's brief uses Ava's earlier score and report. They are
+      // the hiring team's own table since 2026-10-25 (application_evaluations),
+      // which the applicant's sign-in (this client) cannot read: read with the
+      // service key, for this application only (its owner was checked above).
+      const application = { ...applicationRow, ...(await readEvaluation(adminClient, applicationRow.id)) };
 
       const { data: candidateProfile } = await supabaseClient
         .from("profiles")

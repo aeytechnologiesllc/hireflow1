@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
 import { canAccessDossier } from "../_shared/dossierAccess.ts";
 import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
+import { evaluationOf, withEvaluation } from "../_shared/applicationEvaluation.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -252,12 +253,16 @@ serve(async (req) => {
       );
     }
 
-    // Fetch application with job data (separate query for profile to avoid FK issues)
-    const { data: application, error: appError } = await supabase
+    // Fetch application with job data (separate query for profile to avoid FK issues).
+    // Ava's score and report are the hiring team's own table since 2026-10-25
+    // (application_evaluations): embedded, and laid back onto the row below
+    // only for the hiring side.
+    const { data: applicationRow, error: appError } = await supabase
       .from('applications')
-      .select(`*, jobs (*)`)
+      .select(`*, jobs (*), application_evaluations (ai_score, ai_analysis, ai_scorecard, phase_ai_analysis, employer_notes)`)
       .eq('id', applicationId)
       .single();
+    let application = applicationRow ? withEvaluation(applicationRow) : null;
 
     if (appError || !application) {
       console.error('[Dossier] Error fetching application:', appError);
@@ -322,6 +327,12 @@ serve(async (req) => {
         JSON.stringify({ error: 'You do not have permission to access this application' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // The hiring team's evaluation is theirs: a dossier the applicant asks
+    // for themselves (canAccessDossier lets them) is built without it.
+    if (!isEmployerOwner && !isScopedTeamMember && !developerRole) {
+      application = { ...application, ...evaluationOf(null) };
     }
 
     console.log('[Dossier] Application found, candidate_id:', application.candidate_id);

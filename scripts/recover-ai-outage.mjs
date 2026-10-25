@@ -663,8 +663,10 @@ export function buildStateQueries({ jobIds, applicationIds = null, since }) {
   return {
     jobs: `select j.id, j.title, j.employer_id, j.processing_mode, j.workflow_steps
        from public.jobs j where j.id in (${jobs})`,
-    applications: `select a.id, a.job_id, a.phase, a.status::text as status, a.ai_score, a.ai_scorecard, a.notes, p.full_name
+    // Ava's score and scorecard: application_evaluations since 2026-10-25.
+    applications: `select a.id, a.job_id, a.phase, a.status::text as status, e.ai_score, e.ai_scorecard, a.notes, p.full_name
        from public.applications a
+       left join public.application_evaluations e on e.application_id = a.id
        left join public.profiles p on p.user_id = a.candidate_id
       where a.job_id in (${jobs})${appsA}`,
     sessions: `select s.id, s.application_id, s.step_id, s.step_type, s.attempt, s.status, s.end_reason,

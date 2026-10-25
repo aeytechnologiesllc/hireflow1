@@ -561,13 +561,23 @@ async function setProcessingMode(page, mode) {
 }
 
 async function getApplicationById(supabaseConfig, accessToken, applicationId) {
-  return supabaseSingle({
+  // Ava's score, report and summary are the hiring team's own table since
+  // 2026-10-25 (application_evaluations): embedded, and laid back onto the row.
+  const row = await supabaseSingle({
     ...supabaseConfig,
     accessToken,
     table: "applications",
     filter: `id=eq.${applicationId}`,
-    select: "id,job_id,phase,status,notes,resume_url,cover_letter,ai_score,phase_ai_analysis,ai_analysis,rejected_by_type",
+    select: "id,job_id,phase,status,notes,resume_url,cover_letter,rejected_by_type,application_evaluations(ai_score,phase_ai_analysis,ai_analysis)",
   });
+  const { application_evaluations: embedded, ...rest } = row;
+  const evaluation = Array.isArray(embedded) ? embedded[0] : embedded;
+  return {
+    ...rest,
+    ai_score: evaluation?.ai_score ?? null,
+    phase_ai_analysis: evaluation?.phase_ai_analysis ?? null,
+    ai_analysis: evaluation?.ai_analysis ?? null,
+  };
 }
 
 async function run() {

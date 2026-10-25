@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { resolveAutopilotAction, type AvaScorecard } from "../_shared/autopilot.ts";
+import { withEvaluation } from "../_shared/applicationEvaluation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -259,16 +260,18 @@ serve(async (req) => {
       return jsonResponse({ error: "You do not have permission to manage this job" }, 403);
     }
 
+    // Ava's score and report are the hiring team's own table since 2026-10-25
+    // (application_evaluations), embedded and laid back onto each row.
     const { data: allApplications, error: applicationsError } = await supabaseAdmin
       .from("applications")
-      .select("id, candidate_id, ai_score, ai_analysis, phase, notes, voice_interview_result, status, resume_url, cover_letter")
+      .select("id, candidate_id, phase, notes, voice_interview_result, status, resume_url, cover_letter, application_evaluations(ai_score, ai_analysis)")
       .eq("job_id", jobId);
 
     if (applicationsError) {
       return jsonResponse({ error: "Failed to load applications", details: applicationsError.message }, 500);
     }
 
-    const applications = (allApplications || []).filter((application) => {
+    const applications = (allApplications || []).map((application) => withEvaluation(application)).filter((application) => {
       const normalizedStatus = (application.status || "").toLowerCase();
       return !["rejected", "hired", "offered"].includes(normalizedStatus);
     });

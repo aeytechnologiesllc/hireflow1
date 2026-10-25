@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { callOpenAIJson, openAIErrorStatus } from "../_shared/openai.ts";
 import { guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { canAccessPerformanceReport } from "../_shared/performanceReportAccess.ts";
+import { withEvaluation } from "../_shared/applicationEvaluation.ts";
 import { validateBlueprintReport, REQUIRED_DEVELOPMENTAL_DISCLAIMER, type ImprovementBlueprintData } from "../_shared/blueprintReport.ts";
 
 // Model is configurable so a retirement is a config change, not a code change.
@@ -125,13 +126,14 @@ serve(async (req) => {
       );
     }
 
-    const { data: application, error: appError } = await supabase
+    // Ava's score and report are the hiring team's own table since 2026-10-25
+    // (application_evaluations), read here with the service key for the
+    // report's own prompt and laid back onto the row.
+    const { data: applicationRow, error: appError } = await supabase
       .from('applications')
       .select(`
         id,
         notes,
-        ai_score,
-        ai_analysis,
         voice_interview_result,
         voice_interview_transcript,
         cover_letter,
@@ -145,10 +147,12 @@ serve(async (req) => {
           skills_required,
           workflow_steps,
           passing_score
-        )
+        ),
+        application_evaluations ( ai_score, ai_analysis )
       `)
       .eq('id', applicationId)
       .single();
+    const application = applicationRow ? withEvaluation(applicationRow) : null;
 
     if (appError || !application) {
       console.error('Error fetching application:', appError);
@@ -298,7 +302,10 @@ Return ONLY the JSON object described in the system prompt.`;
     reportData.metadata = {
       candidateName: profile?.full_name || 'Candidate',
       jobTitle: jobData?.title || 'Position',
-      overallScore: application.ai_score || parsedNotes?.overallScore || 0,
+      // The hiring team's own score goes back only to the hiring team: an
+      // applicant's copy of this report (it is cached in their own notes)
+      // never carries it (application_evaluations, 2026-10-25).
+      overallScore: (isEmployerSide ? application.ai_score : null) || parsedNotes?.overallScore || 0,
       passingScore,
       generatedAt: new Date().toISOString(),
       applicationId,

@@ -47,6 +47,7 @@ import {
   type AdvanceSnapshot,
 } from "../_shared/trustedResults.ts";
 import { isScopedTeamMemberFromRpc } from "../_shared/teamMemberRpcAccess.ts";
+import { withEvaluation } from "../_shared/applicationEvaluation.ts";
 import { connectionEvidenceLine, recordedEquipmentCheck } from "../_shared/connectionStamps.ts";
 import { fenceApplicantText, stripFenceMarkers } from "../_shared/promptFence.ts";
 import { forApplicant } from "../_shared/applicantReply.ts";
@@ -1951,15 +1952,20 @@ serve(async (req) => {
       requestingUserId = requestingUser.id;
     }
 
-    // Fetch application data with all job fields needed for autopilot decision
-    const { data: application, error: fetchError } = await supabaseAdmin
+    // Fetch application data with all job fields needed for autopilot decision.
+    // The hiring team's evaluation (ai_score, ai_analysis, ai_scorecard,
+    // phase_ai_analysis) is its own table since 2026-10-25: embedded here and
+    // laid back onto the row, as applications itself holds NULL for them.
+    const { data: applicationRow, error: fetchError } = await supabaseAdmin
       .from("applications")
       .select(`
         *,
-        jobs(title, description, requirements, responsibilities, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions, application_questions, require_resume, required_wpm, employer_id)
+        jobs(title, description, requirements, responsibilities, skills_required, experience_level, job_type, workflow_steps, passing_score, processing_mode, quiz_questions, application_questions, require_resume, required_wpm, employer_id),
+        application_evaluations(ai_score, ai_analysis, ai_scorecard, phase_ai_analysis, employer_notes)
       `)
       .eq("id", applicationId)
       .single();
+    const application = applicationRow ? withEvaluation(applicationRow) : null;
 
     if (fetchError || !application) {
       console.error("[trigger-ava-analysis] Failed to fetch application:", fetchError);

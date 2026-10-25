@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
+// Ava's score, report and summary and the team's notes are the hiring team's
+// own table since 2026-10-25 (application_evaluations): every read below
+// embeds it, under the owner's own sign-in, and lays it back onto the row.
+import { withEvaluation } from "../_shared/applicationEvaluation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -333,27 +337,30 @@ serve(async (req) => {
           const { data, error } = await supabaseClient
             .from("applications")
             .select(`
-              id, status, phase, ai_score, notes, created_at, candidate_id,
-              jobs!inner(title, employer_id)
+              id, status, phase, notes, created_at, candidate_id,
+              jobs!inner(title, employer_id),
+              application_evaluations(ai_score, phase_ai_analysis)
             `)
             .eq("id", application_id)
             .eq("jobs.employer_id", user.id)
             .single();
-          
-          if (!error && data) app = data;
+
+          if (!error && data) app = withEvaluation(data);
         }
-        
+
         // If not found by UUID or not a UUID, try name-based lookup
         if (!app) {
           // Get all applications for this employer with profile info
-          const { data: applications } = await supabaseClient
+          const { data: applicationRows } = await supabaseClient
             .from("applications")
             .select(`
-              id, status, phase, ai_score, notes, created_at, candidate_id,
-              jobs!inner(title, employer_id)
+              id, status, phase, notes, created_at, candidate_id,
+              jobs!inner(title, employer_id),
+              application_evaluations(ai_score, phase_ai_analysis)
             `)
             .eq("jobs.employer_id", user.id);
-          
+          const applications = (applicationRows || []).map((row: any) => withEvaluation(row));
+
           if (applications && applications.length > 0) {
             // Get profiles for all candidates
             const candidateIds = applications.map((a: any) => a.candidate_id);
@@ -424,11 +431,11 @@ serve(async (req) => {
         const { data: applications } = await supabaseClient
           .from("applications")
           .select(`
-            id, status, phase, ai_score, candidate_id,
+            id, status, phase, candidate_id,
             jobs!inner(title, employer_id)
           `)
           .eq("jobs.employer_id", user.id);
-        
+
         if (!applications || applications.length === 0) {
           throw new Error("No applicants found");
         }
@@ -496,8 +503,9 @@ serve(async (req) => {
         let query = supabaseClient
           .from("applications")
           .select(`
-            id, status, phase, ai_score, created_at, candidate_id,
-            jobs!inner(title, employer_id)
+            id, status, phase, created_at, candidate_id,
+            jobs!inner(title, employer_id),
+            application_evaluations(ai_score)
           `)
           .eq("jobs.employer_id", user.id)
           .order("created_at", { ascending: false })
@@ -507,8 +515,9 @@ serve(async (req) => {
           query = query.eq("job_id", parameters.job_id);
         }
 
-        const { data: apps, error } = await query;
+        const { data: appRows, error } = await query;
         if (error) throw error;
+        const apps = (appRows || []).map((row: any) => withEvaluation(row));
 
         // Fetch profiles for all candidate_ids
         const candidateIds = (apps || []).map(a => a.candidate_id).filter(Boolean);
@@ -1261,14 +1270,15 @@ serve(async (req) => {
       case "add_applicant_note": {
         const { application_id, note_content } = parameters;
 
-        const { data: app, error: appError } = await supabaseClient
+        const { data: appRow, error: appError } = await supabaseClient
           .from("applications")
-          .select("id, employer_notes, jobs!inner(employer_id)")
+          .select("id, jobs!inner(employer_id), application_evaluations(employer_notes)")
           .eq("id", application_id)
           .eq("jobs.employer_id", user.id)
           .single();
 
-        if (appError || !app) throw new Error("Application not found or access denied");
+        if (appError || !appRow) throw new Error("Application not found or access denied");
+        const app = withEvaluation(appRow);
 
         const existingNotes = app.employer_notes || '';
         const timestamp = new Date().toLocaleString();
@@ -1293,15 +1303,16 @@ serve(async (req) => {
 
         let query = supabaseClient
           .from("applications")
-          .select("id, status, phase, ai_score, jobs!inner(id, title, employer_id)")
+          .select("id, status, phase, jobs!inner(id, title, employer_id), application_evaluations(ai_score)")
           .eq("jobs.employer_id", user.id);
 
         if (job_id) {
           query = query.eq("job_id", job_id);
         }
 
-        const { data: apps, error } = await query;
+        const { data: appRows, error } = await query;
         if (error) throw error;
+        const apps = (appRows || []).map((row: any) => withEvaluation(row));
 
         const summary: Record<string, { total: number, byStatus: Record<string, number>, avgScore: number }> = {};
         
@@ -1470,10 +1481,12 @@ serve(async (req) => {
       case "bulk_reject": {
         const { job_id, max_score, reason } = parameters;
 
-        // Find applicants below the score threshold
+        // Find applicants below the score threshold. The score is in the
+        // embedded evaluation; with a threshold it must exist and be at or
+        // under it (an inner embed filters the applications themselves).
         let query = supabaseClient
           .from("applications")
-          .select("id, ai_score, jobs!inner(employer_id)")
+          .select(max_score ? "id, jobs!inner(employer_id), application_evaluations!inner(ai_score)" : "id, jobs!inner(employer_id)")
           .eq("jobs.employer_id", user.id)
           .eq("status", "pending");
 
@@ -1481,13 +1494,15 @@ serve(async (req) => {
           query = query.eq("job_id", job_id);
         }
         if (max_score) {
-          query = query.lte("ai_score", max_score);
+          query = query.lte("application_evaluations.ai_score", max_score);
         }
 
-        const { data: apps, error } = await query;
+        const { data: matched, error } = await query;
         if (error) throw error;
+        // Two possible select strings, so the client cannot type the rows itself.
+        const apps = (matched ?? []) as unknown as Array<{ id: string }>;
 
-        if (!apps || apps.length === 0) {
+        if (apps.length === 0) {
           result = { success: true, count: 0, message: "No applicants match the criteria" };
           break;
         }
@@ -1632,16 +1647,18 @@ serve(async (req) => {
           throw new Error("Need at least 2 applicants to compare");
         }
 
-        const { data: apps, error } = await supabaseClient
+        const { data: appRows, error } = await supabaseClient
           .from("applications")
           .select(`
-            id, status, phase, ai_score, notes, candidate_id,
-            jobs!inner(title, employer_id)
+            id, status, phase, notes, candidate_id,
+            jobs!inner(title, employer_id),
+            application_evaluations(ai_score)
           `)
           .in("id", application_ids)
           .eq("jobs.employer_id", user.id);
 
         if (error) throw error;
+        const apps = (appRows || []).map((row: any) => withEvaluation(row));
 
         // Get profiles
         const candidateIds = (apps || []).map(a => a.candidate_id);
@@ -1788,7 +1805,7 @@ serve(async (req) => {
         
         const { data: allApps } = await supabaseClient
           .from("applications")
-          .select("id, status, phase, ai_score, created_at, job_id, jobs!inner(employer_id)")
+          .select("id, status, phase, created_at, job_id, jobs!inner(employer_id)")
           .eq("jobs.employer_id", user.id);
         
         const activeJobs = jobs?.filter(j => j.status === 'published') || [];

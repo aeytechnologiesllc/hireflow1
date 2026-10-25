@@ -7,6 +7,7 @@ import {
 } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import { canAccessJobPipeline } from "../_shared/aiAccess.ts";
+import { withEvaluation } from "../_shared/applicationEvaluation.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -601,15 +602,18 @@ serve(async (req) => {
       );
     }
 
-    const { data: rawApplications, error: applicationsError } = await supabaseAdmin
+    // Ava's score and report: the hiring team's own table since 2026-10-25
+    // (application_evaluations), embedded and laid back onto each row.
+    const { data: applicationRows, error: applicationsError } = await supabaseAdmin
       .from("applications")
-      .select("id, candidate_id, ai_score, ai_analysis, phase, status, notes, voice_interview_result")
+      .select("id, candidate_id, phase, status, notes, voice_interview_result, application_evaluations(ai_score, ai_analysis)")
       .eq("job_id", jobId)
       .in("id", requestedIds);
 
     if (applicationsError) {
       throw new Error("Failed to load applications for this job");
     }
+    const rawApplications = (applicationRows || []).map((app) => withEvaluation(app));
     if (!rawApplications || rawApplications.length < 2) {
       throw new Error("Need at least 2 applicants to generate shortlist");
     }

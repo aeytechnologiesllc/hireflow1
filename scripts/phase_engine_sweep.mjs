@@ -947,13 +947,18 @@ async function getJobByCode(supabaseConfig, accessToken, jobCode) {
 }
 
 async function getApplicationById(supabaseConfig, accessToken, applicationId) {
-  return supabaseSingle({
+  // Ava's score and summary are the hiring team's own table since 2026-10-25
+  // (application_evaluations): embedded, and laid back onto the row.
+  const row = await supabaseSingle({
     ...supabaseConfig,
     accessToken,
     table: "applications",
     filter: `id=eq.${applicationId}`,
-    select: "id,job_id,phase,status,notes,ai_score,phase_ai_analysis,voice_interview_result,voice_interview_transcript",
+    select: "id,job_id,phase,status,notes,voice_interview_result,voice_interview_transcript,application_evaluations(ai_score,phase_ai_analysis)",
   });
+  const { application_evaluations: embedded, ...rest } = row;
+  const evaluation = Array.isArray(embedded) ? embedded[0] : embedded;
+  return { ...rest, ai_score: evaluation?.ai_score ?? null, phase_ai_analysis: evaluation?.phase_ai_analysis ?? null };
 }
 
 function findStep(workflowSteps, type) {

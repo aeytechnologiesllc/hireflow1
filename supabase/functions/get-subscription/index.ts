@@ -206,11 +206,12 @@ serve(async (req) => {
           .in("application_id", appIds);
         documentsCount += generatedDocCount || 0;
 
-        // Count AI analyses (applications with ai_score)
+        // Count AI analyses (applications with a score). The score is the
+        // hiring team's own table since 2026-10-25 (application_evaluations).
         const { count: analysisCount } = await supabaseAdmin
-          .from("applications")
-          .select("*", { count: "exact", head: true })
-          .in("job_id", jobIds)
+          .from("application_evaluations")
+          .select("application_id", { count: "exact", head: true })
+          .in("application_id", appIds)
           .not("ai_score", "is", null);
         aiAnalysesCount = analysisCount || 0;
       }
