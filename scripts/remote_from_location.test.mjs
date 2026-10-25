@@ -126,6 +126,24 @@ for (const place of ["Remote (no hybrid or onsite)", "Remote, never onsite or hy
 }
 check("…while \"No hybrid, onsite only\" is still on-site", brief("No hybrid, onsite only", "Full-time").workMode === "onsite");
 
+// The fourteenth Phase 4 review: "-based" is an optional prefix on the kind of account, client, company, brand, business or
+// startup, so a Philippine place for a US-based one stays the Philippines (it was saved as a US job paid in dollars when the
+// geocoder missed), while where the people are still picks the country (above); "U.S." with its dots is the US; a list
+// negation starts at remote or WFH too; and a remote word in the description is never a negated one.
+for (const [text, code] of [["Makati (US-based healthcare account)", "PH"], ["Cebu City - US-based healthcare account", "PH"], ["Quezon City | UK-based e-commerce brand", "PH"], ["Taguig (Australia-based telco account)", "PH"], ["Iloilo (US-based healthcare)", "PH"], ["Davao City - US-based retail account", "PH"], ["Ortigas (US-based mortgage company)", "PH"], ["BGC Taguig - US-based tech startup", "PH"], ["Pasig | Canada-based insurance company", "PH"], ["BGC (USA-based SaaS client)", "PH"], ["Makati (U.S.-based healthcare account)", "PH"], ["Remote - U.S. only", "US"], ["Remote (U.S. only)", "US"], ["Remote — US-based team", "US"], ["Remote (US-based applicants only)", "US"]]) {
+  check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
+}
+check("place \"Anywhere in the U.S.\" is a remote job in the US", brief("Anywhere in the U.S.", "Full-time").workMode === "remote" && M.inferCountryCode("Anywhere in the U.S.") === "US", `${brief("Anywhere in the U.S.", "Full-time").workMode} ${M.inferCountryCode("Anywhere in the U.S.")}`);
+for (const place of ["Onsite (no remote or hybrid)", "No WFH or hybrid. Onsite in Taguig", "Not remote or hybrid - Onsite in Cebu"]) {
+  check(`place ${JSON.stringify(place)} is an on-site job, not a hybrid one`, brief(place, "Full-time").workMode === "onsite", brief(place, "Full-time").workMode);
+}
+check("a negated remote word in the description is no remote job (\"Onsite only, no WFH\", \"not a work from home job\")", R("Makati", "full-time", "Onsite only, no WFH. Answer customer chats.") === false && R("Cebu", "full-time", "This is not a work from home job.") === false && R("Philippines", "full-time", "Permanent work from home.") === true);
+{
+  const mode = (role, work) => M.briefFromForm({ role, location: "Cebu City", type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
+  check("the title or What they do saying so makes a job remote, as Publish reads them", mode("Customer Service Representative", "Permanent work from home. Answer customer chats.") === "remote" && mode("Chat Support Agent", "This is a WFH role. Reply to customer chats.") === "remote" && mode("Work From Home Chat Support Agent", "Reply to customer chats.") === "remote");
+  check("…never a negated one or a perk", mode("Customer Service Representative", "Onsite only, no WFH. Answer customer chats.") === "onsite" && mode("Customer Service Representative", "This is not a work from home job.") === "onsite" && mode("Front Desk Receptionist", "Greet visitors at our office and answer phones.\nBenefits:\n- Work from home Fridays\n- HMO") === "onsite" && mode("Chat Support Agent", "Reply to customer chats.") === "onsite");
+}
+
 {
   const editor = (await import("node:fs")).readFileSync(path.join(ROOT, "src/pages/CreateJob.tsx"), "utf8");
   check("Edit job: remote work is the business's own switch, shown beside the place, never re-worked unseen", /isEditMode && existingJob\s*\? formData\.is_remote === true/.test(editor) && /data-edit-remote/.test(editor) && /handleChange\("is_remote", remoteAfterPlaceEdit\(/.test(editor));

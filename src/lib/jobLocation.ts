@@ -11,7 +11,9 @@ const COUNTRY_TEXT_HINTS: Array<[RegExp, string]> = [
   [/\bmalaysia\b/i, "MY"],
   [/\bindonesia\b/i, "ID"],
   [/\bvietnam\b|\bviet nam\b/i, "VN"],
-  [/\b(united states|u\.s\.a\.?|usa|us)\b/i, "US"],
+  // ("U.S." with its dots: "Remote - U.S. only" had no country, so it was in no
+  // feed; the fourteenth Phase 4 review.)
+  [/\b(united states|u\.s\.a\.?|usa|us)\b|\bu\.s\.?(?!\w)/i, "US"],
   [/\bcanada\b/i, "CA"],
   [/\bpakistan\b/i, "PK"],
   [/\bunited kingdom\b|\buk\b|\bgreat britain\b/i, "GB"],
@@ -29,7 +31,8 @@ const COUNTRY_TEXT_HINTS: Array<[RegExp, string]> = [
 // In capitals, as a state is written: ", or Makati" is no Oregon (the eleventh
 // Phase 4 review: "Pasig, Mandaluyong, or Makati" was a US job).
 const US_STATE_CODES = "AL|AK|AZ|AR|CA|CO|CT|DE|FL|GA|HI|IA|ID|IL|IN|KS|KY|LA|MA|MD|ME|MI|MN|MO|MS|MT|NC|ND|NE|NH|NJ|NM|NV|NY|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VA|VT|WA|WI|WV|WY";
-const US_STATE_NAMES = "alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming";
+// (Exported for the job classifier's "our stores throughout Texas"; the fourteenth Phase 4 review.)
+export const US_STATE_NAMES = "alabama|alaska|arizona|arkansas|california|colorado|connecticut|delaware|florida|georgia|hawaii|idaho|illinois|indiana|iowa|kansas|kentucky|louisiana|maine|maryland|massachusetts|michigan|minnesota|mississippi|missouri|montana|nebraska|nevada|new hampshire|new jersey|new mexico|new york|north carolina|north dakota|ohio|oklahoma|oregon|pennsylvania|rhode island|south carolina|south dakota|tennessee|texas|utah|vermont|virginia|washington|west virginia|wisconsin|wyoming";
 const US_STATE_HINT = new RegExp(String.raw`,\s*(${US_STATE_CODES})\b`);
 const US_STATE_NAME_HINT = new RegExp(String.raw`,\s*(${US_STATE_NAMES})\b`, "i");
 const ONLY_A_US_STATE = new RegExp(String.raw`^(?:${US_STATE_NAMES}|district of columbia)\.?$`, "i");
@@ -44,7 +47,9 @@ export function isOnlyAUsState(text?: string | null): boolean {
   return ONLY_A_US_STATE.test(t) || ONLY_A_US_STATE_CODE.test(t);
 }
 const NOT_FULLY_REMOTE_HINT = /\b(hybrid|remote[-\s]?friendly|remote optional|occasional(?:ly)? remote|some remote|partly remote|partial(?:ly)? remote|negotiable|office|on[-\s]?site|onsite)\b/i;
-const DEFINITIVE_REMOTE_HINT = /\b(fully remote|100% remote|remote only|work from home|wfh|telecommute)\b/i;
+// (Never negated: "Onsite only, no WFH", "This is not a work from home job"; the fourteenth Phase 4 review, when the job
+// builder began reading these words as Publish does, briefFromForm.)
+const DEFINITIVE_REMOTE_HINT = /(?<!\b(?:not|no|non|never|isn'?t)[-\s]+(?:(?:a|an|the)\s+)?)\b(fully remote|100% remote|remote only|work from home|wfh|telecommute)\b/i;
 const REMOTE_PREFIX = /^remote(?:\b|[\s—–\-,:|])/i;
 
 /** Philippine cities and provinces named without the country. Read after a
@@ -61,8 +66,14 @@ const PH_PLACE_HINT = /\b(metro manila|manila|quezon city|makati|pasig|taguig|bg
  *  "Iloilo (US healthcare)" (the fifth product review: still US jobs).
  *  "-based" only before a client word: "US-based applicants only", "UK-based
  *  team" are where the people are (the thirteenth Phase 4 review: those had
- *  no country, so a job the geocoder missed was in no feed). */
-const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:-based\s+(?:clients?|customers?|accounts?|compan(?:y|ies)|brands?|business(?:es)?)\b|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|time(?:zone)?|hours|market|campaigns?)\b|\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)/gi;
+ *  no country, so a job the geocoder missed was in no feed).
+ *  The fourteenth: "-based" is an optional prefix on the kind-words and
+ *  industry forms, not a form of its own, and a company, brand, business or
+ *  startup is a client word: "Makati (US-based healthcare account)", "Ortigas
+ *  (US-based mortgage company)", "BGC Taguig - US-based tech startup" were
+ *  saved as US jobs paid in dollars when the geocoder missed. Applicants,
+ *  candidates, employees and a team are still where the people are. */
+const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:(?:-based)?\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|compan(?:y|ies)|brands?|business(?:es)?|startups?|time(?:zone)?|hours|market|campaigns?)\b|(?:-based)?\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)/gi;
 
 export function inferCountryCode(locationText?: string | null): string | null {
   const text = (locationText ?? "").trim().replace(CLIENT_COUNTRY, " ");
@@ -81,7 +92,9 @@ export function inferCountryCode(locationText?: string | null): string | null {
 // those were on-site or hybrid jobs.)
 // (...and the next word in a list after it: "Remote (no hybrid or onsite)", "Remote, never onsite or hybrid"; the thirteenth
 // Phase 4 review. A comma ends the negation: "No hybrid, onsite only" is on-site.)
-const NEGATED = String.raw`(?<!\b(?:no|not|non|never)[-\s]+(?:(?:hybrid|on[-\s]?site|onsite|in[-\s]?office|office[-\s]based)\s*(?:or|nor|\/)\s*)?)`;
+// (...whichever word the list starts with: "Onsite (no remote or hybrid)", "No WFH or hybrid. Onsite in Taguig" were hybrid
+// jobs; the fourteenth.)
+const NEGATED = String.raw`(?<!\b(?:no|not|non|never)[-\s]+(?:(?:hybrid|on[-\s]?site|onsite|in[-\s]?office|office[-\s]based|remote|wfh|work[-\s]from[-\s]home)\s*(?:or|nor|\/)\s*)?)`;
 /** What a place (or the builder's Type field) says about working from home:
  *  "remote", "not_remote" (hybrid, an office, on-site, "remote-friendly"), or
  *  null when it says neither ("Cebu", "Austin, TX"). Not only a leading
