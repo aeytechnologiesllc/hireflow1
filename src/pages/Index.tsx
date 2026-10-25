@@ -256,7 +256,9 @@ export default function Index() {
   const account = useMemo(() => {
     if (role === "candidate") return { to: "/applications", label: "My applications" };
     if (isStaffRole(role)) return { to: "/dashboard", label: "Dashboard" };
-    return { to: "/candidate/auth", label: "Sign in" };
+    // With the visitor's channel, as Apply carries it (the seventh growth review:
+    // an applicant who signed up from Sign in read "unknown").
+    return { to: withVisitorTags("/candidate/auth", window.location.href, document.referrer), label: "Sign in" };
   }, [role]);
 
   // On the staff host this route is only a doorway (HostGate moves them on).

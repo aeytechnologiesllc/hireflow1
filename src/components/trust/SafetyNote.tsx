@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import { ReportJobDialog } from "./ReportJobDialog";
+import { withVisitorTags } from "@/lib/hiringLink";
 
 /**
  * The short "Stay safe" note at the bottom of a job page and on an
@@ -30,7 +31,7 @@ export function SafetyNote({ job, signedIn = true }: { job: { id: string; title:
               report it
             </button>
           ) : (
-            <Link to={`/candidate/auth?redirect=${encodeURIComponent(back)}`} className="font-medium text-foreground underline underline-offset-2" data-report-signin>
+            <Link to={withVisitorTags(`/candidate/auth?redirect=${encodeURIComponent(back)}`, window.location.href, document.referrer)} className="font-medium text-foreground underline underline-offset-2" data-report-signin>
               report it
             </Link>
           )}

@@ -105,7 +105,7 @@ export default function OpenJobs() {
               My applications
             </Link>
           ) : (
-            <Link to="/candidate/auth?redirect=%2Fapplications" className="text-sm font-medium text-muted-foreground hover:text-foreground">
+            <Link to={withVisitorTags("/candidate/auth?redirect=%2Fapplications", window.location.href, document.referrer)} className="text-sm font-medium text-muted-foreground hover:text-foreground">
               Sign in
             </Link>
           )}

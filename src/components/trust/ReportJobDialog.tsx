@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { withVisitorTags } from "@/lib/hiringLink";
 
 /**
  * "Report this job" (docs/BUSINESS-TRUST.md). Opening HireFlow to other
@@ -77,7 +78,8 @@ export function ReportJobDialog({
     setState("sent");
   };
 
-  const signIn = `/candidate/auth?redirect=${encodeURIComponent(location.pathname)}`;
+  // With the visitor's channel, as Apply carries it (the seventh growth review).
+  const signIn = withVisitorTags(`/candidate/auth?redirect=${encodeURIComponent(location.pathname)}`, window.location.href, document.referrer);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>

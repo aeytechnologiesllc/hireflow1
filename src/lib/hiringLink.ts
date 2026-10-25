@@ -43,6 +43,16 @@ function tidyTag(value: string | null | undefined): string | null {
   return t || null;
 }
 
+/** A referring address on one of HireFlow's own hosts. */
+function fromHireFlow(referrer: string | null | undefined): boolean {
+  if (!referrer) return false;
+  try {
+    return /(^|\.)hireflownow\.com$/.test(new URL(referrer).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 /** The bare host of a referring address that is not HireFlow's own, or null. */
 function outsideHost(referrer: string | null | undefined): string | null {
   if (!referrer) return null;
@@ -85,8 +95,14 @@ export function withVisitorTags(base: string, here: string, referrer?: string | 
   // counted then, so a second "Post a job free" (Open jobs' after a job
   // page's) is the same visit moving on (the sixth growth review: a hiring
   // link counts once, the first time).
+  // Nor on a page opened from another of HireFlow's pages: the visitor was
+  // counted when they arrived, so "Post a job free" from Open jobs after the
+  // front page is the same visit moving on (the seventh growth review: one
+  // YouTube visitor read as youtube 2, and one with a campaign tag, whose
+  // tags never name a hiring link, as one visit per click).
   const throughHiringLink = tags.some(([key, v]) => (key === "utm_medium" ? v === "hiring_link" : (HIRING_LINK_SOURCES as readonly string[]).includes(v as string)));
-  const marked = url.searchParams.get(HIRING_LINK_MARK) === "1" && !throughHiringLink;
+  const hadMark = url.searchParams.has(HIRING_LINK_MARK);
+  const marked = url.searchParams.get(HIRING_LINK_MARK) === "1" && !throughHiringLink && !fromHireFlow(referrer);
   url.searchParams.delete(HIRING_LINK_MARK);
   if (tags.length > 0) {
     const own = url.searchParams.get("utm_source");
@@ -105,7 +121,7 @@ export function withVisitorTags(base: string, here: string, referrer?: string | 
       url.searchParams.set("utm_medium", "referral");
     }
     url.searchParams.set("ref", ref);
-  } else {
+  } else if (marked || !hadMark) {
     return base;
   }
   if (marked) url.searchParams.set(HIRING_LINK_MARK, "1");
