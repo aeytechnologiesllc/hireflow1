@@ -1,5 +1,5 @@
 /** Deterministic template generator — guaranteed fallback when OpenAI / edge fn unavailable. */
-import { detectFamily } from "./playbook";
+import { JOB_KIND_ID, detectFamily } from "./playbook";
 import { applyCustomerServicePack } from "./customerService";
 import { bankForFamily } from "./questionBanks";
 import {
@@ -30,7 +30,10 @@ function buildJobPost(brief: GenerateFlowRequest["brief"]): JobPost {
     ],
     requirements: [
       "Reliable attendance and clear communication",
-      brief.followUps.length ? `Key context: ${brief.followUps.map((f) => f.answer).join("; ")}` : "Relevant experience welcome",
+      // Ava's own "What kind of job is it?" is for the plan, never the post (the fifth Phase 4 review).
+      brief.followUps.some((f) => f.questionId !== JOB_KIND_ID)
+        ? `Key context: ${brief.followUps.filter((f) => f.questionId !== JOB_KIND_ID).map((f) => f.answer).join("; ")}`
+        : "Relevant experience welcome",
     ],
     niceToHaves: [`Openings: ${brief.openings}`],
   };

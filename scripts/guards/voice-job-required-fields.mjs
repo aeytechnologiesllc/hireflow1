@@ -61,7 +61,11 @@ export default [
         return { ok: false, detail: ["src/pages/AvaCreateJob.tsx is missing"] };
       }
       const onCompleteIdx = avaCreateJob.indexOf("onComplete={(payload)");
-      const setStep3Idx = avaCreateJob.indexOf("setStep(3)");
+      // Where the voice handler moves on: straight to building (setStep(3)) or,
+      // since 2026-10-25, to the kind-of-job question first (setVoiceConfirm(true)).
+      const after = (needle) => (onCompleteIdx === -1 ? -1 : avaCreateJob.indexOf(needle, onCompleteIdx));
+      const moves = [after("setStep(3)"), after("setVoiceConfirm(true)")].filter((i) => i > -1);
+      const setStep3Idx = moves.length ? Math.min(...moves) : -1;
       if (onCompleteIdx === -1 || setStep3Idx === -1 || setStep3Idx < onCompleteIdx) {
         detail.push("Could not locate TalkToAva's onComplete handler / its setStep(3) call in AvaCreateJob.tsx");
       } else {
