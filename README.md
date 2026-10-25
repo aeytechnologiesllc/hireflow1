@@ -52,6 +52,7 @@ must fail on the old code and pass on the fix).
 
 | Doc | What it covers |
 |---|---|
+| [`docs/LAUNCH-PLAN.md`](docs/LAUNCH-PLAN.md) | The current phased plan, the rules for working it, and the progress log |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Frontend ↔ Supabase schema shape, layer map |
 | [`docs/BACKEND-SCHEMA.md`](docs/BACKEND-SCHEMA.md) | Live tables, storage buckets, key RPCs |
 | [`docs/MIGRATION-HISTORY.md`](docs/MIGRATION-HISTORY.md) | Repo migration file ↔ live migration version mapping |

@@ -1,5 +1,12 @@
 # HireFlow - Project Reference
 
+> **Current work: [`docs/LAUNCH-PLAN.md`](docs/LAUNCH-PLAN.md).** Seven
+> phases toward the customer-service-hiring launch, with the owner's rules
+> for how each phase is done (build → verify → re-check → lock down → ship,
+> autonomously, until a re-check finds nothing). Read its Rules, Known facts
+> and Progress log before starting anything, then continue the first phase
+> that is not closed.
+
 > ⚠️ The project ref below is load-bearing. It was previously wrong here
 > (`kcotpxlggfvgclwksmhl`), and that wrong value was copied into a database
 > trigger, silently breaking every push notification. Verify before changing.
@@ -51,11 +58,31 @@
 
 The app icon is **"A" — the logo's own mark**: a dark jade tile `#0C2A21` with the bright jade rising line `#3FCE97`, the same mark as `Wordmark.tsx` (chosen by the owner 2026-10-11; it replaced "Direction 4", the ivory tile with the jade orb). Every size is made by `node scripts/make-app-icons.mjs`; docs in [`BRANDING.md`](BRANDING.md). **Do NOT revive the old dark-tile orb icon** (removed 2026-06-30) — see the "DO NOT REVIVE" section in BRANDING.md. Direction 5 (brass flow) is kept as a backup at `branding/backup-icon-flow.png`.
 
+## The October 2026 hiring run was the owner's own (noted 2026-10-24)
+
+The spike in the live data (about 1,400 page views on 2026-10-07; 154 of the
+155 applications between 2026-10-05 and 2026-10-10; 2 hires) was the owner
+hiring a real support team lead for his own business through a Philippines
+job board. It went very well. The app was being built and fixed live during
+that run, so that period's data (accounts confirmed instantly, no
+confirmation emails) shows the settings of the time, not today's: check live
+settings directly. The quiet since is not lost traction; no outside business
+has been invited yet. The landing's "153 applied, 71 finished, 3 worth a
+call" are from this run.
+
+## Positioning (owner, 2026-10-24)
+
+HireFlow's niche is **hiring customer service agents, chat and phone, for any
+kind of business** (the owner's example: a doctor's office). Ava should build
+the tests to fit the business and the channel. Not a sweepstakes pitch, and
+not main-street roles like barista or cashier. The owner doesn't want the
+green look; blue doesn't feel right to him either.
+
 ## Distribution & billing state (updated 2026-09-16, first set 2026-09-04)
 
 - **Free tier is fully open** while Stripe is off: trials never expire, no job or applicant caps, voice is off for every business but the platform's own account (2026-10-11; get-subscription still reports a 120-minute grant, unused) (migration `20260904110000_free_tier_open`, further relaxed by the recovered `20260627131622_relax_job_limit_billing_deferred`). Nothing may sit behind a paywall or show a price as due while billing is off. Re-gate when the pay-per-job model ships.
 - **Google Indexing API / IndexNow were removed on 2026-10-05** (87f7628, "Google Jobs is removed"): nothing fires on publish/close any more. The job feeds (`jobs.xml`, `adzuna.xml`, `jooble.xml`) only list a job that has a country (`api/job-feed.mjs`), so Zulu's worldwide-remote job (no country) is in none of them (checked 2026-10-11). The sitemap is served by `api/sitemap.mjs` (proxying the `sitemap` edge function) so it goes out as XML.
-- **Email is on**: `RESEND_API_KEY` has been set since 2026-10-04 (checked with `supabase secrets list` on 2026-10-21), so `send-notification-email` sends from `notifications@hireflownow.com` / `no-reply@hireflownow.com`; the owner confirmed staff receive emails. An older line here said it was unset, and a session repeated it to him as a launch blocker.
+- **Email is on**: `RESEND_API_KEY` has been set since 2026-10-04 (checked with `supabase secrets list` on 2026-10-21), so `send-notification-email` sends from `notifications@hireflownow.com` / `no-reply@hireflownow.com`; the owner confirmed staff receive emails. An older line here said it was unset, and a session repeated it to him as a launch blocker. Supabase Auth's own emails (password reset, magic link) go through Resend SMTP too (`smtp.resend.com`, from `hiring@hireflownow.com`); their sender name was "Zulu Support Team" for every business and applicant until the owner had it changed to **"HireFlow"** on 2026-10-24. Email confirmation is off (`mailer_autoconfirm: true`).
 - **Models**: all OpenAI calls run on `gpt-5.6-luna` (cheap) / `gpt-5.6-terra` (scoring), voice on `gpt-realtime-2.1` + `gpt-live-transcribe`. GPT-5 models reject non-default `temperature`; the shared helpers strip it. See `docs/MODEL-DEADLINES.md`.
 - **Stripe**: no key is set and no checkout exists: the old checkout/webhook functions were deleted from Supabase on 2026-10-11. Billing is built new (pricing v9: free first job, $99/job, $299/mo), with the owner's account exempt through `platform_admins`, never `home_alias`. The owner adds the Stripe keys himself, last.
 
