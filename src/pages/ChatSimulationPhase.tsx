@@ -55,7 +55,7 @@ import { useResultAtFirstLoad, useStepAdvance } from "@/hooks/useStepAdvance";
 import { useShowContinueOnComputer } from "@/components/candidate/continueOnComputerContext";
 import { ComputerRequiredError, isComputerRequired, refusedDeviceKind, throwIfComputerRequired, withDeviceKind } from "@/lib/deviceGate";
 import { createTypingMeter, type TypingSummary } from "@/lib/typingMeter";
-import { ServiceDelayError, isServiceDelay } from "@/lib/serviceDelay";
+import { ServiceDelayError, isLongServiceDelay, isServiceDelay } from "@/lib/serviceDelay";
 import { ServiceDelayNotice } from "@/components/candidate/ServiceDelayNotice";
 
 interface Message {
@@ -227,6 +227,8 @@ export default function ChatSimulationPhase() {
   // Our side could not answer just now (the AI service refused): one calm
   // line and Try again, never "isn't responding" (src/lib/serviceDelay.ts).
   const [serviceDelay, setServiceDelay] = useState<ServiceDelay | null>(null);
+  // The day's limit on our side (hours, not minutes): src/lib/serviceDelay.ts.
+  const [delayIsLong, setDelayIsLong] = useState(false);
   // The player owes a message (their first one, or the answer to one on the
   // record): nothing new is sent until it comes.
   const replyOwed = serviceDelay?.kind === "start" || serviceDelay?.kind === "reply";
@@ -612,6 +614,7 @@ export default function ChatSimulationPhase() {
     } catch (error) {
       if (error instanceof ComputerRequiredError && showContinueOnComputer(error.deviceKind)) return;
       if (error instanceof ServiceDelayError) {
+        setDelayIsLong(error.long);
         // Our side could not answer just now. Nothing is lost and nothing
         // is shown as broken: one calm line and Try again (below the box).
         if (mode === "respond" && opts.giveBack && opts.clientMsgId && opts.agentMessage && !error.turnSaved) {
@@ -839,6 +842,7 @@ export default function ChatSimulationPhase() {
         if (isServiceDelay(evalResponse.status, errorData)) {
           // Our side could not check it just now. Nothing was recorded: the
           // chat stays open with every message, and Try again sends it.
+          setDelayIsLong(isLongServiceDelay(errorData));
           advance.cancel();
           setState("chatting");
           setServiceDelay({ kind: "send" });
@@ -1373,6 +1377,7 @@ export default function ChatSimulationPhase() {
                       onRetry={retryAfterDelay}
                       busy={isTyping || isSubmitting}
                       disabled={serviceDelay.kind === "message" && !inputValue.trim()}
+                      long={delayIsLong}
                     />
                   )}
 

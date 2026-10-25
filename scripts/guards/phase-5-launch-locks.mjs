@@ -9,7 +9,9 @@
  *     information goes before they hand it over (sign-up and the form), and
  *     the business sign-up links the Privacy Policy as well as the Terms.
  *   - legal-pages-name-entity-and-contact: both pages name the company that
- *     runs the site and end with how to reach it.
+ *     runs the site and end with how to reach it: Contact us (an applicant's
+ *     own Help thread) or Help (a hiring team), never Messages to the
+ *     hiring business.
  *   - applicant-data-can-be-removed: a business can delete an applicant's
  *     information (the Terms ask it to act on such a request), only through
  *     the remove-applicant function, which names the actor from the sign-in.
@@ -20,7 +22,8 @@ const ENTITY = "Southern Digital Technologies LLC";
 /** Each call of `fn(` with its object argument, as text (balanced braces). */
 function callsOf(text, fn) {
   const out = [];
-  const re = new RegExp(`\\b${fn}(?:<[^>(]*>)?\\(\\s*\\{`, "g");
+  // Generic type arguments two levels deep (callOpenAIJson<Record<string, unknown>>({, the Phase 5 review).
+  const re = new RegExp(`\\b${fn}(?:<(?:[^<>(]|<(?:[^<>(]|<[^<>(]*>)*>)*>)?\\(\\s*\\{`, "g");
   for (const m of text.matchAll(re)) {
     let depth = 0;
     let i = m.index + m[0].length - 1;
@@ -53,7 +56,20 @@ export default [
         for (const fn of ["callOpenAIChat", "callOpenAIJson", "streamOpenAIChatCompletion"]) {
           for (const call of callsOf(text, fn)) {
             if (!/\bbusiness\s*[:,]/.test(call.body)) detail.push(`${rel}:${call.at}: ${fn} does not say which business the call is for (business: ...)`);
+            else if (/\bbusiness\s*:\s*(null|undefined)\b/.test(call.body)) detail.push(`${rel}:${call.at}: ${fn} names no business (business: null)`);
           }
+        }
+        // Every call made without the helpers, and every direct take from
+        // the budget, names the business too.
+        for (const m of text.matchAll(/\btakeDailyAiBudget\(([^)]*)\)/g)) {
+          if (rel === "supabase/functions/_shared/aiBudget.ts") continue;
+          const args = m[1].split(",").map((a) => a.trim());
+          if (args.length < 2 || !args[1] || /^(null|undefined)$/.test(args[1])) {
+            detail.push(`${rel}:${text.slice(0, m.index).split("\n").length}: takeDailyAiBudget(${m[1]}) does not say which business the call is for`);
+          }
+        }
+        if (/api\.openai\.com/.test(text) && !/takeDailyAiBudget\(/.test(text)) {
+          detail.push(`${rel}: calls OpenAI directly without taking from the daily budget`);
         }
       }
       const openai = (await read("supabase/functions/_shared/openai.ts")) ?? "";
@@ -108,7 +124,17 @@ export default [
         const intro = /intro: \[([\s\S]*?)\],\n  sections:/.exec(block)?.[1] ?? "";
         if (!intro.includes(ENTITY)) detail.push(`legal.ts: ${doc} does not name ${ENTITY} in its opening`);
         if (!/id: "contact",\s*title: "How to reach us",/.test(block)) detail.push(`legal.ts: ${doc} no longer ends with "How to reach us"`);
+        // The company, not the hiring business (the Phase 5 review).
+        const contact = block.slice(block.indexOf('id: "contact"'));
+        if (!/chooses Contact us; a hiring team opens Help/.test(contact)) detail.push(`legal.ts: ${doc}'s "How to reach us" no longer names Contact us (an applicant) and Help (a hiring team)`);
+        if (/write to the hiring team/i.test(block)) detail.push(`legal.ts: ${doc} sends people to the hiring team to reach us; Messages reach the business, not the company`);
       }
+      const help = (await read("src/cockpit/pages/Help.tsx")) ?? "";
+      const header = (await read("src/components/AppHeader.tsx")) ?? "";
+      const layout = (await read("src/components/AppLayout.tsx")) ?? "";
+      if (!/if \(role === "candidate"\) return user!\.id;/.test(help)) detail.push("Help.tsx: an applicant no longer has a thread of their own (Contact us)");
+      if (!/role === "candidate" && \([\s\S]{0,120}navigate\("\/help"\)[\s\S]{0,120}Contact us/.test(header)) detail.push("AppHeader.tsx: the applicant's account menu no longer has Contact us");
+      if (!/"\/help",\n\];/.test(layout)) detail.push("AppLayout.tsx: an applicant can no longer open /help");
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

@@ -192,6 +192,40 @@ check("0. it applies, and applies again", applied);
   check("1b. nobody signed out can ask", !anon.ok || anon.rows[0].s === null, show(anon));
 }
 
+// 1c. Applicants write to HireFlow too (20261025200000_help_for_applicants) ──
+{
+  const applicantSql = await migration(/_help_for_applicants\.sql$/);
+  check("1c. the applicant migration exists exactly once", !!applicantSql);
+  await db.exec(applicantSql);
+  await db.exec(applicantSql);
+  await pg(`delete from public.notifications`);
+  const fromAna = await as(ANA, "authenticated", `select public.send_help_message('Please send me a copy of my information.') as id`);
+  check("1c. an applicant writes to HireFlow (the Privacy Policy sends them here)", fromAna.ok && !!fromAna.rows[0]?.id, show(fromAna));
+  const anaRows = await pg(`select employer_id, author_id from public.help_messages where author_id = $1`, [ANA]);
+  check("1c. …into a thread of her own, never a business's", anaRows.length === 1 && anaRows[0].employer_id === ANA, show(anaRows));
+  const anaReads = await as(ANA, "authenticated", `select count(*)::int n, bool_and(employer_id = $1) mine from public.help_messages`, [ANA]);
+  check("1c. she reads her own thread and nothing else", anaReads.ok && anaReads.rows[0].n === 1 && anaReads.rows[0].mine === true, show(anaReads));
+  const bizReads = await as(LUCKY, "authenticated", `select count(*)::int n from public.help_messages where employer_id = $1`, [ANA]);
+  const teamReadsAna = await as(TESS, "authenticated", `select count(*)::int n from public.help_messages where employer_id = $1`, [ANA]);
+  check("1c. no business and no team member reads it", bizReads.ok && bizReads.rows[0].n === 0 && teamReadsAna.ok && teamReadsAna.rows[0].n === 0, show([bizReads, teamReadsAna]));
+  const bell = await pg(`select user_id, title, message from public.notifications where title = 'New help message'`);
+  check("1c. your bell says an applicant wrote", bell.length === 1 && bell[0].user_id === ZACK && /^Ana \(applicant\): Please send me a copy/.test(bell[0].message), show(bell));
+  const listed = await as(ZACK, "authenticated", `select employer_id, company_name from public.admin_help_threads()`);
+  const anaThread = listed.ok ? listed.rows.find((r) => r.employer_id === ANA) : null;
+  const luckyThread = listed.ok ? listed.rows.find((r) => r.employer_id === LUCKY) : null;
+  check("1c. Admin lists her thread as an applicant's, and businesses by name as before", anaThread?.company_name === "Ana (applicant)" && luckyThread?.company_name === "Lucky Star Support", show(listed));
+  // (Section 1 used up Lucky Star's twenty for today.)
+  await pg(`delete from public.help_messages where employer_id = $1 and not from_admin`, [LUCKY]);
+  const teamStill = await as(TESS, "authenticated", `select public.send_help_message('Still Lucky Star?') as id`);
+  const teamRow = await pg(`select employer_id from public.help_messages where body = 'Still Lucky Star?'`);
+  check("1c. a team member still writes in the business's thread", teamStill.ok && teamRow[0]?.employer_id === LUCKY, show(teamRow));
+  const answer = await as(ZACK, "authenticated", `select public.admin_reply_help($1, 'Here it is.') as id`, [ANA]);
+  const toldAna = await pg(`select user_id, link from public.notifications where title = 'HireFlow replied'`);
+  check("1c. you answer her, and her bell links to Contact us (/help)", answer.ok && toldAna.length === 1 && toldAna[0].user_id === ANA && toldAna[0].link === "/help", show(toldAna));
+  const nobody = await as(null, "anon", `select public.send_help_message('hi')`);
+  check("1c. nobody signed out can write", !nobody.ok, show(nobody));
+}
+
 // 2. A new business joins ───────────────────────────────────────────────────
 {
   await pg(`delete from public.notifications`);

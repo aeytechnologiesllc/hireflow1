@@ -907,6 +907,45 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-25 (early morning) — Phase 4 round 3; Phase 5 Pass C round 1
+
+- **Phase 4, Pass C round 3** (8 findings, all fixed, c1839ab8): role nouns
+  only for main-street titles ("Online Store Chat Agent" is support), a
+  customer word in the work (admin, sales and clinical roles that answer
+  phones keep their family), support managers need a customer-side prefix,
+  technician only after technical/IT support, channel lists with phones are
+  "mixed" and mixed jobs get the call questions and phone guide, "customer
+  service" stays the name of the work in a pack's guide, more colon
+  look-alikes / digits / "No. 4" / small capitals, call-question duplicates
+  need a call. Functions redeployed.
+- **Phase 5, Pass C round 1** (fresh reviewer, 14 findings):
+  1. **Security, fixed first and live:** remove-applicant deleted whatever a
+     document's file address named, so a business could have deleted another
+     business's signed copy. Now documents are found by id only; a teammate
+     only on assigned jobs; the team's notifications about the applicant go;
+     refused files queue for the hourly retry; blocked applicants can be
+     deleted (remove_applicant_review, live 20261025070115; no removal had
+     run before the fix). f860be36.
+  2. Budget accounting: scoring from trigger-ava-analysis now names the
+     application; job-bias bills the checked job; every chat-practice turn
+     bills the applicant's business (empty replies refused); voice sessions
+     name their business; the guard reads nested generics, refuses
+     `business: null`, direct budget takes and raw OpenAI calls; a call the
+     platform refuses gives the business its unit back; 200 practice turns
+     per application per day.
+  3. Refusals: "come back in a few hours" for the day's limit (chat,
+     interview, sales); sales grading stays open instead of "not graded";
+     a refused portfolio analysis records no made-up 60.
+  4. Legal: the contact sections sent privacy requests to the hiring team.
+     Applicants now have **Contact us** (their own Help thread with the
+     company); the policy covers sign-up tags for every account.
+  Left as designed, with the reason: the quiz attempt count stays after a
+  removal (re-applying is not a way to retake the skills check); the
+  business's own uploaded original stays in its folder (other documents may
+  share it); one person with many free accounts can still use up one
+  business's day (the per-application cap raises that to ten applications;
+  email confirmation and Turnstile are the later fix).
+
 ### 2026-10-25 (night) — Phase 4 reviewed and fixed; Phase 5 built
 
 - **Phase 4, Pass C round 1** (fresh reviewer on 90b63ad6, 12 findings):

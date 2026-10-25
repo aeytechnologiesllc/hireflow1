@@ -1,6 +1,6 @@
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SERVICE_DELAY_LINE } from "@/lib/serviceDelay";
+import { SERVICE_DELAY_LINE, SERVICE_DELAY_LONG_LINE } from "@/lib/serviceDelay";
 
 /**
  * The one calm line a conversation test shows while our side cannot answer
@@ -14,16 +14,19 @@ export function ServiceDelayNotice({
   onRetry,
   busy = false,
   disabled = false,
+  long = false,
 }: {
   onRetry: () => void;
   /** The retry is on its way. */
   busy?: boolean;
   /** Nothing to retry yet (the reply box was emptied). */
   disabled?: boolean;
+  /** The day's limit on our side: come back in a few hours, not minutes. */
+  long?: boolean;
 }) {
   return (
     <div role="status" aria-live="polite" className="space-y-2 pt-2 text-center">
-      <p className="text-sm text-muted-foreground">{SERVICE_DELAY_LINE}</p>
+      <p className="text-sm text-muted-foreground">{long ? SERVICE_DELAY_LONG_LINE : SERVICE_DELAY_LINE}</p>
       <Button variant="outline" onClick={onRetry} disabled={busy || disabled} className="gap-2">
         {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />}
         Try again

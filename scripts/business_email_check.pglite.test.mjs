@@ -36,6 +36,9 @@ const NOT_THE_CHECK = {
   "20261025120000_admin_growth_one_role.sql": "the admin growth report, read-only",
   "20261025160000_ai_business_budget.sql": "the AI budget (its own private tables and ai_budget_take), nothing of jobs or profiles",
   "20261025170000_remove_applicant.sql": "deletes applications for their business on request; no job, profile or email-check object",
+  "20261025200000_help_for_applicants.sql": "Help messages from applicants to the platform admin; nothing of jobs, profiles or the email check",
+  "20261025190000_ai_budget_count_only_taken.sql": "the AI budget again (ai_budget_take gives a business its unit back when the platform refuses); nothing of jobs or profiles",
+  "20261025180000_remove_applicant_review.sql": "the same removal, tightened (assigned jobs, documents by id, its notifications, a file retry queue); no job, profile or email-check object",
 };
 const LATER = readdirSync(MIGRATIONS)
   .filter((name) => name.endsWith(".sql") && name >= "20261025100000_business_email_check.sql")

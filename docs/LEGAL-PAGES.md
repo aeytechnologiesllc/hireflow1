@@ -20,11 +20,16 @@ before the site takes on employers other than the owner.
 
 ## The owner's rule
 
-No company name, no postal address, no email address. The way to reach the
-people who run the site is Messages in the account, as everywhere else
-(applicants' emails are no-reply, docs/MESSAGES.md). The test fails on any of
-"LLC", "Inc", "Zulu", "HireFlow", a street address, or anything shaped like
-an email address or a phone number.
+The company is named, Southern Digital Technologies LLC (the owner,
+2026-10-24), and no other; no postal address, no email address until the
+owner gives one (docs/LAUNCH-PLAN.md, Phase 5, owner inputs). The way to
+reach the company is in the account: **Contact us** in an applicant's
+account menu, **Help** for a hiring team (help_messages; the platform admin
+reads it, the hiring business never does;
+`20261025200000_help_for_applicants.sql`). Messages reach the hiring
+business, so the pages never send a privacy request there (the Phase 5
+review). The test fails on any other company name, "Zulu", "HireFlow", a
+street address, or anything shaped like an email address or a phone number.
 
 ## Where each statement was checked
 
@@ -47,7 +52,8 @@ On 2026-10-09, against the repo and the live project.
 | Most things are not deleted on a timer | the only scheduled deletion is `document-cleanup` (below) |
 | Identity papers asked for are deleted 24 hours after someone on the hiring team first opens them, or 7 days after they were sent if nobody does; openings are recorded; no bank numbers asked | `supabase/functions/document-cleanup` (pg_cron `document-cleanup`, every hour since 2026-10-10; `20261011130000_id_papers_deleted_after_opening.sql`), `supabase/functions/requested-document-url`, `src/lib/documentRequests.ts`; re-checked 2026-10-25 (this row said 30 days, the rule before 2026-10-10), see `docs/DOCUMENT-REQUESTS.md` |
 | The company that runs the site | Southern Digital Technologies LLC (the owner, 2026-10-24), named in both openings; 2026-10-25 |
-| A new hiring account keeps the campaign tags it arrived with | `src/hooks/useAuth.tsx` (`signup_source`), read by `admin_growth()`; 2026-10-25 |
+| A new account (hiring or applicant) keeps the campaign tags and the site it arrived from | `src/hooks/useAuth.tsx` (`signup_source`, for every sign-up), read by `admin_growth()`; 2026-10-25 |
+| The way to reach the company is Contact us (an applicant) or Help (a hiring team), never Messages | `src/cockpit/pages/Help.tsx`, `send_help_message` (`20261025200000_help_for_applicants.sql`): the platform admin reads it, the business never does; 2026-10-25 |
 | What Delete Account removes, and what stays | `supabase/functions/delete-account`: not in its list are the quiz attempt ledger, typing-test starts, the block list and error reports |
 | Emails can be turned off; an application can be withdrawn | `src/pages/Settings.tsx`, `src/pages/Applications.tsx` |
 | Free at the moment | billing was removed; no price is shown anywhere |

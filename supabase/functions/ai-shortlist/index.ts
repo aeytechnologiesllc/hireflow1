@@ -513,7 +513,10 @@ serve(async (req) => {
 
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
     if (userError || !user) {
-      throw new Error("Unauthorized");
+      return new Response(JSON.stringify({ error: "Please sign in again." }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     if (!OPENAI_API_KEY) {

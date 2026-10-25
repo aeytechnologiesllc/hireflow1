@@ -3,9 +3,9 @@ import { employerOfApplication } from "../_shared/aiBusiness.ts";
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
-import { aiUnavailableResponse, callOpenAIJson, isAiUnavailable, requireJsonKeys } from "../_shared/openai.ts";
+import { aiUnavailableExtra, aiUnavailableResponse, callOpenAIJson, isAiUnavailable, requireJsonKeys } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
-import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { guardPracticeTurnsForApplication, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { recordStepResult, type MinimalSupabaseAdmin } from "../_shared/trustedResults.ts";
 import {
   afterReplyAskFailed,
@@ -651,7 +651,7 @@ serve(async (req) => {
           // whole conversation, and the page offers to send it again.
           console.warn("[ai-chat-simulation] chat left open, the AI service is unavailable:", error.reason);
           await refuseGradingForOutage(record, session, gate, error.reason);
-          return aiUnavailableResponse(corsHeaders);
+          return aiUnavailableResponse(corsHeaders, aiUnavailableExtra(error));
         }
         if (session && claimed) await failSession(record, session.id, error instanceof Error ? error.message : String(error));
         throw error;
@@ -678,6 +678,9 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      // One application's turns a day, all practices together (_shared/rateLimit.ts).
+      const perApplication = target ? await guardPracticeTurnsForApplication(req, target.applicationId, corsHeaders) : null;
+      if (perApplication) return perApplication;
     }
     // A phone or tablet never starts the chat practice, never opens its
     // attempt and never holds it without a record: a start or a reply goes
@@ -845,15 +848,20 @@ serve(async (req) => {
           }
         }
       } else {
-        notRecorded = "no_message";
-        recording = null;
+        // A reply with no words: never a model call (the page always sends
+        // the applicant's text; the Phase 5 review: an empty reply was a
+        // turn played from the request's own history, counted nowhere).
+        return json({ error: "Type a reply first.", code: "no_message" }, 400);
       }
     }
 
     // For start/respond modes, stream the response
     console.log("Streaming customer response via OpenAI");
-    // The job's business pays for the turn from its daily AI budget (read by the server).
-    const business = recording ? await employerOfApplication(recording.admin, recording.applicationId) : null;
+    // The job's business pays for the turn from its daily AI budget, read by
+    // the server from the applicant's own application (practiceTurnVerdict
+    // checked it is theirs), recorded or not: a busy attempt or a passing
+    // database error is still the business's turn (the Phase 5 review).
+    const business = target ? await employerOfApplication(recording?.admin ?? recordClient(), target.applicationId) : null;
     let response: Response;
     try {
       response = await streamOpenAIChatCompletion({
@@ -877,10 +885,10 @@ serve(async (req) => {
         const failure = await afterReplyAskFailed(recording.admin, recording.session.id, { held, replyId, error });
         if (failure === "ai_unavailable") {
           console.warn("[ai-chat-simulation] no reply, the AI service is unavailable:", isAiUnavailable(error) ? error.reason : "");
-          return aiUnavailableResponse(corsHeaders, mode === "respond" ? { turnSaved: !held } : {});
+          return aiUnavailableResponse(corsHeaders, { ...aiUnavailableExtra(error), ...(mode === "respond" ? { turnSaved: !held } : {}) });
         }
       } else if (isAiUnavailable(error)) {
-        return aiUnavailableResponse(corsHeaders);
+        return aiUnavailableResponse(corsHeaders, aiUnavailableExtra(error));
       }
       throw error;
     }

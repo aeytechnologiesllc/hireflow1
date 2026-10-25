@@ -31,6 +31,21 @@
 export const SERVICE_DELAY_LINE =
   "We're having a short delay on our side. Your answers are saved. Please try again in a couple of minutes.";
 
+/**
+ * The line while the day's limit on our side is reached (a business's daily
+ * allowance of tests, or the platform's: it comes back at midnight UTC, the
+ * morning in the Philippines). The server marks it `wait: "long"`
+ * (_shared/openai.ts aiUnavailableExtra); "a couple of minutes" would send
+ * people back again and again for hours (the Phase 5 review).
+ */
+export const SERVICE_DELAY_LONG_LINE =
+  "We're having a delay on our side. Your answers are saved. Please come back in a few hours to carry on.";
+
+/** A delay that lasts hours, not minutes (the server's `wait: "long"`). */
+export function isLongServiceDelay(body: unknown): boolean {
+  return !!body && typeof body === "object" && (body as Record<string, unknown>).wait === "long";
+}
+
 /** The test function's answer while the AI service refuses. */
 export function isServiceDelay(status: number, body: unknown): boolean {
   if (status !== 503 || !body || typeof body !== "object") return false;
@@ -42,10 +57,13 @@ export function isServiceDelay(status: number, body: unknown): boolean {
 export class ServiceDelayError extends Error {
   /** The message the page sent is already on the server's record (it stays on screen). */
   readonly turnSaved: boolean;
+  /** Hours, not minutes: the day's limit (SERVICE_DELAY_LONG_LINE). */
+  readonly long: boolean;
 
   constructor(body: unknown) {
     super("ai_unavailable");
     this.name = "ServiceDelayError";
     this.turnSaved = !!body && typeof body === "object" && (body as Record<string, unknown>).turnSaved === true;
+    this.long = isLongServiceDelay(body);
   }
 }

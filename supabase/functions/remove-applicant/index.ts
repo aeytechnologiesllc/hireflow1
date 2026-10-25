@@ -15,11 +15,19 @@
  * same person still uses. Requested ID papers are queued for deletion by the
  * database itself (document_requests_trash_file). The applicant's own
  * account is untouched.
+ *
+ * Only files this function can tie to the applicant are deleted: their own
+ * folders, the application's own recordings, and the copies kept for each of
+ * its documents (documents/<document id>/). Never a path the business wrote
+ * itself (a document's file address): that once let one business delete
+ * another's signed copy (the Phase 5 review). A file storage will not delete
+ * now is queued in storage_file_trash, which document-cleanup retries every
+ * hour (20261025180000).
  */
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { requireSignedInUser } from "../_shared/signedInUser.ts";
-import { resumeFilesToRemove, storagePathIn } from "./files.ts";
+import { documentIdsOf, resumeFilesToRemove } from "./files.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,21 +42,30 @@ function json(body: Record<string, unknown>, status = 200): Response {
 
 type Storage = ReturnType<typeof createClient>["storage"];
 
-async function removeAll(storage: Storage, bucket: string, paths: string[]): Promise<number> {
+/** A file, or a folder and name prefix, that storage would not delete yet. */
+type Leftover = { bucket: string; path?: string; folder?: string; starts_with?: string };
+
+async function removeAll(storage: Storage, bucket: string, paths: string[], leftovers: Leftover[]): Promise<number> {
   const unique = [...new Set(paths.filter(Boolean))];
   let removed = 0;
   for (let i = 0; i < unique.length; i += 100) {
-    const { data, error } = await storage.from(bucket).remove(unique.slice(i, i + 100));
-    if (error) console.warn(`[remove-applicant] ${bucket}: ${error.message}`);
+    const batch = unique.slice(i, i + 100);
+    const { data, error } = await storage.from(bucket).remove(batch);
+    if (error) {
+      console.warn(`[remove-applicant] ${bucket}: ${error.message}`);
+      leftovers.push(...batch.map((path) => ({ bucket, path })));
+      continue;
+    }
     removed += data?.length ?? 0;
   }
   return removed;
 }
 
-async function listNames(storage: Storage, bucket: string, folder: string, startsWith = ""): Promise<string[]> {
+async function listNames(storage: Storage, bucket: string, folder: string, startsWith: string, leftovers: Leftover[]): Promise<string[]> {
   const { data, error } = await storage.from(bucket).list(folder, { limit: 1000, ...(startsWith ? { search: startsWith } : {}) });
   if (error) {
     console.warn(`[remove-applicant] could not list ${bucket}/${folder}: ${error.message}`);
+    leftovers.push({ bucket, folder, ...(startsWith ? { starts_with: startsWith } : {}) });
     return [];
   }
   return (data ?? []).map((o) => o.name).filter((name) => typeof name === "string" && name.startsWith(startsWith)).map((name) => `${folder}/${name}`);
@@ -90,28 +107,33 @@ serve(async (req) => {
   }
 
   // The application is gone; the files follow, as far as storage allows. A
-  // file that cannot be deleted now is logged, never a reason to undo.
+  // file that cannot be deleted now is queued for the hourly retry, never a
+  // reason to undo.
   const candidateId = String(result.candidate_id ?? "");
   const storage = admin.storage;
+  const leftovers: Leftover[] = [];
   let removedFiles = 0;
   try {
     if (UUID.test(candidateId)) {
-      removedFiles += await removeAll(storage, "videos", await listNames(storage, "videos", candidateId, `${applicationId}-`));
-      removedFiles += await removeAll(storage, "portfolios", await listNames(storage, "portfolios", candidateId, `${applicationId}-`));
-      removedFiles += await removeAll(storage, "resumes", resumeFilesToRemove(candidateId, result.resume_url, result.notes, String(result.other_refs ?? "")));
+      removedFiles += await removeAll(storage, "videos", await listNames(storage, "videos", candidateId, `${applicationId}-`, leftovers), leftovers);
+      removedFiles += await removeAll(storage, "portfolios", await listNames(storage, "portfolios", candidateId, `${applicationId}-`, leftovers), leftovers);
+      removedFiles += await removeAll(storage, "resumes", resumeFilesToRemove(candidateId, result.resume_url, result.notes, String(result.other_refs ?? "")), leftovers);
     }
-    removedFiles += await removeAll(storage, "voice-interview-recordings", await listNames(storage, "voice-interview-recordings", applicationId));
-    const documents = Array.isArray(result.documents) ? (result.documents as Array<{ id?: unknown; file?: unknown }>) : [];
+    removedFiles += await removeAll(storage, "voice-interview-recordings", await listNames(storage, "voice-interview-recordings", applicationId, "", leftovers), leftovers);
+    const documents = Array.isArray(result.documents) ? (result.documents as Array<{ id?: unknown }>) : [];
     const documentFiles: string[] = [];
-    for (const doc of documents) {
-      const file = storagePathIn(doc.file, "documents");
-      if (file) documentFiles.push(file);
-      if (typeof doc.id === "string" && UUID.test(doc.id)) documentFiles.push(...(await listNames(storage, "documents", `documents/${doc.id}`)));
-    }
-    removedFiles += await removeAll(storage, "documents", documentFiles);
+    for (const id of documentIdsOf(documents)) documentFiles.push(...(await listNames(storage, "documents", `documents/${id}`, "", leftovers)));
+    removedFiles += await removeAll(storage, "documents", documentFiles, leftovers);
   } catch (e) {
     console.warn("[remove-applicant] some files were not removed:", e instanceof Error ? e.message : String(e));
   }
 
-  return json({ ok: true, removedFiles });
+  let filesQueued = 0;
+  if (leftovers.length > 0) {
+    const { error: queueError } = await admin.from("storage_file_trash").insert(leftovers.map((l) => ({ ...l, application_id: applicationId })));
+    if (queueError) console.error(`[remove-applicant] could not queue ${leftovers.length} files for the retry:`, queueError.message);
+    else filesQueued = leftovers.length;
+  }
+
+  return json({ ok: true, removedFiles, filesQueued });
 });

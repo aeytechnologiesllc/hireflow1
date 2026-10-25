@@ -69,6 +69,8 @@ const CANDIDATE_ALLOWED_PATH_PREFIXES = [
   "/notifications",
   "/settings",
   "/profile",
+  // Contact us: an applicant's own thread with the company (Help).
+  "/help",
 ];
 
 function isAllowedCandidatePath(pathname: string) {

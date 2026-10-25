@@ -200,6 +200,7 @@ await db.exec(`
   update public.app_settings set value = '1000'::jsonb where key = 'ai_daily_call_cap';
 `);
 await db.exec(read("supabase/migrations/20261025160000_ai_business_budget.sql"));
+await db.exec(read("supabase/migrations/20261025190000_ai_budget_count_only_taken.sql"));
 const b_bcap = await db.query(`select value #>> '{}' as v from public.app_settings where key = 'ai_business_daily_call_cap'`);
 check("a business's budget starts at 2,000 calls a day", b_bcap.rows[0]?.v === "2000");
 await db.exec(`update public.app_settings set value = '3'::jsonb where key = 'ai_business_daily_call_cap'`);
@@ -223,6 +224,12 @@ await db.exec(`update public.app_settings set value = '15'::jsonb where key = 'a
 const b_platform = [];
 for (let i = 0; i < 6; i += 1) b_platform.push(await b_take(null));
 check("the platform budget still refuses past its ceiling", JSON.stringify(b_platform) === JSON.stringify([true, true, true, true, false, false]), JSON.stringify(b_platform));
+// The Phase 5 review: a call the platform refused still counted against the business.
+const b_otherBefore = (await db.query(`select calls from private.ai_business_daily_usage where business_id = '${B_OTHER}'`)).rows[0]?.calls;
+const b_otherRefused = await b_take(B_OTHER);
+const b_otherAfter = (await db.query(`select calls from private.ai_business_daily_usage where business_id = '${B_OTHER}'`)).rows[0]?.calls;
+check("a call the platform budget refuses is refused, and the business gets its unit back", b_otherRefused === false && b_otherBefore === 1 && b_otherAfter === 1, `${b_otherRefused} ${b_otherBefore} -> ${b_otherAfter}`);
+check("…so it never sets off the business's own alert", (await db.query(`select count(*)::int as n from public.notifications where title like 'A business reached%' and message like '%${B_OTHER}%'`)).rows[0].n === 0);
 const b_titles = (await db.query(`select title from public.notifications where user_id = '${B_OWNER}' order by created_at`)).rows.map((r) => r.title);
 check("the owner is told once at 80% and once when it is used up", b_titles.filter((t) => /80% of today/.test(t)).length === 1 && b_titles.filter((t) => /budget is used up/.test(t)).length === 1, JSON.stringify(b_titles));
 let b_directBlocked = false;

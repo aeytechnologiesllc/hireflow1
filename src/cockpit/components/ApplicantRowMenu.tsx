@@ -292,8 +292,10 @@ export function applicantMenuItems({
   if (!canDecide) return items;
   if (onSelect && !(blocked && closed)) items.push({ key: "select", label: "Select", icon: <CheckSquare aria-hidden className="h-4 w-4 shrink-0" />, onSelect });
   const unblock: ApplicantMenuItem = { key: "unblock", label: "Unblock", icon: <RotateCcw aria-hidden className="h-4 w-4 shrink-0" />, onSelect: () => onRequest({ kind: "unblock", target }) };
+  const deleteItem: ApplicantMenuItem = { key: "delete", label: "Delete their information", icon: <Trash2 aria-hidden className="h-4 w-4 shrink-0" />, danger: true, onSelect: () => onRequest({ kind: "delete", target }) };
   if (blocked && closed) {
-    items.push(unblock);
+    // A blocked person can still ask for their information to be deleted.
+    items.push(unblock, deleteItem);
     return items;
   }
   // The shortlist is the people still in the running: not offered on someone
@@ -315,7 +317,7 @@ export function applicantMenuItems({
   }
   items.push({ key: "block", label: "Remove and block", icon: <Ban aria-hidden className="h-4 w-4 shrink-0" />, danger: true, onSelect: () => onRequest({ kind: "block", targets: [target] }) });
   if (blocked) items.push(unblock);
-  items.push({ key: "delete", label: "Delete their information", icon: <Trash2 aria-hidden className="h-4 w-4 shrink-0" />, danger: true, onSelect: () => onRequest({ kind: "delete", target }) });
+  items.push(deleteItem);
   return items;
 }
 
@@ -416,7 +418,7 @@ export function ApplicantActionDialogs({
       <ActionDialog
         open
         title={`Delete ${who}'s information?`}
-        description={`This deletes ${who}'s application to this job for good: their answers, test results, notes, interview, documents and the files they sent. Their messages stay in Messages, and their own account is not touched. Use this when they ask you to delete their information. It cannot be undone.`}
+        description={`This deletes ${who}'s application to this job for good: their answers, test results, notes, interview, documents and the files they sent. Their messages stay in Messages, the signing record of any document they signed is kept, and their own account is not touched. Use this when they ask you to delete their information. It cannot be undone.`}
         confirmLabel="Delete for good"
         tone="danger"
         busy={busy}

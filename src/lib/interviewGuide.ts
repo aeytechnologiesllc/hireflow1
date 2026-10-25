@@ -350,9 +350,13 @@ const SUPPORT_PHONE_PLAN: InterviewPlan = {
 function withSupportNoun(plan: InterviewPlan, noun: string | null | undefined): InterviewPlan {
   const word = typeof noun === "string" ? noun.trim().toLowerCase() : "";
   if (!word || word === "customer" || !/^[a-z]{3,20}$/.test(word)) return plan;
+  // "customer service" stays the name of the work ("your most recent
+  // customer service job", not "patient service job"; the third Phase 4
+  // review), and the question about their last job keeps its customers.
   const swap = (text: string) =>
-    text.replace(/\b(C|c)ustomers\b/g, (_m, c: string) => (c === "C" ? word[0].toUpperCase() + word.slice(1) : word) + "s").replace(/\b(C|c)ustomer\b/g, (_m, c: string) => (c === "C" ? word[0].toUpperCase() + word.slice(1) : word));
-  const q = (question: GuideQuestion): GuideQuestion => ({ ...question, question: swap(question.question), listenFor: swap(question.listenFor), redFlag: swap(question.redFlag) });
+    text.replace(/\b([Cc])ustomer(s?)\b(?!\s+(service|support|care|success|experience)\b)/g, (_m, c: string, plural: string) => (c === "C" ? word[0].toUpperCase() + word.slice(1) : word) + plural);
+  const q = (question: GuideQuestion): GuideQuestion =>
+    question.id === "recent_support" ? question : { ...question, question: swap(question.question), listenFor: swap(question.listenFor), redFlag: swap(question.redFlag) };
   return { ...plan, opener: q(plan.opener), core: plan.core.map(q), close: plan.close.map(q), alreadyAsked: plan.alreadyAsked.map(swap), verdict: swap(plan.verdict) };
 }
 
@@ -390,7 +394,9 @@ export function interviewPlanFor(
   options: { homeBusiness?: boolean; customerService?: { channel: string | null; noun?: string | null } | null } = {},
 ): InterviewPlan {
   if (options.customerService && family !== "team_lead") {
-    const plan = options.customerService.channel === "phone" ? SUPPORT_PHONE_PLAN : SUPPORT_PLAN;
+    // A job with phones among its channels ("mixed") is a phone job for the call.
+    const channel = options.customerService.channel;
+    const plan = channel === "phone" || channel === "mixed" ? SUPPORT_PHONE_PLAN : SUPPORT_PLAN;
     return withSupportNoun(plan, options.customerService.noun);
   }
   if (family !== "team_lead") return GENERAL_PLAN;

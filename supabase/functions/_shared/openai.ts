@@ -180,14 +180,37 @@ export function aiUnavailableBody(extra: Record<string, unknown> = {}): Record<s
 }
 
 export function aiUnavailableResponse(corsHeaders: Record<string, string>, extra: Record<string, unknown> = {}): Response {
-  return new Response(JSON.stringify(aiUnavailableBody(extra)), {
+  const body = aiUnavailableBody(extra);
+  return new Response(JSON.stringify(body), {
     status: 503,
     headers: {
       ...corsHeaders,
       "Content-Type": "application/json",
-      "Retry-After": String(AI_UNAVAILABLE_RETRY_AFTER_SECONDS),
+      "Retry-After": String(body.retryAfterSeconds ?? AI_UNAVAILABLE_RETRY_AFTER_SECONDS),
     },
   });
+}
+
+/** The one sentence while the day's limit is reached (src/lib/serviceDelay.ts SERVICE_DELAY_LONG_LINE). */
+export const AI_BUDGET_WAIT_MESSAGE =
+  "We're having a delay on our side. Your answers are saved. Please come back in a few hours to carry on.";
+
+/** Seconds until the next midnight UTC, when the daily budgets start again (at least a minute). */
+export function secondsToNextUtcDay(now: number = Date.now()): number {
+  const d = new Date(now);
+  const next = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
+  return Math.max(60, Math.ceil((next - now) / 1000));
+}
+
+/**
+ * The extra fields of an applicant's 503 for this refusal: the day's budget
+ * (a business's own, or the platform's) lasts until midnight UTC, so the page
+ * says to come back in a few hours (`wait: "long"`), not in a couple of
+ * minutes (the Phase 5 review). Any other refusal adds nothing.
+ */
+export function aiUnavailableExtra(error: unknown, now: number = Date.now()): Record<string, unknown> {
+  if (!isAiUnavailable(error) || error.reason !== "budget_reached") return {};
+  return { wait: "long", retryAfterSeconds: secondsToNextUtcDay(now), message: AI_BUDGET_WAIT_MESSAGE };
 }
 
 function sleep(ms: number) {

@@ -14,7 +14,19 @@ import { trustApi, trustErrorWords, type HelpMessage } from "@/lib/trustApi";
  * for what new businesses ask first. The thread is the business's own
  * (help_messages: the business and the platform admin read it; writes go
  * through send_help_message). The "account paused" alert links here.
+ *
+ * An applicant has a thread of their own here too ("Contact us" in their
+ * account menu) (2026-10-25,
+ * 20261025200000_help_for_applicants.sql): the Privacy Policy sends them
+ * here to ask the company for a copy of their information, a correction or
+ * a deletion. The hiring business never sees it.
  */
+
+const APPLICANT_QUICK_ANSWERS: ReadonlyArray<{ q: string; a: string }> = [
+  { q: "How do I get a copy of my information?", a: "Ask here. We answer here, usually within a day." },
+  { q: "How do I delete my account?", a: "Settings, then Delete Account. Your applications and files go with it." },
+  { q: "Something about a job looks wrong?", a: "Report the job from its page, or tell us here." },
+];
 
 const QUICK_ANSWERS: ReadonlyArray<{ q: string; a: string }> = [
   { q: "How do I share my job?", a: "Jobs, then Share. Copy the full post and paste it anywhere." },
@@ -30,7 +42,7 @@ function when(iso: string): string {
     : d.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-/** The business whose thread this is: the owner's own, or the team's. */
+/** Whose thread this is: the business's (the owner's own, or the team's), or an applicant's own. */
 function useHelpBusiness(): string | null {
   const { user, role, isTeamMember } = useAuth();
   const { data } = useQuery({
@@ -39,6 +51,7 @@ function useHelpBusiness(): string | null {
     staleTime: 10 * 60_000,
     queryFn: async () => {
       if (role === "employer" && !isTeamMember) return user!.id;
+      if (role === "candidate") return user!.id;
       const { data: row } = await supabase.from("team_members").select("employer_id").eq("user_id", user!.id).eq("status", "active").limit(1).maybeSingle();
       return (row?.employer_id as string | undefined) ?? null;
     },
@@ -48,6 +61,8 @@ function useHelpBusiness(): string | null {
 
 export default function CockpitHelp() {
   const business = useHelpBusiness();
+  const { role } = useAuth();
+  const applicant = role === "candidate";
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -88,7 +103,10 @@ export default function CockpitHelp() {
 
   return (
     <div className="space-y-5" data-help-page>
-      <PageHeader title="Help" subtitle="Write to HireFlow. We usually reply within a day." />
+      <PageHeader
+        title={applicant ? "Contact us" : "Help"}
+        subtitle={applicant ? "Write to the company that runs HireFlow. The business you applied to does not see this." : "Write to HireFlow. We usually reply within a day."}
+      />
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,320px)] md:items-start">
         <section className="ck-card p-4 md:p-5" aria-labelledby="help-thread-title">
           <h2 id="help-thread-title" className="font-display text-[20px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
@@ -104,7 +122,9 @@ export default function CockpitHelp() {
             </div>
           ) : (thread ?? []).length === 0 ? (
             <p className="mt-2 text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
-              Ask anything about hiring on HireFlow. Your messages and our answers stay here.
+              {applicant
+                ? "Ask about your information: a copy of it, a correction, or deleting it. Your messages and our answers stay here."
+                : "Ask anything about hiring on HireFlow. Your messages and our answers stay here."}
             </p>
           ) : (
             <div className="mt-3 flex max-h-[420px] flex-col gap-2.5 overflow-y-auto pr-1" data-help-thread>
@@ -155,7 +175,7 @@ export default function CockpitHelp() {
           </div>
         </section>
         <aside className="flex flex-col gap-2.5" aria-label="Quick answers">
-          {QUICK_ANSWERS.map((item) => (
+          {(applicant ? APPLICANT_QUICK_ANSWERS : QUICK_ANSWERS).map((item) => (
             <div key={item.q} className="ck-card px-4 py-3">
               <div className="text-[14px] font-medium" style={{ color: "var(--hf-text)" }}>{item.q}</div>
               <div className="mt-0.5 text-[12.5px] leading-[1.5]" style={{ color: "var(--hf-text-muted)" }}>{item.a}</div>

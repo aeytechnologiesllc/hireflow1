@@ -1,8 +1,8 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { type OpenAIMessage } from "../_shared/openai.ts";
+import { aiUnavailableExtra, aiUnavailableResponse, isAiUnavailable, type OpenAIMessage } from "../_shared/openai.ts";
 import { streamOpenAIChatCompletion } from "../_shared/openaiStreaming.ts";
-import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+import { guardPracticeTurnsForApplication, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { computerRequiredBody, deviceKindOfRequest, needsComputer } from "../_shared/deviceKind.ts";
 import { computerOnlyGate, reasonFromError, recordingTargetFrom, type AssessmentAdmin } from "../_shared/assessmentSession.ts";
@@ -137,6 +137,9 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
+      // One application's turns a day, all practices together (_shared/rateLimit.ts).
+      const perApplication = target ? await guardPracticeTurnsForApplication(req, target.applicationId, corsHeaders) : null;
+      if (perApplication) return perApplication;
       // This function records nothing and builds its prompt from the request,
       // so the step must be a sales practice on the applicant's own job and
       // the case must be one of that step's own (or the built-in three when
@@ -303,6 +306,9 @@ Respond as ${prospectName} from ${prospectCompany}. This is message #${messageCo
     });
 
   } catch (error) {
+    // The service refused, or the day's AI budget is reached: the calm 503
+    // the other practices answer (the Phase 5 review: a 500).
+    if (isAiUnavailable(error)) return aiUnavailableResponse(corsHeaders, aiUnavailableExtra(error));
     console.error("Error in ai-sales-simulation:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
