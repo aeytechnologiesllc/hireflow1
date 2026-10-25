@@ -11,8 +11,63 @@
  * enough that the real hooks resolve believable data without throwing.
  */
 
+import { EVALUATION_FIELDS } from "@/lib/applicationEvaluation";
+
 export type FixtureRow = Record<string, unknown>;
 export type FixtureTables = Record<string, FixtureRow[]>;
+
+/**
+ * The hiring team's evaluation lives in its own table
+ * (supabase/migrations/20261025230000_application_evaluations.sql), and this
+ * stand-in database keeps it there the way the real one does:
+ *  - the fixtures (and every write the app makes) put the five on the
+ *    application; they are moved into `application_evaluations` and the
+ *    application keeps NULL, as the migration's backfill and triggers do
+ *    (a write moves exactly the fields it names, NULL included);
+ *  - a select on applications that embeds `application_evaluations(...)`
+ *    gets the one-to-one embed (an object, or null);
+ *  - applications_staff_list gets the five joined back on, as the view does.
+ * So every staff screen reads its scores through the same path it uses live.
+ */
+const EVALUATIONS = "application_evaluations";
+
+function evaluationRowFor(tables: FixtureTables, applicationId: unknown): FixtureRow | undefined {
+  return (tables[EVALUATIONS] ?? []).find((e) => e.application_id === applicationId);
+}
+
+/** Files `values` (the fields named, NULL included) under the application's evaluation. */
+function fileEvaluation(tables: FixtureTables, applicationId: unknown, values: FixtureRow): void {
+  if (typeof applicationId !== "string" || Object.keys(values).length === 0) return;
+  const list = (tables[EVALUATIONS] ??= []);
+  const now = new Date().toISOString();
+  const existing = list.find((e) => e.application_id === applicationId);
+  if (existing) Object.assign(existing, values, { updated_at: now });
+  else list.push({ application_id: applicationId, ...Object.fromEntries(EVALUATION_FIELDS.map((f) => [f, null])), ...values, updated_at: now });
+}
+
+/** The five fields `row` names (only those it has), taken off it. */
+function takeEvaluationFields(row: FixtureRow, onlyValues: boolean): FixtureRow {
+  const taken: FixtureRow = {};
+  for (const field of EVALUATION_FIELDS) {
+    if (!(field in row)) continue;
+    const value = row[field];
+    if (!onlyValues || (value !== null && value !== undefined)) taken[field] = value ?? null;
+    row[field] = null;
+  }
+  return taken;
+}
+
+/** What the fixtures put on applications moves to the evaluations (the backfill). */
+function settleEvaluations(tables: FixtureTables): void {
+  for (const application of tables.applications ?? []) {
+    if (!EVALUATION_FIELDS.some((f) => application[f] !== null && application[f] !== undefined)) continue;
+    fileEvaluation(tables, application.id, takeEvaluationFields(application, true));
+  }
+}
+
+function pickEvaluation(row: FixtureRow | undefined): FixtureRow | null {
+  return row ? Object.fromEntries(EVALUATION_FIELDS.map((f) => [f, row[f] ?? null])) : null;
+}
 
 export interface FixtureAuthUser {
   id: string;
@@ -82,16 +137,21 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
   private orderAsc = true;
   private limitN: number | null = null;
   private mutation: { type: "insert" | "update" | "upsert" | "delete"; payload?: unknown } | null = null;
+  /** The select's column list, read only for the evaluation embed. */
+  private columns = "";
 
   constructor(
     private readonly table: string,
     private readonly tables: FixtureTables,
     private readonly refuseWrite?: FixtureClientOptions["refuseWrite"],
+    /** The name the app asked for (a view's own name, before VIEW_OF). */
+    private readonly requested: string = table,
   ) {
     if (!this.tables[table]) this.tables[table] = [];
   }
 
-  select(_columns?: string, opts?: { count?: "exact" | "planned" | "estimated" }) {
+  select(columns?: string, opts?: { count?: "exact" | "planned" | "estimated" }) {
+    if (typeof columns === "string") this.columns = columns;
     if (opts?.count) this.countMode = opts.count;
     return this;
   }
@@ -160,7 +220,21 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
     );
   }
 
+  /** A read of applications as the real database answers it: the five
+   *  joined back on (the staff view) or embedded (when the select asks). */
+  private withEvaluations(rows: FixtureRow[]): FixtureRow[] {
+    if (this.table !== "applications") return rows;
+    if (this.requested === "applications_staff_list") {
+      return rows.map((row) => ({ ...row, ...(pickEvaluation(evaluationRowFor(this.tables, row.id)) ?? Object.fromEntries(EVALUATION_FIELDS.map((f) => [f, null]))) }));
+    }
+    if (this.columns.includes(EVALUATIONS)) {
+      return rows.map((row) => ({ ...row, [EVALUATIONS]: pickEvaluation(evaluationRowFor(this.tables, row.id)) }));
+    }
+    return rows;
+  }
+
   private execute(): PostgrestResult {
+    settleEvaluations(this.tables);
     const store = this.tables[this.table];
 
     if (this.mutation) {
@@ -168,6 +242,11 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
       if (this.mutation.type === "delete") {
         const removed = this.applyFilters(store);
         this.tables[this.table] = store.filter((r) => !removed.includes(r));
+        // An application's evaluation goes with it (ON DELETE CASCADE).
+        if (this.table === "applications" && this.tables[EVALUATIONS]) {
+          const gone = new Set(removed.map((r) => r.id));
+          this.tables[EVALUATIONS] = this.tables[EVALUATIONS].filter((e) => !gone.has(e.application_id));
+        }
         return { data: removed, error: null };
       }
       const incoming = Array.isArray(this.mutation.payload) ? this.mutation.payload : [this.mutation.payload];
@@ -177,10 +256,17 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
         if (refused) return { data: null, error: refused };
       }
       const written: FixtureRow[] = [];
-      for (const payload of incoming as FixtureRow[]) {
+      const isApplications = this.table === "applications";
+      for (const sent of incoming as FixtureRow[]) {
+        // An application's write files the evaluation fields it names under
+        // application_evaluations (NULL included), as the real triggers do.
+        const payload: FixtureRow = isApplications ? { ...sent } : sent;
+        // (takeEvaluationFields leaves those fields NULL on the application.)
+        const evaluation = isApplications ? takeEvaluationFields(payload, false) : {};
         if (this.mutation.type === "insert") {
           const row: FixtureRow = { id: randomId(), created_at: now, updated_at: now, ...payload };
           store.push(row);
+          if (isApplications) fileEvaluation(this.tables, row.id, Object.fromEntries(Object.entries(evaluation).filter(([, v]) => v !== null)));
           written.push(row);
           continue;
         }
@@ -192,10 +278,12 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
         if (targets.length === 0 && this.mutation.type === "upsert") {
           const row: FixtureRow = { id: payload.id ?? randomId(), created_at: now, updated_at: now, ...payload };
           store.push(row);
+          if (isApplications) fileEvaluation(this.tables, row.id, evaluation);
           written.push(row);
         } else {
           for (const target of targets) {
             Object.assign(target, payload, { updated_at: now });
+            if (isApplications) fileEvaluation(this.tables, target.id, evaluation);
             written.push(target);
           }
         }
@@ -204,7 +292,9 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
       return { data, error: this.singleMode && !written[0] ? { message: "Row not found", code: "PGRST116" } : null };
     }
 
-    let rows = this.applyFilters(store);
+    // The staff view's rows carry the five, so its filters and order see them.
+    const staffView = this.table === "applications" && this.requested === "applications_staff_list";
+    let rows = this.applyFilters(staffView ? this.withEvaluations(store) : store);
     if (this.orderCol) {
       const col = this.orderCol;
       rows = [...rows].sort((a, b) => {
@@ -215,6 +305,7 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
       });
     }
     if (this.limitN != null) rows = rows.slice(0, this.limitN);
+    if (!staffView) rows = this.withEvaluations(rows);
 
     if (this.singleMode) {
       return rows[0]
@@ -333,8 +424,10 @@ export function createFixtureSupabaseClient(opts: FixtureClientOptions) {
       // Views that are a table's own rows read that table here, so they stay
       // in step with its writes. applications_staff_list is applications
       // with the notes' server-only parts left out (migration
-      // 20261011201000); the fixtures never had those parts.
-      return new FixtureQueryBuilder(VIEW_OF[table] ?? table, opts.tables, opts.refuseWrite);
+      // 20261011201000); the fixtures never had those parts. Since
+      // 20261025230000 it also joins the hiring team's evaluation back on,
+      // which the builder does when it knows the view was asked for.
+      return new FixtureQueryBuilder(VIEW_OF[table] ?? table, opts.tables, opts.refuseWrite, table);
     },
     rpc(name: string, args?: unknown) {
       const handler = opts.rpc?.[name];

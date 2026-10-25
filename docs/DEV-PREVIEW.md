@@ -183,7 +183,17 @@ disagree, trust the code.
   `.insert`/`.update`/`.upsert`/`.delete` that mutate the in-memory tables for
   that tab's session only) and ignores `select("...")` column lists — it
   always returns full fixture rows, with relations like `jobs(*)` pre-baked
-  onto the row rather than parsed from the select string.
+  onto the row rather than parsed from the select string. One exception, so
+  the staff screens read Ava's score and read the way they do live: the
+  hiring team's evaluation (`ai_score`, `ai_analysis`, `ai_scorecard`,
+  `phase_ai_analysis`, `employer_notes`) is kept in an
+  `application_evaluations` table, as in the real database since
+  2026-10-25. The fixtures still put the five on the application; the
+  stand-in moves them (as the migration's backfill and triggers do), leaves
+  the application NULL, joins them back on for `applications_staff_list`, and
+  answers an embedded `application_evaluations(...)` with the one-to-one
+  object. A write through `applications` files the fields it names. Proved by
+  `scripts/dev_preview_evaluations.test.mjs` for every scenario.
 - Not a replacement for `npm run dev` against the real backend, or for
   actually signing in — it is for the one thing sign-in is unavailable for:
   a quick, faithful look at a signed-in screen.
@@ -197,6 +207,9 @@ disagree, trust the code.
 - `scripts/dev_preview_prod_bundle.test.mjs` — slow, definitive: actually
   runs `vite build` and greps the output for every dev-preview marker and
   fixture-only string, proving the harness is absent from what ships.
+- `scripts/dev_preview_evaluations.test.mjs` — the stand-in database keeps
+  the hiring team's evaluation in its own table: every scenario's scores come
+  out of the staff view and the embed, never off the application row.
 - `scripts/dev_preview_smoke.test.mjs` — runs `vite dev` on port `5390` and
   does a headless fetch of the dev-preview files' module graph (and the real
   page component behind every screen above), breadth-first through
