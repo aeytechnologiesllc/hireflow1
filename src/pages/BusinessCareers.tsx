@@ -9,6 +9,7 @@ import { businessSlugFromParam, jobPagePath } from "@/lib/jobSlug";
 import { CAREERS_PATH } from "@/lib/hosts";
 import { payWords } from "@/lib/jobPost";
 import { rememberBusiness } from "@/lib/openRoles";
+import { HIRING_LINK_WORDS, hiringLink } from "@/lib/hiringLink";
 
 /**
  * A business's careers page: hireflownow.com/c/<business> (docs/BUSINESS-TRUST.md,
@@ -156,7 +157,12 @@ export default function BusinessCareers() {
           )}
         </section>
 
-        <footer className="mt-10 text-xs text-muted-foreground">Hiring with HireFlow</footer>
+        <footer className="mt-10 text-xs text-muted-foreground">
+          Hiring with HireFlow.{" "}
+          <a href={hiringLink("careers_page")} className="underline underline-offset-2 hover:text-foreground">
+            {HIRING_LINK_WORDS}
+          </a>
+        </footer>
       </div>
     </main>
   );

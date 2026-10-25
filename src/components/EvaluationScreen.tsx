@@ -5,6 +5,7 @@ import { StaggeredBarsLoader } from "@/components/animations/StaggeredBarsLoader
 import { MilestoneAnimation } from "@/components/animations/MilestoneAnimation";
 import { EmpathyAnimation } from "@/components/animations/EmpathyAnimation";
 import { FloatingParticles, GradientOrbs } from "@/components/animations/FloatingParticles";
+import { HIRING_LINK_WORDS, hiringLink } from "@/lib/hiringLink";
 
 interface EvaluationScreenProps {
   /**
@@ -137,6 +138,11 @@ export function EvaluationScreen({
               <Button onClick={onDoLater} className="w-full gap-2" size="lg">
                 Back to my application
               </Button>
+              <p className="mt-4 text-center text-xs text-muted-foreground">
+                <a href={hiringLink("application_done")} className="underline underline-offset-2 hover:text-foreground">
+                  {HIRING_LINK_WORDS}
+                </a>
+              </p>
             </div>
           </MilestoneAnimation>
         )}

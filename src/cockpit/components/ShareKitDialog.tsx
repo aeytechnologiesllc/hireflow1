@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { jobShareUrl } from "@/lib/jobLinks";
 import { shortLinkFor } from "@/lib/jobSlug";
 import { shareTargets } from "@/lib/shareTargets";
+import { hiringLink } from "@/lib/hiringLink";
 import { buildFullJobPost, type FullPostJob } from "@/lib/jobPost";
 
 /**
@@ -116,15 +117,15 @@ function printFlyer(job: ShareKitJob, applyUrl: string, qrCanvas: HTMLCanvasElem
 <style>
   @page { margin: 0.75in; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; color: #10201a; text-align: center; padding: 48px 32px; }
+  body { font-family: Georgia, 'Times New Roman', serif; color: #17150F; text-align: center; padding: 48px 32px; }
   .kicker { font-size: 20px; letter-spacing: 0.35em; text-transform: uppercase; color: #8a6d2f; }
   h1 { font-size: 44px; line-height: 1.15; margin: 20px 0 8px; }
-  .meta { font-size: 20px; color: #3d554b; margin-bottom: 36px; }
+  .meta { font-size: 20px; color: #4A463E; margin-bottom: 36px; }
   .qr { width: 300px; height: 300px; margin: 0 auto; }
   .scan { font-size: 22px; margin-top: 28px; font-weight: bold; }
-  .sub { font-size: 16px; color: #3d554b; margin-top: 8px; }
-  .url { font-size: 14px; color: #6b7f77; margin-top: 22px; overflow-wrap: anywhere; }
-  .foot { margin-top: 44px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: #9aa8a2; }
+  .sub { font-size: 16px; color: #4A463E; margin-top: 8px; }
+  .url { font-size: 14px; color: #6A655B; margin-top: 22px; overflow-wrap: anywhere; }
+  .foot { margin-top: 44px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: #9A958B; }
 </style></head><body>
   <div class="kicker">We're Hiring</div>
   <h1>${esc(job.title)}</h1>
@@ -133,7 +134,7 @@ function printFlyer(job: ShareKitJob, applyUrl: string, qrCanvas: HTMLCanvasElem
   <div class="scan">${esc(FLYER_SCAN_LINE)}</div>
   ${job.onComputer ? `<div class="sub">${esc(FLYER_SUB_LINE)}</div>` : ""}
   <div class="url">${esc(applyUrl)}</div>
-  <div class="foot">Powered by HireFlow</div>
+  <div class="foot">Powered by HireFlow · ${esc(hiringLink("flyer").replace(/^https:\/\//, ""))}</div>
 <script>window.onload = function () { window.print(); };</script>
 </body></html>`);
   w.document.close();

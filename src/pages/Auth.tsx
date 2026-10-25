@@ -136,8 +136,17 @@ export default function Auth() {
   const [signInEmail, setSignInEmail] = useState("");
   const [signInPassword, setSignInPassword] = useState("");
   // A business can make its account here (the 2026-10-11 mock-ups, #1).
-  // ?mode=signup opens on it: the front page's "Start hiring free".
+  // ?mode=signup opens on it: the front page's "Post your first job free".
   const [authMode, setAuthMode] = useState<"signin" | "signup">(() => (searchParams.get("mode") === "signup" ? "signup" : "signin"));
+  // The tab says what this page is for, never "Staff" (docs/LAUNCH-PLAN.md,
+  // Phase 3, task 4): a business arriving from the front page is not staff yet.
+  useEffect(() => {
+    const before = document.title;
+    document.title = authMode === "signup" ? "Start hiring · HireFlow" : "Sign in · HireFlow";
+    return () => {
+      document.title = before;
+    };
+  }, [authMode]);
   const [signUpName, setSignUpName] = useState("");
   const [signUpCompany, setSignUpCompany] = useState("");
   const [signUpEmail, setSignUpEmail] = useState("");
@@ -607,7 +616,7 @@ export default function Auth() {
                 className="h-1.5 w-1.5 rounded-full"
                 style={{ background: "var(--hf-green)" }}
               />
-              Staff sign in
+              {authMode === "signup" ? "Start hiring" : "Sign in"}
             </span>
             <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
               Hiring, handled by Ava.
