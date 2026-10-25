@@ -799,8 +799,10 @@ rule.
    "Interview: <recommendation> (<score>%). <summary>" until
    `trigger-ava-analysis` replaces it with its own analysis, which can be a
    decline note; since 2026-10-25 it is filed in `application_evaluations`
-   (the hiring team's own table), and the applicant cannot read it
-   (docs/BACKEND-SCHEMA.md).
+   (the hiring team's own table), and the applicant cannot read the column
+   (docs/BACKEND-SCHEMA.md). Its interview line repeats what
+   `notes.chatInterviewResult` says, which the applicant can read; Ava's own
+   analysis and decline note are only in the column.
 5. **Quiz**: nothing to do in this release. `submit_quiz_attempt` is not
    changed in wave 2; the trigger `assessment_quiz_result_landed` completes
    the quiz session when the result lands, with `grading` NULL (2.6). A

@@ -81,7 +81,9 @@ team member's shell (AppSidebar/AppHeader) renders it too. No new colours; no tr
 - "Why up / Why down" read `ai_scorecard.whyUp` / `whyDown`; a scorecard written before they existed shows
   neither. Ava's read (score, scorecard, report, the graders' summary) and the team's notes come from
   `application_evaluations` (2026-10-25), joined on by `applications_staff_list`; the applicant's own row
-  holds NULL for them, so nothing the applicant can read carries Ava's read (docs/BACKEND-SCHEMA.md). The header's live line and country come from the list's own row (`listRowFor`), so they say what
+  holds NULL for them, and Ava's scorecard is no longer copied into `notes` either (`notes.avaScorecard`
+  moved into `ai_scorecard`), so the applicant reads their own step results, never Ava's score, scorecard
+  or report (docs/BACKEND-SCHEMA.md). The header's live line and country come from the list's own row (`listRowFor`), so they say what
   the row said. Back names the list's tab only when the pager came from that list (`applicantList.tab.v1`).
 - Back to applicants and the pager stay on screen in the column and desktop layouts too (a sticky top line,
   as the phone has always had; solid ground once the page scrolls under it, nothing at rest).

@@ -846,7 +846,8 @@ customer-service hiring searches to the sign-up button.
      trigger-ava-analysis and the graders, and moving every cockpit read to
      it. Writes are already blocked (Phase 1 task 4). Prove with PGlite that
      an applicant session reads none of it. *(Built on a branch 2026-10-25,
-     not shipped: see the Progress log. `notes.avaScorecard` is still open.)*
+     not shipped: see the Progress log. `notes.avaScorecard` moved into
+     `ai_scorecard` too, after the branch's review.)*
    - **Applicants stop reading internal job columns** once they have applied
      (`passing_score`, `processing_mode`, `ai_bias_feedback`, step configs):
      same constraint (embedded selects on applications), same kind of fix.
@@ -993,7 +994,10 @@ session stops mid-phase (say exactly where).
   end, all at once. Between the migration and the deploys the old functions
   read NULL scores (autopilot-batch would force a re-score of every
   application); before the migration the new code's embeds fail.
-- **Open (owner decisions):** `notes.avaScorecard` / `avaAnalysisMeta` are
+- **Resolved after the branch's review (the next entry up):** the
+  scorecard left notes, the voice interview and the improvement report no
+  longer carry the score or report. What this entry first left open:
+  `notes.avaScorecard` / `avaAnalysisMeta` were
   still in the applicant-readable `notes` (not part of this task); the
   applicant's improvement report still feeds the team's score and Ava's
   report into its prompt (its returned `overallScore` no longer carries the

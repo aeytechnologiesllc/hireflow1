@@ -143,7 +143,10 @@ these either; each has a guard or a test that CI runs:
   NULL (`20261025235000_application_evaluations.sql`). Read it from
   `applications_staff_list` or an `application_evaluations(...)` embed with
   `withEvaluation`; guard `staff-evaluation-columns`, proof
-  `scripts/application_evaluations.pglite.test.mjs`.
+  `scripts/application_evaluations.pglite.test.mjs`. Ava's scorecard is not
+  in `notes` (`notes.avaScorecard` moved into `ai_scorecard`), and the
+  applicant's voice interview and improvement report never carry the score
+  or report.
 
 **Phase 2 of docs/LAUNCH-PLAN.md (2026-10-25).** Guards in
 `scripts/guards/phase-2-launch-locks.mjs`:

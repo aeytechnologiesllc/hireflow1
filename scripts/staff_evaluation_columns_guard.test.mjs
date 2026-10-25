@@ -57,5 +57,12 @@ passes("a comment naming the old select", `// supabase.from("applications").sele
 passes("the staff view", `await supabase.from("applications_staff_list").select("id, ai_score, ai_scorecard").in("job_id", ids);`);
 passes("a list inside Promise.all, next to another query", `await Promise.all([supabase.from("applications").select("id, job_id").in("id", ids), supabase.from("profiles").select("user_id, ai_score")]);`);
 
+// The review of the move: .or(...) filters, and the scorecard copy in notes.
+fails("an .or(...) filter by ai_score", `supabase.from("applications").select("id").or("ai_score.gte.60,status.eq.hired");`);
+passes("an .or(...) filter on other columns", `supabase.from("applications").select("id").or("status.eq.hired,phase.eq.offer");`);
+fails("notes.avaScorecard read", `const card = notes.avaScorecard;`);
+fails("notes.avaScorecard written", `await admin.rpc("merge_application_notes", { p_application_id: id, p_patch: { avaScorecard: scorecard } });`);
+passes("ai_scorecard from the evaluation", `const card = application.ai_scorecard;`);
+
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

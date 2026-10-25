@@ -138,7 +138,7 @@ Who writes what through it:
 | writer | keys it owns |
 |---|---|
 | `recordStepResult` | `resultKey`, `stepId` (when `legacyStepEntry`), `extraNotesEntries`, `_trusted` (this step's marker laid over the markers it just read) |
-| `trigger-ava-analysis` | `avaScorecard`, `avaAnalysisMeta` |
+| `trigger-ava-analysis` | `avaAnalysisMeta` (its scorecard is `application_evaluations.ai_scorecard` since 2026-10-25, never in notes) |
 
 Two adapters predate the RPC and have no `.rpc` (ai-chat-interview's
 `toMinimalAdmin` and the PGlite test fakes); with those, `recordStepResult`
@@ -157,7 +157,7 @@ the old path losing the scorecard.
 Owner: in an **auto-mode** job nobody is ever parked part-way. Every
 applicant takes every test up to and including the last one, Ava only scores
 and flags, and he decides at the end. Deal-breakers are a highlighted flag
-(`avaScorecard.dealBreakerFlags`), never a stop.
+(`ai_scorecard.dealBreakerFlags`), never a stop.
 
 `trigger-ava-analysis({ autopilotDecision: true, currentPhaseId })` on an
 auto-mode job now:
@@ -198,7 +198,7 @@ auto-mode job now:
    nothing and does not notify the employer twice. That run writes analysis
    fields only (`ai_analysis`, `ai_score`,
    `ai_scorecard`, `resume_score`, `phase_ai_analysis` as information, and
-   `notes.avaScorecard` / `notes.avaAnalysisMeta` through the merge) and
+   `notes.avaAnalysisMeta` through the merge) and
    **never** `phase` or `status`. A run that started earlier never
    overwrites one that started later (`avaAnalysisMeta.analysisStartedAt`).
    Her decline recommendation is stored for the owner and acted on by
