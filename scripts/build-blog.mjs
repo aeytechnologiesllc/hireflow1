@@ -383,7 +383,7 @@ ${others.length ? `<section class="more" aria-label="More guides"><h2>More guide
 
 export function indexPage(posts) {
   const canonical = `${SITE}/blog`;
-  const description = "Plain guides to hiring chat and phone customer service agents: where to find them, what to test, what they cost and what not to ask.";
+  const description = "Plain guides to hiring chat and phone customer service agents: the job post, what to test, how to screen and what not to ask.";
   const graph = [
     ORG,
     {
