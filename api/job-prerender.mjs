@@ -56,7 +56,7 @@ const BUSINESS_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
  */
 const RESERVED_SLUGS = new Set([
   "__preview", "about", "admin", "adzuna.xml", "analytics", "api", "applicants", "applications",
-  "apply", "assets", "auth", "ava-preview", "c", "candidate", "careers", "contact", "dashboard",
+  "apply", "assets", "auth", "ava-preview", "blog", "blog-sitemap.xml", "c", "candidate", "careers", "contact", "dashboard",
   "developer", "documents", "favicon.ico", "flow-lab", "fonts", "help", "home", "index.html", "interviews",
   "job", "jobs", "jobs.xml", "join-team", "jooble.xml", "landing-assets", "landing.html", "login", "logout",
   "manifest.webmanifest", "marketing-demo", "media", "messages", "more", "my-documents",

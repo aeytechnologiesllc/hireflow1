@@ -33,3 +33,7 @@ supabase/.temp/
 
 # Local verification harness output (scripts/app_shots.mjs) — never committed
 screenshots-verify/
+
+# The blog, built from content/blog by scripts/build-blog.mjs (docs/BLOG.md)
+/public/blog/
+/public/blog-sitemap.xml
