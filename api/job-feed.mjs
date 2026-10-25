@@ -138,9 +138,12 @@ async function sb(path) {
   return res.json();
 }
 
-/** CDATA-safe: a literal "]]>" inside content would break the XML. */
+/** CDATA-safe: a literal "]]>" inside content would break the XML. The
+ *  characters XML never allows go first: taken out afterwards (sendXml), one
+ *  inside "]]\u0001>" rebuilt the terminator, and a business's title could
+ *  add its own <job> to every feed (the sixth security review). */
 export function cdata(s) {
-  return `<![CDATA[${String(s ?? "").replaceAll("]]>", "]]&gt;")}]]>`;
+  return `<![CDATA[${xmlSafe(String(s ?? "")).replaceAll("]]>", "]]&gt;")}]]>`;
 }
 
 function escapeHtml(s) {

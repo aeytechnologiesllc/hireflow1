@@ -58,6 +58,12 @@ for (const [input, want] of [
   let sent = "";
   sendXml({ setHeader() {}, status() { return { send(x) { sent = x; } }; } }, bad);
   check("every feed sends only XML-safe text (jobs, Adzuna and Jooble all go through sendXml)", sent === cleaned);
+  // The sixth security review: a control character inside "]]>" rebuilt the
+  // terminator once stripped, and the rest of the title became markup.
+  const attack = "Agent]]\u0001></title><job><title>Fake</title></job><title>x";
+  let out = "";
+  sendXml({ setHeader() {}, status() { return { send(x) { out = x; } }; } }, `<jobs><job><title>${cdata(attack)}</title></job></jobs>`);
+  check("a control character inside ]]> can no longer close the CDATA and add a job", (out.match(/\]\]>/g) ?? []).length === 1 && out.includes("<![CDATA[Agent]]&gt;</title><job><title>Fake</title></job><title>x]]></title>"), out);
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

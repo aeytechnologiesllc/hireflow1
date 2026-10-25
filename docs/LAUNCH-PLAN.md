@@ -619,9 +619,11 @@ the right grading, with vetted scenarios per industry.
    application → skills check (5 questions from an industry bank) → computer
    and connection check → chat practice (an escalated case from the industry
    pack) → written interview. For a phone channel today: the same, with the
-   written interview's questions about handling calls, and a note in the
-   plan that the practice call is coming (Phase "Later"). Typing is measured
-   inside the chat practice (docs/TYPING-IN-CHAT.md) — keep that.
+   written interview's questions about handling calls. The plan promises no
+   practice call: one is still "Later", and the builder said "A practice call
+   is coming" until review 12, as if this flow had one. Typing is measured
+   inside the chat practice (docs/TYPING-IN-CHAT.md), for a remote job only
+   (round 5): keep that.
 3. **Industry scenario packs**, written and reviewed the way
    docs/ZULU-SKILLS-CHECK.md was (three independent readers: ambiguity,
    second-language reader under a timer, hiring manager), one pack each:
@@ -1016,8 +1018,11 @@ jobs below.
      Also left: enforce the Content-Security-Policy after a day of clean
      reports (`node scripts/csp.mjs --write --enforce`).
 
-**In flight 1: Phase 4, round 12 fixes. DONE in the worktree, NOT yet merged
-or shipped (as of 1:30 PM).** Commits 121f6b8c (the fixes), then 2732b34e
+**In flight 1: Phase 4, round 12 fixes. SHIPPED with this commit (rebased onto
+b2043a30 in its worktree; the full suite passed there). What follows is kept
+for the record.** Next for Phase 4: run review round 13 on it (copy
+`review-materials/p4r12_brief.md`, point it at this commit, and keep the
+"undo before you add" rule). Commits 121f6b8c (the fixes), then 2732b34e
 and c4c82c44 (HANDOFF.md). Results:
 - all 48 report cases pass, and so do 84/84 of every listed case;
 - the earlier probes have the same 50 old failures and 0 new;
@@ -1065,7 +1070,43 @@ The original instructions follow.
 - If the worktree is empty or broken, start the brief again in a new
   worktree, with the brief's paths changed to the handoff folder.
 
-**In flight 2: Phase 6, round 8 fixes (the age filter). STILL RUNNING at 1:30 PM.**
+**In flight 2: Phase 6, round 8 fixes (the age filter). DONE in the worktree at
+about 1:55 PM, NOT merged or deployed.** Branch `worktree-agent-a07c1ca3f90e54023`.
+Commits: f3f0f394 (work in progress), d6db4de2 (HANDOFF.md), and **dfb491c0
+(final)**. Results:
+- `scripts/age_wording.test.mjs` went from 669 to 838 checks, all passing,
+  and 126 of the 169 new checks fail on the old module.
+- Over 12,906 real lines in the repo, the new filter drops 0 lines the old
+  one kept.
+- Every related test, the 226 guards and the Deno check pass.
+
+What it changed:
+- caller identity checks, "Medicare starts at 65", "parent or guardian",
+  dependents and the like are kept;
+- "a 25-year-old" in a hiring sentence, "We hire students aged 18-24" and the
+  plain forms of finding 4 are dropped;
+- the grader remarks of finding 5 are dropped;
+- a new `APPLICANT_AGE_RULE` goes into ai-analyze's and trigger-ava-analysis's
+  prompts (text only) and into ai-shortlist (imported);
+- "CEO at age 22" is gone from ai-analyze.
+
+What it left is in its HANDOFF.md: "young team" is still dropped on
+purpose, and a few rare wordings pass.
+
+To ship:
+1. `git -C .claude/worktrees/agent-a07c1ca3f90e54023 diff bd5c5e98 dfb491c0 -- . ':!HANDOFF.md' > p && git apply -3 p`.
+   Main changed trigger-ava-analysis and ai-analyze after bd5c5e98, so
+   resolve any conflict by keeping both changes.
+2. Run `scripts/age_wording.test.mjs`, `ava_analysis_applicant_limits`,
+   `lead_scoring_scenarios` and then `scripts/ops/fullsuite.sh`.
+3. Deploy every function `node scripts/ops/deps.mjs supabase/functions/_shared/ageWording.ts supabase/functions/ai-analyze/index.ts supabase/functions/trigger-ava-analysis/index.ts supabase/functions/ai-shortlist/index.ts`
+   names.
+4. Commit and push.
+5. Then run Phase 6 review 9 (copy `review-materials/p6r8_brief.md`).
+
+The earlier state follows.
+
+**In flight 2 (earlier state): Phase 6, round 8 fixes (the age filter). STILL RUNNING at 1:30 PM.**
 It committed work in progress (f3f0f394, "partial, tests not yet added") and
 d6db4de2 (HANDOFF.md). It then kept working, with uncommitted changes to
 ageWording.ts, its test, ai-analyze, ai-shortlist and trigger-ava-analysis.
@@ -1087,6 +1128,70 @@ there.
   typing), so merge with `git apply -3` and re-run
   `scripts/ava_analysis_applicant_limits.test.mjs` and
   `scripts/lead_scoring_scenarios.test.mjs`.
+
+**Round 6 security and product reviews: DONE (about 1:50 PM).** Reports:
+`review-materials/sec6_report.md` and `review-materials/product6_report.md`.
+To fix, most severe first:
+- **Security 1, MEDIUM, regression from 43f38221: a fake listing in every
+  feed.**
+  - What happens: `sendXml` stripped XML-illegal characters from the finished
+    feed after `cdata()` had escaped `]]>`. A control character inside
+    `]]>` then rebuilt the terminator, so a business could inject its own
+    `<job>` into jobs.xml, adzuna.xml and jooble.xml.
+  - **Fixed in the handoff's last commit:** the characters are stripped from
+    each value inside `cdata()` before escaping. See that commit's test.
+- **Security 2, MEDIUM: the plain-path rule is missing from two functions.**
+  - `applicant-file-url` (`filePaths.ts`) and `requested-document-url`
+    (`inOwnFolder`) accept a stored `%2e%2e`.
+  - Call `isPlainObjectPath` in both.
+  - Also refuse `%` in the database rules for resume_url, form files and
+    request files (`applications_applicant_write_rules`,
+    `applications_insert_resume_own_file`, the document-request file rule).
+    Compare each live body's md5 with its migration first.
+- **Security 3: the guards miss natural weakenings.**
+  - The file-queue trigger:
+    - `WHEN (false)`;
+    - another table;
+    - FOR EACH STATEMENT;
+    - ENABLE REPLICA;
+    - SECURITY INVOKER;
+    - an early `return old`.
+  - `remove_applicant`: granted without `public.` or `ON ROUTINE`.
+  - `ai_budget_take`: an early `return true`, or a raised cap.
+  - Phase-7 guards: bodies quoted `$function$` instead of `$$`, and
+    `SECURITY DEFINER` written after the body.
+
+  Better than more regexes: one PGlite test that applies every migration
+  that touches these functions, in order, then exercises them as anon or
+  authenticated. The reviewer's harness is `review-materials/p7s6/`
+  (`weaken.mjs`, `queue_weaken.pglite.mjs`).
+- **Product 1, MEDIUM, regression: the new wording promises a deletion the
+  business cannot do.** The Terms and the request screen say a named paper
+  is "kept until you delete it". But a request can be deleted only before
+  anything is uploaded (the live policy), and after that only "Delete their
+  information" (the whole application) removes it. Either:
+  - add a "Delete this file" for a received request, which needs an edge
+    function that removes the file and logs it; or
+  - reword it to "kept until the application or the account is deleted".
+
+  Rewording is the quick fix.
+- **Product 2, MEDIUM: Analytics still measures on-site phone typing.**
+  `src/cockpit/lib/analyticsView.ts` (~391) reads the chat typing with no
+  on-site check. `Analytics.tsx` (~193) has `job.is_remote`; pass it in and
+  skip on-site rows. The interview guide does the same (`guideMaterial.ts`
+  ~172, LOW).
+- **Product 3, plausible: a remote US hire's letter defaults to
+  "Independent contractor … your own taxes".** The letter should default to
+  employee when the job's country is the business's own, or at least show the
+  worker type outside the collapsed terms. The owner may want a word on this.
+- **Product LOWs:**
+  - an hourly range job's letter starts on "a month" (`OfferLetterDialog.tsx`
+    ~285);
+  - "Where" can read "In person, at On-site - Makati" or "at Texas" (strip
+    the work-mode words; treat a US state like a country);
+  - the applicant's PDF footer is an empty strip, and an applicant who
+    signed cannot see the audit trail until the countersign;
+  - a hybrid letter drops the word hybrid.
 
 **In flight 3: round 6 reviews of 43f38221. The growth review is DONE**
 (`review-materials/growth6_report.md`); security and product were still
