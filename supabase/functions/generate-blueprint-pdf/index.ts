@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { jsPDF } from "https://esm.sh/jspdf@2.5.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
+import { guardAuthenticatedAiCall } from "../_shared/rateLimit.ts";
 import type { ImprovementBlueprintData } from "../_shared/blueprintReport.ts";
 
 const corsHeaders = {
@@ -175,11 +177,45 @@ function drawCoverLetterhead(doc: jsPDF, name: string, job: string, generatedAt:
   return y + 14;
 }
 
+/** The page sends one report of a few kilobytes. */
+const MAX_BODY_BYTES = 256 * 1024;
+
+/** The signed-in caller's id, from their own session token, or null. */
+async function signedInUserId(req: Request): Promise<string | null> {
+  const authHeader = req.headers.get('Authorization');
+  const url = Deno.env.get('SUPABASE_URL');
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  if (!authHeader || !url || !anonKey) return null;
+  try {
+    const { data: { user } } = await createClient(url, anonKey, { global: { headers: { Authorization: authHeader } } }).auth.getUser();
+    return user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
+  // A signed-in account only, a few an hour, a report-sized body (the Phase 7
+  // security audit: the site's public key alone got a HireFlow-lettered PDF
+  // of any text, as often as asked).
+  const userId = await signedInUserId(req);
+  if (!userId) {
+    return new Response(JSON.stringify({ error: 'Sign in to continue.' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+  const limited = await guardAuthenticatedAiCall('generate-blueprint-pdf', userId, corsHeaders, 20, 3600);
+  if (limited) return limited;
+  if (Number(req.headers.get('content-length') ?? '0') > MAX_BODY_BYTES) {
+    return new Response(JSON.stringify({ error: 'Request too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   try {
-    const rawData = await req.json();
+    const bodyText = await req.text();
+    if (bodyText.length > MAX_BODY_BYTES) {
+      return new Response(JSON.stringify({ error: 'Request too large' }), { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+    const rawData = JSON.parse(bodyText);
     // Untrusted HTTP body: Partial, not the full ImprovementBlueprintData —
     // every field below is read defensively (`|| {}` / `|| []`), matching
     // that this isn't guaranteed to match the shape blueprintReport.ts's

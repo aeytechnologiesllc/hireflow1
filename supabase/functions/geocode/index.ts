@@ -5,6 +5,8 @@
 // Backed by OpenStreetMap Nominatim (free, no key). Low volume — one lookup per job
 // posting — well within Nominatim's usage policy. A custom User-Agent is required by
 // their policy. Results are cached in-memory per warm instance.
+import { guardPublicAiCall } from "../_shared/rateLimit.ts";
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -35,6 +37,12 @@ interface NominatimResult {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
+  // Sixty lookups an hour per connection (the Phase 7 security audit: anyone
+  // with the site's public key had an open Nominatim proxy, which could get
+  // the service banned). The page falls back to the typed text on a refusal.
+  const limited = await guardPublicAiCall(req, "geocode", cors, 60, 3600);
+  if (limited) return limited;
+
   try {
     let q = "";
     if (req.method === "GET") {
@@ -43,7 +51,7 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       q = (body?.q ?? "").toString();
     }
-    q = q.trim();
+    q = q.trim().slice(0, 200);
     // Strip a leading "remote" qualifier so "Remote — Islamabad" still resolves the city.
     const cleaned = q.replace(/^\s*(fully\s+)?remote\b[\s—–\-,:|]*/i, "").trim();
 

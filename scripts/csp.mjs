@@ -132,6 +132,10 @@ export function cspHeaderBlock(policy, enforce) {
       { key: enforce ? HEADER_ENFORCED : HEADER_REPORT_ONLY, value: policy },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+      // Enforced now, while the policy's frame-ancestors is still report-only
+      // (the Phase 7 security audit: nothing stopped another site framing the
+      // app). Nothing of HireFlow frames another of its own hosts.
+      { key: "X-Frame-Options", value: "SAMEORIGIN" },
     ],
   };
 }

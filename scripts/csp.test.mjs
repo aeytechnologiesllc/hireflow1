@@ -43,6 +43,7 @@ const block = (vercel.headers ?? []).find(csp.isCspBlock);
 check("vercel.json has a CSP header block for every path", !!block);
 const header = block?.headers.find((h) => h.key === csp.HEADER_REPORT_ONLY || h.key === csp.HEADER_ENFORCED);
 check("vercel.json policy matches the sources (run node scripts/csp.mjs --write if not)", header?.value === policy);
+check("every page also says X-Frame-Options: SAMEORIGIN (the Phase 7 security audit: no framing by another site)", block?.headers?.some((h) => h.key === "X-Frame-Options" && h.value === "SAMEORIGIN"));
 
 const directive = (name) => policy.split("; ").find((d) => d.startsWith(`${name} `)) ?? "";
 check("script-src never allows 'unsafe-inline'", !/'unsafe-inline'/.test(directive("script-src")));

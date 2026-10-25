@@ -21,6 +21,9 @@
  *     from the page's own transcript says so.
  *   - voice-session-reads-only-own-resume: ava-voice-session reads the
  *     resume through _shared/resume.ts, the applicant's own file only.
+ *   - phase-7-low-fixes-hold: strong server-made invite codes, the blueprint
+ *     PDF for a signed-in account only, the geocode lookup limited, no late
+ *     video result on a decided application.
  */
 
 /** The body of the last migration (by file name) that defines public.<fn>, with its file. */
@@ -219,6 +222,35 @@ export default [
       for (const call of code.match(/fetchResumeText\([^)]*\)/g) ?? []) {
         if (!/fetchResumeText\(resumeUrl, adminClient, application\.candidate_id\)/.test(call)) detail.push(`${rel}: ${call} does not name the applicant whose resume it reads`);
       }
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "phase-7-low-fixes-hold",
+    why:
+      "The security audit's low findings, fixed: invite codes were 32 bits of md5(random()) and kept a code the " +
+      "insert chose; generate-blueprint-pdf made a HireFlow-lettered PDF of any text for the public key alone; " +
+      "geocode was an open, unlimited Nominatim proxy; a late video moved an offered or hired applicant back to reviewing.",
+    run: async (ctx) => {
+      const detail = [];
+      const invite = await latestDefinition(ctx, "generate_invite_code");
+      const body = invite ? plain(invite.body) : "";
+      if (!invite || /md5\s*\(\s*random/i.test(body) || !/IF NEW\.invite_code IS NULL OR current_user IN \('anon', 'authenticated'\) THEN NEW\.invite_code := 'TEAM-' \|\| upper\(encode\(extensions\.gen_random_bytes\((\d+)\), 'hex'\)\);/i.test(body) || Number(body.match(/gen_random_bytes\((\d+)\)/)?.[1] ?? 0) < 12)
+        detail.push(`${invite?.rel ?? "supabase/migrations"}: generate_invite_code must make 'TEAM-' + gen_random_bytes(12 or more) for every browser insert`);
+      const strip = (t) => (t ?? "").replace(/\/\/[^\n]*/g, "");
+      const pdf = strip(await ctx.read("supabase/functions/generate-blueprint-pdf/index.ts"));
+      const handler = pdf.slice(pdf.indexOf("serve(async"));
+      const signed = handler.search(/const userId = await signedInUserId\(req\);\s*if \(!userId\) \{/);
+      const parsed = handler.search(/JSON\.parse\(bodyText\)|req\.json\(\)/);
+      if (signed < 0 || parsed < 0 || signed > parsed || !/guardAuthenticatedAiCall\('generate-blueprint-pdf', userId,/.test(handler))
+        detail.push("supabase/functions/generate-blueprint-pdf/index.ts: must refuse a caller who is not signed in, and limit them, before reading the body");
+      const geo = strip(await ctx.read("supabase/functions/geocode/index.ts"));
+      const geoHandler = geo.slice(geo.indexOf("Deno.serve("));
+      const g = geoHandler.search(/const limited = await guardPublicAiCall\(req, "geocode", cors, \d+, 3600\);\s*if \(limited\) return limited;/);
+      if (g < 0 || g > geoHandler.search(/fetch\(url/)) detail.push("supabase/functions/geocode/index.ts: the per-connection limit is gone or comes after the lookup");
+      const video = strip(await ctx.read("supabase/functions/complete-video-intro/index.ts"));
+      const decided = video.search(/\["offered", "hired", "rejected"\]\.includes\(String\(\(appRow as \{ status\?: unknown \}\)\.status\)\)\) \{\s*return jsonResponse\(/);
+      if (decided < 0 || decided > video.search(/await recordStepResult\(/)) detail.push("supabase/functions/complete-video-intro/index.ts: a decided application must be refused before the result is recorded");
       return { ok: detail.length === 0, detail };
     },
   },

@@ -973,11 +973,19 @@ session stops mid-phase (say exactly where).
     the sales grade checks its case, fences the applicant's words and is
     never trusted while its turns are not recorded (recording them: "Later");
     the voice session reads only the applicant's own resume.
-  - Left for round 2 or later (LOW): invite-code entropy, framing headers,
-    the blueprint PDF's caller check, the developer role and the
-    authenticator app, the geocode proxy, connection-test downloads, typing
-    speed reported by the browser. The many-accounts budget drain needs
-    Turnstile (owner's keys).
+  - *Low, fixed:* invite codes are 'TEAM-' and 96 random bits, always made
+    by the server (`team_invite_codes_stronger`); every page says
+    X-Frame-Options SAMEORIGIN; the blueprint PDF is for a signed-in account,
+    20 an hour; the geocode lookup is limited to 60 an hour per connection;
+    a late video no longer moves a decided applicant back to reviewing.
+  - *Low, left as they are:* no account holds the "developer" role and only
+    the server can grant one (the authenticator-app gap is latent);
+    connection-test's downloads are the measurement itself and need a
+    signed-in account; the typing speed is the browser's own reading (a
+    hand-made 300 WPM shows as such to the team); geolocate-ip's free
+    provider has no HTTPS; the public branding list and a deleted
+    applicant's signed copies are by design for now. The many-accounts
+    budget drain needs Turnstile (the owner's keys).
 
 ### 2026-10-25 (afternoon) — staff columns shipped; Phase 4 round 7; Phase 5 round 5; Phase 6 round 3; npm
 

@@ -108,7 +108,7 @@ serve(async (req) => {
 
     const { data: appRow, error: appError } = await admin
       .from("applications")
-      .select("id, candidate_id, jobs:job_id ( workflow_steps )")
+      .select("id, candidate_id, status, jobs:job_id ( workflow_steps )")
       .eq("id", applicationId)
       .maybeSingle();
 
@@ -120,6 +120,12 @@ serve(async (req) => {
     // doesn't even own.
     if ((appRow as { candidate_id: string }).candidate_id !== user.id) {
       return jsonResponse({ error: "Caller is not this application's candidate" }, 403);
+    }
+    // A decided application takes no new step result: a late video moved an
+    // offered or hired applicant back to "reviewing" (the Phase 7 security
+    // audit). recordStepResult refuses only a rejected one.
+    if (["offered", "hired", "rejected"].includes(String((appRow as { status?: unknown }).status))) {
+      return jsonResponse({ error: "This application has been decided", code: "application_decided" }, 409);
     }
 
     // Confirm an object actually exists at that path — a path that merely
