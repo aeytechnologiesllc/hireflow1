@@ -28,6 +28,7 @@ function check(name, ok, detail = "") {
 check("the link goes to the front page, tagged with where it came from", H.hiringLink("job_page") === "https://hireflownow.com/?utm_source=job_page&utm_medium=hiring_link");
 check("the words", H.HIRING_LINK_WORDS === "Hiring? Post a job free");
 check("a business's careers page footer", /href=\{hiringLink\("careers_page"\)\}/.test(read("src/pages/BusinessCareers.tsx")));
+check("the open-jobs page's link (the Phase 7 growth audit: it went untagged)", /href=\{hiringLink\("open_jobs"\)\}/.test(read("src/pages/OpenJobs.tsx")));
 check("the job page, for applicants (not the business's own preview)", /\{job && !isEmployer && \(\s*<p[^>]*>\s*<a href=\{hiringLink\("job_page"\)\}/.test(read("src/pages/JobDetails.tsx")));
 check("the 'You've finished every step' screen", /href=\{hiringLink\("application_done"\)\}/.test(read("src/components/EvaluationScreen.tsx")));
 check("the printed flyer carries the address", /Powered by HireFlow · \$\{esc\(hiringLink\("flyer"\)/.test(read("src/cockpit/components/ShareKitDialog.tsx")));

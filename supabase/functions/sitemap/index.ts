@@ -65,7 +65,15 @@ Deno.serve(async () => {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
     });
     const jobs: SitemapJob[] = res.ok ? await res.json() : [];
+    // Only what the public can open: published_jobs_public leaves out a
+    // suspended business's jobs, whose pages answer 404 (the Phase 7 growth
+    // audit). The jobs table above is read for its last-changed dates.
+    const publicRes = await fetch(`${url}/rest/v1/published_jobs_public?select=id&limit=5000`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+    const publicIds = new Set<string>(publicRes.ok ? ((await publicRes.json()) as { id: string }[]).map((j) => j.id) : []);
     const openJobs = jobs.filter((job) => {
+      if (!publicIds.has(job.id)) return false;
       if (job.exclude_from_feed) return false;
       return !(job.application_deadline && new Date(job.application_deadline).getTime() < nowMs);
     });

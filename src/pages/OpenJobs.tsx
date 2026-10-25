@@ -8,7 +8,7 @@ import { usePageHead } from "@/components/seo/usePageHead";
 import { Wordmark } from "@/cockpit/components/Wordmark";
 import { jobPagePath } from "@/lib/jobSlug";
 import { payWords } from "@/lib/jobPost";
-import { staffOrigin } from "@/lib/hosts";
+import { hiringLink } from "@/lib/hiringLink";
 
 /**
  * Open jobs: hireflownow.com/open-jobs (the owner approved the mock-up,
@@ -195,7 +195,8 @@ export default function OpenJobs() {
 
         <footer className="mt-8 text-xs text-muted-foreground">
           Hiring?{" "}
-          <a href={`${staffOrigin()}/auth?mode=signup`} className="font-semibold text-primary hover:underline">
+          {/* Tagged like the other pages' links, so Admin → Growth sees what this page brings (the Phase 7 growth audit). */}
+          <a href={hiringLink("open_jobs")} className="font-semibold text-primary hover:underline">
             Post a job free
           </a>
         </footer>

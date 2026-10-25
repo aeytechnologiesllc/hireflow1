@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
 import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
-import AvaSeal from "@/components/ava/AvaSeal";
+import { Wordmark } from "@/cockpit/components/Wordmark";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
@@ -604,9 +604,10 @@ export default function Auth() {
             transition={{ duration: 0.42, ease: [0.4, 0, 0.2, 1] }}
             className="flex flex-col items-center lg:items-start"
           >
-            {/* No hero graphic — the wordmark and the line carry this page, the
-                same call as the dashboard. Ava is present as her seal. */}
-            <AvaSeal size={38} />
+            {/* No hero graphic: the HireFlow wordmark and the line carry this
+                page, the same call as the dashboard (the Phase 7 growth audit:
+                the page showed Ava's seal and never the name). */}
+            <Wordmark size={30} />
             <span
               className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
               style={{

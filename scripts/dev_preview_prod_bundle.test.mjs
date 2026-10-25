@@ -102,6 +102,25 @@ async function main() {
     // pass by coincidence.
     const indexHtml = await readFile(path.join(outDir, "index.html"), "utf8").catch(() => "");
     check("index.html was produced", indexHtml.length > 0);
+
+    // The first screens a visitor waits on never pull the PDF, charts, editor
+    // or payments code in statically (the Phase 7 growth audit, 2026-10-25:
+    // the PDF worker setup, folded into a small shared chunk, made both
+    // sign-ups fetch 560 KB compressed before the form showed).
+    const assets = path.join(outDir, "assets");
+    const jsNames = (await readdir(assets)).filter((f) => f.endsWith(".js"));
+    const importsOf = async (f) => [...(await readFile(path.join(assets, f), "utf8")).matchAll(/(?:import\s*(?:[^'"]*?from\s*)?|import\()\s*["']\.\/([^"']+\.js)["']/g)].map((m) => ({ file: m[1], dynamic: m[0].includes("import(") }));
+    const staticClosure = async (start) => {
+      const seen = new Set([start]);
+      const stack = [start];
+      while (stack.length) for (const i of await importsOf(stack.pop())) if (!i.dynamic && !seen.has(i.file)) { seen.add(i.file); stack.push(i.file); }
+      return seen;
+    };
+    for (const page of ["Auth", "CandidateAuth", "JobDetails", "OpenJobs"]) {
+      const chunk = jsNames.find((f) => f.startsWith(`${page}-`));
+      const heavy = chunk ? [...(await staticClosure(chunk))].filter((f) => /^vendor-(pdf|charts|editor|stripe)-/.test(f)) : ["(no chunk)"];
+      check(`${page} loads no PDF, charts, editor or payments code before it shows`, heavy.length === 0, heavy.join(", "));
+    }
   } finally {
     await rm(outDir, { recursive: true, force: true });
   }

@@ -94,6 +94,11 @@ export default defineConfig(({ mode }) => ({
         // page loads anyway.
         manualChunks(id) {
           if (id.includes("vite/preload-helper") || id.includes("commonjsHelpers")) return "vendor-react";
+          // The PDF worker setup imports react-pdf: in a small chunk of its own,
+          // the size rule folded it with an icon the sign-up pages share, and
+          // both sign-ups then fetched the whole PDF and charts code before
+          // showing the form (the Phase 7 growth audit, 2026-10-25).
+          if (id.includes("/src/lib/pdfWorker")) return "vendor-pdf";
           const pkg = id.match(/.*node_modules\/((?:@[^/]+\/)?[^/]+)\//)?.[1];
           if (!pkg) return undefined;
           for (const [chunk, pkgs] of Object.entries(VENDOR_CHUNKS)) if (pkgs.includes(pkg)) return chunk;

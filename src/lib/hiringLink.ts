@@ -10,7 +10,7 @@
  * No imports: scripts/hiring_links.test.mjs loads it in Node.
  */
 
-export type HiringLinkSource = "careers_page" | "job_page" | "application_done" | "flyer";
+export type HiringLinkSource = "careers_page" | "job_page" | "application_done" | "flyer" | "open_jobs";
 
 export const HIRING_LINK_WORDS = "Hiring? Post a job free";
 

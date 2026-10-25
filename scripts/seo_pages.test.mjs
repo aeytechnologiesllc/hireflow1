@@ -52,6 +52,7 @@ check("…the vendor groups are kept", /'vendor-pdf': \['jspdf', 'pdf-lib', '@re
 console.log("\nThe sitemap lists every open job");
 const sitemap = await read("supabase/functions/sitemap/index.ts");
 check("published, unexpired, not marked exclude_from_feed", /status: "eq\.published"/.test(sitemap) && /exclude_from_feed: "eq\.false"/.test(sitemap) && /application_deadline\.is\.null,application_deadline\.gt\./.test(sitemap));
+check("only jobs the public can open (published_jobs_public leaves out a suspended business's; the Phase 7 growth audit)", /published_jobs_public\?select=id/.test(sitemap) && /if \(!publicIds\.has\(job\.id\)\) return false;/.test(sitemap));
 check("no country, city or company rule (a worldwide remote role has no country)", !/hasCountry|cityOf|company_name/.test(sitemap));
 check("each under its job page's own canonical", /const loc = `\$\{SITE\}\/candidate\/job\/\$\{j\.id\}`;/.test(sitemap));
 check("plus the homepage, Privacy and Terms", /\{ path: "\/", priority: "1\.0" \}/.test(sitemap) && /\{ path: "\/privacy"/.test(sitemap) && /\{ path: "\/terms"/.test(sitemap));
