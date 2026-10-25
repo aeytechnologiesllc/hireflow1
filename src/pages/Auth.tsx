@@ -17,6 +17,7 @@ import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { candidateOrigin, isStaffHost } from "@/lib/hosts";
+import { withVisitorTags } from "@/lib/hiringLink";
 import { cleanAddress } from "@/components/business/CareersPageCard";
 import { SecondStepForm } from "@/components/auth/SecondStepForm";
 import { needsSecondStep } from "@/lib/secondStep";
@@ -597,9 +598,14 @@ export default function Auth() {
         ) : (
           // On the staff site the way back is the front page on the main
           // address (the fifth growth review: a business that came straight
-          // here had no way to read what HireFlow is first).
+          // here had no way to read what HireFlow is first). It carries the
+          // visitor's tags, or the site that sent them, so the front page's
+          // sign-up links still say how they came (the sixth growth review: a
+          // YouTube visitor who went back to read the pitch signed up as
+          // "unknown"). The front page does not count them again: they arrive
+          // from HireFlow's own staff host, which Admin → Growth leaves out.
           <a
-            href="https://hireflownow.com/"
+            href={withVisitorTags("https://hireflownow.com/", window.location.href, document.referrer)}
             className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors self-start"
           >
             <ArrowLeft className="h-4 w-4" />

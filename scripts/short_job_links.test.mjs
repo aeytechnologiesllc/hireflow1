@@ -246,8 +246,9 @@ check("each listed role links to its address", jobPagePath({ id: "j2", slug: "b-
 check("a name with no business and no root link is no short link (it could be anyone's)", jobPagePath({ id: "j4", slug: "b-job" }) === "/candidate/job/j4");
 {
   const index = await read("src/pages/Index.tsx");
-  check("Index.tsx goes to the one job with replace", /rootDestination\(roles\)/.test(index) && /navigate\(singleRole, \{ replace: true \}\)/.test(index));
-  check("Index.tsx reads the whole row and links roles by jobPagePath", /\.from\("published_jobs_public"\)\s*\.select\("\*"\)/.test(index) && /<Link to=\{jobPagePath\(job\)\}/.test(index));
+  // The sixth growth review: both carry the visitor's channel (withVisitorTags).
+  check("Index.tsx goes to the one job with replace", /rootDestination\(roles\)/.test(index) && /navigate\(withVisitorTags\(singleRole, window\.location\.href, document\.referrer\), \{ replace: true \}\)/.test(index));
+  check("Index.tsx reads the whole row and links roles by jobPagePath", /\.from\("published_jobs_public"\)\s*\.select\("\*"\)/.test(index) && /<Link to=\{withVisitorTags\(jobPagePath\(job\), window\.location\.href, document\.referrer\)\}/.test(index));
   check("...and hands the one role to the job page, which opens without a skeleton", /queryClient\.setQueryData\(\["job-details", pageLookupKey\(only\), true\], only\)/.test(index));
   check("...and lists only the home business's roles (every other business has /c/<business>)", /useHomeBusiness\(/.test(index) && /\.eq\("employer_id", homeEmployer\)/.test(index));
   check("...and with no home business on file it lists nothing, never every business's jobs", /if \(!homeEmployer\) return \[\];/.test(index) && !/if \(homeEmployer\) query/.test(index));
@@ -286,7 +287,8 @@ check("...never off the site", jobPageFromRedirect("//evil.example") === null &&
   const job = await read("src/pages/JobDetails.tsx");
   const start = job.indexOf("const handleStartApplication = async () => {");
   const body = job.slice(start, job.indexOf("const isLoading", start));
-  check("a stranger's Apply goes to /candidate/auth with the ask, on Sign Up", /navigate\(`\/candidate\/auth\?redirect=\$\{encodeURIComponent\(withApplyAsk\(jobPagePath\(job\)\)\)\}&tab=signup`\)/.test(body));
+  // …with the job page's channel (the sixth growth review; scripts/signup_attribution.test.mjs).
+  check("a stranger's Apply goes to /candidate/auth with the ask, on Sign Up", /navigate\(withVisitorTags\(`\/candidate\/auth\?redirect=\$\{encodeURIComponent\(withApplyAsk\(jobPagePath\(job\)\)\)\}&tab=signup`, window\.location\.href, document\.referrer\)\)/.test(body));
   check("an automatic start replaces every move", /const go = \(to: string\) => navigate\(to, automatic \? \{ replace: true \} : undefined\)/.test(body) && /go\(`\/applications\/\$\{newApp\.id\}\/application\/application`\)/.test(body) && /go\(`\/applications\/\$\{existingApp\.id\}`\)/.test(body));
   check("the ask is answered once, only on the job's own page, only for a signed-in candidate", /if \(!wantsToApply \|\| autoStartedRef\.current \|\| authLoading \|\| !job \|\| forwardTo\) return;/.test(job) && /if \(user && role === "candidate" && !isDeadlinePassed\)/.test(job));
   check("a stranger sees no 'Back to Apply' (the code box)", !/"Back to Apply"\s*\}/.test(job.slice(job.indexOf("return (\n    <>"))));

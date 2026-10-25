@@ -14,6 +14,9 @@
  *   - showcase-tables-not-read: /candidate/continue's phone lookup (the old
  *     prototype's tables, no sign-in) runs only on the prototype schema.
  *   - preview-pages-noindex: the founder's review pages stay out of search.
+ *   - hiring-link-counts-once, accounts-carry-their-channel,
+ *     growth-google-is-search, short-ways-any-capitals: Admin → Growth's
+ *     counts and channel names (the sixth growth review).
  */
 
 /** Code with comments removed, so a comment may still say "player". */
@@ -260,6 +263,124 @@ export default [
           detail.push(`${rel}:${line}: says "${m[0]}" (use the job's word, or add the file to PLAYER_ALLOWED with the reason)`);
         }
       }
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "hiring-link-counts-once",
+    why:
+      "A \"Hiring? Post a job free\" click is counted once, on landing on the front page, whatever channel " +
+      "the visitor brought (the sixth growth review): its link carries a mark (hiring_link=1, " +
+      "src/lib/hiringLink.ts) that beacon.js counts and takes off the address, carry-source.js never " +
+      "carries on, and withVisitorTags leaves off a visitor's second hiring link. Keyed on the medium, one " +
+      "click read as four campaign visits and a Share Kit or Facebook visitor's never counted. A move " +
+      "inside the app is counted as one from HireFlow's own pages (own host, no tags), never \"direct\".",
+    run: async ({ read }) => {
+      const detail = [];
+      const lib = code((await read("src/lib/hiringLink.ts")) ?? "");
+      const beacon = (await read("public/beacon.js")) ?? "";
+      const carry = (await read("public/carry-source.js")) ?? "";
+      const beaconCode = code(beacon);
+      if (!/export const HIRING_LINK_MARK = "hiring_link";/.test(lib) || !/url\.searchParams\.set\(HIRING_LINK_MARK, "1"\);\s*return url\.toString\(\);/.test(lib)) {
+        detail.push("src/lib/hiringLink.ts: hiringLink() no longer carries the mark hiring_link=1");
+      }
+      if (!/const marked = url\.searchParams\.get\(HIRING_LINK_MARK\) === "1" && !throughHiringLink;/.test(lib) || !/if \(marked\) url\.searchParams\.set\(HIRING_LINK_MARK, "1"\);/.test(lib)) {
+        detail.push("src/lib/hiringLink.ts: withVisitorTags must drop the mark for a visitor already through a hiring link");
+      }
+      if (/utm_medium"\)\s*!==\s*"hiring_link"/.test(beaconCode)) detail.push("public/beacon.js: counts an arrival from inside the site by its medium again (carry-source.js puts it on every later link)");
+      if (!/var marked = params\.get\("hiring_link"\) === "1";/.test(beaconCode) || !/if \(fromInside && !\(marked && window\.location\.pathname === "\/"\)\)/.test(beaconCode)) {
+        detail.push("public/beacon.js: an arrival from inside the site must count only with the hiring-link mark, on the front page");
+      }
+      if (!/bare\.searchParams\.delete\("hiring_link"\);\s*window\.history\.replaceState\(/.test(beaconCode)) detail.push("public/beacon.js: must take the mark off the address once counted (a reload counted again)");
+      if (/hiring_link/.test(code(carry))) detail.push("public/carry-source.js: must never carry the hiring-link mark on");
+      if (!/utmSource: first \? sessionUtm\.source : null,/.test(beaconCode) || !/referrerHost: first \? initialReferrerHost : window\.location\.hostname \|\| null,/.test(beaconCode)) {
+        detail.push("public/beacon.js: a later view in the app must name HireFlow's own host and carry no tags");
+      }
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "accounts-carry-their-channel",
+    why:
+      "The ways to an account carry the visitor's channel (the sixth growth review): the staff sign-up's " +
+      "\"← hireflownow.com\" (a bare address made a YouTube visitor \"unknown\"), a job page's Apply to " +
+      "the applicant sign-up (every applicant was \"unknown\"), and /careers' job cards and one-role " +
+      "forward. Admin → Growth's front page leaves out the staff host, so going back is not counted twice.",
+    run: async ({ read, walk }) => {
+      const detail = [];
+      const auth = (await read("src/pages/Auth.tsx")) ?? "";
+      if (!/href=\{withVisitorTags\("https:\/\/hireflownow\.com\/", window\.location\.href, document\.referrer\)\}/.test(auth) || /href="https:\/\/hireflownow\.com\/"/.test(auth)) {
+        detail.push("src/pages/Auth.tsx: the staff sign-up's way back to the front page must carry the visitor's tags (withVisitorTags)");
+      }
+      const job = (await read("src/pages/JobDetails.tsx")) ?? "";
+      if (!/navigate\(withVisitorTags\(`\/candidate\/auth\?redirect=/.test(job) || /navigate\(`\/candidate\/auth\?/.test(job)) {
+        detail.push("src/pages/JobDetails.tsx: Apply must carry the job page's channel to the applicant sign-up (withVisitorTags)");
+      }
+      const careers = (await read("src/pages/Index.tsx")) ?? "";
+      if (!/navigate\(withVisitorTags\(singleRole, /.test(careers) || !/<Link to=\{withVisitorTags\(jobPagePath\(job\), /.test(careers)) {
+        detail.push("src/pages/Index.tsx: /careers' job cards and one-role forward must carry the visitor's channel");
+      }
+      const migrations = (await walk("supabase/migrations", [".sql"])).sort();
+      let latest = null;
+      for (const rel of migrations) {
+        const sql = (await read(rel)) ?? "";
+        if (/create\s+or\s+replace\s+function\s+public\.admin_growth\s*\(/i.test(sql)) latest = { rel, sql };
+      }
+      const front = latest ? /'front_page',[\s\S]*?\)\s*s\s*\n/.exec(latest.sql)?.[0] ?? "" : "";
+      if (!/coalesce\(referrer_host, ''\) <> 'staff\.hireflownow\.com'/.test(front)) {
+        detail.push(`${latest?.rel ?? "supabase/migrations"}: admin_growth's front page must leave out the staff host`);
+      }
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "growth-google-is-search",
+    why:
+      "\"google\" in Admin → Growth is Google search only: the search app, Google Go and google.<tld> " +
+      "(the sixth growth review). A loose pattern read Gmail Go, Google Messages, Drive, Meet and every " +
+      "sites.google.com page as search. Checked on the latest growth_source_name in the migrations; " +
+      "scripts/admin_growth.pglite.test.mjs runs it on every package and host the review listed.",
+    run: async ({ read, walk }) => {
+      const detail = [];
+      let latest = null;
+      for (const rel of (await walk("supabase/migrations", [".sql"])).sort()) {
+        const sql = (await read(rel)) ?? "";
+        if (/create\s+or\s+replace\s+function\s+public\.growth_source_name\s*\(/i.test(sql)) latest = { rel, sql };
+      }
+      const line = latest?.sql.split("\n").find((l) => /then 'google'\s*$/.test(l)) ?? "";
+      if (!line) detail.push(`${latest?.rel ?? "supabase/migrations"}: growth_source_name names nothing "google"`);
+      else {
+        if (/com\.google\.(android\.)?%|like 'com\.google/.test(line)) detail.push(`${latest.rel}: every com.google.* app reads as google again`);
+        if (!/s ~ '\^\(www\\\.\)\?google/.test(line)) detail.push(`${latest.rel}: the google host pattern must be anchored to www.google.<tld> / google.<tld>`);
+        if (/\(\^\|\\\.\)google/.test(line)) detail.push(`${latest.rel}: <anything>.google.<tld> reads as google again`);
+      }
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "short-ways-any-capitals",
+    why:
+      "vercel.json's short ways in (hireflownow.com/youtube…) match in any capitals before the app loads: a " +
+      "redirect's source is case-sensitive, so each letter is a [yY] class (src/lib/shortWays.ts " +
+      "shortWaySource). With the exact name only, /YouTube was forwarded from inside the app and the front " +
+      "page dropped its tags as a move inside the site (the sixth growth review).",
+    run: async ({ read }) => {
+      const detail = [];
+      let v = null;
+      try {
+        v = JSON.parse((await read("vercel.json")) ?? "{}");
+      } catch {
+        return { ok: false, detail: ["vercel.json does not parse"] };
+      }
+      const redirects = v.redirects ?? [];
+      if (!redirects.length) detail.push("vercel.json: no short ways in");
+      for (const r of redirects) {
+        const m = /^\/\(((?:\[[a-z][A-Z]\]|-)+)\)$/.exec(r.source ?? "");
+        const pairsMatch = m && [...m[1].matchAll(/\[([a-z])([A-Z])\]/g)].every(([, lo, up]) => lo.toUpperCase() === up);
+        if (!pairsMatch) detail.push(`vercel.json: redirect ${r.source} must match its name in any capitals (shortWaySource)`);
+      }
+      const lib = (await read("src/lib/shortWays.ts")) ?? "";
+      if (!/export function shortWaySource\(/.test(lib)) detail.push("src/lib/shortWays.ts: shortWaySource is gone");
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

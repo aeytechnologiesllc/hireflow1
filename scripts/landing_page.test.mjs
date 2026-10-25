@@ -70,6 +70,13 @@ console.log("\nThe page itself");
 const page = await read("public/landing.html");
 check("its own address, title and description", /<link rel="canonical" href="https:\/\/hireflownow\.com\/">/.test(page) && /<title>HireFlow: hire customer service agents while you sleep<\/title>/.test(page) && /<meta name="description" content="[^"]{60,}">/.test(page));
 check("its own share picture (HireFlow's), large", /<meta property="og:image" content="https:\/\/hireflownow\.com\/share\/hireflow\.jpg">/.test(page) && /<meta name="twitter:card" content="summary_large_image">/.test(page));
+// The sixth growth review: the og:url note said the canonical was "below" (it
+// is above), and did not say Facebook may link a card to the canonical anyway.
+{
+  const note = page.indexOf("<!-- No og:url:");
+  const noteText = note >= 0 ? page.slice(note, page.indexOf("-->", note)) : "";
+  check("the og:url note names the canonical where it is (above) and what it may still cost a shared card", note > page.indexOf('<link rel="canonical"') && /canonical above/.test(noteText) && !/canonical below/.test(noteText) && /Sharing Debugger/.test(noteText) && !/property="og:url"/.test(page));
+}
 // 2026-10-25 (docs/LAUNCH-PLAN.md, Phase 3, task 3): customer service, chat
 // and phone, any business; no sweepstakes band, no casino story.
 check("customer service hiring, chat and phone, for any business", /<span class="tag gold">Customer service hiring · chat and phone<\/span>/.test(page) && /<h1><span class="ln"><span>Hire customer service agents<\/span><\/span><span class="ln"><span><em>while you sleep\.<\/em><\/span><\/span><\/h1>/.test(page) && /For any business that answers customers\./.test(page));

@@ -61,9 +61,10 @@ export default function JobDetails() {
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { role, user, signOut, loading: authLoading, isTeamMember } = useAuth();
-  // A short way in typed in other capitals ("/YouTube", "/Signup"): vercel.json's
-  // redirects match only the exact name, so the page sends it on instead of
-  // saying the role isn't open (the fifth growth review; src/lib/shortWays.ts).
+  // A short way in that reaches the app ("/YouTube" without vercel.json's
+  // redirects, which now take any capitals: the sixth growth review): the page
+  // sends it on instead of saying the role isn't open (the fifth growth
+  // review; src/lib/shortWays.ts).
   const shortWay = !id && businessParam === undefined ? shortWayIn(slugParam) : null;
   useEffect(() => {
     if (shortWay) window.location.replace(shortWay);
@@ -274,8 +275,12 @@ export default function JobDetails() {
     // here, before any role check can mistake them for a signed-in non-candidate.
     // The sign-in screen opens on Sign Up: someone who followed a job's link
     // almost always has no account yet (Sign In is one tap away).
+    // The visitor's channel rides along (their tags, or the site that sent
+    // them; withVisitorTags), so the applicant's account says how they came
+    // (signup_source): a source tag and nothing else, kept on HireFlow's own
+    // address (the sixth growth review: every applicant read "unknown").
     if (!user) {
-      navigate(`/candidate/auth?redirect=${encodeURIComponent(withApplyAsk(jobPagePath(job)))}&tab=signup`);
+      navigate(withVisitorTags(`/candidate/auth?redirect=${encodeURIComponent(withApplyAsk(jobPagePath(job)))}&tab=signup`, window.location.href, document.referrer));
       return;
     }
 

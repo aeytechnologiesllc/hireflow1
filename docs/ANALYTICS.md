@@ -108,13 +108,39 @@ and an account kept no trace of how its owner arrived. Now:
 
 The platform admin reads it all on **Admin → Growth** (`admin_growth(p_days)`,
 `supabase/migrations/20261025080000_admin_growth.sql`, now
-`20261025390000_admin_growth_channels.sql`): front-page visits by source,
+`20261025520000_growth_front_page_not_staff.sql`): front-page visits by source,
 sign-up page visits, new accounts by role and source, and (since the growth
 audit's second round) every kind of public page — front page, guides, Open
 jobs, job pages, business careers pages, apply-with-a-code — with its top
 sources, plus campaigns by name (source, medium, campaign) for visits and
-for new accounts. Visits from the staff host (the hiring team's own clicks)
-are left out of the page kinds and campaigns.
+for new accounts. Visits from the staff host (the hiring team's own clicks,
+and anyone going back from the sign-up page) are left out of the front page's
+sources, the page kinds and campaigns
+(`20261025520000_growth_front_page_not_staff.sql`).
+
+**How a visit is counted** (the growth reviews, rounds 3 to 6):
+
+- A visit is counted with its tags, or the site that sent it, once: on the
+  page it arrived on. A page opened from another of HireFlow's pages, and
+  every later page in the app, is the same visit moving on: it names
+  HireFlow's own host and no tags (`public/beacon.js`).
+- The visitor's tags, or the site that sent them (`ref`), ride on to the
+  next page and to both sign-ups: the front page, the guides and Open jobs
+  (`carry-source.js`), the app's own pages (`withVisitorTags`,
+  `src/lib/hiringLink.ts`: Open jobs, careers pages and `/careers`, a job's
+  Apply to the applicant sign-up, the staff sign-up's "← hireflownow.com").
+  So applicants have a source too, and only a source tag rides along.
+- "Hiring? Post a job free" is a new way in, counted when it lands on the
+  front page whatever channel the visitor brought: its link carries a mark,
+  `hiring_link=1`, that nothing carries on and the counter takes off the
+  address, and only a visitor's first hiring link has it.
+- The short ways in (`hireflownow.com/youtube`…) match in any capitals in
+  vercel.json (`shortWaySource`, `src/lib/shortWays.ts`).
+- Channel names (`growth_source_name`, now
+  `20261025510000_growth_google_is_search.sql`): each app or site is its
+  channel; "google" is Google search only (the Google app, Google Go,
+  google.<tld>), Gmail and Gmail Go are "gmail", and every other Google app
+  or site is its own package or host.
 
 **Tag every link you post**, so each channel shows by name:
 
@@ -127,7 +153,8 @@ are left out of the page kinds and campaigns.
 
 An untagged visit shows the site it came from (`www.quora.com`), or
 "direct" when the browser sent none (an app, a bookmark, a typed address).
-Accounts made before 2026-10-25 show as "unknown".
+Accounts made before 2026-10-25 show as "unknown", and so did every
+applicant account until the sixth growth review (Apply carried nothing).
 
 The same query by hand:
 

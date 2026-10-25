@@ -26,6 +26,9 @@
     };
     var params = new URLSearchParams(window.location.search);
     var keep = {};
+    // The tags only, never a "Post a job free" link's mark (hiring_link=1,
+    // src/lib/hiringLink.ts): carried on, every later page would count as
+    // another hiring-link click (the sixth growth review).
     ["utm_source", "utm_medium", "utm_campaign"].forEach(function (key) {
       var v = tidy(params.get(key));
       if (plain.test(v)) keep[key] = v;

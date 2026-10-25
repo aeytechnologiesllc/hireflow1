@@ -98,6 +98,33 @@ check("…a tag of nothing but odd characters is nothing", src.signupSourceFrom(
 check("tags are lower-cased", src.signupSourceFrom("https://x/auth?utm_source=YouTube")?.utm_source === "youtube");
 check("useAuth's signUp stores it as signup_source", /\.\.\.\(signupSource \? \{ signup_source: signupSource \} : \{\}\)/.test(read("src/hooks/useAuth.tsx")));
 
+// ---- the sixth growth review ------------------------------------------------------
+const H = await import(path.join(ROOT, "src/lib/hiringLink.ts"));
+// The staff sign-up's "← hireflownow.com" was a bare address: a YouTube visitor
+// who went back to read the pitch signed up as "unknown".
+const authPage = read("src/pages/Auth.tsx");
+check("the staff sign-up's way back to the front page carries the visitor's tags", /href=\{withVisitorTags\("https:\/\/hireflownow\.com\/", window\.location\.href, document\.referrer\)\}/.test(authPage) && !/href="https:\/\/hireflownow\.com\/"/.test(authPage));
+{
+  const back = H.withVisitorTags("https://hireflownow.com/", "https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_medium=video", "https://hireflownow.com/");
+  const again = runCarry({ search: new URL(back).search, referrer: "https://staff.hireflownow.com/", links: ["https://staff.hireflownow.com/auth?mode=signup"] });
+  check("…so the front page's sign-up links say youtube again, and the account keeps it", back === "https://hireflownow.com/?utm_source=youtube&utm_medium=video" && JSON.stringify(src.signupSourceFrom(again[0])) === JSON.stringify({ utm_source: "youtube", utm_medium: "video" }), `${back} → ${again[0]}`);
+  const fromSearch = H.withVisitorTags("https://hireflownow.com/", "https://staff.hireflownow.com/auth?mode=signup", "https://www.google.com/");
+  check("…or the site that sent them straight to the sign-up page", fromSearch === "https://hireflownow.com/?ref=www.google.com", fromSearch);
+}
+// Apply went to the applicant sign-up with nothing: every applicant was "unknown".
+check("Apply carries the job page's channel to the applicant sign-up", /navigate\(withVisitorTags\(`\/candidate\/auth\?redirect=\$\{encodeURIComponent\(withApplyAsk\(jobPagePath\(job\)\)\)\}&tab=signup`, window\.location\.href, document\.referrer\)\)/.test(read("src/pages/JobDetails.tsx")));
+{
+  const apply = "/candidate/auth?redirect=%2Fc%2Facme%2Ffront-desk%3Fapply%3D1&tab=signup";
+  const tagged = H.withVisitorTags(apply, "https://hireflownow.com/c/acme/front-desk?utm_source=facebook&utm_medium=job_share", null);
+  check("…a tagged job page: the sign-up keeps the job to come back to and gains the tags", tagged === `${apply}&utm_source=facebook&utm_medium=job_share` && JSON.stringify(src.signupSourceFrom(`https://hireflownow.com${tagged}`)) === JSON.stringify({ utm_source: "facebook", utm_medium: "job_share" }), tagged);
+  const referred = H.withVisitorTags(apply, "https://hireflownow.com/c/acme/front-desk", "https://www.facebook.com/groups/x?post=1");
+  check("…an untagged one: the site that sent them, as a bare host (never its path or query)", referred === `${apply}&ref=www.facebook.com` && JSON.stringify(src.signupSourceFrom(`https://hireflownow.com${referred}`)) === JSON.stringify({ ref: "www.facebook.com" }), referred);
+  const none = H.withVisitorTags(apply, "https://hireflownow.com/c/acme/front-desk", "https://hireflownow.com/open-jobs");
+  check("…nothing carried: the sign-up as it was (an applicant stays unknown, never guessed)", none === apply && src.signupSourceFrom(`https://hireflownow.com${none}`) === null, none);
+  const added = [...new URL(tagged, "https://hireflownow.com").searchParams.keys()].filter((k) => !["redirect", "tab"].includes(k));
+  check("…only source tags are added: nothing personal, no hiring-link mark", added.every((k) => ["utm_source", "utm_medium", "utm_campaign", "ref"].includes(k)), JSON.stringify(added));
+}
+
 // ---- admin_growth ---------------------------------------------------------------------
 const ADMIN = "90000000-0000-4000-8000-000000000001";
 const BIZ = "20000000-0000-4000-8000-000000000002";

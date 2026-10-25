@@ -169,7 +169,14 @@ these either; each has a guard or a test that CI runs:
   stamp is for an address and lapses when the sign-in address changes. Guard `publish-requires-verified-email`.
 - The front page counts visits and carries campaign tags to sign-up; a new
   account keeps `signup_source`; Admin → Growth reads `admin_growth()`.
-  Guards `landing-has-beacon`, `signup-carries-utm`.
+  Guards `landing-has-beacon`, `signup-carries-utm`. Since the sixth growth
+  review (docs/ANALYTICS.md, "How a visit is counted"): applicants' accounts
+  carry a source too (Apply carries the job page's tags); a hiring link
+  counts once, by its `hiring_link=1` mark, never by its medium; a move
+  inside the site names HireFlow's own host and no tags; the short ways in
+  match any capitals; "google" is search only. Guards
+  `hiring-link-counts-once`, `accounts-carry-their-channel`,
+  `growth-google-is-search`, `short-ways-any-capitals`.
 
 **Phase 5 of docs/LAUNCH-PLAN.md (2026-10-25).** Guards in
 `scripts/guards/phase-5-launch-locks.mjs`:

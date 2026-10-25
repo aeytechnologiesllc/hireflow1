@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 /**
  * PGlite proof for admin_growth (supabase/migrations/20261025080000_admin_growth.sql,
- * as replaced by 20261025120000_admin_growth_one_role.sql and
- * 20261025390000_admin_growth_channels.sql; docs/LAUNCH-PLAN.md, Phase 2,
+ * as replaced by 20261025120000_admin_growth_one_role.sql,
+ * 20261025390000_admin_growth_channels.sql, 20261025440000_growth_sources.sql
+ * and 20261025520000_growth_front_page_not_staff.sql, with the channel names of
+ * 20261025480000_growth_app_sources.sql and
+ * 20261025510000_growth_google_is_search.sql; docs/LAUNCH-PLAN.md, Phase 2,
  * task 3): where new businesses come from, which public pages bring visits,
  * and campaigns by name, for the platform admin only.
  *
@@ -121,6 +124,61 @@ check("…each channel named once: Facebook's hosts and its tag are one \"facebo
   const cases = [["com.google.android.gm", "gmail"], ["mail.google.com", "gmail"], ["com.google.android.youtube", "youtube"], ["com.facebook.katana", "facebook"], ["com.instagram.android", "instagram"], ["com.linkedin.android", "linkedin"], ["com.zhiliaoapp.musically", "tiktok"], ["com.whatsapp", "whatsapp"], ["com.google.android.googlequicksearchbox", "google"], ["www.google.com.ph", "google"], ["docs.google.com", "docs.google.com"], ["open_jobs", "open_jobs"]];
   const got = await Promise.all(cases.map(async ([v]) => name(v)));
   check("…each app is its own channel, Gmail is \"gmail\", Google's search app and sites \"google\"", cases.every(([, want], i) => got[i] === want), JSON.stringify(got));
+  // The sixth growth review: "google" is search only. Every package and host
+  // the review found reading as search, then the Lite apps it found raw.
+  const search = readFileSync(path.join(ROOT, "supabase/migrations/20261025510000_growth_google_is_search.sql"), "utf8");
+  await db.exec(search);
+  await db.exec(search);
+  const named = async (list) => {
+    const out = await Promise.all(list.map(async ([v]) => name(v)));
+    return { ok: list.every(([, want], i) => out[i] === want), detail: JSON.stringify(list.map(([v], i) => `${v}=${out[i]}`).filter((_, i) => out[i] !== list[i][1])) };
+  };
+  const ownChannel = (v) => [v, v];
+  let r = await named([
+    ["com.google.android.gm.lite", "gmail"],
+    ownChannel("com.google.android.apps.messaging"),
+    ownChannel("com.google.android.apps.docs"),
+    ownChannel("com.google.android.apps.dynamite"),
+    ownChannel("com.google.android.apps.meetings"),
+    ownChannel("com.google.android.apps.youtube.music"),
+    ownChannel("com.google.android.apps.photos"),
+    ownChannel("com.google.android.calendar"),
+    ownChannel("com.google.android.apps.classroom"),
+    ownChannel("sites.google.com"),
+    ownChannel("calendar.google.com"),
+    ownChannel("news.google.com"),
+    ownChannel("docs.google.com"),
+  ]);
+  check("…every other Google app or site is its own channel, Gmail Go is gmail (none of them is search)", r.ok, r.detail);
+  r = await named([
+    ["com.google.android.googlequicksearchbox", "google"],
+    ["com.google.android.apps.searchlite", "google"],
+    ["google.com", "google"],
+    ["www.google.com", "google"],
+    ["www.google.com.ph", "google"],
+    ["google.co.uk", "google"],
+    ["google", "google"],
+    ["com.google.android.gm", "gmail"],
+    ["mail.google.com", "gmail"],
+    ["com.google.android.youtube", "youtube"],
+  ]);
+  check("…google is the search app (and Google Go) and google.<tld>, with or without www", r.ok, r.detail);
+  r = await named([["com.viber.voip", "viber"], ["viber", "viber"], ["com.instagram.lite", "instagram"], ["com.zhiliaoapp.musically.go", "tiktok"], ["com.ss.android.ugc.tiktok.lite", "tiktok"], ["com.linkedin.android.lite", "linkedin"], ["com.facebook.lite", "facebook"]]);
+  check("…the Lite apps common in the Philippines are named as their channel", r.ok, r.detail);
+}
+// The sixth growth review: the staff sign-up links back to the front page, so
+// the front page's sources left out HireFlow's own staff host, as every other
+// count here does.
+{
+  await db.exec(`insert into public.page_view_daily (day, path, referrer_host, utm_source, view_count) values (current_date, '/', 'staff.hireflownow.com', '', 6)`);
+  const notStaff = readFileSync(path.join(ROOT, "supabase/migrations/20261025520000_growth_front_page_not_staff.sql"), "utf8");
+  await db.exec(notStaff);
+  await db.exec(notStaff);
+  const again = (await as(ADMIN, "select public.admin_growth(30) as g")).rows[0]?.g;
+  const fp = Object.fromEntries((again?.front_page ?? []).map((x) => [x.source, x.visits]));
+  check("the front page's sources leave out the staff host (a business going back from sign-up, the team's own sign-ins)", !("staff.hireflownow.com" in fp) && fp.youtube === 15 && fp.direct === 5, JSON.stringify(fp));
+  const pagesAgain = Object.fromEntries((again?.pages ?? []).map((x) => [x.kind, x.visits]));
+  check("…and the page kinds still leave it out too", pagesAgain.front_page === 29 && pagesAgain.open_jobs === 3, JSON.stringify(pagesAgain));
 }
 check("visits older than the window are left out", front.old === undefined);
 check("the sign-in and sign-up page is counted on its own", g?.signup_page === 4);

@@ -43,11 +43,11 @@ const REVIEWED = {
   "src/components/EvaluationScreen.tsx": ['hiringLink("application_done"'], // a fixed hireflownow.com address
   "src/pages/JobDetails.tsx": ['hiringLink("job_page"', 'withVisitorTags(hiringLink("job_page"'], // a fixed hireflownow.com address; withVisitorTags adds only tidied a-z0-9._- tags
   "src/pages/OpenJobs.tsx": ["jobPagePath(job", "`${staffOrigin(", 'hiringLink("open_jobs"', 'withVisitorTags("/"', 'withVisitorTags(hiringLink("open_jobs"', "withVisitorTags(jobPagePath(job"], // withVisitorTags: a fixed HireFlow address with only plain a-z0-9._- tags added (src/lib/hiringLink.ts)
-  "src/pages/Index.tsx": ["CAREERS_PATH", "account.to", "jobPagePath(job", "staffSignInHref("],
+  "src/pages/Index.tsx": ["CAREERS_PATH", "account.to", "jobPagePath(job", "withVisitorTags(jobPagePath(job", "staffSignInHref("], // withVisitorTags: the job's own path with only tidied a-z0-9._- tags added (the sixth growth review)
   "src/pages/CandidateContinue.tsx": ["openRolesPath("],
   "src/pages/CandidatePortalLanding.tsx": ["openRolesPath("],
   "src/pages/CandidateAuth.tsx": ['backToJob ?? "/candidate"', "staffSignInHref("], // backToJob: jobPageFromRedirect(inAppPath(...))
-  "src/pages/Auth.tsx": ['inWebView ? "/?showLanding=true" : "/"'],
+  "src/pages/Auth.tsx": ['inWebView ? "/?showLanding=true" : "/"', 'withVisitorTags("https://hireflownow.com/"'], // a fixed hireflownow.com address; withVisitorTags adds only tidied a-z0-9._- tags (the sixth growth review)
   "src/pages/AuthCallback.tsx": ["signInPath"], // built from the portal role
   "src/pages/NotFound.tsx": ["isStaffHost("],
   "src/pages/AvaCreateJob.tsx": ["jobPageUrl({ id: publishedRoleId"],

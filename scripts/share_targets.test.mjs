@@ -39,6 +39,16 @@ check("keeps tags it already has", S.taggedLink("https://hireflownow.com/j/x?utm
 check("something that is not a web address is left alone", S.taggedLink("javascript:alert(1)", "facebook") === "javascript:alert(1)" && S.taggedLink("not a url", "facebook") === "not a url");
 check("a link with a quote or ampersand stays inside the share address", new URL(S.shareTargets("https://hireflownow.com/j/a&b=\"c\"")[0].href).searchParams.get("u").startsWith("https://hireflownow.com/j/a&b="));
 check("no owner's voice, player or Zulu wording", !/\bwe hire\b|our own|player|zulu/i.test(JSON.stringify(targets)));
+// The sixth growth review: a business that found HireFlow through another's
+// shared job taps the job page's "Post a job free"; the front page counted
+// that click only for visitors with no channel. The link keeps the Share Kit's
+// tags (job_page as the campaign) and carries the mark the counter looks for.
+{
+  const H = await import(path.join(ROOT, "src/lib/hiringLink.ts"));
+  const opened = S.taggedLink("https://hireflownow.com/c/acme/front-desk", "facebook");
+  const back = new URL(H.withVisitorTags(H.hiringLink("job_page"), opened, "https://www.facebook.com/"));
+  check("a Share Kit visitor's \"Post a job free\" keeps their channel and is counted as a hiring-link click", back.searchParams.get("utm_source") === "facebook" && back.searchParams.get("utm_medium") === "job_share" && back.searchParams.get("utm_campaign") === "job_page" && back.searchParams.get("hiring_link") === "1", back.toString());
+}
 for (const file of ["src/cockpit/components/ShareKitDialog.tsx", "src/cockpit/components/journey/GuideStages.tsx"]) {
   const src = readFileSync(path.join(ROOT, file), "utf8");
   check(`${file}: shows the list, not one board`, /shareTargets\(/.test(src) && !/where we\s+hire our own/i.test(src) && !/Open OnlineJobs\.ph/.test(src));

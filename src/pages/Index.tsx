@@ -14,6 +14,7 @@ import { usePageHead } from "@/components/seo/usePageHead";
 import { jobPagePath, pageLookupKey, rootDestination } from "@/lib/jobSlug";
 import { useHomeBusiness } from "@/hooks/useBusinessPage";
 import { jobLevelLabel, jobTypeLabel } from "@/lib/jobLabels";
+import { withVisitorTags } from "@/lib/hiringLink";
 import "@/styles/careers.css";
 
 /**
@@ -246,7 +247,10 @@ export default function Index() {
     // seed its cache so it opens on the job, not on a loading skeleton.
     const only = roles[0];
     queryClient.setQueryData(["job-details", pageLookupKey(only), true], only);
-    navigate(singleRole, { replace: true });
+    // With the visitor's channel, as every careers page's job links carry it
+    // (the sixth growth review: /c/<home business>?utm_source=… reached the
+    // job with none).
+    navigate(withVisitorTags(singleRole, window.location.href, document.referrer), { replace: true });
   }, [singleRole, roles, queryClient, navigate]);
 
   const account = useMemo(() => {
@@ -460,7 +464,7 @@ export default function Index() {
                 const type = jobTypeLabel(job.job_type);
                 return (
                   <Reveal key={job.id} delay={i * 0.08}>
-                    <Link to={jobPagePath(job)} className="cr-role" aria-label={`Apply for ${job.title}`}>
+                    <Link to={withVisitorTags(jobPagePath(job), window.location.href, document.referrer)} className="cr-role" aria-label={`Apply for ${job.title}`}>
                       <div>
                         <div className="cr-chips">
                           {job.is_remote !== false && <span className="cr-chip cr-chip--action">Remote</span>}

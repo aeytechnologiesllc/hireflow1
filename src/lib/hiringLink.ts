@@ -10,14 +10,29 @@
  * No imports: scripts/hiring_links.test.mjs loads it in Node.
  */
 
-export type HiringLinkSource = "careers_page" | "job_page" | "application_done" | "flyer" | "open_jobs";
+export const HIRING_LINK_SOURCES = ["careers_page", "job_page", "application_done", "flyer", "open_jobs"] as const;
+export type HiringLinkSource = (typeof HIRING_LINK_SOURCES)[number];
 
 export const HIRING_LINK_WORDS = "Hiring? Post a job free";
+
+/**
+ * The mark a "Post a job free" link carries (hiring_link=1), so the front
+ * page's counter (public/beacon.js) can tell this click, a new way in, from a
+ * visitor moving on inside the site with the tags they brought. It is not a
+ * tag: carry-source.js never carries it on, beacon.js takes it off the
+ * address once it has counted it, and no sign-up keeps it. The counter used
+ * to key on utm_medium=hiring_link, which carry-source.js puts on every later
+ * link (one click read as four campaign visits) and which a visitor's own
+ * channel replaces (a Share Kit or Facebook visitor's click never counted:
+ * the sixth growth review).
+ */
+export const HIRING_LINK_MARK = "hiring_link";
 
 export function hiringLink(source: HiringLinkSource): string {
   const url = new URL("https://hireflownow.com/");
   url.searchParams.set("utm_source", source);
   url.searchParams.set("utm_medium", "hiring_link");
+  url.searchParams.set(HIRING_LINK_MARK, "1");
   return url.toString();
 }
 
@@ -65,6 +80,14 @@ export function withVisitorTags(base: string, here: string, referrer?: string | 
   const tags = (["utm_source", "utm_medium", "utm_campaign"] as const).map((key) => [key, tidyTag(carried.get(key))] as const).filter(([, v]) => v);
   const carriedRef = tidyTag(carried.get("ref"));
   const ref = carriedRef && !carriedRef.includes("hireflownow.com") ? carriedRef : outsideHost(referrer);
+  // A hiring link's mark goes last, and only on a visitor's first one: tags
+  // that already name a hiring link mean they came in through one and it was
+  // counted then, so a second "Post a job free" (Open jobs' after a job
+  // page's) is the same visit moving on (the sixth growth review: a hiring
+  // link counts once, the first time).
+  const throughHiringLink = tags.some(([key, v]) => (key === "utm_medium" ? v === "hiring_link" : (HIRING_LINK_SOURCES as readonly string[]).includes(v as string)));
+  const marked = url.searchParams.get(HIRING_LINK_MARK) === "1" && !throughHiringLink;
+  url.searchParams.delete(HIRING_LINK_MARK);
   if (tags.length > 0) {
     const own = url.searchParams.get("utm_source");
     for (const key of ["utm_source", "utm_medium", "utm_campaign"]) url.searchParams.delete(key);
@@ -85,5 +108,6 @@ export function withVisitorTags(base: string, here: string, referrer?: string | 
   } else {
     return base;
   }
+  if (marked) url.searchParams.set(HIRING_LINK_MARK, "1");
   return base.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
 }

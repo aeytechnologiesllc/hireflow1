@@ -2,7 +2,7 @@
   "trailingSlash": false,
   "redirects": [
     {
-      "source": "/youtube",
+      "source": "/([yY][oO][uU][tT][uU][bB][eE])",
       "destination": "/?utm_source=youtube&utm_medium=video",
       "permanent": false,
       "missing": [
@@ -13,7 +13,7 @@
       ]
     },
     {
-      "source": "/yt",
+      "source": "/([yY][tT])",
       "destination": "/?utm_source=youtube&utm_medium=video",
       "permanent": false,
       "missing": [
@@ -24,7 +24,7 @@
       ]
     },
     {
-      "source": "/tiktok",
+      "source": "/([tT][iI][kK][tT][oO][kK])",
       "destination": "/?utm_source=tiktok&utm_medium=video",
       "permanent": false,
       "missing": [
@@ -35,7 +35,7 @@
       ]
     },
     {
-      "source": "/facebook",
+      "source": "/([fF][aA][cC][eE][bB][oO][oO][kK])",
       "destination": "/?utm_source=facebook&utm_medium=social",
       "permanent": false,
       "missing": [
@@ -46,7 +46,7 @@
       ]
     },
     {
-      "source": "/fb",
+      "source": "/([fF][bB])",
       "destination": "/?utm_source=facebook&utm_medium=social",
       "permanent": false,
       "missing": [
@@ -57,7 +57,7 @@
       ]
     },
     {
-      "source": "/instagram",
+      "source": "/([iI][nN][sS][tT][aA][gG][rR][aA][mM])",
       "destination": "/?utm_source=instagram&utm_medium=social",
       "permanent": false,
       "missing": [
@@ -68,7 +68,7 @@
       ]
     },
     {
-      "source": "/ig",
+      "source": "/([iI][gG])",
       "destination": "/?utm_source=instagram&utm_medium=social",
       "permanent": false,
       "missing": [
@@ -79,7 +79,7 @@
       ]
     },
     {
-      "source": "/linkedin",
+      "source": "/([lL][iI][nN][kK][eE][dD][iI][nN])",
       "destination": "/?utm_source=linkedin&utm_medium=social",
       "permanent": false,
       "missing": [
@@ -90,7 +90,7 @@
       ]
     },
     {
-      "source": "/signup",
+      "source": "/([sS][iI][gG][nN][uU][pP])",
       "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=signup",
       "permanent": false,
       "missing": [
@@ -101,7 +101,7 @@
       ]
     },
     {
-      "source": "/sign-up",
+      "source": "/([sS][iI][gG][nN]-[uU][pP])",
       "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=signup",
       "permanent": false,
       "missing": [
@@ -112,7 +112,7 @@
       ]
     },
     {
-      "source": "/start",
+      "source": "/([sS][tT][aA][rR][tT])",
       "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=start",
       "permanent": false,
       "missing": [
@@ -123,7 +123,7 @@
       ]
     },
     {
-      "source": "/post-a-job",
+      "source": "/([pP][oO][sS][tT]-[aA]-[jJ][oO][bB])",
       "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=post-a-job",
       "permanent": false,
       "missing": [
@@ -134,7 +134,7 @@
       ]
     },
     {
-      "source": "/hire",
+      "source": "/([hH][iI][rR][eE])",
       "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=hire",
       "permanent": false,
       "missing": [
@@ -145,7 +145,7 @@
       ]
     },
     {
-      "source": "/business",
+      "source": "/([bB][uU][sS][iI][nN][eE][sS][sS])",
       "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=business",
       "permanent": false,
       "missing": [
@@ -156,7 +156,7 @@
       ]
     },
     {
-      "source": "/employers",
+      "source": "/([eE][mM][pP][lL][oO][yY][eE][rR][sS])",
       "destination": "https://staff.hireflownow.com/auth?mode=signup&utm_source=short_link&utm_medium=employers",
       "permanent": false,
       "missing": [
@@ -167,7 +167,7 @@
       ]
     },
     {
-      "source": "/login",
+      "source": "/([lL][oO][gG][iI][nN])",
       "destination": "https://staff.hireflownow.com/auth",
       "permanent": false,
       "missing": [
@@ -178,7 +178,7 @@
       ]
     },
     {
-      "source": "/log-in",
+      "source": "/([lL][oO][gG]-[iI][nN])",
       "destination": "https://staff.hireflownow.com/auth",
       "permanent": false,
       "missing": [
@@ -189,7 +189,7 @@
       ]
     },
     {
-      "source": "/signin",
+      "source": "/([sS][iI][gG][nN][iI][nN])",
       "destination": "https://staff.hireflownow.com/auth",
       "permanent": false,
       "missing": [
@@ -200,7 +200,7 @@
       ]
     },
     {
-      "source": "/pricing",
+      "source": "/([pP][rR][iI][cC][iI][nN][gG])",
       "destination": "/",
       "permanent": false,
       "missing": [
@@ -211,7 +211,7 @@
       ]
     },
     {
-      "source": "/demo",
+      "source": "/([dD][eE][mM][oO])",
       "destination": "/",
       "permanent": false,
       "missing": [
@@ -222,7 +222,7 @@
       ]
     },
     {
-      "source": "/about",
+      "source": "/([aA][bB][oO][uU][tT])",
       "destination": "/",
       "permanent": false,
       "missing": [

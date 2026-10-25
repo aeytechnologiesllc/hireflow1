@@ -85,21 +85,53 @@ for (const key of Object.keys(PAGES)) {
 
 // The fourth growth review: short addresses a video can say, and a business's guesses.
 const redirects = JSON.parse(read("vercel.json")).redirects ?? [];
-const to = (source) => redirects.find((r) => r.source === source);
+// A redirect's `source` as Vercel matches it (path-to-regexp, case-sensitive):
+// a "( … )" group is a regular expression, everything else is literal. A
+// named segment (":name") is not used here and fails the test.
+function sourceMatches(source, pathname) {
+  let re = "";
+  for (let i = 0; i < source.length; ) {
+    if (source[i] === "(") {
+      let depth = 0;
+      let j = i;
+      for (; j < source.length; j += 1) {
+        if (source[j] === "(") depth += 1;
+        else if (source[j] === ")" && (depth -= 1) === 0) break;
+      }
+      re += source.slice(i, j + 1);
+      i = j + 1;
+    } else if (source[i] === ":" || source[i] === "*" || source[i] === "+" || source[i] === "?") {
+      throw new Error(`unexpected source ${source}`);
+    } else {
+      re += source[i].replace(/[.^$|[\]{}\\/-]/g, "\\$&");
+      i += 1;
+    }
+  }
+  return new RegExp(`^${re}$`).test(pathname);
+}
+const to = (pathname) => redirects.find((r) => sourceMatches(r.source, pathname));
 for (const [name, dest] of [["/youtube", "/?utm_source=youtube&utm_medium=video"], ["/tiktok", "/?utm_source=tiktok&utm_medium=video"], ["/facebook", "/?utm_source=facebook&utm_medium=social"], ["/fb", "/?utm_source=facebook&utm_medium=social"]]) {
   check(`${name} lands on the front page tagged (${dest})`, to(name)?.destination === dest && to(name)?.permanent === false);
 }
+// The sixth growth review: "/YouTube" missed the exact-name redirect, reached
+// the app, and was forwarded from inside it, so the front page took it for a
+// move inside the site and dropped the tags.
+check("…in any capitals, before the app loads (the sixth growth review)", to("/YouTube")?.destination === "/?utm_source=youtube&utm_medium=video" && to("/TikTok")?.destination === "/?utm_source=tiktok&utm_medium=video" && to("/YT")?.destination === "/?utm_source=youtube&utm_medium=video" && to("/LinkedIn")?.destination === "/?utm_source=linkedin&utm_medium=social" && to("/Sign-Up")?.destination.startsWith("https://staff.hireflownow.com/auth?mode=signup") && to("/POST-A-JOB")?.destination.startsWith("https://staff.hireflownow.com/auth?mode=signup"));
+check("…and nothing else: a job's own name, a longer word or a deeper path is not a short way", !to("/team-lead") && !to("/youtubers") && !to("/my-youtube") && !to("/youtube/x") && !to("/signupx") && !to("/sign_up") && !to("/"));
 check("a business's guesses reach the sign-up or sign-in page, or the front page", to("/signup")?.destination.startsWith("https://staff.hireflownow.com/auth?mode=signup") && to("/post-a-job")?.destination.startsWith("https://staff.hireflownow.com/auth?mode=signup") && to("/login")?.destination === "https://staff.hireflownow.com/auth" && to("/pricing")?.destination === "/");
 check("…never on the staff site", redirects.length > 0 && redirects.every((r) => r.missing?.some((m) => m.type === "host" && m.value === "staff.hireflownow.com")));
 const slugLib = read("src/lib/jobSlug.ts");
+let shortNames = [];
 {
   const { build } = await import("esbuild");
   const out = await build({ entryPoints: [path.join(ROOT, "src/lib/shortWays.ts")], bundle: true, write: false, format: "esm", platform: "neutral", logLevel: "silent" });
   const W = await import("data:text/javascript;base64," + Buffer.from(out.outputFiles[0].text).toString("base64"));
-  check("the app's list of short ways in is exactly vercel.json's redirects (the fifth growth review)", Object.keys(W.SHORT_WAYS_IN).length === redirects.length && redirects.every((r) => W.SHORT_WAYS_IN[r.source.slice(1)] === r.destination));
+  shortNames = Object.keys(W.SHORT_WAYS_IN);
+  check("the app's list of short ways in is exactly vercel.json's redirects, each source made by shortWaySource (the fifth and sixth growth reviews)", shortNames.length === redirects.length && Object.entries(W.SHORT_WAYS_IN).every(([name, dest]) => redirects.some((r) => r.source === W.shortWaySource(name) && r.destination === dest)));
+  check("…shortWaySource spells each letter both ways", W.shortWaySource("yt") === "/([yY][tT])" && W.shortWaySource("sign-up") === "/([sS][iI][gG][nN]-[uU][pP])");
   check("…and the job page sends them in any capitals", W.shortWayIn("YouTube") === "/?utm_source=youtube&utm_medium=video" && W.shortWayIn("Signup")?.startsWith("https://staff.hireflownow.com/auth?mode=signup") && W.shortWayIn("front-desk") === null && /const shortWay = !id && businessParam === undefined \? shortWayIn\(slugParam\) : null;/.test(read("src/pages/JobDetails.tsx")));
 }
-check("…and no job can take one of those names", redirects.every((r) => new RegExp(`"${r.source.slice(1)}"`).test(slugLib)) && redirects.every((r) => read("api/job-prerender.mjs").includes(`"${r.source.slice(1)}"`)));
+check("…and no job can take one of those names", shortNames.length > 0 && shortNames.every((name) => new RegExp(`"${name}"`).test(slugLib)) && shortNames.every((name) => read("api/job-prerender.mjs").includes(`"${name}"`)));
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

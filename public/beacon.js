@@ -22,8 +22,8 @@
  *     header and prefers that).
  *
  * Vanilla JS, no build step, no dependencies — this file is served as-is
- * from public/, and deliberately kept tiny (this whole file is well under
- * 2KB minified) since it ships on every page view.
+ * from public/, and deliberately kept tiny (this whole file is about 2.5KB
+ * minified) since it ships on every page view.
  */
 (function () {
   "use strict";
@@ -98,10 +98,9 @@
     }
   }
 
-  // UTM params only exist on the URL that first brought someone in — an SPA
-  // route change won't have them on location.search any more. Capture once
-  // per page load (in memory only, per the privacy note above) and reuse
-  // for every subsequent track() call in this tab.
+  // UTM params only exist on the URL that first brought someone in. Capture
+  // them once per page load (in memory only, per the privacy note above) for
+  // this load's first view (track() below).
   var sessionUtm = (function () {
     try {
       // A page opened from another of HireFlow's own pages is the same visit
@@ -111,11 +110,27 @@
       // counted again (the fourth growth review: one YouTube visitor read as
       // three campaign visits, a Quora one as one).
       var params = new URLSearchParams(window.location.search);
-      // …except a "Hiring? Post a job free" link's own tags (medium
-      // hiring_link): those are a new way in, the click the owner counts (the
-      // fifth growth review: they stopped counting).
+      // …except a "Hiring? Post a job free" click landing on the front page:
+      // a new way in, the click the owner counts (the fifth growth review:
+      // they stopped counting), whatever channel the visitor brought. Its link
+      // carries a mark, hiring_link=1 (src/lib/hiringLink.ts), that nothing
+      // carries on and that is taken off the address here, so it counts once:
+      // not again on the logo, the guides or Open jobs, nor on a reload (the
+      // sixth growth review: keyed on the medium, one click read as four
+      // campaign visits, and a Share Kit or Facebook visitor's never counted).
+      var marked = params.get("hiring_link") === "1";
+      if (params.has("hiring_link")) {
+        try {
+          var bare = new URL(window.location.href);
+          bare.searchParams.delete("hiring_link");
+          window.history.replaceState(window.history.state, "", bare.pathname + bare.search + bare.hash);
+        } catch (e) {
+          // The address keeps it; counting is unchanged.
+        }
+      }
       var from = hostOf(document.referrer);
-      if (!staffSite && from && (from === window.location.hostname || /(^|\.)hireflownow\.com$/.test(from)) && params.get("utm_medium") !== "hiring_link") {
+      var fromInside = !staffSite && from && (from === window.location.hostname || /(^|\.)hireflownow\.com$/.test(from));
+      if (fromInside && !(marked && window.location.pathname === "/")) {
         return { source: null, medium: null, campaign: null };
       }
       // The same tidy value carry-source.js puts on the sign-up link, so a
@@ -135,22 +150,26 @@
     }
   })();
 
-  // The referrer is only meaningful for the very first view in this tab —
-  // an in-app route change's "referrer" is just the app's own previous
-  // page, which record_page_view doesn't need (the path history is
-  // reconstructable from the app's own routes, not from this beacon).
+  // The referrer and the tags belong to the very first view in this tab. An
+  // in-app route change is the same visit moving on from one of HireFlow's
+  // own pages, so it is counted the way a page opened from one is: HireFlow's
+  // own host as the referrer and no campaign tags (they were counted when they
+  // arrived). It used to send no referrer at all and the load's tags, so Open
+  // jobs → a job page read "direct" (the sixth growth review), and a tagged
+  // visit counted a campaign visit on every page it opened.
   var initialReferrerHost = hostOf(document.referrer);
   var referrerSent = false;
 
   function track(path) {
     if (isOptedOut()) return;
     if (staffSite && !isSignUpPage(path || window.location.pathname)) return;
+    var first = !referrerSent;
     var body = {
       path: path || window.location.pathname,
-      referrerHost: referrerSent ? null : initialReferrerHost,
-      utmSource: sessionUtm.source,
-      utmMedium: sessionUtm.medium,
-      utmCampaign: sessionUtm.campaign,
+      referrerHost: first ? initialReferrerHost : window.location.hostname || null,
+      utmSource: first ? sessionUtm.source : null,
+      utmMedium: first ? sessionUtm.medium : null,
+      utmCampaign: first ? sessionUtm.campaign : null,
       deviceClass: deviceClass(),
     };
     referrerSent = true;
