@@ -107,8 +107,12 @@ function applicationChains(code) {
   return chains;
 }
 
-/** The string arguments of every .select( in a chain ("" for a bare .select()). */
-function selectArgs(chain) {
+/**
+ * The string arguments of every .select( in a chain ("*" for a bare
+ * .select()). A constant named there (`.select(COLUMNS)`) is looked up in
+ * the same file (`const COLUMNS = "..."`).
+ */
+function selectArgs(chain, code) {
   const out = [];
   for (const m of chain.matchAll(/\.select\(\s*/g)) {
     const at = m.index + m[0].length;
@@ -117,7 +121,12 @@ function selectArgs(chain) {
       out.push("*");
       continue;
     }
-    if (q !== '"' && q !== "'" && q !== "`") continue; // a variable: see the other rules
+    if (q !== '"' && q !== "'" && q !== "`") {
+      const name = /^[A-Za-z_$][\w$]*/.exec(chain.slice(at))?.[0];
+      const constant = name && new RegExp(`\\bconst\\s+${name.replace(/\$/g, "\\$")}\\s*(?::[^=]+)?=\\s*(["'\`])([\\s\\S]*?)\\1`).exec(code);
+      if (constant) out.push(constant[2]);
+      continue;
+    }
     const end = chain.indexOf(q, at + 1);
     if (end !== -1) out.push(chain.slice(at + 1, end));
   }
@@ -159,7 +168,7 @@ export function evaluationReadProblems(rel, text) {
   const problems = [];
   let selectsStar = false;
   for (const chain of applicationChains(code)) {
-    for (const select of selectArgs(chain.text)) {
+    for (const select of selectArgs(chain.text, code)) {
       const own = withoutEvaluationEmbeds(select);
       const hit = FIVE_RE.exec(own);
       if (hit) problems.push(`${rel}:${chain.at} selects ${hit[1]} from applications (NULL there since 2026-10-25: embed application_evaluations(${hit[1]}) or read applications_staff_list)`);

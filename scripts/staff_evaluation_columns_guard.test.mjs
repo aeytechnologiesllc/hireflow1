@@ -49,6 +49,9 @@ passes("a write of the team's notes", `await supabase.from("applications").updat
 passes("a write built on an object", `const updates: any = { status: "rejected" };\nif (reason) updates.employer_notes = reason;\nawait supabaseClient.from("applications").update(updates).eq("id", id);`);
 passes("a grader's summary write", `await admin.from("applications").update({ phase_ai_analysis: analysisText }).eq("id", applicationId);`);
 fails("a write that reads the five back", `const { data } = await supabase.from("applications").update({ status: "x" }).eq("id", id).select("id, ai_score").single();`);
+// A column list kept in a constant is read too.
+fails("a select through a constant naming ai_score", `const COLUMNS = "id, status, ai_score";\nawait supabase.from("applications").select(COLUMNS).eq("job_id", jobId);`);
+passes("a constant without the five", `const COLUMNS = "id, status, notes";\nawait supabase.from("applications").select(COLUMNS).eq("job_id", jobId);`);
 // Comments and other tables do not count.
 passes("a comment naming the old select", `// supabase.from("applications").select("ai_score")\nawait supabase.from("applications").select("id");`);
 passes("the staff view", `await supabase.from("applications_staff_list").select("id, ai_score, ai_scorecard").in("job_id", ids);`);
