@@ -9,7 +9,7 @@ draft: true
 
 > **Draft for the owner.** This is your story; the parts in brackets need your details. Remove this note and every bracket before it goes live.
 
-In October we needed a team lead for our own support team. [Owner: what the team does, how many agents the lead looks after, which shifts.] We hired through HireFlow, the same way any business on it does.
+In October, the people behind HireFlow needed a team lead for the support team of their own business. [Owner: what the team does, how many agents the lead looks after, which shifts.] We hired through HireFlow, the same way any business on it does.
 
 The numbers: **153 people applied in the first four days. 71 finished the written interview. 3 were worth a call. We hired from those three.**
 

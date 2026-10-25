@@ -6,7 +6,7 @@ slug: what-you-cannot-ask-filipino-applicants
 author: HireFlow
 ---
 
-If you hire in the Philippines, do not make applicants state their age or date of birth while they apply, and do not put an age preference in your job ad. A Philippine law, Republic Act No. 10911, makes both unlawful for employers. If you must confirm that someone is an adult, ask your lawyer whether a yes-or-no question such as "Are you 18 or older?" fits your role, and collect the exact date of birth after you hire, from the ID or papers you ask for then.
+If you hire in the Philippines, do not make applicants state their age or date of birth while they apply, and do not put an age preference in your job ad. A Philippine law, Republic Act No. 10911, makes both unlawful for employers. To confirm that someone is an adult, one yes-or-no question, "Are you 18 or older?", asks far less. Collect the exact date of birth after you hire, from the ID or papers you ask for then.
 
 This post is general information, not legal advice. Every case is different, so check with a lawyer for your own situation before you change your forms or your ads.
 
@@ -33,11 +33,13 @@ Many employers ask one yes-or-no question on the application form:
 
 > Are you 18 or older?
 
-It asks for far less than a birth date. But a minimum age is still an age limit, and Section 6 allows an age limit only in its narrow cases, so ask your lawyer whether this question, and turning away a "No", is right for your role before you use it.
+It asks for far less than a birth date, and support work has a clear reason for it. Republic Act No. 9231, which protects working children, does not allow anyone under 18 to work between 10 p.m. and 6 a.m. (Section 12-A). Many Philippine support jobs serve customers in other time zones, so their shifts run through the night. You can read the [text of RA 9231](https://lawphil.net/statutes/repacts/ra2003/ra_9231_2003.html).
+
+An age limit above 18 is a different matter. Section 6 of RA 10911 allows one only in its narrow cases, so if you think your role needs one, ask a lawyer before you write it anywhere.
 
 Then wait. Collect the exact date of birth after the hire, from the ID or papers you ask for at that point. You may need it then for a contract, payroll or your records. By then the hiring decision is already made, so the date plays no part in who you hire.
 
-HireFlow's application form starts with that yes-or-no question and never asks for a birth date itself. Any question you add to your own form is yours to word, so leave age and birth date out of those too.
+HireFlow asks that yes-or-no question first on every application, for every job, and does not take an application that answers "No": the person is told the job is open to people 18 and over. It never asks for a birth date, and the job writer leaves age, birth dates and marital status out of the questions it suggests. Any question you add to your own form is yours to word, so leave age and birth date out of those too.
 
 ## Check your job ad, too
 
@@ -78,7 +80,7 @@ Go through your application form and your job ad with this list:
 
 - No field for age, birth date or year of birth.
 - No question about marital status.
-- If you need it, one yes-or-no question, "Are you 18 or older?", checked with your lawyer.
+- At most one yes-or-no question about age: "Are you 18 or older?"
 - No age wording in the ad: "fresh graduates only," "below 30," age ranges, "young."
 - Requirements describe the work and the skills, not the person's age.
 - A note to collect the date of birth from ID or papers after the hire.
@@ -88,7 +90,7 @@ Go through your application form and your job ad with this list:
 
 - Republic Act No. 10911 makes it unlawful for an employer to require a declaration of age or birth date while people apply, to publish a job notice that suggests an age preference, or to decline someone because of age.
 - Section 7 sets a fine of ₱50,000 to ₱500,000, or 3 months to 2 years in prison, or both.
-- If you must confirm an applicant is an adult, ask your lawyer whether "Are you 18 or older?" fits your role.
+- To confirm an applicant is an adult, ask one yes-or-no question: "Are you 18 or older?" Under RA 9231, no one under 18 may work between 10 p.m. and 6 a.m.
 - Collect the exact birth date after the hire, from the ID or papers you ask for then.
 - Under the Data Privacy Act, age and marital status are sensitive personal information. Ask only for what you need.
 - This is general information, not legal advice. Check with a lawyer for your own case.

@@ -101,7 +101,7 @@ Listen for:
 
 For remote phone work, check the setup too. Ask them to call from the room they will work in, with the headset they will use. Background noise and a weak connection will reach your customers.
 
-In HireFlow, every applicant handles a realistic customer chat from your kind of business, with typing speed and reply time measured, and phone jobs get questions about calls in the written interview. It does not run a live practice call, so that step is yours. The interview guide it gives you for that call lists questions, what to listen for and red flags.
+In HireFlow, each applicant who reaches that step handles a realistic customer chat from your kind of business, with typing speed and reply time measured, and phone jobs get questions about calls in the written interview. It does not run a live practice call, so that step is yours. The interview guide it gives you for that call lists questions, what to listen for and red flags.
 
 ## In short
 

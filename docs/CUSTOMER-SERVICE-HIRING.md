@@ -13,58 +13,81 @@ own words. docs/LAUNCH-PLAN.md, Phase 4, is the plan this follows.
 on her guess (`jobKindFollowUp`, `src/lib/avaEngine/playbook.ts`). The answer
 decides the family (`detectFamily` reads it from the brief, in both plan
 builders), so a wrong guess costs one click. After a voice brief the builder
-asks it too (with the channel, for customer service) before building, and the
+asks it too (with the channel, for customer service) before building, with
+the voice session kept open, and the screening level follows the answer; the
 answer never appears in the published post. It was added after the fourth
 Phase 4 review: four rounds of word rules still misread some titles, both
 ways.
 
-The guess (`isCustomerService`) reads the title's role phrase (its last word
-before "for …", "at …", " - …", brackets or a comma: "Recruiter - BPO" is a
-recruiter, "Quality Analyst - Call Center" an analyst), then the description,
-in this order:
+The guess (`isCustomerService`) reads the title's role phrase, then the
+description. The title is read in parts, split at " - ", " | ", commas and
+brackets; a part after "for", "at", "in" or "with" names the business, never
+the role ("Recruiter - BPO" is a recruiter, "Quality Analyst - Call Center" an
+analyst). The role phrase is the first part with a role word in it, so a place,
+the hours or "hiring" around it does not hide it ("Remote - Customer Support
+Agent", "Makati | CSR", "Hiring for Customer Service Representative"), and a
+bare role noun takes the part after it ("Specialist, Customer Support", "Agent
+(Customer Support)", "Team Leader - Customer Service"). Its last word is the
+role noun. A benefits line ("Benefits include medical and dental", "HMO") is
+not read. In this order:
 
 1. the role noun is a shop-floor, kitchen, road, trade or gym one (barista,
    cashier, server, cook, driver, teller, mechanic, instructor, trainer…;
    a clerk, attendant or host unless the role phrase is a support one,
-   "Customer Service Clerk", "Live Chat Host"), a store or warehouse associate
+   "Customer Service Clerk", "Live Chat Host", or a clinic's front desk; a
+   desk you stand at is a place, so "Front Desk Clerk" at a hotel and
+   "Customer Service Desk Clerk" at a supermarket are not), a store or warehouse associate
    (not an online shop's), a pharmacy technician, or a clinical assistant who
    is not virtual or remote: not customer service. "Online Store Chat Agent", "Driver Support Agent" and
    "Maid Service Customer Service Representative" name the business, not the
    role, and are;
 2. a support title whose people are colleagues (HR, payroll, finance,
-   operations, logistics, sales, clinical, field, facilities, peer or mental
-   health support): not, unless the work is customers' chats, calls or
-   tickets (a game's community support answering player tickets);
+   operations, logistics, sales, admin, office, clinical, field, facilities,
+   peer or mental health support): not, even when it answers customer calls
+   (an admin support assistant keeps its family); only a game's community
+   support answering player tickets is;
 3. work done in person with nothing remote about it (in-store, on the floor,
-   at the register, a returns counter; tickets or a help desk count as
-   remote): not;
+   at the register or a counter, at the gate, the branch or the airport, in
+   the lobby, greeting or checking people in; tickets, a help desk or the
+   phone count as remote): not;
 3a. a clinic's appointment setter or patient admin role whose work is
    patients' calls or bookings: customer service; then selling or collecting
    in the title (outbound, telesales, sales, collections, cold caller,
-   appointment setter): not; then a professional's role noun (engineer,
-   developer, designer, analyst, recruiter, accountant, coach…): only a
-   support title with real support work ("Support Engineer — answer customer
-   tickets");
+   appointment setter; after-sales, pre-sales and "Sales & Service" are
+   service): not; then a professional's role noun (engineer, developer,
+   designer, analyst, recruiter, accountant, coach…): only a support desk's
+   analyst or consultant ("Help Desk Analyst", "Customer Support Consultant",
+   "Customer Success Consultant"), or a support title with real support work
+   ("Support Engineer — answer customer tickets");
 4. a support title is customer service: customer / client service(s),
    support, care, success, relations; support, chat, service-desk or voice
    agents, reps, specialists; customer, chat, technical or IT support
    managers and leads (a senior or remote one too); technical / IT support
    technicians; help or service desk; call or contact centre; a voice or
-   non-voice account; BPO; CSR; front desk; patient services and appointment
-   schedulers;
+   non-voice account (and an account named by its channel, "Healthcare
+   Account - Voice"); BPO; CSR or CS agent; front desk; a virtual or remote
+   receptionist; patient services and appointment schedulers; telephone,
+   switchboard and answering-service operators; customer, client, member,
+   guest and billing advisors. A reservations or booking agent is customer
+   service when its words name a channel (a reservations agent with no words
+   too), never one who books musicians, bands or DJs or greets diners;
 5. outbound calling (cold calls, telemarketing, booking demos): not;
 6. a front-office role at a clinic (a receptionist, a medical office or
    office assistant, with patients or a clinic in the words); a patient admin
-   role (medical secretary, care, patient care or intake coordinator,
-   appointment setter, a virtual medical or dental assistant) when the work is
-   patients' calls or bookings;
+   role (medical secretary, care, patient care or intake coordinator, a
+   (medical) scheduler, appointment setter, a virtual medical or dental
+   assistant) when the work is patients' calls or bookings. A clinic is
+   patients, a clinic, a dental, medical, chiropractic, orthodontic,
+   optometry, physio or vet practice, or pet owners; a pet-friendly office is
+   not;
 7. a title with "support" and support work ("Support Technician — help
    customers by phone");
 8. another role named in the title keeps its family: engineer, manager,
    analyst, writer, tester, a non-clinic receptionist, and the admin and
    sales roles that also answer phones (admin, administrative, executive,
    office, personal or legal assistant, paralegal, secretary, coordinator,
-   telemarketer, cold caller, real estate, insurance or collections agent);
+   telemarketer, cold caller, real estate, insurance or collections agent),
+   and nursing and triage;
 9. else the description has to say the job IS answering customers by a
    channel: a verb, a customer-type word (customer, client, patient, caller,
    player, guest, member, buyer, shopper, user, visitor) and a channel
@@ -76,13 +99,14 @@ in this order:
    widget"), a quality ("great customer service"), or "answer phones, manage
    calendars".
 
-All four Phase 4 reviews' cases, about a hundred and sixty, are in the test.
+Every Phase 4 review's cases, about three hundred, are in the test
+(`scripts/customer_service_hiring.test.mjs`).
 
 Its follow-ups (one chip each, the default in brackets):
 
 | id | Question | Chips |
 |---|---|---|
-| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say. The title's channel leads ("Chat CSR — for a call center" is chat; a bare "CSR" is phone); a list of channels with phones in it is a mix ("phone, email and chat", "calls and emails", "SMS and phone", "voice and non-voice"), but not what customers own ("their phone and email accounts"); never phone for "non-voice" / "non voice", "chat only", "no phone calls", "without calls" or "phone calls are not required" |
+| `cs-channel` | How will they talk to your customers? | Chat, Phone, Email, A mix of these; the default is what the business's own words say (`channelForBrief`), read channel by channel. The title's channel words lead, in any part of its role ("Customer Service (Phone)", "Customer Service - Voice", "Customer Service – Inbound Calls"), never in a "for …" part ("Chat CSR — for a call center" is chat) or as a product ("Phone Repair Store Chat Agent", "Call Center Software Support", "Mobile Phone Customer Support"). The description adds a channel when the agent does that work ("answer calls", "inbound calls", "some phone"), or by a list of channels ("phone, email and chat", "calls and emails", "SMS and phone", "voice and non-voice"), but not what customers own ("their phone and email accounts"); its mere mentions count only when the title names no channel. A channel is out when the words rule it out ("non-voice", "chat only", "no phone calls", "no emails", "phone calls are not required", "phone support is handled by another team" unless they also take calls); not "no call center experience", "no phone sales", "no email marketing", "billing calls are handled by another team" or "we don't take calls on weekends". Phone and a written channel is a mix; chat and email, chat; tickets, email. A bare "CSR", a receptionist or an operator with no channel in the words is phone (the Philippine meaning of CSR; any written channel in the words decides instead) |
 | `cs-industry` | What kind of business is it? | Medical or dental office, Online store, Software or app, Home services, Gaming, Something else; the default is what the business's own words point to (`industryFromText`) |
 | `cs-load` | How many chats or messages at once? ("Besides calls, …" for phone or a mix) | One at a time, [Two or three], Four or more |
 | `cs-hours` | When will they work? | [Daytime], Evenings or nights, Weekends too, Rotating shifts |
@@ -111,10 +135,16 @@ the same things:
    measured inside it (docs/TYPING-IN-CHAT.md);
 5. the written interview. A phone or mixed job's interview starts with the
    two questions about calls (`PHONE_INTERVIEW_QUESTIONS`), each unless one of
-   the model's questions already asks the same thing about a call, in the
-   same sentence (an angry, upset, furious or irate caller; putting someone on
-   hold or passing the call on; "transferable skills", "hold yourself
-   accountable" and "notes on hold times" are not that), and
+   the model's questions already asks the same thing about a call: in one
+   sentence, or a statement with the one before it ("A patient is shouting.
+   They are on the phone."), unless either names a written channel or the
+   second is a question of its own; "Mr." and "Dr." end no sentence. An
+   angry caller is angry, upset, furious, irate, rude, abusive, shouting,
+   yelling, screaming, swearing or talking over you; on hold is a person on
+   hold ("put patients on hold"), or on a call; passing the call on counts
+   too. "Transferable skills", "hold yourself accountable", "notes on hold
+   times", a project, a ticket or a feeling on hold, and an upset customer by
+   chat or email are not that. It
    always keeps at least one of the model's own, until the practice call
    exists (docs/LAUNCH-PLAN.md, "Later"); an interview the model left empty
    gets the customer-service bank's questions.
@@ -203,12 +233,18 @@ as a support agent (`rubricForCase`), with:
   list of what stays, after four reviews kept extending the list of what
   goes), line and paragraph separators become spaces, and any colon after a
   word becomes a dash ("Note: I checked" reads "Note - I checked"). A
-  combining mark stays only after a letter of its own script (Hindi and
-  Hebrew read as written; a Myanmar or Devanagari mark after a Latin,
-  Cyrillic or Cherokee letter goes), angle brackets of every width go, and
-  everyday symbols stay (°, ×, ¿, ¡, the Arabic comma, emoji, skin tones,
-  flags). Times ("10:30"), ratios and "John 3:16" keep their colon, except
-  after a speaker label or a word that reads as one (capitals, two scripts). Quotes are checked on the same folded words;
+  combining mark stays only after a letter (never a digit) of its own script
+  (Hindi, Hebrew and Arabic vowel marks read as written; a Myanmar or
+  Devanagari mark after a Latin, Cyrillic or Cherokee letter, or after a
+  digit, "३ः", goes), and an accent after a Latin letter (Yoruba "ẹ́");
+  angle brackets of every width go, and letters shaped like them (ᐸ ᐳ);
+  guillemets read as quote marks; everyday symbols stay (°, ×, ¿, ¡, the
+  Arabic comma, emoji, skin tones, flags). Times ("10:30"), ratios and "John
+  3:16" keep their colon, except after a speaker label or a word that reads
+  as one (no small letters, which takes in capitals and scripts with no
+  case, or two scripts), where the colon becomes a full stop ("PATIENT
+  4.30"; "TOMORROW 10.30" still reads as a time); spaces, tabs and newlines
+  before it count as one. Quotes are checked on the same folded words;
 - WHAT THE AGENT KNOWS as the only true facts, and anything promised or stated
   that they do not allow counting heavily against the mark;
 - the pack's note, WHAT GOOD LOOKS LIKE IN THIS KIND OF BUSINESS.

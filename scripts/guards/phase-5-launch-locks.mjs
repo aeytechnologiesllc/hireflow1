@@ -112,6 +112,10 @@ export default [
       if (!/insert into private\.ai_business_daily_usage/.test(latest) || !/v_business_calls > v_business_cap/.test(latest) || !/return false;/.test(latest)) {
         detail.push(`${latestFile}: the live ai_budget_take no longer counts a business against its own cap`);
       }
+      // A business that has not confirmed its email gets the smaller day (the third and fourth Phase 5 reviews).
+      if (!/if not public\.business_email_verified\(v_business\) then/.test(latest) || !/ai_new_business_daily_call_cap/.test(latest)) {
+        detail.push(`${latestFile}: the live ai_budget_take no longer gives an unconfirmed business the smaller day`);
+      }
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

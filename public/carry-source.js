@@ -3,8 +3,9 @@
  * (2026-10-25; docs/LAUNCH-PLAN.md, Phase 2, task 3).
  *
  * Adds the campaign tags of the address that brought the visitor
- * (utm_source, utm_medium, utm_campaign) and the bare host of the site they
- * came from (as `ref`) to every sign-up and sign-in link to the staff site,
+ * (utm_source, utm_medium, utm_campaign; they replace a page's own, so a
+ * guide's sign-up button keeps a YouTube visitor's tags) and the bare host of
+ * the site they came from (as `ref`) to every sign-up and sign-in link to the staff site,
  * so the account that gets made can say how its owner arrived
  * (src/lib/signupSource.ts stores it as signup_source).
  *
@@ -36,7 +37,10 @@
     Array.prototype.forEach.call(links, function (a) {
       var url = new URL(a.href);
       Object.keys(keep).forEach(function (key) {
-        if (!url.searchParams.has(key)) url.searchParams.set(key, keep[key]);
+        // The visitor's own campaign tags say how they reached the site, so they
+        // win over the page's ("blog", the post); a tag they did not bring keeps
+        // the page's (2026-10-25, the second Phase 6 review). A link's own ref stays.
+        if (key !== "ref" || !url.searchParams.has(key)) url.searchParams.set(key, keep[key]);
       });
       a.href = url.toString();
     });

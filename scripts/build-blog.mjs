@@ -41,7 +41,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const SITE = "https://hireflownow.com";
 export const SIGNUP = "https://staff.hireflownow.com/auth?mode=signup";
 const SHARE_IMAGE = `${SITE}/share/hireflow.jpg`;
-const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+// The page counter keeps a path part only in this shape (WORD_SLUG_RE in
+// supabase/functions/_shared/telemetry.ts): words, or a number between
+// hyphens, starting with a word ("screening-150-applicants"). Any other slug
+// would count as "/blog/<redacted>" (the second Phase 6 review).
+const SLUG = /^[a-z]+(?:-(?:[a-z]+|[0-9]+))+$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const FIELDS = ["title", "description", "date", "slug", "author"];
 // Every key a post may have: a misspelt one ("darft: true") stops the build
@@ -88,10 +92,12 @@ export function parsePost(source, file = "post") {
     const kv = /^([a-z_]+):\s*(.*)$/.exec(line);
     if (!kv) throw new Error(`${file}: front matter line is not "key: value": ${JSON.stringify(line)}`);
     if (!KNOWN_KEYS.has(kv[1])) throw new Error(`${file}: unknown front matter key "${kv[1]}" (known: ${[...KNOWN_KEYS].join(", ")})`);
+    // A key given twice ("draft: true" then "draft: false") is a mistake, never "the last one wins".
+    if (Object.hasOwn(meta, kv[1])) throw new Error(`${file}: front matter key "${kv[1]}" is given twice`);
     let value = kv[2].trim();
     if (/^(["']).*\1$/.test(value)) value = value.slice(1, -1);
-    // No control character in a title or a description (it makes feed.xml invalid XML).
-    if (/[\u0000-\u001F\u007F-\u009F\u2028\u2029]/.test(value)) throw new Error(`${file}: "${kv[1]}" has a control character`);
+    // No control character or noncharacter in a title or a description (it makes feed.xml invalid XML).
+    if (/[\u0000-\u001F\u007F-\u009F\u2028\u2029\uFFFE\uFFFF\uFDD0-\uFDEF]/.test(value)) throw new Error(`${file}: "${kv[1]}" has a control character`);
     meta[kv[1]] = value;
   }
   for (const key of FIELDS) {
@@ -99,12 +105,14 @@ export function parsePost(source, file = "post") {
   }
   if (!SLUG.test(meta.slug) || meta.slug.length > MAX_SLUG) throw new Error(`${file}: slug "${meta.slug}" must be lowercase words and hyphens, at most ${MAX_SLUG} characters`);
   if (!realDate(meta.date)) throw new Error(`${file}: date "${meta.date}" must be a real YYYY-MM-DD`);
+  if (Object.hasOwn(meta, "updated") && (!realDate(meta.updated) || meta.updated < meta.date)) throw new Error(`${file}: updated "${meta.updated}" must be a real YYYY-MM-DD, not before the date`);
+  // An empty "draft:" is a mistake, never "published" (the second Phase 6 review).
+  if (Object.hasOwn(meta, "draft") && meta.draft !== "true" && meta.draft !== "false") throw new Error(`${file}: draft must be true or false`);
+  // A published post cannot be dated ahead; a draft may be (it is never built).
   const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
-  if (meta.date > tomorrow || (meta.updated && meta.updated > tomorrow)) throw new Error(`${file}: a date in the future`);
-  if (meta.updated && (!realDate(meta.updated) || meta.updated < meta.date)) throw new Error(`${file}: updated "${meta.updated}" must be a real YYYY-MM-DD, not before the date`);
+  if (meta.draft !== "true" && (meta.date > tomorrow || (meta.updated && meta.updated > tomorrow))) throw new Error(`${file}: a date in the future`);
   if (meta.title.length > 90) throw new Error(`${file}: title is ${meta.title.length} characters (90 at most)`);
   if (meta.description.length < 50 || meta.description.length > 160) throw new Error(`${file}: description is ${meta.description.length} characters (50 to 160)`);
-  if (meta.draft && meta.draft !== "true" && meta.draft !== "false") throw new Error(`${file}: draft must be true or false`);
   const body = m[2].trim();
   if (!body) throw new Error(`${file}: the post has no text`);
   return {
@@ -125,6 +133,8 @@ export function allowedHref(href) {
   if (/^#[a-z0-9-]+$/i.test(h)) return true;
   if (/^\/(?!\/)[^\s\\]*$/.test(h)) return true;
   if (/^mailto:[^\s@]+@[^\s@]+$/i.test(h)) return true;
+  // "https:evil.com" parses, but opens as a broken path on this site (the second Phase 6 review).
+  if (!/^https:\/\/[^/\\]/i.test(h)) return false;
   try {
     const u = new URL(h);
     return u.protocol === "https:" && !!u.hostname;
@@ -157,6 +167,8 @@ export function renderMarkdown(markdown, file = "post") {
         return `<h${token.depth} id="${headingId(inner, used)}">${inner}</h${token.depth}>\n`;
       },
       link(token) {
+        // A bare "www.example.com" in the text becomes an http:// link.
+        if (/^http:\/\/www\./i.test(token.href) && token.raw === token.text) throw new Error(`${file}: "${token.text}" is a bare web address; write it as a link, [${token.text}](https://${token.text})`);
         if (!allowedHref(token.href)) throw new Error(`${file}: link "${token.href}" must be a site path ("/open-jobs"), https or mailto`);
         const inner = this.parser.parseInline(token.tokens);
         const external = /^https:\/\//i.test(token.href) && !/^https:\/\/(staff\.)?hireflownow\.com(\/|$)/i.test(token.href);
@@ -194,14 +206,36 @@ export function loadPosts(dir = path.join(ROOT, "content", "blog"), { includeDra
     post.minutes = Math.max(1, Math.round(wordCount(post.body) / 220));
     if (includeDrafts || !post.draft) posts.push(post);
   }
-  // A link to another guide must reach a published one (never a draft, never a typo).
+  // A link to another guide must reach a published one (never a draft, never
+  // a typo), however it is written: with a #part or ?query, as a full
+  // hireflownow.com address, or in capitals (the second Phase 6 review).
   const published = new Set(posts.filter((p) => !p.draft).map((p) => p.slug));
   for (const post of posts.filter((p) => !p.draft)) {
-    for (const m of post.html.matchAll(/href="\/blog\/([^"#?]+)"/g)) {
-      if (!published.has(m[1])) throw new Error(`${post.file}: links to /blog/${m[1]}, which is not a published guide`);
+    for (const m of post.html.matchAll(/href="([^"]*)"/g)) {
+      const slug = guideSlugOf(m[1].replace(/&amp;/g, "&"));
+      if (slug !== null && !published.has(slug)) throw new Error(`${post.file}: links to ${m[1]}, which is not a published guide (guides are at /blog/<slug>, in lower case)`);
     }
   }
   return posts.sort((a, b) => (a.date === b.date ? a.slug.localeCompare(b.slug) : a.date < b.date ? 1 : -1));
+}
+
+/**
+ * The guide a link points to ("/blog/<slug>", "https://hireflownow.com/blog/<slug>#x"):
+ * its slug as written, "" for the list itself, or null for any other page.
+ */
+export function guideSlugOf(href) {
+  let url;
+  try {
+    url = new URL(href, `${SITE}/`);
+  } catch {
+    return null;
+  }
+  if (!/^(www\.)?hireflownow\.com$/i.test(url.hostname)) return null;
+  const path = url.pathname.replace(/\/$/, "");
+  if (!/^\/blog(\/|$)/i.test(path)) return null;
+  if (path === "/blog" || path === "/blog/feed.xml") return null;
+  // "/Blog/..." or "/blog/a/b" is no guide's address (addresses are case-sensitive): return it as written.
+  return path.startsWith("/blog/") ? path.slice("/blog/".length) : path.slice(1);
 }
 
 /** The sign-up button's address, tagged with the page it was pressed on. */
@@ -282,7 +316,7 @@ const STYLE = `
   .legal { margin: 14px 0 0; text-align: center; font-size: 12.5px; color: var(--ink-3); }
 `;
 
-function head({ title, description, canonical, type, extraMeta = "", graph }) {
+function head({ title, description, canonical, type, extraMeta = "", graph, campaign = "blog" }) {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -321,7 +355,7 @@ ${extraMeta}<meta name="twitter:card" content="summary_large_image">
 <body>
 <header class="bar">
   <a class="brand" href="/">${MARK}HireFlow</a>
-  <nav aria-label="Main"><a class="plain" href="/blog">Guides</a><a class="plain wide" href="/open-jobs">Open jobs</a><a class="btn" href="${ctaHref("bar", "bar")}">Post a job free</a></nav>
+  <nav aria-label="Main"><a class="plain" href="/blog">Guides</a><a class="plain wide" href="/open-jobs">Open jobs</a><a class="btn" href="${ctaHref(campaign, "bar")}">Post a job free</a></nav>
 </header>
 `;
 }
@@ -389,7 +423,7 @@ export function postPage(post, all) {
   ];
   const extraMeta = `<meta property="article:published_time" content="${post.date}">\n<meta property="article:modified_time" content="${modified}">\n`;
   return (
-    head({ title: `${post.title} | HireFlow`, description: post.description, canonical, type: "article", extraMeta, graph }) +
+    head({ title: `${post.title} | HireFlow`, description: post.description, canonical, type: "article", extraMeta, graph, campaign: post.slug }) +
     `<div class="head"><div>
   <p class="crumbs"><a href="/blog">Guides</a></p>
   <h1>${escapeHtml(post.title)}</h1>
@@ -424,7 +458,7 @@ export function indexPage(posts) {
     },
   ];
   return (
-    head({ title: "Guides to hiring customer service agents | HireFlow", description, canonical, type: "website", graph }) +
+    head({ title: "Guides to hiring customer service agents | HireFlow", description, canonical, type: "website", graph, campaign: "blog-index" }) +
     `<div class="head"><div>
   <p class="crumbs"><a href="/">HireFlow</a></p>
   <h1>Guides to hiring customer service agents</h1>
@@ -455,6 +489,7 @@ export function notFoundPage(posts) {
       type: "website",
       extraMeta: '<meta name="robots" content="noindex, follow">\n',
       graph: [ORG],
+      campaign: "blog-not-found",
     })
       .replace('<meta name="robots" content="index, follow, max-image-preview:large">\n', "")
       // No canonical and no og:url: it is no page of its own (the Phase 6 review: they pointed at /blog).
@@ -463,10 +498,10 @@ export function notFoundPage(posts) {
     `<div class="head"><div>
   <p class="crumbs"><a href="/blog">Guides</a></p>
   <h1>That guide is not here</h1>
-  <p class="dek">It may have moved, or the address may have a typo. Every guide is on the list.</p>
+  <p class="dek">It may have moved, or the address may have a typo. The latest guides are below; <a href="/blog" style="color: var(--gold)">every guide is on the list</a>.</p>
 </div></div>
 <main>
-<section class="list" aria-label="Every guide">${posts.slice(0, 5).map(card).join("")}</section>
+<section class="list" aria-label="Latest guides">${posts.slice(0, 5).map(card).join("")}</section>
 </main>
 ` +
     foot()
@@ -503,7 +538,7 @@ ${posts
     <title>${xml(p.title)}</title>
     <link>${SITE}/blog/${p.slug}</link>
     <guid isPermaLink="true">${SITE}/blog/${p.slug}</guid>
-    <pubDate>${new Date(`${p.date}T12:00:00Z`).toUTCString()}</pubDate>
+    <pubDate>${new Date(`${p.date}T00:00:00Z`).toUTCString()}</pubDate>
     <description>${xml(p.description)}</description>
   </item>`,
   )

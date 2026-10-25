@@ -326,7 +326,8 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
   );
 
   // BUILD step — keep the voice session alive (BuildStep renders its own orb); nothing visible here.
-  if (step === 3) return <div aria-hidden className="hidden" />;
+  // The same while the business confirms the kind of job with a click (step 1).
+  if (step === 1 || step === 3) return <div aria-hidden className="hidden" />;
 
   // REVIEW step — a compact "Ava is here" bar so she can refine the plan with the employer by voice.
   if (step === 4) {

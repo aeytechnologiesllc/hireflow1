@@ -198,12 +198,14 @@ these either; each has a guard or a test that CI runs:
 - Job-writing AI (generate-flow, ai-generate-job-content,
   ai-generate-workflow) is for a hiring account only (`jobWritingBusiness`:
   a business owner, or a teammate allowed to create jobs), billed to its
-  business, at most 40 calls an hour per account and 15 per connection;
-  document AI (ai-generate-document, ai-analyze-document-fields) is for a
-  hiring account too (`hiringBusiness`). A business that has never had a job
-  past draft gets 300 AI calls a day, not 2,000
-  (`ai_new_business_daily_call_cap`, `20261025230000`): with email
-  confirmation off and no Turnstile yet, any sign-up is a business.
+  business, at most 40 calls an hour per account (all three together) and 15
+  per connection for each; document AI (ai-generate-document,
+  ai-analyze-document-fields) is for a business owner or a teammate who may
+  send documents (`hiringBusiness`). Until a business confirms its sign-in
+  email with the 6-digit code (`business_email_verified`) it gets 300 AI calls
+  a day, not 2,000 (`ai_new_business_daily_call_cap`, `20261025240000`): with
+  email confirmation off and no Turnstile yet, any sign-up is a business, and
+  a job's status was no test (a job can be saved as closed unpublished).
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

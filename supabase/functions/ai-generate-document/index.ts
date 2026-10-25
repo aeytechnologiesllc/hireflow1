@@ -336,7 +336,8 @@ Generate the complete, professionally formatted document now:`;
       }
       if (status === 402) {
         return new Response(
-          JSON.stringify({ error: "AI credits exhausted. Please add funds to continue." }),
+          // Never a word about funds or credits: nothing is paid for while billing is off.
+          JSON.stringify({ error: "Writing documents is unavailable right now. Please try again later." }),
           { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }

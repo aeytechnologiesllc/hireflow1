@@ -96,6 +96,6 @@ If many of your applicants are in the Philippines, leave age and birth date out 
 - The job is mostly the schedule: booking, moving, reminding, answering and passing messages on.
 - Three rules come first: no medical advice, no insurance promises, no patient details to the wrong person.
 - Write those rules down, with a word-for-word emergency instruction from your clinical team.
-- Test with your own situations: a tricky booking, a medical question, an insurance question, the wrong caller and an upset patient.
+- Test with your own situations: a tricky booking, a medical question, an insurance question, the wrong caller, an upset patient and, for chat roles, two patients at once.
 - For phone roles, add written questions about calls and a short practice call you run yourself.
 - Leave age and birth date out of the post and the application.

@@ -6,6 +6,7 @@ import {
 } from "../_shared/openai.ts";
 import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { jobWritingBusiness, signedInUserId } from "../_shared/signedIn.ts";
+import { AGE_RULE, bulletsWithoutAgeAsks } from "../_shared/ageWording.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -369,7 +370,7 @@ serve(async (req) => {
           {
             role: "system",
             content:
-              "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. For a customer service or support role, write so an applicant in any country reads it easily (plain English, no country-specific laws or apps) and call the people they help customers (patients for a medical or dental office), never players unless it is a game company. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.",
+              "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. For a customer service or support role, write so an applicant in any country reads it easily (plain English, no country-specific laws or apps) and call the people they help customers (patients for a medical or dental office), never players unless it is a game company. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only. " + AGE_RULE,
           },
           { role: "user", content: prompt },
         ],
@@ -382,6 +383,9 @@ serve(async (req) => {
       });
 
       const parsed = data as Record<string, unknown>;
+      // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts).
+      parsed.requirements = bulletsWithoutAgeAsks(parsed.requirements);
+      parsed.responsibilities = bulletsWithoutAgeAsks(parsed.responsibilities);
       return new Response(
         JSON.stringify(parsed),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -404,7 +408,7 @@ serve(async (req) => {
         {
           role: "system",
           content:
-            "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. For a customer service or support role, write so an applicant in any country reads it easily (plain English, no country-specific laws or apps) and call the people they help customers (patients for a medical or dental office), never players unless it is a game company. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only.",
+            "You are an expert HR professional and copywriter specializing in creating compelling, inclusive job postings. Write content that is professional, engaging, and free from bias. Use clear, action-oriented language. For a customer service or support role, write so an applicant in any country reads it easily (plain English, no country-specific laws or apps) and call the people they help customers (patients for a medical or dental office), never players unless it is a game company. CRITICAL: Never use markdown formatting - no asterisks (*), no bold (**), no headers (#). Write in clean, plain text only. " + AGE_RULE,
         },
         { role: "user", content: prompt },
       ],
@@ -413,7 +417,7 @@ serve(async (req) => {
       retries: 3,
     });
 
-    const normalized = content.trim();
+    const normalized = field === "requirements" || field === "responsibilities" ? String(bulletsWithoutAgeAsks(content.trim())) : content.trim();
     const result = { content: normalized };
 
     return new Response(

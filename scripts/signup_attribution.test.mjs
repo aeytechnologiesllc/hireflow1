@@ -53,6 +53,11 @@ out = runCarry({ search: "?utm_source=youtube", referrer: "", dnt: "1", links: [
 check("Do Not Track: nothing is carried", out[0] === "https://staff.hireflownow.com/auth?mode=signup", out[0]);
 out = runCarry({ search: "", referrer: "https://hireflownow.com/open-jobs", links: ["https://staff.hireflownow.com/auth?mode=signup"] });
 check("our own pages are not a source", out[0] === "https://staff.hireflownow.com/auth?mode=signup", out[0]);
+// The second Phase 6 review: a guide's own tags gave way to nothing, so a YouTube visitor signed up as "blog".
+out = runCarry({ search: "?utm_source=youtube&utm_campaign=v1", referrer: "", links: ["https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=phone-agent-vs-chat-agent"] });
+check("on a guide, the visitor's own tags win; one they did not bring keeps the page's", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_medium=article&utm_campaign=v1", out[0]);
+out = runCarry({ search: "", referrer: "https://www.youtube.com/", links: ["https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=phone-agent-vs-chat-agent"] });
+check("…an untagged visit keeps the guide's tags and adds where it came from", out[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=phone-agent-vs-chat-agent&ref=www.youtube.com", out[0]);
 
 // ---- the staff site counts only its sign-up page --------------------------------
 const beacon = read("public/beacon.js");
