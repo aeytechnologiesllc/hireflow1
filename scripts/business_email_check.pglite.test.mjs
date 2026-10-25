@@ -41,6 +41,7 @@ const NOT_THE_CHECK = {
   "20261025200000_help_for_applicants.sql": "Help messages from applicants to the platform admin; nothing of jobs, profiles or the email check",
   "20261025190000_ai_budget_count_only_taken.sql": "the AI budget again (ai_budget_take gives a business its unit back when the platform refuses); nothing of jobs or profiles",
   "20261025180000_remove_applicant_review.sql": "the same removal, tightened (assigned jobs, documents by id, its notifications, a file retry queue); no job, profile or email-check object",
+  "20261025230000_application_evaluations.sql": "the hiring team's evaluation moves from applications into its own table (applications only); nothing of jobs, profiles or the email check",
 };
 const LATER = readdirSync(MIGRATIONS)
   .filter((name) => name.endsWith(".sql") && name >= "20261025100000_business_email_check.sql")
