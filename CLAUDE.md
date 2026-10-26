@@ -239,6 +239,26 @@ these either; each has a guard or a test that CI runs:
   DEFINER) however the row goes. Guards `file-queue-fair-and-bounded`,
   `applications-stay-on-their-job`; launch_locks_behaviour sections 1, 9, 11,
   13 and 14, `scripts/document_cleanup.test.mjs`.
+- (The ninth security review, `20261025580000`.) Many throwaway accounts hold
+  up nobody's removal for good. The pick puts every note never tried before
+  any that failed, then each person's oldest note, oldest first across
+  people, then everyone's next notes, the people with the fewest waiting
+  first (caps unchanged). By the fewest waiting alone, a thousand accounts'
+  `<uid>/.` notes, refused every hour, held the front of every exact-path
+  run, and 200 accounts with one note each an hour kept a three-folder
+  withdrawal out of every folder run. The trigger queues no `.` part (the
+  `isPlainObjectPath` rule) and an exact path only where storage holds that
+  exact name (`private.storage_holds(…, p_exact => true)`; as a prefix,
+  `<uid>/.` was "there" because `<uid>/.x` was); document-cleanup drops a
+  note that is not a plain path (logged once) instead of retrying it.
+  Left until Turnstile is set up (an owner input): many accounts still
+  delay a real removal, never keep it out. 200 accounts queuing a folder
+  each an hour give a three-folder withdrawal one folder a run (three runs);
+  a flood bigger than a run puts it behind every note queued before it. A
+  document's files by its id only now has a proof for documents_queue_files
+  too (section 13: an address naming another business's upload). Guards
+  `file-queue-fair-and-bounded`, `applicant-data-can-be-removed`;
+  launch_locks_behaviour sections 13 and 15, `scripts/document_cleanup.test.mjs`.
 - The way to reach the company is **Contact us** (an applicant's own Help
   thread at `/contact`, `20261025200000_help_for_applicants.sql`; `/help` is
   staff-only on the staff host) or Help (a hiring team); Messages reach the

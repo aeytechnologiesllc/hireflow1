@@ -58,12 +58,22 @@
  *      function of its own rights a browser may call, or by moving it to a
  *      throwaway job and deleting that (20261025570000); Delete their
  *      information still does; a deleted document's kept copies are queued
- *      (documents_queue_files), from a cascade or the business's own delete.
+ *      (documents_queue_files), from a cascade or the business's own delete,
+ *      found by its id only, never by the file address the business wrote
+ *      (the ninth security review).
  *  14. One account's uploads hold up only its own removals: at most 200
  *      exact paths a day for one applicant, and document-cleanup's next run
  *      (storage_file_trash_fair_pick) takes a real withdrawal queued after
  *      one account's flood, or seventy (the eighth security review, in the
  *      shape of its flood proof; 20261025560000).
+ *  15. Many accounts cannot keep a real removal out of the run: the trigger
+ *      queues no "." part and an exact path only where storage holds exactly
+ *      that name; a note that failed comes after every note never tried (a
+ *      thousand accounts' failing notes, then a real withdrawal: taken
+ *      within two runs); and a real withdrawal's oldest note waits only for
+ *      those queued before it (200 accounts queuing a folder each an hour:
+ *      one of its folders every run). The ninth security review, in the
+ *      shape of its proofs; 20261025580000.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -934,6 +944,20 @@ console.log("\n13. A business removes an application only through Delete their i
   const unsignedGone = await as(user(BIZ), `delete from public.documents where id = $1 returning id`, [DOC_UNSIGNED]);
   const unsignedRows = (await db.query(`select folder from public.storage_file_trash where bucket = 'documents' and folder = $1`, [`documents/${DOC_UNSIGNED}`])).rows;
   check("a letter the business deletes before it is signed queues its copies too", unsignedGone.ok && unsignedGone.rows.length === 1 && unsignedRows.length === 1, show({ unsignedGone, unsignedRows }));
+  // A document's files are found by its id only (documents/<id>/), never by
+  // its file address: the business writes that, and it can name another
+  // business's upload in the documents bucket (<their uid>/…). The ninth
+  // security review: a second trigger queuing the file the address names
+  // passed every test, and the next run would have deleted that business's
+  // file; only remove-applicant had a proof of this rule.
+  const ELSEWHERE_FILE = `${STRANGER}/1729000000000_offer.pdf`;
+  await putFile("documents", ELSEWHERE_FILE);
+  const DOC_POINTS_ELSEWHERE = "d0000000-0000-4000-8000-000000000004";
+  await db.query(`insert into public.documents (id, application_id, name, file_url, sender_id, recipient_id, status) values ($1, $2, 'Offer, theirs', $3, $4, $5, 'pending')`, [DOC_POINTS_ELSEWHERE, signedApp, `https://yqklrkpptnhubsnijqze.supabase.co/storage/v1/object/sign/documents/${ELSEWHERE_FILE}?token=t`, BIZ, SIGNED]);
+  await putFile("documents", `documents/${DOC_POINTS_ELSEWHERE}/original-v0.pdf`);
+  const pointsGone = await as(user(BIZ), `delete from public.documents where id = $1 returning id`, [DOC_POINTS_ELSEWHERE]);
+  const pointsRows = (await db.query(`select bucket, folder, path from public.storage_file_trash where folder = $1 or coalesce(path, '') like $2 or coalesce(folder, '') like $2 order by folder`, [`documents/${DOC_POINTS_ELSEWHERE}`, `%${STRANGER}%`])).rows;
+  check("a deleted document whose file address names another business's upload queues only documents/<its own id>/", pointsGone.ok && pointsGone.rows.length === 1 && JSON.stringify(pointsRows) === JSON.stringify([{ bucket: "documents", folder: `documents/${DOC_POINTS_ELSEWHERE}`, path: null }]), show({ pointsGone, pointsRows }));
   const jobGone = await as(user(BIZ), `delete from public.jobs where id = $1 returning id`, [JOB_DOC]);
   const docRows = (await db.query(`select bucket, folder, starts_with, to_jsonb(t) ->> 'candidate_id' as candidate_id from public.storage_file_trash t where bucket = 'documents' and application_id = $1 and folder in ($2, $3) order by folder`, [signedApp, `documents/${DOC}`, `documents/${DOC_EMPTY}`])).rows;
   check("a deleted job takes its documents' kept copies with it: documents/<id>/ is queued", jobGone.ok && JSON.stringify(docRows) === JSON.stringify([{ bucket: "documents", folder: `documents/${DOC}`, starts_with: "", candidate_id: SIGNED }]), show(docRows));
@@ -1038,6 +1062,103 @@ console.log("\n14. One account's uploads hold up only its own removals\n");
   check("seventy accounts' notes are in the queue, each with its person", seventy.ok, show(seventy));
   run = await nextRun();
   check("…and with seventy flooding accounts, the real withdrawal is still all in the next run", run.folders.filter((r) => r.application_id === late).length === 3 && run.folders.length === 200, show({ late: run.folders.filter((r) => r.application_id === late).length, all: run.folders.length }));
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n15. Many accounts cannot keep a real removal out of the run\n");
+{
+  // The ninth security review (finding 1), in the shape of its proofs
+  // (probes/dotseg.mjs). Sign-up is free, so many throwaway accounts are
+  // cheap: (A) a thousand, each with one note document-cleanup refuses every
+  // hour ("<uid>/.", which the trigger queued because "<uid>/.x" was in
+  // storage), held the front of every exact-path run for good; (B) 200, each
+  // withdrawing one application an hour with one file in its videos folder,
+  // kept a three-folder withdrawal out of every folder run. The queue starts
+  // empty here, so each proof sees only its own notes.
+  await db.query(`delete from public.storage_file_trash`);
+
+  // The trigger: a "." part is no plain path, and an exact path is queued
+  // only where storage holds a file of exactly that name. Storage refuses a
+  // "." part in an upload, so these files stand for the worst case: as if
+  // it held them.
+  const DOTTY = id(9, 1);
+  await makeUser(DOTTY, "candidate");
+  const dottyApp = await apply(DOTTY, JOB);
+  const DOT = `${DOTTY}/.`;
+  const DOT_INSIDE = `${DOTTY}/./1729000000000.pdf`;
+  const ONLY_LONGER = `${DOTTY}/1729000000001`; // storage holds "…1729000000001.pdf", not this
+  const OWN = `${DOTTY}/1729000000002.pdf`;
+  for (const p of [`${DOTTY}/.x`, DOT, DOT_INSIDE, `${ONLY_LONGER}.pdf`, OWN]) await putFile("resumes", p);
+  const listed = await as(user(DOTTY), `update public.applications set notes = $2 where id = $1`, [dottyApp, JSON.stringify({ fileUploads: { q1: { url: DOT }, q2: { url: DOT_INSIDE }, q3: { url: ONLY_LONGER }, q4: { url: OWN } } })]);
+  if (!listed.ok) throw new Error(`setup: the form's files could not be listed: ${listed.error}`);
+  await as(user(DOTTY), `delete from public.applications where id = $1`, [dottyApp]);
+  const dottyPaths = await queuedPaths(dottyApp);
+  check("a path with a \".\" part is never queued, even where storage holds a file of that name", !dottyPaths.includes(DOT) && !dottyPaths.includes(DOT_INSIDE), show(dottyPaths));
+  check("…nor one where storage holds only a longer name that starts with it", !dottyPaths.includes(ONLY_LONGER), show(dottyPaths));
+  check("…while the applicant's own file goes", JSON.stringify(dottyPaths) === JSON.stringify([OWN]), show(dottyPaths));
+  await db.query(`delete from public.storage_file_trash`);
+
+  /** document-cleanup's run, as its code does it: the pick; a note storage refuses tries again later (attempts + 1); the rest are removed. */
+  const runOnce = async (exact, refuses) => {
+    const r = await as(SERVICE, `select id, path, folder, application_id, attempts from public.storage_file_trash_fair_pick($1)`, [exact]);
+    if (!r.ok) throw new Error(`the pick: ${r.error}`);
+    const failedIds = r.rows.filter(refuses).map((n) => n.id);
+    const doneIds = r.rows.filter((n) => !refuses(n)).map((n) => n.id);
+    if (failedIds.length) await db.query(`update public.storage_file_trash set attempts = attempts + 1, last_tried_at = now() where id = any($1::uuid[])`, [failedIds]);
+    if (doneIds.length) await db.query(`delete from public.storage_file_trash where id = any($1::uuid[])`, [doneIds]);
+    return r.rows;
+  };
+
+  // (A) A thousand accounts' notes that storage refuses every hour, queued
+  // before a real withdrawal (as 20261025560000's trigger left "<uid>/." in
+  // the queue; document-cleanup now drops such a note, so these stand for
+  // any note that keeps failing), then a real withdrawal whose form listed
+  // two files: its resume and the resume's page image.
+  const failing = await as(SERVICE, `
+    insert into public.storage_file_trash (bucket, path, application_id, candidate_id, queued_at)
+    select 'resumes', person::text || '/.', gen_random_uuid(), person, now() - interval '1 hour'
+      from (select gen_random_uuid() as person from generate_series(1, 1000)) people`);
+  check("a thousand accounts each hold one note that keeps failing", failing.ok && (await one(`select count(*)::int n from public.storage_file_trash`)).n === 1000, show(failing));
+  const REAL = id(9, 2);
+  await makeUser(REAL, "candidate");
+  const real = await apply(REAL, JOB);
+  const CV = `${REAL}/1729000000000.pdf`;
+  const PAGE = `${REAL}/1729000000000_page1.png`;
+  for (const p of [CV, PAGE]) await putFile("resumes", p);
+  await as(user(REAL), `update public.applications set resume_url = $2, notes = $3 where id = $1`, [real, CV, JSON.stringify({ resumeImageUrls: [PAGE] })]);
+  await as(user(REAL), `delete from public.applications where id = $1`, [real]);
+  check("the real withdrawal queues its two files, after them", JSON.stringify(await queuedPaths(real)) === JSON.stringify([CV, PAGE].sort()), show(await queuedPaths(real)));
+  const refusesDot = (n) => typeof n.path === "string" && n.path.endsWith("/.");
+  const exactRuns = [];
+  for (let h = 0; h < 2; h += 1) exactRuns.push((await runOnce(true, refusesDot)).filter((n) => n.application_id === real).length);
+  check("…and both are taken within two runs: a note that failed comes after every note never tried", exactRuns.reduce((a, b) => a + b, 0) === 2 && (await queuedPaths(real)).length === 0, show(exactRuns));
+  check("…while the notes that keep failing are tried again, behind it", (await one(`select count(*)::int n from public.storage_file_trash where attempts >= 1`)).n === 1000);
+  await db.query(`delete from public.storage_file_trash`);
+
+  // (B) A real withdrawal (a recording, a video introduction and a work
+  // sample), then each hour 200 accounts each withdrawing one application
+  // with one file in its videos folder, queued after it.
+  const VICTIM = id(9, 3);
+  await makeUser(VICTIM, "candidate");
+  const victim = await apply(VICTIM, JOB_P);
+  await putStepFiles(victim, VICTIM);
+  await as(user(VICTIM), `delete from public.applications where id = $1`, [victim]);
+  check("a real withdrawal queues its three folders", (await queued(victim)).length === 3, show(await queued(victim)));
+  const crowd = Array.from({ length: 200 }, (_, i) => `9b${String(i).padStart(6, "0")}-0000-4000-8000-000000000000`);
+  for (const u of crowd) await makeUser(u, "candidate");
+  const folderRuns = [];
+  for (let h = 0; h < 3; h += 1) {
+    for (const [i, u] of crowd.entries()) {
+      const r = await as(user(u), `insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [[JOB, JOB_P, JOB_NEW][(i + h) % 3], u]);
+      if (!r.ok) throw new Error(`setup: hour ${h}, account ${i} could not apply: ${r.error}`);
+      await putFile("videos", `${u}/${r.rows[0].id}-x.webm`);
+      await as(user(u), `delete from public.applications where id = $1`, [r.rows[0].id]);
+    }
+    const picked = await runOnce(false, () => false);
+    folderRuns.push({ picked: picked.length, victim: picked.filter((n) => n.application_id === victim).length });
+  }
+  check("200 accounts queuing one folder each an hour fill every run", folderRuns.every((x) => x.picked === 200), show(folderRuns));
+  check("…yet the real withdrawal gets a folder in every run, all three within three runs", folderRuns.every((x) => x.victim >= 1) && (await queued(victim)).length === 0, show(folderRuns));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

@@ -23,13 +23,15 @@
  *     waiting over three hours) is told to the admins once a day, through
  *     claim_daily_alert; a short queue is not;
  *   - it is read through storage_file_trash_fair_pick (the stand-in below
- *     answers as 20261025560000 does; the SQL itself is proved in
- *     launch_locks_behaviour, section 14): one person's 450 notes never keep
- *     another's out of the run (the eighth security review);
+ *     answers as 20261025580000 does; the SQL itself is proved in
+ *     launch_locks_behaviour, sections 14 and 15): one person's 450 notes
+ *     never keep another's out of the run (the eighth security review);
  *   - exact paths go in one remove() a bucket for up to 1,000; a batch
  *     storage refuses is tried one path at a time, so one refused path keeps
  *     only its own note, and storage refusing everything costs three more
- *     calls, not a thousand; a path that is not plain is never removed.
+ *     calls, not a thousand; a path that is not plain is never removed, and
+ *     its note goes rather than failing every hour (the ninth security
+ *     review).
  *
  * Run with: node scripts/document_cleanup.test.mjs
  */
@@ -96,10 +98,11 @@ function freshWorld() {
 
 const order = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 /**
- * storage_file_trash_fair_pick as 20261025560000 makes it: the folders
+ * storage_file_trash_fair_pick as 20261025580000 makes it: the folders
  * (exact false, 200, 6 from one person) or the exact paths (exact true,
- * 1,000, 40 from one person); in rounds, each person's fewest-tries, oldest
- * note first; in each round the people with the fewest waiting first.
+ * 1,000, 40 from one person); every note never tried before any that failed;
+ * each person's fewest-tries, oldest note first, oldest first across people;
+ * then the rest, the people with the fewest waiting first.
  */
 function fairPick(exact) {
   const person = (r) => r.candidate_id ?? r.application_id ?? `${r.bucket}:${r.path ?? r.folder}`;
@@ -112,7 +115,11 @@ function fairPick(exact) {
   }
   return ranked
     .filter((x) => x.nth <= (exact ? 40 : 6))
-    .sort((a, b) => a.nth - b.nth || a.waiting - b.waiting || a.r.attempts - b.r.attempts || order(a.r.queued_at, b.r.queued_at) || order(a.r.id, b.r.id))
+    .sort((a, b) =>
+      (a.r.attempts > 0) - (b.r.attempts > 0) ||
+      (a.nth > 1) - (b.nth > 1) ||
+      (a.nth === 1 ? order(a.r.queued_at, b.r.queued_at) : 0) ||
+      a.waiting - b.waiting || a.nth - b.nth || a.r.attempts - b.r.attempts || order(a.r.queued_at, b.r.queued_at) || order(a.r.id, b.r.id))
     .slice(0, exact ? 1000 : 200)
     .map((x) => ({ ...x.r }));
 }
@@ -384,12 +391,18 @@ console.log("\nOne account's flood holds up only itself; exact paths go in bulk 
       { id: "x1", bucket: "resumes", path: `${ANA}/%2e%2e/${other}/cv.pdf`, folder: null, starts_with: null, candidate_id: ANA, application_id: null, attempts: 0, queued_at: hoursAgo(1) },
       { id: "x2", bucket: "resumes", path: `${ANA}/../${other}/cv.pdf`, folder: null, starts_with: null, candidate_id: ANA, application_id: null, attempts: 0, queued_at: hoursAgo(1) },
       { id: "x3", bucket: "resumes", path: `${ANA}/cv\\x.pdf`, folder: null, starts_with: null, candidate_id: ANA, application_id: null, attempts: 0, queued_at: hoursAgo(1) },
+      { id: "x4", bucket: "resumes", path: `${ANA}/.`, folder: null, starts_with: null, candidate_id: ANA, application_id: null, attempts: 0, queued_at: hoursAgo(1) },
     );
+    w.storage.resumes.add(`${ANA}/.x`);
     w.storage.resumes.add(`${other}/cv.pdf`);
   });
-  await runIt();
-  check("a path that is not plain (\"%2e%2e\", \"..\", a backslash) is never sent to storage", world.removeCalls.length === 0 && world.storage.resumes.has(`${id(9001)}/cv.pdf`), show(world.removeCalls));
-  check("…and its note sinks behind the ones never tried", world.tables.storage_file_trash.every((q) => q.attempts === 1), show(world.tables.storage_file_trash));
+  const notPlain = await runIt();
+  check("a path that is not plain (\"%2e%2e\", \"..\", a backslash, a \".\" part) is never sent to storage", world.removeCalls.length === 0 && world.storage.resumes.has(`${id(9001)}/cv.pdf`), show(world.removeCalls));
+  // The ninth security review: such a note was marked failed and tried again
+  // every hour, for good; a thousand accounts' "<uid>/." notes held the front
+  // of every run.
+  check("…and its note goes, never tried again every hour (counted as dropped, not removed or failed)", world.tables.storage_file_trash.length === 0 && notPlain.body?.leftoversDropped === 4 && notPlain.body?.leftoversRemoved === 0 && notPlain.body?.leftoversFailed === 0, show({ left: world.tables.storage_file_trash, body: notPlain.body }));
+  check("…with no alert that files were left (nothing storage holds is named by it)", told("Files queued for removal are not all deleted") === 0);
 }
 
 globalThis.fetch = realFetch;

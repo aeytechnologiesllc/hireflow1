@@ -22,10 +22,13 @@
  *     10 with one business on any of its jobs, and queues at most 200 exact
  *     paths a day (the eighth security review).
  *   - file-queue-fair-and-bounded: document-cleanup takes the removal queue
- *     fairly (storage_file_trash_fair_pick: a few from each person a run, the
- *     people with the fewest waiting first) and clears exact paths in bulk,
- *     so one account's uploads hold up only itself (the eighth security
- *     review).
+ *     fairly (storage_file_trash_fair_pick: a few from each person a run,
+ *     every note never tried before any that failed, each person's oldest
+ *     note oldest first, then the people with the fewest waiting first) and
+ *     clears exact paths in bulk, so one account's uploads hold up only
+ *     itself (the eighth security review) and many accounts hold up nobody
+ *     for good; a note that is not a plain path is dropped, not retried
+ *     every hour (the ninth).
  *   - applications-stay-on-their-job: nobody but the server changes an
  *     application's job (moving it to a throwaway job and deleting that was
  *     a way round Delete their information), and a deleted document's kept
@@ -329,15 +332,27 @@ export default [
       }
       // …and the files sent with its form (the eleventh review, finding 4), at
       // most 40 a deleted application and 200 a day for one applicant (the
-      // eighth security review: one account's uploads queued 800 an hour).
-      if (!/continue when not coalesce\(private\.storage_holds\('resumes', v_path\), true\); exit when not coalesce\(\(public\.check_rate_limit\('file-queue-paths', old\.candidate_id::text, 200, 86400\) ->> 'allowed'\)::boolean, true\); insert into public\.storage_file_trash \(bucket, path, application_id, candidate_id\) values \('resumes', v_path, old\.id, old\.candidate_id\); end loop;/.test(queue) || !/ return old; end;?\s*$/.test(queue)) {
+      // eighth security review: one account's uploads queued 800 an hour),
+      // each only where storage holds a file of exactly that name (the ninth
+      // security review: checked as a prefix, "<uid>/." was there because
+      // "<uid>/.x" was).
+      if (!/continue when not coalesce\(private\.storage_holds\('resumes', v_path, p_exact => true\), true\); exit when not coalesce\(\(public\.check_rate_limit\('file-queue-paths', old\.candidate_id::text, 200, 86400\) ->> 'allowed'\)::boolean, true\); insert into public\.storage_file_trash \(bucket, path, application_id, candidate_id\) values \('resumes', v_path, old\.id, old\.candidate_id\); end loop;/.test(queue) || !/ return old; end;?\s*$/.test(queue)) {
         detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the resume and the form's files a deleted application lists, at most 200 a day for one applicant (check_rate_limit 'file-queue-paths', 200, 86400)`);
       }
       if (!/foreach v_path in array v_paths\[1:40\] loop/.test(queue)) detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue at most 40 files a deleted application (v_paths[1:40])`);
+      // A plain path as isPlainObjectPath reads one, which document-cleanup
+      // holds every note to: no "." part either (the ninth security review: a
+      // thousand accounts' "<uid>/." notes were refused every hour, for good).
+      if (!queue.includes("and listed.p not like '%..%' and listed.p !~ '(^|/)\\.(/|$)' and listed.p not like '%//%' and right(listed.p, 1) <> '/';")) {
+        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue only plain paths: no "..", "." part, "//" or trailing "/"`);
+      }
       const holds = await latestDefinition({ read, walk }, String.raw`"?private"?\s*\.\s*"?storage_holds`);
       const holdsBody = (holds?.body ?? "").replace(/\s+/g, " ");
       if (!holds?.securityDefiner || !/r\.rolsuper or r\.rolbypassrls\)\) then return null; end if;/.test(holdsBody) || !/exception when others then return null; end;?\s*$/.test(holdsBody)) {
         detail.push(`${holds?.rel ?? "supabase/migrations"}: private.storage_holds must run with its own rights and answer NULL (\"cannot say\") whenever it cannot read storage, so the queue never skips a file it could not see`);
+      }
+      if (!/\(\s*p_bucket text, p_prefix text, p_exact boolean default false\s*\)/i.test(holds?.header ?? "") || !holdsBody.includes("if coalesce(p_exact, false) then return exists (select 1 from storage.objects o where o.bucket_id = p_bucket and o.name = p_prefix); end if;")) {
+        detail.push(`${holds?.rel ?? "supabase/migrations"}: private.storage_holds must check an exact path (p_exact) by its exact name, not as a prefix`);
       }
       // One account starts at most 10 applications an hour with one business
       // and 20 in all (the eleventh review: nothing limited it).
@@ -380,7 +395,10 @@ export default [
       "860 rows an hour while document-cleanup took 200 a run, oldest first and one remove() a path, so every real " +
       "withdrawal, Delete Account and remove-applicant leftover after it waited days). document-cleanup reads the " +
       "queue only through storage_file_trash_fair_pick (service role only: a few from each person a run, the people " +
-      "with the fewest waiting first) and clears exact paths in one remove() a bucket.",
+      "with the fewest waiting first) and clears exact paths in one remove() a bucket. Many accounts hold up nobody " +
+      "for good (the ninth security review: a thousand accounts' notes that failed every hour, or 200 accounts with " +
+      "one note each, kept a real withdrawal out of every run): every note never tried comes before any that failed, " +
+      "each person's oldest note goes oldest first across people, and a note that is not a plain path is dropped.",
     run: async ({ read, walk }) => {
       const detail = [];
       const pick = await latestDefinition({ read, walk }, "storage_file_trash_fair_pick");
@@ -388,7 +406,7 @@ export default [
       if (!pick) detail.push("supabase/migrations: no storage_file_trash_fair_pick (document-cleanup's fair pick, 20261025560000)");
       else {
         if (!/row_number\(\) over \(partition by m\.person order by m\.attempts, m\.queued_at, m\.id\) as nth, count\(\*\) over \(partition by m\.person\) as waiting/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must number each person's notes (fewest tries, oldest first) and count how many each has waiting`);
-        if (!/where r\.nth <= case when coalesce\(p_exact, false\) then 40 else 6 end order by r\.nth, r\.waiting, r\.attempts, r\.queued_at, r\.id limit case when coalesce\(p_exact, false\) then 1000 else 200 end\s*$/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must take at most 6 folders and 40 exact paths from one person, in rounds, the people with the fewest waiting first, 200 folders and 1,000 paths a run`);
+        if (!/where r\.nth <= case when coalesce\(p_exact, false\) then 40 else 6 end order by \(r\.attempts > 0\), r\.nth > 1, case when r\.nth = 1 then r\.queued_at end, r\.waiting, r\.nth, r\.attempts, r\.queued_at, r\.id limit case when coalesce\(p_exact, false\) then 1000 else 200 end\s*$/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must take at most 6 folders and 40 exact paths from one person, every note never tried before any that failed, each person's oldest note oldest first across people, then the people with the fewest waiting first, 200 folders and 1,000 paths a run`);
         if (/person\s*=|where false|limit 0\b/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick is narrowed to nothing or to one person`);
         if (pick.securityDefiner) detail.push(`${pick.alteredIn ?? pick.rel}: storage_file_trash_fair_pick must run with the caller's rights (only the server may read the queue)`);
         const sql = (await read(pick.rel)) ?? "";
@@ -404,6 +422,11 @@ export default [
       if (!/const REMOVE_BATCH = 1000;/.test(fn) || !/\.remove\(batch\.map\(\(n\) => String\(n\.path\)\)\)/.test(fn)) detail.push("document-cleanup: exact paths must go in one remove() a bucket, up to 1,000");
       if (!/if \(refusedInARow >= REFUSED_IN_A_ROW\) \{/.test(fn) || !/\.remove\(\[String\(note\.path\)\]\)/.test(fn)) detail.push("document-cleanup: a batch storage refuses must be tried one path at a time, stopping once storage itself refuses");
       if (!/isPlainObjectPath\(p\)/.test(fn) || !/!p\.includes\("\.\."\)/.test(fn)) detail.push("document-cleanup: a removal note must be a plain path (no \"..\", \"%\", backslash or control character) before it reaches storage");
+      // …and one that is not goes, rather than failing every hour for good
+      // (the ninth security review).
+      if (!/if \(!REMOVAL_BUCKETS\.has\(bucket\) \|\| !\(note\.path \? plain\(note\.path\) : plain\(note\.folder\)\)\) \{\s*console\.error\([^;]*\);\s*dropped\.push\(note\.id\);\s*continue;\s*\}/.test(fn) || !/\.from\("storage_file_trash"\)\.delete\(\)\.in\("id", dropped\.slice\(i, i \+ IDS_PER_REQUEST\)\)/.test(fn)) {
+        detail.push("document-cleanup: a removal note that is not a plain path must be dropped (logged), not marked failed and retried every hour");
+      }
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

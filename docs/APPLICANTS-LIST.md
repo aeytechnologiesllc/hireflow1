@@ -730,7 +730,8 @@ kept in the deletion record only):
   throwaway job and deleting that job was another way round it (the eighth
   security review). A deleted document queues its kept copies
   (`documents/<id>/`) for document-cleanup however it goes
-  (`documents_queue_files`).
+  (`documents_queue_files`), found by its id only, never by its file address
+  (proved since the ninth security review).
 - **Stays:** their messages (their conversation too; they lose the link to
   the application), the signing audit log (it cannot be changed, by design;
   it loses the link to the document; the confirm says so), the original file
