@@ -308,7 +308,7 @@ export default function Settings() {
               <div>
                 <p className="font-medium text-foreground">Delete Account</p>
                 <p className="text-sm text-muted-foreground">
-                  Permanently delete your account and all data
+                  {deleteWords.summary}
                 </p>
               </div>
               {deleteAccountDialog}
@@ -499,7 +499,7 @@ export default function Settings() {
                 <div>
                   <p className="font-medium text-foreground">Delete Account</p>
                   <p className="text-sm text-muted-foreground">
-                    Permanently delete your account and all associated data
+                    {deleteWords.summary}
                   </p>
                 </div>
                 {deleteAccountDialog}

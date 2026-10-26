@@ -145,6 +145,16 @@
  *      kinds, never while storage cannot be read (the thirteenth Phase 5
  *      review's finding 2, asked of the twelfth security round;
  *      20261025630000).
+ *  22. Contact counts as it was made, whatever the business deletes since
+ *      (the fourteenth Phase 5 review, finding 1, in the shape of its probe
+ *      p2; 20261025670000): messages deleted through the API, requests
+ *      cancelled, interviews deleted, the applicants removed with Delete
+ *      their information, a document deleted, a teammate taken off the team
+ *      and the whole job deleted: three reports still pause the business;
+ *      three it removed without contact still ring "reported 3 times";
+ *      nobody else makes a business look in touch; no API role touches the
+ *      record; a person's own Delete Account takes their rows; the migration
+ *      fills it from the rows there.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -2407,6 +2417,198 @@ console.log("\n21. An ID photo an open request never linked goes seven days afte
   check("…and no browser may run the sweep or move its mark", sweepTries.every((r) => !r.ok), show(sweepTries.map((r) => r.ok || r.error)));
   await as(SERVICE, `delete from public.document_requests where application_id = $1`, [strayApp]);
   await db.query(`delete from public.document_file_trash`);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n22. Contact counts as it was made, whatever the business deletes since\n");
+{
+  // The fourteenth Phase 5 review (finding 1, probe p2): the pause read the
+  // contact rows as they stood when the third report came, and the business
+  // can delete every one of them. A business that asked three applicants for
+  // a training fee in Messages and then deleted the messages, cancelled its
+  // requests, deleted its interviews, or removed the three with Delete their
+  // information, was never paused; in the last case not even the admins'
+  // "reported 3 times" bell rang. Contact is now recorded when it is made
+  // (private.business_contacts, 20261025670000).
+  const R22 = (n) => `9d220000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const status = async (b) => (await one(`select public.business_status_of($1) as s`, [b])).s;
+  const jobStatus = async (j) => (await one(`select status::text s from public.jobs where id = $1`, [j])).s;
+  const report = (u, job) => as(user(u), `select public.report_employer($1, 'asked_for_money', 'They asked me to pay for training.') as id`, [job]);
+  const rang = async (title) => (await one(`select count(*)::int n from public.notifications n join public.platform_admins a on a.user_id = n.user_id where n.title = $1`, [title])).n;
+  const contacted = async (b, u) => {
+    const r = await as(SERVICE, `select public.business_has_contacted($1, $2) as yes`, [b, u]);
+    if (!r.ok) throw new Error(`business_has_contacted: ${r.error}`);
+    return r.rows[0].yes;
+  };
+  /** What the record holds for a business and a person, as "applied,message" ("no record" without it). */
+  const kinds = async (b, u) => {
+    try {
+      return (await db.query(`select kind from private.business_contacts where employer_id = $1 and person_id = $2 order by kind`, [b, u])).rows.map((r) => r.kind).join(",");
+    } catch (e) {
+      return `no record: ${e.message}`;
+    }
+  };
+  /** A confirmed business with a live job and three applicants. */
+  const business = async (n, name) => {
+    const b = R22(100 + n);
+    await makeUser(b, "employer", { full_name: `${name} owner`, company_name: name });
+    await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [b]);
+    const j = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Chat support agent', 'Answer chats.', 'published') returning id`, [b])).id;
+    const people = [];
+    for (let k = 0; k < 3; k += 1) {
+      const u = R22(1000 + n * 10 + k);
+      await makeUser(u, "candidate");
+      people.push({ u, app: await apply(u, j) });
+    }
+    return { b, j, people };
+  };
+  const reportAll = async (biz, job = biz.j) => {
+    const out = [];
+    for (const p of biz.people) out.push(await report(p.u, job));
+    return out;
+  };
+  const paused = async (biz, job = biz.j) => (await status(biz.b)) === "suspended" && (await jobStatus(job)) === "closed";
+
+  // (a) Messages in the app, then deleted by the job's owner through the API.
+  const A = await business(1, "Fee Clinic");
+  for (const p of A.people) {
+    const m = await as(user(A.b), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'Please send the 1,500 peso training fee to this GCash number.')`, [A.b, p.u, p.app]);
+    if (!m.ok) throw new Error(`setup: message: ${m.error}`);
+  }
+  const firstAt = async (b, u, kind) => (await db.query(`select first_at::text t from private.business_contacts where employer_id = $1 and person_id = $2 and kind = $3`, [b, u, kind]).catch(() => ({ rows: [] }))).rows[0]?.t ?? null;
+  const firstMessage = await firstAt(A.b, A.people[0].u, "message");
+  await db.query(`update private.business_contacts set first_at = first_at - interval '1 hour' where employer_id = $1 and person_id = $2 and kind = 'message'`, [A.b, A.people[0].u]).catch(() => null);
+  const anHourAgo = await firstAt(A.b, A.people[0].u, "message");
+  const again = await as(user(A.b), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'Did you send it?')`, [A.b, A.people[0].u, A.people[0].app]);
+  check("(a) the record keeps when the business first wrote to someone: a later message does not move it", !!firstMessage && again.ok && anHourAgo !== firstMessage && (await firstAt(A.b, A.people[0].u, "message")) === anHourAgo, show({ firstMessage, anHourAgo, now: await firstAt(A.b, A.people[0].u, "message") }));
+  const deleted = await as(user(A.b), `delete from public.messages where sender_id = $1 returning id`, [A.b]);
+  check("…the business deletes the four messages it sent through the API", deleted.ok && deleted.rows.length === 4, show(deleted));
+  check("…and it is still in touch with them, as of the messages it sent", (await contacted(A.b, A.people[0].u)) === true && (await kinds(A.b, A.people[0].u)) === "applied,message", await kinds(A.b, A.people[0].u));
+  const pausedBellA = await rang("A business was paused");
+  const repA = await reportAll(A);
+  check("…so their three reports pause it and close its job, and the admins are told", repA.every((r) => r.ok) && (await paused(A)) && (await rang("A business was paused")) === pausedBellA + 1, show({ repA, s: await status(A.b) }));
+
+  // (b) A request for papers, cancelled before anyone answers it.
+  const B = await business(2, "Fee Shop");
+  for (const p of B.people) {
+    const r = await as(user(B.b), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'government_id') returning id`, [p.app, B.b, p.u]);
+    if (!r.ok) throw new Error(`setup: ask: ${r.error}`);
+    const c = await as(user(B.b), `delete from public.document_requests where id = $1 returning id`, [r.rows[0].id]);
+    if (!c.ok || c.rows.length !== 1) throw new Error(`setup: cancel: ${show(c)}`);
+  }
+  await reportAll(B);
+  check("(b) papers asked of three people, each request cancelled: their three reports pause it", (await paused(B)) && (await kinds(B.b, B.people[1].u)) === "applied,document_request", `${await status(B.b)} ${await kinds(B.b, B.people[1].u)}`);
+
+  // (c) An interview with each, then deleted.
+  const C = await business(3, "Fee Desk");
+  for (const p of C.people) {
+    const i = await as(user(C.b), `insert into public.interviews (application_id, scheduled_at) values ($1, now() + interval '1 day') returning id`, [p.app]);
+    if (!i.ok) throw new Error(`setup: interview: ${i.error}`);
+    const d = await as(user(C.b), `delete from public.interviews where id = $1 returning id`, [i.rows[0].id]);
+    if (!d.ok || d.rows.length !== 1) throw new Error(`setup: interview delete: ${show(d)}`);
+  }
+  await reportAll(C);
+  check("(c) an interview with three people, each deleted: their three reports pause it", (await paused(C)) && (await kinds(C.b, C.people[2].u)) === "applied,interview", `${await status(C.b)} ${await kinds(C.b, C.people[2].u)}`);
+
+  // (d) Messaged, then removed with Delete their information.
+  const D = await business(4, "Fee Line");
+  for (const p of D.people) {
+    const m = await as(user(D.b), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'Pay the fee.')`, [D.b, p.u, p.app]);
+    if (!m.ok) throw new Error(`setup: message: ${m.error}`);
+  }
+  for (const p of D.people) {
+    const r = await as(SERVICE, `select public.remove_applicant($1, $2, 'not a fit') as r`, [p.app, D.b]);
+    if (!r.ok || r.rows[0].r?.ok !== true) throw new Error(`setup: remove: ${show(r)}`);
+  }
+  const pausedBellD = await rang("A business was paused");
+  const repD = await reportAll(D);
+  check(
+    "(d) messaged three people, then removed them with Delete their information: their reports are taken, pause it, and the admins are told",
+    repD.every((r) => r.ok) && (await paused(D)) && (await rang("A business was paused")) === pausedBellD + 1 && (await one(`select count(*)::int n from public.applications a join public.jobs j on j.id = a.job_id where j.employer_id = $1`, [D.b])).n === 0,
+    show({ repD, s: await status(D.b) }),
+  );
+
+  // (d, never contacted) Removed with Delete their information, never contacted.
+  const E = await business(5, "Quiet Co");
+  for (const p of E.people) {
+    const r = await as(SERVICE, `select public.remove_applicant($1, $2, 'not a fit') as r`, [p.app, E.b]);
+    if (!r.ok || r.rows[0].r?.ok !== true) throw new Error(`setup: remove: ${show(r)}`);
+  }
+  const threeBell = await rang("A business was reported 3 times");
+  const repE = await reportAll(E);
+  check("(d) three people it removed without ever being in touch: their reports are taken and it stays open", repE.every((r) => r.ok) && (await status(E.b)) !== "suspended" && (await jobStatus(E.j)) === "published", show({ repE, s: await status(E.b) }));
+  check("…and the admins' \"reported 3 times\" bell still rings, once: a removed applicant still counts as having applied", (await rang("A business was reported 3 times")) === threeBell + 1, String((await rang("A business was reported 3 times")) - threeBell));
+
+  // (e) A document, a teammate's message and a request, then the teammate
+  // taken off the team, the document deleted and the whole job deleted; the
+  // three report the business's other job.
+  const F = await business(6, "Fee Agency");
+  const TEAMMATE = R22(200);
+  await makeUser(TEAMMATE, "team_member", { full_name: "Teammate" });
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_message_candidates, can_manage_pipeline, assigned_job_ids) values ($1, $2, $3, 'active', true, true, '{}'::uuid[])`, [TEAMMATE, F.b, emailOf(TEAMMATE)]);
+  const [f0, f1, f2] = F.people;
+  const doc = await as(user(F.b), `insert into public.documents (application_id, name, file_url, recipient_id) values ($1, 'Training agreement', 'data:text/plain;base64,eA==', $2) returning id`, [f0.app, f0.u]);
+  const teamMsg = await as(user(TEAMMATE), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'Send the fee to this GCash.')`, [TEAMMATE, f1.u, f1.app]);
+  const ask = await as(user(F.b), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'government_id')`, [f2.app, F.b, f2.u]);
+  if (!doc.ok || !teamMsg.ok || !ask.ok) throw new Error(`setup: ${show({ doc, teamMsg, ask })}`);
+  const docGone = await as(user(F.b), `delete from public.documents where id = $1 returning id`, [doc.rows[0].id]);
+  const teamGone = await as(user(F.b), `delete from public.team_members where user_id = $1 returning user_id`, [TEAMMATE]);
+  const otherJob = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Phone support agent', 'Answer the phone.', 'published') returning id`, [F.b])).id;
+  const jobGone = await as(user(F.b), `delete from public.jobs where id = $1 returning id`, [F.j]);
+  check("(e) the business deletes the document, takes the teammate off its team and deletes the whole job", docGone.ok && docGone.rows.length === 1 && teamGone.ok && teamGone.rows.length === 1 && jobGone.ok && jobGone.rows.length === 1, show({ docGone, teamGone, jobGone }));
+  check("…and is still in touch with all three (a document, its teammate's message, a request)", (await contacted(F.b, f0.u)) && (await contacted(F.b, f1.u)) && (await contacted(F.b, f2.u)), `${await kinds(F.b, f0.u)} | ${await kinds(F.b, f1.u)} | ${await kinds(F.b, f2.u)}`);
+  await reportAll(F, otherJob);
+  check("…so their three reports on its other job pause it", await paused(F, otherJob), await status(F.b));
+
+  // Nobody makes a business look in touch but the business: an applicant's
+  // own message, or another business's.
+  const G = await business(7, "Honest Co");
+  const [g0, g1, g2] = G.people;
+  const own = await as(user(g0.u), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'Hello, any news?')`, [g0.u, G.b, g0.app]);
+  await db.query(`insert into public.messages (sender_id, receiver_id, content) values ($1, $2, 'from another business')`, [A.b, g1.u]);
+  check(
+    "an applicant's own message, or another business's, does not put this business in touch with them (nor the other, which they never applied to)",
+    own.ok && (await contacted(G.b, g0.u)) === false && (await contacted(G.b, g1.u)) === false && (await kinds(G.b, g0.u)) === "applied" && (await kinds(g0.u, G.b)) === "" && (await kinds(A.b, g1.u)) === "",
+    show({ own, g0: await kinds(G.b, g0.u), back: await kinds(g0.u, G.b), other: await kinds(A.b, g1.u) }),
+  );
+  const forge = await as(user(g0.u), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'forged')`, [G.b, g0.u, g0.app]);
+  check("…and nobody sends a message as the business", !forge.ok && (await contacted(G.b, g0.u)) === false, show(forge));
+
+  // The record is nobody's to read, write or delete through the API.
+  const tries = [
+    await as(user(A.b), `delete from private.business_contacts where employer_id = $1`, [A.b]),
+    await as(user(A.b), `select * from private.business_contacts`),
+    await as(user(g0.u), `insert into private.business_contacts (employer_id, person_id, kind) values ($1, $2, 'message')`, [G.b, g0.u]),
+    await as(ANON, `select count(*) from private.business_contacts`),
+    await as(SERVICE, `delete from private.business_contacts where employer_id = $1`, [A.b]),
+    await as(SERVICE, `update private.business_contacts set kind = 'applied' where employer_id = $1`, [A.b]),
+    await as(user(g0.u), `select public.business_contacts_remember()`),
+  ];
+  check("no browser, nor the service role, may read, write or delete the record, or call its trigger function", tries.every((r) => !r.ok) && (await kinds(A.b, A.people[0].u)) === "applied,message", show(tries.map((r) => r.ok || r.error)));
+
+  // The person's own account deletion takes their rows with it.
+  const leaver = A.people[2].u;
+  const leaverHad = await kinds(A.b, leaver);
+  await db.query(`delete from auth.users where id = $1`, [leaver]);
+  check("a person's own Delete Account takes their rows with it", leaverHad === "applied,message" && (await kinds(A.b, leaver)) === "", `${leaverHad} -> ${await kinds(A.b, leaver)}`);
+
+  // Filled from today's rows: run the migration again on an emptied record.
+  const sent = await as(user(g2.u), `update public.applications set status = 'pending' where id = $1 returning id`, [g2.app]);
+  if (!sent.ok || sent.rows.length !== 1) throw new Error(`setup: send: ${show(sent)}`);
+  const withdrew = await as(user(g2.u), `delete from public.applications where id = $1 returning id`, [g2.app]);
+  if (!withdrew.ok || withdrew.rows.length !== 1) throw new Error(`setup: withdraw: ${show(withdrew)}`);
+  const fill = files.find((f) => f.endsWith("_contact_kept_when_made.sql"));
+  if (fill) {
+    await db.query(`delete from private.business_contacts`);
+    await db.exec(prepare(readFileSync(path.join(MIGRATIONS, fill), "utf8")));
+  }
+  const filled = { q: await kinds(QBIZ, S[0]), p: await kinds(PBIZ, R[0]), d: await kinds(D.b, D.people[0].u), e: await kinds(E.b, E.people[0].u), g: await kinds(G.b, g2.u), b: await kinds(B.b, B.people[0].u) };
+  check(
+    "the migration fills the record from today's rows: messages (section 5's, and (d)'s to people since removed), applications, removal notes and withdrawal notes",
+    !!fill && filled.q === "applied,message" && filled.p === "applied" && filled.d === "applied,message" && filled.e === "applied" && filled.g === "applied" && (await contacted(QBIZ, S[0])) === true && (await contacted(PBIZ, R[0])) === false,
+    show({ fill, filled }),
+  );
+  check("…and contact deleted before it ran is not made up ((a)'s deleted messages, (b)'s cancelled requests)", (await kinds(A.b, A.people[0].u)) === "applied" && filled.b === "applied", show({ a: await kinds(A.b, A.people[0].u), b: filled.b }));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

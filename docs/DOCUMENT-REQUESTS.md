@@ -145,7 +145,10 @@ else" is kept until its application goes, by the rule above.
   pointing at another request's file never deletes it, and that a file sent
   again goes alone; `scripts/requested_document_url.test.mjs` runs the real
   `requested-document-url`: a request whose link is another request's file
-  is answered "Nothing has been sent", and nothing is signed or recorded.
+  is answered "Nothing has been sent", and nothing is signed or recorded;
+  and (the fourteenth Phase 5 review) an ID's 24 hours start at the hiring
+  side's first opening, "Download a copy" included, never at the
+  applicant's own, and a second opening does not move them.
 
 ## Trying it without a real applicant
 

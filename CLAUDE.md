@@ -437,7 +437,17 @@ these either; each has a guard or a test that CI runs:
 `scripts/guards/phase-7-launch-locks.mjs`:
 - Reports pause a business only from people it has been in touch with
   (`business_has_contacted`); three that merely applied leave it open and
-  ring the admins once. Guard `reports-pause-needs-contact`.
+  ring the admins once. Guard `reports-pause-needs-contact`. (The
+  fourteenth Phase 5 review, `20261025670000`.) Contact counts as it was
+  made: `private.business_contacts` (applied, message, document_request,
+  document, interview; owner-only, rows go only with an account they name),
+  written by `business_contacts_remember` (AFTER INSERT on applications,
+  messages, document_requests, documents, interviews), and both
+  `business_has_contacted` and the pause's "applied" read it, never the live
+  rows: deleting its messages, requests, interviews, documents, the
+  application or the job no longer dodged the pause, and a removed
+  applicant's report still rings "reported 3 times". Guard
+  `contact-counts-as-made`; launch_locks_behaviour section 22.
 - HireFlow's own jobs have their own AI day
   (`ai_platform_business_daily_call_cap`, 6,000 of the platform's 10,000;
   `20261025300000_ai_budget_own_jobs.sql`): they were uncounted, so one
@@ -605,7 +615,9 @@ headache").** Every business is open from sign-up, ID papers included; three
 reports from three different people it has been in touch with (a message
 from it or its team, papers asked for, an interview) pause one by itself
 (`20261011190000_open_by_default_report_pause.sql`, narrowed by
-`20261025290000_reports_need_contact.sql`; docs/BUSINESS-TRUST.md).
+`20261025290000_reports_need_contact.sql`; contact counted as it was made,
+whatever the business deletes since, `20261025670000_contact_kept_when_made.sql`;
+docs/BUSINESS-TRUST.md).
 No TIN check: no law requires one. Don't bring back an approval step.
 New businesses get one-time guided tips (`src/cockpit/tips`, table
 `ui_tips_seen`; accounts made from 2026-10-11 08:00 UTC, never

@@ -6,7 +6,9 @@
  *     only from people it has been in touch with (a message from it or its
  *     team, a document or a request for one, an interview). Three throwaway
  *     accounts that applied could pause any business before
- *     (20261025290000_reports_need_contact.sql).
+ *     (20261025290000_reports_need_contact.sql). Since the fourteenth Phase
+ *     5 review the contact is read from the record made when it happened
+ *     (guard contact-counts-as-made).
  *   - own-jobs-have-their-own-ai-day: HireFlow's own jobs count against
  *     their own daily AI budget, so their applicants cannot take the whole
  *     platform's day (20261025300000_ai_budget_own_jobs.sql).
@@ -219,7 +221,8 @@ export default [
       "business's job, report it and close all its jobs (the Phase 7 security audit ran it). Reports pause a business " +
       "only from people it has been in touch with: employer_reports_auto_pause counts business_has_contacted(...) and " +
       "pauses only at three, and business_has_contacted looks only at what the business itself makes (messages from it " +
-      "or its team, documents and requests on the applicant's application, interviews).",
+      "or its team, documents and requests on the applicant's application, interviews), as recorded when it was made " +
+      "(private.business_contacts, since the fourteenth Phase 5 review).",
     run: async (ctx) => {
       const detail = [];
       const pause = await latestDefinition(ctx, "employer_reports_auto_pause");
@@ -243,14 +246,15 @@ export default [
       if (!contact) detail.push("no migration defines business_has_contacted");
       else {
         const body = plain(contact.body);
-        for (const [what, re] of [
-          ["a message to them from the business or its team", /FROM public\.messages m WHERE m\.receiver_id = p_person AND m\.sender_id IS DISTINCT FROM p_person AND \(m\.sender_id = p_employer OR EXISTS \(SELECT 1 FROM public\.team_members tm WHERE tm\.employer_id = p_employer AND tm\.user_id = m\.sender_id\)\)/i],
-          ["their application to this business", /WHERE a\.candidate_id = p_person AND j\.employer_id = p_employer AND/i],
-          ["document requests", /FROM public\.document_requests dr WHERE dr\.application_id = a\.id/i],
-          ["documents", /FROM public\.documents d WHERE d\.application_id = a\.id/i],
-          ["interviews", /FROM public\.interviews i WHERE i\.application_id = a\.id/i],
-        ]) if (!re.test(body)) detail.push(`${contact.rel}: business_has_contacted no longer reads ${what} as written`);
-        if (/\b(OR\s+true|applications\s+a\s+WHERE\s+a\.candidate_id\s*=\s*p_person\s*\))/i.test(body))
+        // Since the fourteenth Phase 5 review it reads the record of contact
+        // as it was made (private.business_contacts: a message from the
+        // business or its team, a document or a request for one on the
+        // applicant's application, an interview), which nothing the business
+        // deletes changes; the guard contact-counts-as-made holds how the
+        // record is written and kept.
+        if (!/^ ?SELECT EXISTS \( SELECT 1 FROM private\.business_contacts c WHERE c\.employer_id = p_employer AND c\.person_id = p_person AND c\.kind IN \('message', 'document_request', 'document', 'interview'\) \); ?$/i.test(body))
+          detail.push(`${contact.rel}: business_has_contacted no longer reads only the record of the contact the business made (private.business_contacts: a message, a document request, a document, an interview) as written`);
+        if (/\b(OR\s+true|applications\s+a\s+WHERE\s+a\.candidate_id\s*=\s*p_person\s*\))|'applied'/i.test(body))
           detail.push(`${contact.rel}: business_has_contacted counts something the applicant can make alone`);
         const file = plain((await ctx.read(contact.rel)) ?? "");
         if (!/REVOKE ALL ON FUNCTION public\.business_has_contacted\(uuid, uuid\) FROM PUBLIC, anon, authenticated;/i.test(file))

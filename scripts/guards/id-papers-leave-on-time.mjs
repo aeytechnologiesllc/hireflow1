@@ -16,7 +16,9 @@
  *   - delete-account-says-what-stays: Delete Account's confirm says what
  *     stays (the signing record, as proof; a few technical records), and
  *     delete-account empties every bucket it promises and no longer tries to
- *     delete the signing record, which the database refuses.
+ *     delete the signing record, which the database refuses. Since the
+ *     fourteenth Phase 5 review, the Danger Zone row above the button says
+ *     it too, in both layouts (deleteAccountWords' summary).
  *
  * Both are proved by behaviour too: launch_locks_behaviour sections 16 and
  * 17, scripts/document_cleanup.test.mjs, scripts/delete_account.test.mjs and
@@ -186,13 +188,20 @@ export default [
       "Delete Account's confirm said every bit of data is deleted, while the signing record (with its IP address and " +
       "place) stays as proof and delete-account's own purge of it failed and logged an error for everyone who had signed " +
       "(the twelfth Phase 5 review). The confirm says what stays, the function no longer tries, and it still empties " +
-      "every bucket the Privacy Policy promises (the review's T3 and T4 passed every test).",
+      "every bucket the Privacy Policy promises (the review's T3 and T4 passed every test). The row above the button " +
+      "said \"all data\" until the fourteenth Phase 5 review; it says what stays too.",
     run: async ({ read }) => {
       const detail = [];
       const settings = (await read("src/pages/Settings.tsx")) ?? "";
       if (/All your data/.test(settings) || !/deleteWords\.kept\.map\(/.test(settings) || !/\{deleteWords\.deleted\}/.test(settings)) detail.push("Settings.tsx: Delete Account's confirm must say what goes and what stays (deleteAccountWords), never \"All your data\"");
+      // The row above the button, in both layouts (the fourteenth Phase 5
+      // review: it still said "your account and all data" / "all associated
+      // data" after the confirm was fixed).
+      if (/\ball (associated )?data\b/i.test(settings) || (settings.match(/\{deleteWords\.summary\}/g) ?? []).length !== 2) detail.push("Settings.tsx: the Delete Account row of both layouts (applicant and hiring team) must be deleteWords.summary, never \"all data\" or \"all associated data\"");
       const words = (await read("src/content/deleteAccount.ts")) ?? "";
       if (!/kept as proof of the signature/.test(words)) detail.push("src/content/deleteAccount.ts: the confirm must say the signing record stays, as proof");
+      const summaries = words.match(/const summary =([\s\S]*?);\n/)?.[1] ?? "";
+      if ((summaries.match(/stay/g) ?? []).length < 3 || /\ball (associated )?data\b/i.test(summaries)) detail.push("src/content/deleteAccount.ts: each kind of account's Delete Account row (summary) must say what stays, never \"all data\"");
       const fn = code(await read("supabase/functions/delete-account/index.ts"));
       const ops = (fn.match(/const deleteOperations = \[([\s\S]*?)\] as const;/) ?? [])[1] ?? "";
       const buckets = (fn.match(/const storageBuckets = \[([\s\S]*?)\] as const;/) ?? [])[1] ?? "";

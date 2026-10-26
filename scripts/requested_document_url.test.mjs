@@ -21,7 +21,12 @@
  *     applicant's folder, is answered "Nothing has been sent" and nothing is
  *     signed or recorded, for the business that asked and for the applicant;
  *   - a file straight in the applicant's folder is not signed either;
- *   - someone who is neither the applicant nor on the job is refused.
+ *   - someone who is neither the applicant nor on the job is refused;
+ *   - the 24-hour clock of an ID paper (team_opened_at) starts at the hiring
+ *     side's first opening, "Download a copy" included, never at the
+ *     applicant's own, and a second opening does not move it (the fourteenth
+ *     Phase 5 review, finding 2: the download rule was held by nothing, the
+ *     other two only by a regex in document_requests.test.mjs).
  *
  * Run with: node scripts/requested_document_url.test.mjs
  */
@@ -141,8 +146,8 @@ function client(key, opts) {
     },
     storage: {
       from: (bucket) => ({
-        createSignedUrl: async (p, seconds) => {
-          world.signed.push({ bucket, path: p });
+        createSignedUrl: async (p, seconds, options) => {
+          world.signed.push({ bucket, path: p, download: options?.download ?? null });
           return { data: { signedUrl: `https://storage.stand-in/${bucket}/${p}?expires=${seconds}` }, error: null };
         },
       }),
@@ -162,10 +167,11 @@ await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].te
 const fn = globalThis.__fn;
 check("the real function loaded, with only the database client replaced", typeof fn === "function");
 
-const ask = async (who, requestId) => {
-  const res = await fn(new Request("http://fn.stand-in/requested-document-url", { method: "POST", headers: { Authorization: `Bearer ${who}`, "Content-Type": "application/json" }, body: JSON.stringify({ requestId }) }));
+const ask = async (who, requestId, extra = {}) => {
+  const res = await fn(new Request("http://fn.stand-in/requested-document-url", { method: "POST", headers: { Authorization: `Bearer ${who}`, "Content-Type": "application/json" }, body: JSON.stringify({ requestId, ...extra }) }));
   return { status: res.status, body: await res.json().catch(() => null) };
 };
+const stampOf = (requestId) => world.requests.find((r) => r.id === requestId)?.team_opened_at ?? null;
 
 console.log("\nA request's own file\n");
 {
@@ -192,6 +198,43 @@ console.log("\nAnother request's file (the thirteenth Phase 5 review)\n");
   reset();
   const stranger = await ask(NOBODY, ID_REQ);
   check("someone neither the applicant nor on the job is refused", stranger.status === 403 && world.signed.length === 0, show(stranger));
+}
+
+console.log("\nWhen an ID paper's 24 hours start (the fourteenth Phase 5 review)\n");
+{
+  // The Privacy Policy and the Terms say an ID paper is deleted 24 hours after
+  // the hiring side first opens it. A team that only ever used "Download a
+  // copy" would have kept it 7 days had the download not started the clock
+  // (the review's U2, which passed every test); the applicant's own look
+  // starting it would delete her ID before the team saw it (U3); and a clock
+  // that moved with every opening would let a team keep it for good by
+  // opening it daily (U5).
+  reset();
+  const download = await ask(CLINIC, ID_REQ, { download: true });
+  check(
+    "\"Download a copy\" by the business that asked is its first opening: the link saves the file, and the clock starts",
+    download.status === 200 && world.signed.length === 1 && world.signed[0].download === "ID.jpg" && world.stamped.includes(ID_REQ) && stampOf(ID_REQ) !== null && download.body?.teamOpenedAt === stampOf(ID_REQ),
+    show({ download, signed: world.signed, stamped: world.stamped }),
+  );
+  reset();
+  const own = await ask(ANA, ID_REQ);
+  const ownDownload = await ask(ANA, ID_REQ, { download: true });
+  check(
+    "the applicant opening (or downloading) her own ID starts no clock: it waits for the hiring side",
+    own.status === 200 && ownDownload.status === 200 && world.signed.length === 2 && world.stamped.length === 0 && stampOf(ID_REQ) === null && own.body?.teamOpenedAt === null && ownDownload.body?.teamOpenedAt === null,
+    show({ own, ownDownload, stamped: world.stamped }),
+  );
+  reset();
+  const earlier = "2026-10-20T08:00:00.000Z";
+  world.requests.find((r) => r.id === ID_REQ).team_opened_at = earlier;
+  const again = await ask(CLINIC, ID_REQ);
+  const againDownload = await ask(CLINIC, ID_REQ, { download: true });
+  check(
+    "a second opening, or a download after the first look, does not move the clock: the first look still counts",
+    again.status === 200 && againDownload.status === 200 && world.signed.length === 2 && world.stamped.length === 0 && stampOf(ID_REQ) === earlier && again.body?.teamOpenedAt === earlier && againDownload.body?.teamOpenedAt === earlier,
+    show({ again, againDownload, stamped: world.stamped, now: stampOf(ID_REQ) }),
+  );
+  check("…and every one of those openings is still recorded", world.events.filter((e) => e.request_id === ID_REQ && e.action === "opened").length === 2, show(world.events));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

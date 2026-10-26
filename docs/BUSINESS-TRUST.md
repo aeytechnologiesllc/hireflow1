@@ -14,7 +14,8 @@ moment it signs up (`business_standing.status` defaults to `approved`, and no
 row means approved), ID papers included. It is paused (`suspended`) only by an
 admin on the Admin page, or by itself when three different people it has been
 in touch with report it (migration `20261011190000_open_by_default_report_pause.sql`,
-narrowed by `20261025290000_reports_need_contact.sql`). No law asks a
+narrowed by `20261025290000_reports_need_contact.sql`; contact counted as it
+was made since `20261025670000_contact_kept_when_made.sql`). No law asks a
 hiring app to check a business's tax number, so there is no TIN check.
 
 | | Open (approved) | Paused (suspended) |
@@ -116,6 +117,55 @@ the business open and ring every admin's bell once ("A business was reported
 3 times"); every report already rings it. Proof:
 `scripts/business_trust.pglite.test.mjs` section 9; guard
 `reports-pause-needs-contact`.
+
+**Contact counts as it was made (the fourteenth Phase 5 review, 2026-10-26;
+`20261025670000_contact_kept_when_made.sql`).** The check used to read the
+contact rows as they stood when the third report came, and a business can
+delete every one of them: its messages (through the API), a request nobody
+answered (Cancel request), an interview, an unsigned document, the
+application (Delete their information) or the whole job. The review's probe
+did each, and the three reports paused nothing; after Delete their
+information not even the "reported 3 times" bell rang, since a removed
+applicant no longer counted as having applied. Now contact is recorded when
+it is made, in `private.business_contacts` (business, person, kind, first
+time; one row each):
+
+| Kind | Written when | The business is |
+|---|---|---|
+| `applied` | an application is made | the job's owner |
+| `message` | a message is sent | each business the receiver applied to whose owner, or anyone on whose team, sent it |
+| `document_request` | papers are asked for | the application's job's owner |
+| `document` | a document is sent | the application's job's owner |
+| `interview` | an interview is booked | the application's job's owner |
+
+- The rows are written by `business_contacts_remember`, an AFTER INSERT
+  trigger for each row on `applications`, `messages`, `document_requests`,
+  `documents` and `interviews`, with its own rights. The business is read
+  from the application's job (for a message, a job the receiver applied
+  to), never from a column the business writes, so one business cannot make
+  another look in touch, and an applicant's own message to a business is no
+  contact.
+- Nothing a business can delete removes a row. The table is the database
+  owner's only (no grant to any API role, the service role included), no
+  function deletes from it, and a row goes only when an account it names is
+  deleted (`ON DELETE CASCADE`): the person's own Delete Account, or the
+  business's, which takes its jobs with it. The Privacy Policy names the note
+  and says it goes with the account.
+- `business_has_contacted` reads the record (any kind but `applied`), and
+  `employer_reports_auto_pause` counts a reporter as having applied from it
+  (any kind). So a report from someone the business removed still counts:
+  toward the pause if it was in touch with them, toward the "reported 3
+  times" bell if it was not. Three people who merely applied still leave a
+  business open.
+- The migration filled it from the rows there when it ran: applications,
+  removal and withdrawal notes, messages, document requests, documents and
+  interviews (each with its first time). Contact a business had already
+  deleted could not be filled.
+- Proof: `scripts/launch_locks_behaviour.pglite.test.mjs` section 22 (the
+  review's cases: messages deleted, requests cancelled, interviews deleted,
+  applicants removed with or without contact, a document deleted, a
+  teammate taken off the team and the job deleted) and section 5; guard
+  `contact-counts-as-made`.
 
 ## Admins
 

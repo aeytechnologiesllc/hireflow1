@@ -161,6 +161,38 @@ check("it tells people how to delete their account, by the button's own name", /
     "…and Settings shows those words, by who is deleting, never \"All your data\"",
     /import \{ deleteAccountWords \} from "@\/content\/deleteAccount";/.test(settings) && /deleteAccountWords\(isEmployer \? "business" : isTeamMember \|\| role === "team_member" \? "team" : "applicant"\)/.test(settings) && /\{deleteWords\.deleted\}/.test(settings) && /deleteWords\.kept\.map\(/.test(settings) && !/All your data/.test(settings),
   );
+  // The fourteenth Phase 5 review (finding 3): the Danger Zone row above the
+  // button still said "Permanently delete your account and all data" (the
+  // applicant's Settings) and "…and all associated data" (the hiring team's)
+  // after the confirm was fixed.
+  check(
+    "the Delete Account row says what goes and what stays, as the confirm does, for every kind of account",
+    /your applications and your files/.test(words.applicant.summary) && /The record of each document you signed and a few technical records stay\./.test(words.applicant.summary) &&
+      /your jobs and every application to them/.test(words.business.summary) && /The record of each signed document and a few technical records stay\./.test(words.business.summary) &&
+      /Your chats with applicants and the documents you sent them stay with the business\./.test(words.team.summary) &&
+      Object.values(words).every((w) => /^Permanently delete your account\b/.test(w.summary) && !/\ball (associated )?data\b/i.test(w.summary)),
+    show(Object.fromEntries(Object.entries(words).map(([who, w]) => [who, w.summary]))),
+  );
+  check(
+    "…and both of Settings' layouts (applicant and hiring team) show that row, never \"all data\"",
+    (settings.match(/\{deleteWords\.summary\}/g) ?? []).length === 2 && !/\ball (associated )?data\b/i.test(settings),
+  );
+  // The fourteenth Phase 5 review (finding 1): contact is recorded when it is
+  // made (private.business_contacts), so a report counts after the business
+  // deletes its messages or the application. The policy names that note, and
+  // it goes with the account, as the table's foreign keys make it.
+  const contacts = (() => {
+    try {
+      return read("supabase/migrations/20261025670000_contact_kept_when_made.sql");
+    } catch {
+      return "";
+    }
+  })();
+  check(
+    "it names the note of how each business was in touch, kept for reports, and says it goes with the account, as the record's keys make it",
+    /So is a note of each business you applied to and of how it was in touch with you \(a message, a request for papers, a document or an interview\), kept so that a report you make about a business still counts if it deletes them\./.test(privacy) &&
+      /employer_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/.test(contacts) && /person_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/.test(contacts),
+  );
 }
 {
   // The twelfth Phase 5 review (finding 4): the policy said to withdraw to
