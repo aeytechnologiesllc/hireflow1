@@ -66,7 +66,9 @@ const CS_TITLE = new RegExp(
     String.raw`\b(customer|client|guest|member|player) (services?|supports?|care|success|experience|happiness|relations)\b`,
     // "patient care" is nursing work; a patient services desk is customer service.
     String.raw`\bpatient (services?|experience|support) (agent|rep|representative|specialist|coordinator|advisor|associate)\b`,
-    String.raw`\b(support|chat|phone|call|contact|help ?desk|service desk|technical support|tech support|it support|live chat|email support|non[- ]?\s?voice|voice) (agent|rep|representative|specialist|advisor|associate|executive|operator|officer)s?\b`,
+    // (A hotline's agent or officer answers its calls, as Philippine posts name the phone line: "Hotline Agent / Answer calls on
+    // our 24/7 customer hotline", "Hotline Officer / Answer the customer hotline"; the fifteenth review.)
+    String.raw`\b(support|chat|phone|call|contact|hotline|help ?desk|service desk|technical support|tech support|it support|live chat|email support|non[- ]?\s?voice|voice) (agent|rep|representative|specialist|advisor|associate|executive|operator|officer)s?\b`,
     String.raw`\b(technical|tech|it|help ?desk) support technician\b`,
     // A support manager or lead of customers, not of operations or facilities.
     String.raw`\b(customer|client|chat|technical|tech|it|product|player|member) support (team )?(manager|lead|supervisor|team lead)s?\b`,
@@ -158,8 +160,23 @@ const CS_TITLE = new RegExp(
 const BOOKING_TITLE = /\b(reservations?|bookings?)( and bookings?)? (agent|rep|representative|specialist|associate|coordinator|officer)s?\b/;
 const EVENT_BOOKED = String.raw`(conferences?(?!\s+(rooms?|halls?|calls?)\b)|corporate events?)(?!\s+(bookings?|inquir\w*|enquir\w*|packages?)\b)`;
 const NOT_GUEST_BOOKING = new RegExp(
-  String.raw`\b(musicians?|artists?|bands?|djs?|gigs?|performers?|entertainers?|magicians?|singers?|photo shoots?|comedians?|talent (agency|booking|roster)|booking talent|book(ing)? talent|roster|touring|tour dates|book(ing)? (speakers|acts|models|venues|loads|trucks|carriers|shows|festival\w*)|speaking engagements?|bookings? (for|of) (our |their |the )?(models|talent|clients'? (bands|acts))|model(ing|ling)? (agency|bookings?)|freight|cargo|shipping|import\s*(\/|and|&|or)\s*export|forwarders?|customs (brokers?|brokerage|clearance|documents?)|bills? of lading|shipments?|containers?|trucking|truckloads?|(truck|freight) loads?|loads? (with|for|from) (carriers|trucks|drivers|shippers)|load boards?|shippers?|(secure|securing|find|finding) (trucks|capacity)|capacity (with|from) carriers|(negotiat\w*|call|calling|contact\w*|vet|vetting|source|sourcing|dispatch\w*) ((rates|fees) )?(with )?(our |the )?carriers|carriers,? (and )?(negotiat\w*|rates)|give tours|plan(s|ning)? group tours|contract hotels|(event|conference) (planning|management)(?!\s+(team|department|staff|experience)\b)|(plan|plans|planning|organi[sz]e|organi[sz]es|organi[sz]ing|produce|producing|coordinate|coordinates|coordinating|manage|manages|managing|execute|executes|executing)( and (execute|executes|executing|run|runs|running|manage|manages|managing|coordinate|coordinates|coordinating|host|hosts|hosting))? (our |the |their )?(clients'? )?${EVENT_BOOKED}|host stand|greet(ing)? diners|seat(ing)? (diners|guests|people))\b`,
+  String.raw`\b(musicians?|artists?|bands?|djs?|gigs?|performers?|entertainers?|magicians?|singers?|photo shoots?|comedians?|talent (agency|booking|roster)|booking talent|book(ing)? talent|roster|touring|tour dates|book(ing)? (speakers|acts|models|venues|loads|trucks|carriers|shows|festival\w*)|speaking engagements?|bookings? (for|of) (our |their |the )?(models|talent|clients'? (bands|acts))|model(ing|ling)? (agency|bookings?)|freight|cargo|shipping|import\s*(\/|and|&|or)\s*export|forwarders?|customs (brokers?|brokerage|clearance|documents?)|bills? of lading|shipments?|containers?|trucking|truckloads?|(truck|freight) loads?|loads? (with|for|from) (carriers|trucks|drivers|shippers)|load boards?|shippers?|(secure|securing|find|finding) (trucks|capacity)|capacity (with|from) carriers|(negotiat\w*|call|calling|contact\w*|vet|vetting|source|sourcing|dispatch\w*) ((rates|fees) )?(with )?(our |the )?carriers|carriers,? (and )?(negotiat\w*|rates)|give tours|plan(s|ning)? group tours|contract hotels|host stand|greet(ing)? diners|seat(ing)? (diners|guests|people))\b`,
 );
+// The fifteenth review: putting event planning and the planner's verbs back in NOT_GUEST_BOOKING, where nothing skips them,
+// made a hotel's or resort's reservations agent a planner again whenever its words named corporate events or event planning
+// ("Handle hotel room reservations and coordinate corporate events with our banquet team", "Handle room reservations, group
+// bookings and event planning inquiries for our hotel", "Handle room reservations for our resort and help plan corporate
+// events"). They are the planner's work again (PLANNER_WORK; event planning inquiries, services, packages or requests are a
+// venue's, as a team's or experience was), skipped only on a venue's own words (VENUE_OWN: our or the hotel or resort, room
+// reservations or bookings, a banquet, function rooms, conference facilities: "Respond to guest inquiries about rooms and
+// conference facilities. Coordinate conferences with our events team"), never on guests or rooms alone, which the
+// fourteenth's planners name ("Event planning for corporate clients: manage guest lists ...", "Organize corporate events and
+// conferences for our clients; book rooms for attendees", "Manage conference logistics: speaker travel, hotel rooms and
+// catering" stay the planner's).
+const PLANNER_WORK = new RegExp(
+  String.raw`\b((event|conference) (planning|management)(?!\s+(team|department|staff|experience|inquir\w*|enquir\w*|services?|packages?|requests?)\b)|(plan|plans|planning|organi[sz]e|organi[sz]es|organi[sz]ing|produce|producing|coordinate|coordinates|coordinating|manage|manages|managing|execute|executes|executing)( and (execute|executes|executing|run|runs|running|manage|manages|managing|coordinate|coordinates|coordinating|host|hosts|hosting))? (our |the |their )?(clients'? )?${EVENT_BOOKED})\b`,
+);
+const VENUE_OWN = /\b(our|the) (hotel|resort)('s)?\b|\broom (reservations?|bookings?)\b|\bbanquet\b|\bfunction (rooms?|halls?)\b|\bconference facilit(y|ies)\b/;
 // (Venues, catering or AV named with the conference, and an event's logistics, which a venue's own words share: skipped when
 // they name rooms or guests, "Answer guest calls and emails about room bookings, conferences and catering", "Answer guest calls
 // and coordinate event logistics with our banquet team"; the thirteenth, narrowed to those in the fourteenth.)
@@ -289,6 +306,17 @@ const OUTBOUND = /\b(cold[- ]?call\w*|outbound (calls?|calling|sales|dial\w*)|le
 // front desk, a lobby or a resort, never a holiday rental's remote guest
 // support: "Answer guest questions on Airbnb and VRBO, manage check-ins and
 // check-outs".)
+// (The fifteenth: each narrowed to its evidence instead. A walk-in is one
+// before a person or a matter ("walk-in clients", "walk-in inquiries",
+// "walk-in and phone inquiries"), never the applicant's ("Open for walk-in!",
+// "Walk-in or apply online"), and serving walk-ins is the door like greeting
+// them ("Serve walk-ins and handle cash payments", "attend to walk-ins",
+// "Accommodate walk-ins and process their applications"), which the
+// fourteenth's greet-only form had made customer service again. Check-ins and
+// check-outs are the desk's as the thirteenth read them, an inn's, an
+// apartelle's or a hostel's too ("Welcome arriving guests, handle check-ins
+// and check-outs, and process payments"), except on the line of a holiday
+// rental's, Airbnb's or VRBO's, which is the fourteenth's evidence.)
 // One store someone stands in: never an online platform's shop ("our TikTok
 // Shop", "our WooCommerce store", "our web store", "the App Store"), a
 // partner's or franchisee's stores, or stores in many places ("our store
@@ -320,7 +348,7 @@ const MANY_STORES = String.raw`(locations?\s+)?(nationwide|countrywide|worldwide
 const NOT_MANY_STORES = String.raw`(?!\s+(${MANY_STORES})\b)`;
 const NOT_STORE_LOCATIONS = String.raw`(?!\s+(locations(?!\s+in\b)|${MANY_STORES})\b)`;
 const IN_PERSON = new RegExp(
-  String.raw`\b(in[- ]store|in[- ]person|on the (shop |sales )?floor|at the (register|counter|till|front counter|gate|branch|airport|front of|host stand)|(service|returns|parts|bakery|airport) counter|(work|working|behind|man|manning|staff|staffing)( at)? the (front |service )?(counter|desk)|(grocery|supermarket|convenience|department) stores?|run the register|ring(ing)? up|walk[- ]in|greet(ing)? walk[- ]ins|face[- ]to[- ]face|in the (hotel )?lobby|theme park|(greet|welcom(e|es|ing))(ing)? (our |the )?(guests|members|visitors|residents|diners|patrons|shoppers|passengers)|check-?ins? (and|&|\/) check-?outs?(?=[^.;\n]{0,60}\b(hotel|front desk|lobby|resort)\b)|(?=check-?in)(?<=\b(hotel|front desk|lobby|resort)\b[^.;\n]{0,60})check-?ins? (and|&|\/) check-?outs?|greet(ing)? (our |the )?customers (as they|when they|at (the|our)|in (the|our))|greet(ing)? (our |the )?customers,? (and )?(process|help them find|ring|direct|check)|check(ing)? (them|guests|members|passengers|visitors|people|residents|hotel guests|gym members|customers|clients) in\b(?! with)|check(ing)?[- ]in (hotel )?(guests|members|passengers|visitors|people|residents|customers|clients|vehicles|cars|bags|luggage)\b(?! with)|check-?in (desk|counter)|(post office|ticket|check-in) counter|(at|in) (our|the) (bank )?branch(es)?|bank branch|bus terminal|box office|sell tickets|check bags|pickup desk|at the service desk|(help|helping|assist|assisting|serve|serving)\s+(our |the )?(customers|shoppers|guests|clients|patrons)\s+(at|in|inside)\s+(our|the)\s+${ONE_STORE}(stores?|shops?|branch(es)?|showrooms?|restaurants?|cafes?|pharmac(y|ies)|counters?|outlets?|malls?|dealerships?|supermarkets?|boutiques?)\b${NOT_MANY_STORES})\b`,
+  String.raw`\b(in[- ]store|in[- ]person|on the (shop |sales )?floor|at the (register|counter|till|front counter|gate|branch|airport|front of|host stand)|(service|returns|parts|bakery|airport) counter|(work|working|behind|man|manning|staff|staffing)( at)? the (front |service )?(counter|desk)|(grocery|supermarket|convenience|department) stores?|run the register|ring(ing)? up|walk[- ]in(?=\s+(customers?|clients?|guests?|patients?|visitors?|patrons?|members?|borrowers?|shoppers?|diners?|buyers?|inquir\w*|enquir\w*|concerns?|transactions?|traffic|and (phone|telephone|call)\w*)\b)|(greet(s|ing)?|assist(s|ing)?|serv(e|es|ing)|attend(s|ing)? to|entertain(s|ing)?|accommodat(e|es|ing))\s+(our |the )?walk[- ]ins|face[- ]to[- ]face|in the (hotel )?lobby|theme park|(greet|welcom(e|es|ing))(ing)? (our |the )?(guests|members|visitors|residents|diners|patrons|shoppers|passengers)|(?=check-?ins? (and|&|\/) check-?outs?)(?<!\b(airbnb|vrbo|rentals?)\b[^\n]{0,200})check-?ins? (and|&|\/) check-?outs?(?![^\n]{0,200}\b(airbnb|vrbo|rentals?)\b)|greet(ing)? (our |the )?customers (as they|when they|at (the|our)|in (the|our))|greet(ing)? (our |the )?customers,? (and )?(process|help them find|ring|direct|check)|check(ing)? (them|guests|members|passengers|visitors|people|residents|hotel guests|gym members|customers|clients) in\b(?! with)|check(ing)?[- ]in (hotel )?(guests|members|passengers|visitors|people|residents|customers|clients|vehicles|cars|bags|luggage)\b(?! with)|check-?in (desk|counter)|(post office|ticket|check-in) counter|(at|in) (our|the) (bank )?branch(es)?|bank branch|bus terminal|box office|sell tickets|check bags|pickup desk|at the service desk|(help|helping|assist|assisting|serve|serving)\s+(our |the )?(customers|shoppers|guests|clients|patrons)\s+(at|in|inside)\s+(our|the)\s+${ONE_STORE}(stores?|shops?|branch(es)?|showrooms?|restaurants?|cafes?|pharmac(y|ies)|counters?|outlets?|malls?|dealerships?|supermarkets?|boutiques?)\b${NOT_MANY_STORES})\b`,
 );
 // (Helping customers in the store is the floor, the tenth review: "CSR | Retail / Help customers in our store", "Help customers at our cell phone store";
 // one store only, the eleventh: "Assist customers in our TikTok Shop", "Help customers at our store locations nationwide through our hotline" are not.)
@@ -482,6 +510,11 @@ function headPhrase(title: string, work = ""): string {
 // seventh Phase 4 review).
 const STORE_PART = /^(((retail|grocery|convenience|department|drug|hardware|furniture|clothing|liquor|thrift|toy|book|gift|flower|pet|appliance|electronics?|sporting goods) )?(store|shop|outlet)|retail|grocery|supermarket|pharmacy|drugstore|in-store|restaurant|cafe|café|bakery|showroom|dealership|boutique)$/;
 const VENUE = /\b(hotel|motel|hostel|resort|gym|fitness|salon|(?<!med |medical )spa|barbershop|apartments?|condo|clubhouse|front of house|museum|office|law firm|real estate|corporate|plant|factory|warehouse)\b/;
+// The venues whose front desk is the door a phone is answered at, as a store's counter is (isCustomerService): a lodging, a
+// gym, a salon, a clubhouse or a museum, never an office's, a firm's or a warehouse's (the fifteenth review).
+// In the title ("Front Desk Agent - Hotel"), or in the words as the desk's own ("at the front desk of our gym").
+const DOOR_VENUE = /\b(hotel|motel|hostel|resort|gym|fitness|salon|(?<!med |medical )spa|barbershop|clubhouse|museum)\b/;
+const AT_THE_VENUE_DESK = /\bat the front desk of (our|the|a) ([\w-]+ )?(hotel|motel|hostel|resort|gym|fitness (center|centre|studio)|salon|(?<!med |medical )spa|barbershop|clubhouse|museum)\b/;
 // Where the agent sits or when they work says nothing about whose front desk
 // it is: "office hours", "work in our office in Ortigas" (the ninth review).
 const OFFICE_NOT_VENUE = /\b(work|working|report|reporting|based|stationed|sit|sitting)\s+(in|at|from|out of)\s+(our|the|an?)\s+([\w']+\s+)?office\b|\boffice[- ](hours|based|setup|set-up|schedule|days?)\b|\b(in|home|back)[- ]office\b/g;
@@ -531,7 +564,9 @@ const AT_THE_STORE = new RegExp(
 // REMOTE_CHANNEL); the store's own records are no shop to keep; and items
 // are priced as a duty ("check customer emails from corporate, and price
 // items."), never "price items for our online catalog" or "explain pricing".
-const STORE_FLOOR = /\b(shelves|aisles?|fitting rooms?|stock ?room|cash registers?|restock\w*|planograms?|price tags|(handl\w*|count\w*|accept\w*|tak\w*) (the )?cash(?=\s*((and|or)\b|[,.;\n]|$))|cash handling|the till|(operat\w*|run|running|man|manning) (the |our |a )?(pos|point[- ]of[- ]sale)|transactions (using|on|with|through) (the |our |a )?(pos|point[- ]of[- ]sale)|bag(ging)? groceries|the front end|24[- ]hours? (store|shop|branch|pharmacy|outlet)|serv(e|ing) food|(keep|keeping|clean|cleaning|tidy|tidying|maintain\w*|open|opening|close|closing) (the|our) (store|shop|counters?)(?!')|(?<!\b(explain\w*|about|on|our|the|of)\s)pric(e|es|ing) (items|products|merchandise|goods)(?=\s*((and|or)\b|[,.;\n]|$)))\b/;
+// (The fifteenth: a dining area kept clean is the counter's too, "Serve customers, take food orders and keep the dining area
+// clean", now that a title with no store part reads these words as well; isCustomerService.)
+const STORE_FLOOR = /\b(shelves|aisles?|fitting rooms?|stock ?room|cash registers?|restock\w*|planograms?|price tags|(handl\w*|count\w*|accept\w*|tak\w*) (the )?cash(?=\s*((and|or)\b|[,.;\n]|$))|cash handling|the till|(operat\w*|run|running|man|manning) (the |our |a )?(pos|point[- ]of[- ]sale)|transactions (using|on|with|through) (the |our |a )?(pos|point[- ]of[- ]sale)|bag(ging)? groceries|the front end|24[- ]hours? (store|shop|branch|pharmacy|outlet)|serv(e|ing) food|(keep|keeping|clean|cleaning|tidy|tidying|maintain\w*|open|opening|close|closing) (the|our) (store|shop|counters?|dining (area|room|hall)s?)(?!')|(?<!\b(explain\w*|about|on|our|the|of)\s)pric(e|es|ing) (items|products|merchandise|goods)(?=\s*((and|or)\b|[,.;\n]|$)))\b/;
 // The thirteenth review: that brought the store's own floor back as an
 // account wherever its words also named a phone, an email or the night shift
 // ("Work as cashier and assist customers with returns. Must be willing to
@@ -616,7 +651,11 @@ const NIGHT_SHIFT = /\b(night|graveyard)[- ]shifts?\b|\bgraveyard\b/;
 // staff" is no job done from home; the thirteenth review.)
 // (Only those, the fourteenth: dropping "virtual" and every allowance lost "100% virtual role" and "WFH allowance", which
 // are; virtual classes and a remote work stipend stay out.)
-const PERK_REMOTE = String.raw`\b(work from home|work-from-home|wfh|remote(ly)?|home[- ]based|virtual(ly)?)\b(?!\s+(fitness\s+)?classes\b)(?!\s+work\s+stipends?\b)`;
+// (The fifteenth: "virtual" only as the role or its setup, as the fourteenth's evidence was: "100% virtual role", "Fully
+// virtual team", "Virtual office". Any other "virtual" perk is no job done from home, and it took store, hotel and counter
+// jobs off the floor: "HMO with virtual consultations", "Virtual team-building events", "Monthly virtual town halls",
+// "Virtual wellness sessions". So the virtual classes need no exception of their own.)
+const PERK_REMOTE = String.raw`\b(work from home|work-from-home|wfh|remote(ly)?|home[- ]based|(100%|fully|permanent(ly)?|full-time)\s+virtual(ly)?|virtual(ly)?(?=\s+(role|job|position|setup|set-up|work|office)\b))\b(?!\s+work\s+stipends?\b)`;
 const PERK_SETUP = new RegExp(String.raw`(\b(not|no|non|never|isn'?t)[- ]+((a|an|the|fully|100%)\s+)?)?${PERK_REMOTE}(\s+(training|onboarding|orientation))?|${NIGHT_SHIFT.source}`, "g");
 const perkSetup = (perks: string) => ` ${(perks.match(PERK_SETUP) ?? []).join(" ")} `;
 // Tickets sold at a counter, not support tickets (nor their refunds or exchanges; the tenth review).
@@ -627,8 +666,9 @@ function isMainStreet(title: string, work = ""): boolean {
   const head = headPhrase(title, work);
   const noun = head.split(/\s+/).pop() ?? "";
   if (MAIN_STREET_HEAD.test(noun) && !TECH_SERVER.test(head)) return true;
-  // (A crew, when nothing says it is a support line's; the thirteenth and fourteenth reviews.)
-  if (/^crews?$/.test(noun) && !/\b(virtual|remote|online|work from home|wfh|chat|e-?mail|phone|voice|call cent(er|re)|non[- ]?voice|support|care|experience)\b/.test(title) && !OFF_THE_FLOOR.test(work) && !ONLINE_BUSINESS.test(work) && !REMOTE_WORDS.test(work)) return true;
+  // (A crew, when nothing says it is a support line's; the thirteenth and fourteenth reviews. A customer experience crew's,
+  // never any "experience": "Customer Service Crew (No Experience Needed)" is the counter's; the fifteenth.)
+  if (/^crews?$/.test(noun) && !/\b(virtual|remote|online|work from home|wfh|chat|e-?mail|phone|voice|call cent(er|re)|non[- ]?voice|support|care|customer experience|cx)\b/.test(title) && !OFF_THE_FLOOR.test(work) && !ONLINE_BUSINESS.test(work) && !REMOTE_WORDS.test(work)) return true;
   // ...or in any part of the title, or either side of a slash, in the singular:
   // "Customer Service Rep - Cashier", "Cashier/Customer Service Rep" (the ninth
   // review; a plural can be the people a support line serves: "Customer
@@ -707,9 +747,16 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
   // (The front desk only when the title names a venue, as the thirteenth's gym did: an office CSR who answers calls and emails
   // and helps walk-in clients at the front desk is still on the phone, "Answer incoming calls and emails from policyholders ...
   // and assist walk-in clients at the front desk of our agency"; the fourteenth.)
-  const atTheDoor = /\bat the entrance\b/.test(work) || (/\bat the front desk\b/.test(work) && VENUE.test(title));
+  // (The fifteenth: only a lodging's, gym's or salon's front desk, the thirteenth's evidence, in the title or as "at the front
+  // desk of our gym". VENUE's office, corporate, real estate, condo, warehouse and factory are where an office CSR helps at the
+  // front desk between calls: "Customer Service Representative (Office-Based) / Answer customer calls and emails about their
+  // accounts. Assist walk-in clients at the front desk", "Corporate Customer Service Representative".)
+  const atTheDoor = /\bat the entrance\b/.test(work) || (/\bat the front desk\b/.test(work) && (DOOR_VENUE.test(title) || AT_THE_VENUE_DESK.test(work)));
   const offTheFloor = REMOTE_CHANNEL.test(title) || ONLINE_BUSINESS.test(title) || OFF_THE_FLOOR.test(floorWork) || ONLINE_BUSINESS.test(work) || REMOTE_WORDS.test(work) || (REMOTE_CHANNEL.test(floorWork) && !AT_THE_STORE.test(work) && !atTheDoor);
-  if (IN_PERSON.test(`${title} ${work}`) && !offTheFloor && !clinicWork) return false;
+  // (...or the counter's own duties, which a title with no store part said nothing of: "Customer Service Associate / Greet
+  // customers, take orders and handle the cash register", "Customer Service Representative / Take customer orders, prepare
+  // drinks and operate the POS"; the fifteenth. STORE_FLOOR, as a store-part title reads them, under the same off-the-floor test.)
+  if ((IN_PERSON.test(`${title} ${work}`) || STORE_FLOOR.test(work)) && !offTheFloor && !clinicWork) return false;
   // A clinic's appointment setter books patients; any other is selling.
   if (PATIENT_ADMIN.test(title) && patientCalls(work)) return true;
   if (SALES_TITLE.test(title.replace(SERVICE_SALES, " "))) {
@@ -734,8 +781,9 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
     // (...by a freight desk's own words only, never "travel logistics" or "coordinate logistics for each shoot"; the thirteenth.)
     const freight = /\blogistics\b/.test(title) || LOGISTICS_BUSINESS.test(work) || (FREIGHT_LOGISTICS.test(work) && !BOOKED_FOR.test(work) && !REMOTE_CHANNEL.test(work));
     // (A planner's conference or corporate event, never where the words name rooms or guests; the thirteenth. Only its venues,
-    // catering or AV and its logistics since the fourteenth: planning and the planner's verbs are in NOT_GUEST_BOOKING, never skipped.)
-    const planner = EVENT_PLANNER.test(`${title} ${work}`) && !VENUE_BOOKED.test(`${title} ${work}`);
+    // catering or AV and its logistics since the fourteenth. Planning and the planner's verbs are skipped only on a venue's own
+    // words since the fifteenth: PLANNER_WORK, VENUE_OWN.)
+    const planner = (EVENT_PLANNER.test(`${title} ${work}`) && !VENUE_BOOKED.test(`${title} ${work}`)) || (PLANNER_WORK.test(`${title} ${work}`) && !VENUE_OWN.test(`${title} ${work}`));
     return !NOT_GUEST_BOOKING.test(`${title} ${work}`) && !planner && !freight && !((IN_PERSON.test(work) || AT_THE_STORE.test(work)) && !REMOTE_CHANNEL.test(work)) && !dispatch;
   }
   if (OUTBOUND.test(work)) return false;
@@ -965,6 +1013,10 @@ export function chipAnswersToBriefAnswers(
   });
 }
 
+// A line or sentence of What they do that is only the remote setup: "Permanent work from home.", "This is a WFH role.",
+// "Fully remote." (the fourteenth Phase 4 review's cases; the fifteenth, briefFromForm).
+const ONLY_REMOTE_LINE = /^\s*(this is an? )?(permanent(ly)? |fully |100% )?(remote|work from home|wfh|home[- ]based)( (role|job|position|setup|work))?\s*[.!]?\s*$/;
+
 export function briefFromForm(fields: {
   role: string;
   location: string;
@@ -1000,7 +1052,15 @@ export function briefFromForm(fields: {
   // the Type left on On-site. The fourteenth Phase 4 review: the chat note read What they do and Publish read the AI's rewording
   // of it, so a note said typing was measured on a job saved on site, and the other way round. Now both read this field, and
   // the job gets its connection check. Never a perk, which says how often, not where: "Benefits:\n- Work from home Fridays".)
-  else if (isFullyRemoteText(fields.location, null, `${fields.role}\n${fields.work}`.toLowerCase().replace(PERKS, " "))) workMode = "remote";
+  // (The fifteenth review: What they do only by a line or sentence that is nothing but the setup, ONLY_REMOTE_LINE. Any other
+  // "WFH" in it turned on-site jobs remote, and Publish saved them is_remote with no currency: "Work setup: Onsite. Possible WFH
+  // after regularization", "WFH is not available for this role", "WFH: No", "Must have WFH experience", "Help customers who work
+  // from home set up their internet". And never a title that says on site too: "CSR (Onsite / WFH)".)
+  else if (
+    (placeSaysRemote(fields.role) !== "not_remote" && isFullyRemoteText(fields.location, null, fields.role)) ||
+    (placeSaysRemote(fields.location) !== "not_remote" && fields.work.toLowerCase().replace(PERKS, " ").split(/(?<=[.!?])\s+|\n+/).some((line) => ONLY_REMOTE_LINE.test(line)))
+  )
+    workMode = "remote";
 
   let startUrgency: JobBrief["startUrgency"] = "few_weeks";
   const st = fields.start.toLowerCase();

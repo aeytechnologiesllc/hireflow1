@@ -72,8 +72,18 @@ const PH_PLACE_HINT = /\b(metro manila|manila|quezon city|makati|pasig|taguig|bg
  *  startup is a client word: "Makati (US-based healthcare account)", "Ortigas
  *  (US-based mortgage company)", "BGC Taguig - US-based tech startup" were
  *  saved as US jobs paid in dollars when the geocoder missed. Applicants,
- *  candidates, employees and a team are still where the people are. */
-const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:(?:-based)?\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|compan(?:y|ies)|brands?|business(?:es)?|startups?|time(?:zone)?|hours|market|campaigns?)\b|(?:-based)?\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)/gi;
+ *  candidates, employees and a team are still where the people are.
+ *  The fifteenth: that list of kinds missed every other kind of business
+ *  ("Makati (US-based BPO)", "Taguig (UK-based BPO)", "Cebu City - US-based
+ *  call center", "Quezon City (US-based agency)" were US and GB jobs again),
+ *  so "-based" before any word is the client's, as the twelfth had it, except
+ *  a short closed list of words for people ("US-based applicants only",
+ *  "US-based team", "Canada-based employees only", "US-based agents",
+ *  "US-based preferred"). And a company, brand, business or startup is a
+ *  client only after "-based", as the thirteenth had it: "Remote (US
+ *  company)", "Remote - US brand" are the US (the fourteenth had made them
+ *  no country, so a job the geocoder missed was in no feed). */
+const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:-based\s+(?!(?:applicants?|candidates?|employees?|teams?|staff|workers?|people|talent|hires?|residents?|citizens?|only|preferred|remote|professionals?|agents?|freelancers?|contractors?|individuals?|persons?)\b)[\w-]+|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|time(?:zone)?|hours|market|campaigns?)\b|\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)/gi;
 
 export function inferCountryCode(locationText?: string | null): string | null {
   const text = (locationText ?? "").trim().replace(CLIENT_COUNTRY, " ");

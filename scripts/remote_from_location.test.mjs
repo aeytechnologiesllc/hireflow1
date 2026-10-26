@@ -144,6 +144,42 @@ check("a negated remote word in the description is no remote job (\"Onsite only,
   check("…never a negated one or a perk", mode("Customer Service Representative", "Onsite only, no WFH. Answer customer chats.") === "onsite" && mode("Customer Service Representative", "This is not a work from home job.") === "onsite" && mode("Front Desk Receptionist", "Greet visitors at our office and answer phones.\nBenefits:\n- Work from home Fridays\n- HMO") === "onsite" && mode("Chat Support Agent", "Reply to customer chats.") === "onsite");
 }
 
+// The fifteenth Phase 4 review: What they do makes a job remote only by a line or sentence that is nothing but the setup, and
+// the title never when it says on site too (any other "WFH" turned on-site jobs remote, and Publish saved them is_remote with
+// no currency); "-based" before any word but a person is the client's ("US-based BPO" is a client, "US-based agents" are where
+// the people are); a company or a brand is a client only after "-based" ("Remote (US company)" is the US).
+{
+  const mode = (role, location, work) => M.briefFromForm({ role, location, type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
+  for (const [role, location, work] of [
+    ["Customer Service Representative", "Makati City", "Answer customer calls for our telco account. Work setup: Onsite. Possible WFH after regularization."],
+    ["Customer Service Representative", "Makati City", "Answer customer calls. WFH is not available for this role."],
+    ["Customer Service Representative", "Makati City", "Answer customer calls. Work from home: not applicable."],
+    ["Customer Service Representative", "Makati City", "Answer customer calls. WFH: No"],
+    ["Customer Service Representative", "Makati City", "Answer customer calls. WFH option after probation."],
+    ["Customer Service Representative", "Makati City", "Answer customer calls. Must have WFH experience."],
+    ["Customer Service Representative", "Cebu City", "Answer customer calls. Onsite for now; WFH after 6 months."],
+    ["Customer Service Representative", "Makati City", "Help customers who work from home set up their internet."],
+    ["CSR (Onsite / WFH)", "Makati", "Answer customer chats."],
+  ]) check(`${JSON.stringify(role)} at ${location}, "${work}", is built on site`, mode(role, location, work) === "onsite", mode(role, location, work));
+  for (const [role, location, work] of [
+    ["Customer Service Representative", "Philippines", "Answer customer chats. Permanent work from home."],
+    ["Chat Support Agent", "Cebu City", "This is a WFH role. Reply to customer chats."],
+    ["Work From Home Chat Support Agent", "Cebu City", "Reply to customer chats."],
+    ["Customer Service Representative", "Quezon City", "Answer calls. Fully remote."],
+    ["Customer Service Representative", "Davao City", "Answer customer emails.\n100% remote"],
+  ]) check(`${JSON.stringify(role)} at ${location}, "${work}", is built remote`, mode(role, location, work) === "remote", mode(role, location, work));
+}
+for (const [text, code] of [
+  ["Makati (US-based BPO)", "PH"], ["Pasig (US-based BPO)", "PH"], ["Taguig (UK-based BPO)", "PH"], ["Makati (US-based firm)", "PH"], ["Makati (US-based clinic)", "PH"],
+  ["Cebu City - US-based call center", "PH"], ["Quezon City (US-based agency)", "PH"], ["Clark, Pampanga | UK-based travel agency", "PH"], ["Davao City (US-based online store)", "PH"],
+  ["Remote (US-based applicants only)", "US"], ["Remote — US-based team", "US"], ["Remote (Canada-based employees only)", "CA"], ["Remote (US-based agents)", "US"],
+  ["Remote (US-based preferred)", "US"], ["Remote - UK-based staff only", "GB"],
+  ["Remote (US company)", "US"], ["US company, remote", "US"], ["Remote (UK company)", "GB"], ["Remote - US brand", "US"],
+  ["Makati, US-based company", "PH"], ["Ortigas (US-based mortgage company)", "PH"],
+]) {
+  check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
+}
+
 {
   const editor = (await import("node:fs")).readFileSync(path.join(ROOT, "src/pages/CreateJob.tsx"), "utf8");
   check("Edit job: remote work is the business's own switch, shown beside the place, never re-worked unseen", /isEditMode && existingJob\s*\? formData\.is_remote === true/.test(editor) && /data-edit-remote/.test(editor) && /handleChange\("is_remote", remoteAfterPlaceEdit\(/.test(editor));

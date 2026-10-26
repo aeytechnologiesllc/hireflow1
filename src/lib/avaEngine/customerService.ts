@@ -183,14 +183,18 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // What the description says the agent does on each channel.
   const LIST = String.raw`(\s*(,|&|\band\b|\/|\+|\bor\b)\s*(and\s+)?)`;
   const WRITTEN = String.raw`(live chats?|chats?|e-?mails?|texts?|sms|messages?|tickets?)`;
+  const PHONEW = String.raw`(phones?|calls?|voice)`;
   // (Voicemails in a list are the phone's: "Respond to emails, chats and voicemails"; the fourteenth review, since the
   // thirteenth's verb-only rule for voicemails read them as nothing there.)
-  const PHONEW = String.raw`(phones?|calls?|voice ?mails?|voice)`;
+  // (Only after a written channel, as the fourteenth's evidence was, and never their transcriptions: "Turn customer voicemails
+  // and emails into tickets in Zendesk", "Voicemail and email transcripts are reviewed by our QA team", "Handle customer emails,
+  // chats, and voicemail transcriptions" name no calls; the fifteenth.)
+  const PHONE_AFTER = String.raw`(phones?|calls?|voice ?mails?(?!\s+transcri\w*)|voice)`;
   // A list of channels with phones in it ("phone, email and chat", "calls and
   // emails"); not what customers own or are billed for ("their phone and email
   // accounts", "calls and texts on their plan").
   const list = new RegExp(
-    String.raw`\b(${PHONEW}(${LIST}${WRITTEN})+|${WRITTEN}(${LIST}(${WRITTEN}|${PHONEW}))*${LIST}${PHONEW})\b(?!\s+(accounts?|numbers?|settings|plans?|apps?|devices?|bills?|lines?|on (their|your|the|our) (plan|bill|account|phone)))`,
+    String.raw`\b(${PHONEW}(${LIST}${WRITTEN})+|${WRITTEN}(${LIST}(${WRITTEN}|${PHONE_AFTER}))*${LIST}${PHONE_AFTER})\b(?!\s+(accounts?|numbers?|settings|plans?|apps?|devices?|bills?|lines?|on (their|your|the|our) (plan|bill|account|phone)))`,
   ).test(work);
   // The work the agent does, with what they will NOT do taken out ("no need to
   // take calls", "you won't need to make calls", "you will never have to pick
@@ -215,8 +219,9 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
       // (...when a verb returns or follows them up, never a bare mention: "no more missed calls or voicemails for our customers",
       // "Turn customer voicemails into tickets"; the thirteenth. A hotline is the phone line, as Philippine posts say it: "Answer the
       // customer hotline", "Man the hotline", "through our hotline and email"; the thirteenth. Never a messaging line, the fourteenth:
-      // "via our Viber hotline", "our SMS hotline", "through our WhatsApp hotline and email" are written; NOT_WRITTEN_LINE.)
-      String.raw`|\b(respond|responding|reply|replying|attend|attending|tend|tending|listen|listening)\s+to\s+((the|all|our|incoming|inbound|customer|client|patient|every|their)\s+){0,2}calls\b|\b(up to|over|about|around|at least)?\s*(\d+\+?|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundreds of|dozens of)\s+((inbound|incoming|customer|phone)\s+)?calls\b|(?<!\bfollow(s|ed|ing)?[- ]up\s)\bon (customer |client |live |phone |inbound |incoming )?calls\b|\b(during|over|through|thru|via) (customer |client |live |phone |inbound |incoming )?calls\b|\bcalls? (are|is|get|gets) (answered|picked up|returned)\b(?!\s+(by|elsewhere|separately|in-house)\b)|\b(every|each) (customer |inbound |incoming )?call\b|\b(return|returns|returning|check|checks|checking|follow(s|ed|ing)?[- ]up on|respond to|responding to|listen to|listening to|answer|answering|call back|calling back)\s+((the|all|any|our|their|customer|client|patient)\s+){0,2}(missed calls|voice ?mails?)\b|\b(answer|answering|man|manning|staff|staffing|handle|handling|cover|covering|take|taking|monitor|monitoring)\s+(the\s+|our\s+)?(${NOT_WRITTEN_LINE}[\w-]+\s+)?hotlines?\b|\b(on|through|thru|via|by|over)\s+(the\s+|our\s+)?(${NOT_WRITTEN_LINE}[\w-]+\s+)?hotlines?\b`,
+      // "via our Viber hotline", "our SMS hotline", "through our WhatsApp hotline and email" are written; NOT_WRITTEN_LINE.
+      // Its name may take two words or "24/7": "Answer the customer care hotline and emails", "Answer the 24/7 hotline"; the fifteenth.)
+      String.raw`|\b(respond|responding|reply|replying|attend|attending|tend|tending|listen|listening)\s+to\s+((the|all|our|incoming|inbound|customer|client|patient|every|their)\s+){0,2}calls\b|\b(up to|over|about|around|at least)?\s*(\d+\+?|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundreds of|dozens of)\s+((inbound|incoming|customer|phone)\s+)?calls\b|(?<!\bfollow(s|ed|ing)?[- ]up\s)\bon (customer |client |live |phone |inbound |incoming )?calls\b|\b(during|over|through|thru|via) (customer |client |live |phone |inbound |incoming )?calls\b|\bcalls? (are|is|get|gets) (answered|picked up|returned)\b(?!\s+(by|elsewhere|separately|in-house)\b)|\b(every|each) (customer |inbound |incoming )?call\b|\b(return|returns|returning|check|checks|checking|follow(s|ed|ing)?[- ]up on|respond to|responding to|listen to|listening to|answer|answering|call back|calling back)\s+((the|all|any|our|their|customer|client|patient)\s+){0,2}(missed calls|voice ?mails?)\b|\b(answer|answering|man|manning|staff|staffing|handle|handling|cover|covering|take|taking|monitor|monitoring)\s+(the\s+|our\s+)?(${NOT_WRITTEN_LINE}([\w-]+|24\/7)\s+){0,2}hotlines?\b|\b(on|through|thru|via|by|over)\s+(the\s+|our\s+)?(${NOT_WRITTEN_LINE}([\w-]+|24\/7)\s+){0,2}hotlines?\b`,
   ).test(positiveWork);
   const phoneMention = new RegExp(String.raw`\b(phone (support|agent|rep|csr|calls?)|voice (agent|csr|support|account)|outbound calls?|telephone|bpo)\b${NOT_A_RULE}|\bcall cent(er|re)\b${NOT_A_PRODUCT}${NOT_A_RULE}`).test(work);
   // Call-centre, BPO or phone support experience, asked for or not ("no call
@@ -307,6 +312,9 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
   // by Publish's own rule). The thirteenth Phase 4 review read What they do
   // here; the fourteenth found the AI plan's post rewords it, so a note said
   // typing was measured on a job Publish saved on site.
+  // (The fifteenth: What they do counts only by a line that is nothing but the setup (briefFromForm). Publish also reads the
+  // post's own words (isFullyRemoteText in jobFromFlow.ts), which on the built-in plan are What they do, so a job there can still
+  // be saved remote with an on-site brief, as in every version; NOT_TIMED states the rule only, so this note is true either way.)
   const remote = brief.workMode === "remote";
   const country = inferCountryCode(brief.location);
   const secondLanguage = remote || (!!country && !ENGLISH_FIRST.has(country));
@@ -441,7 +449,10 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
       // frustrated: "How do you handle frustrating calls?", "a caller's frustration on the phone", "customer frustration over the
       // phone", "A caller is being aggressive on the phone", "How do you de-escalate frustration on a call?"; the fourteenth. The
       // agent's own still is not: "the frustration of back-to-back calls".)
-      const OTHERS_TEMPER = /\b(frustrated|aggressive) (callers?|customers?|patients?)\b|\bfrustrating (calls?|callers?|customers?|patients?)\b|\b(callers?|customers?|patients?)(['’]s?)? frustration\b|\bde-?escalat\w*\s+((the|their|that|a)\s+)?frustration\b|\b(callers?|customers?|patients?|calls?|they|he|she)\b((?!\b(you|i|we)\b)[^.?!]){0,30}?\b(is|are|was|were|gets?|got|getting|becomes?|became|becoming|turns?|turned|seems?|sounds?)\s+((being|very|really|so|quite|increasingly|already|more and more|more)\s+){0,2}(frustrated|aggressive)\b/i;
+      // (Each only as its evidence was, the fifteenth: a frustrating call, never "frustrating" as a verb, "How do you keep calls
+      // short without frustrating customers?"; de-escalating frustration or theirs, never "the frustration you feel after a long
+      // call", the agent's own.)
+      const OTHERS_TEMPER = /\b(frustrated|aggressive) (callers?|customers?|patients?)\b|\bfrustrating calls?\b|\b(callers?|customers?|patients?)(['’]s?)? frustration\b|\bde-?escalat\w*\s+((their|that)\s+)?frustration\b|\b(callers?|customers?|patients?|calls?|they|he|she)\b((?!\b(you|i|we)\b)[^.?!]){0,30}?\b(is|are|was|were|gets?|got|getting|becomes?|became|becoming|turns?|turned|seems?|sounds?)\s+((being|very|really|so|quite|increasingly|already|more and more|more)\s+){0,2}(frustrated|aggressive)\b/i;
       const asksAngryCaller = (prompt: string) =>
         sentences(prompt).some((x) => onCall(x) && (OTHERS_TEMPER.test(x) || /\b(angry|upset|furious|irate|rude|abusive|difficult (callers?|customers?|patients?|calls?)|shout\w*|yell\w*|scream\w*|swear\w*|talk\w* over)\b/i.test(x)));
       // On hold is a person on hold ("put a caller on hold", "put patients on

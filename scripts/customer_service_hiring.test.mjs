@@ -408,6 +408,39 @@ const CS = [
   ["Customer Service Representative - Pharmacy", "Answer calls about counter pickup orders. Night shift."],
   ["Reservations Agent", "Answer guest calls and coordinate event logistics with our banquet team."],
   ["Reservations Agent", "Take room reservations by phone. Pass corporate event inquiries to the event planning team."],
+  // The fifteenth Phase 4 review: an office's, a firm's or a warehouse's front desk is no door (only a lodging's, gym's or
+  // salon's is); a customer experience crew is a support line's, never a crew with any "experience" in its title; a hotel's or
+  // resort's reservations agent whose words name corporate events or event planning is the venue's; "virtual" as the role or
+  // its setup still says the job is done from home; a walk-in that invites applicants is no counter; a topic of the counter's
+  // words is no counter duty; and a hotline's agent or officer answers its calls.
+  ["Customer Service Representative (Office-Based)", "Answer customer calls and emails about their accounts. Assist walk-in clients at the front desk."],
+  ["Customer Service Representative - Office Based", "Answer phones and emails and process payments. Greet walk-in customers at the front desk."],
+  ["Office Customer Service Representative", "Answer phones and emails, process orders, and greet visitors at the front desk."],
+  ["Customer Service Representative (Office)", "Answer customer calls and emails about billing. Assist walk-in customers at the front desk."],
+  ["Customer Service Representative - Real Estate", "Answer calls and emails from tenants and greet walk-in clients at the front desk."],
+  ["Corporate Customer Service Representative", "Answer calls and emails from corporate clients and greet visitors at the front desk."],
+  ["Customer Service Representative - Insurance Office", "Answer incoming calls and emails from policyholders, process endorsements, and assist walk-in clients at the front desk."],
+  ["Customer Service Representative - Condo", "Answer calls and emails from unit owners and greet visitors at the front desk."],
+  ["Customer Service Representative - Warehouse", "Answer customer calls and emails about order status. Assist walk-in customers picking up orders at the front desk."],
+  ["Customer Experience Crew", "Answer customer chats and emails for our online store."],
+  ["Reservations Agent", "Handle room reservations, group bookings and event planning inquiries for our hotel."],
+  ["Reservations Agent - Hotel", "Answer guest calls and emails about room bookings and event planning services."],
+  ["Reservations Coordinator", "Handle hotel room reservations and coordinate corporate events with our banquet team."],
+  ["Reservations Agent", "Answer guest calls and emails, book rooms, and manage corporate events and group bookings for our hotel."],
+  ["Reservations Officer", "Process room reservations and coordinate conferences with our sales and banquet teams."],
+  ["Reservations Agent", "Take room reservations by phone and email and assist guests with event planning for weddings and birthdays."],
+  ["Reservations Specialist", "Handle room reservations for our resort and help plan corporate events and team-building retreats."],
+  ["Reservations Agent", "Respond to guest inquiries about rooms and conference facilities. Coordinate conferences with our events team."],
+  ["Front Desk Agent", "Answer calls and emails for our hotel clients.\nPerks:\n- Fully virtual team\n- Paid time off"],
+  ["Customer Service Associate - Retail", "Assist customers with returns by phone and email.\nWhat we offer:\n- Virtual office setup"],
+  ["Customer Service Representative", "Handle customer inquiries. Open for walk-in!"],
+  ["Customer Service Representative", "Handle customer inquiries. Hiring on a walk-in basis at our Ortigas site."],
+  ["Customer Service Representative", "Handle customer inquiries. Mass hiring! Walk-in or apply online."],
+  ["Customer Service Representative", "Handle customer inquiries. You may walk-in at our office from 9am-5pm."],
+  ["Customer Service Representative", "Answer calls from customers about our cash register software."],
+  ["Customer Service Representative", "Help retailers set up their POS and cash registers over the phone."],
+  ["Hotline Agent", "Answer calls on our 24/7 customer hotline."], ["Hotline Officer", "Answer the customer hotline and log complaints."],
+  ["Delivery Hotline Agent", "Take delivery orders over the phone for our pizza chain."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -745,6 +778,43 @@ const NOT_CS = [
   ["Guest Service Agent", "Handle check-ins and check-outs at our hotel.", "general"],
   ["Customer Service Representative - Retail", "Help customers find products in our store and answer phone calls.", "cash"],
   ["Customer Service Representative", "Help customers at our stores across Metro Manila by phone.", "cash"],
+  // The fifteenth: the other side of each. A gym's or salon's front desk the words name is still the door; a crew whose title
+  // says no experience is needed is the counter's; a perk that is no job done from home ("virtual" consultations, team-building,
+  // town halls) leaves a store, hotel or counter job on the floor; serving, attending to or accommodating walk-ins is the door;
+  // check-ins and check-outs are the desk's at an inn, an apartelle or a hostel, or with no venue named; and a title with no
+  // store part whose words are only the counter's duties is the counter.
+  ["Customer Service Associate", "Greet members at the front desk of our gym, answer phones, and sell memberships.", "general"],
+  ["Customer Service Representative", "Greet customers at the front desk of our salon, book appointments by phone, and process payments.", "general"],
+  ["Customer Service Crew (No Experience Needed)", "Take customer orders, serve food, and keep the store clean.", "cleaner"],
+  ["Customer Service Crew (No Experience Needed)", "Take customer orders and serve milk tea. Handle the cashier.", "cash"],
+  ["Customer Service Crew - With or Without Experience", "Take customer orders, serve food, and keep the store clean.", "cleaner"],
+  ["Customer Service Crew - With or Without Experience", "Take customer orders and serve milk tea. Handle the cashier.", "cash"],
+  ["Customer Service Crew (Experience Not Required)", "Take customer orders, serve food, and keep the store clean.", "cleaner"],
+  ["Customer Service Crew (Experience Not Required)", "Take customer orders and serve milk tea. Handle the cashier.", "cash"],
+  ["Customer Service Crew | No Experience Required", "Take customer orders, serve food, and keep the store clean.", "cleaner"],
+  ["Customer Service Crew | No Experience Required", "Take customer orders and serve milk tea. Handle the cashier.", "cash"],
+  ...["HMO with virtual consultations", "Virtual team-building events", "Free virtual doctor consults", "Monthly virtual town halls", "Virtual wellness sessions", "Virtual happy hours"].flatMap((perk) => [
+    ["Customer Service Associate - Retail", `Assist shoppers in our Makati store, handle the cash register and keep displays neat.\n\nBenefits:\n- ${perk}\n- 13th month pay`, "cash"],
+    ["Retail Customer Service Associate", `Help customers in our store and process returns.\n\nBenefits:\n- ${perk}\n- 13th month pay`, "cash"],
+    ["Front Desk Agent - Hotel", `Greet guests, handle check-ins and check-outs at our hotel.\n\nBenefits:\n- ${perk}\n- 13th month pay`, "general"],
+  ]),
+  ["Customer Service Associate", "Serve walk-ins and handle cash payments.", "general"],
+  ["Customer Service Associate", "Serving walk-ins and handling cash payments.", "general"],
+  ["Customer Service Associate - Salon", "Book appointments and attend to walk-ins.", "general"],
+  ["Customer Service Representative", "Entertain walk-ins and answer their product inquiries.", "general"],
+  ["Customer Service Staff", "Assist walk-ins with bills payment, remittance and load.", "general"],
+  ["Customer Service Representative", "Accommodate walk-ins and process their applications.", "general"],
+  ["Guest Service Agent", "Welcome arriving guests, handle check-ins and check-outs, and process payments.", "general"],
+  ["Guest Service Associate", "Process guest check-ins and check-outs and handle room payments at our inn.", "general"],
+  ["Guest Relations Officer", "Handle check-ins and check-outs at our apartelle and assist guests with their concerns.", "admin"],
+  ["Guest Services Associate", "Handle check-ins and check-outs at our hostel, answer guest questions and keep the common area clean.", "cleaner"],
+  ["Customer Service Associate", "Greet customers, take orders and handle the cash register.", "general"],
+  ["Customer Service Associate", "Operate the cash register and assist customers with their purchases.", "general"],
+  ["Customer Service Representative", "Take customer orders, prepare drinks and operate the POS.", "general"],
+  ["Customer Service Associate", "Handle cash and card payments, bag groceries and help customers.", "general"],
+  ["Customer Service Representative", "Serve customers, take food orders and keep the dining area clean.", "general"],
+  ["Customer Service Associate", "Assist customers with their purchases, restock shelves and operate the cash register.", "general"],
+  ["Retail Customer Service Associate", "Operate the POS system, process returns and exchanges, and answer customer questions.", "cash"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -1026,6 +1096,31 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Customer Service Representative", "Help customers at our stores across North America by phone and email.", "mixed"],
     ["Customer Service Representative", "Assist customers at our branches across Luzon, Visayas and Mindanao through our hotline and email.", "mixed"],
     ["Technical Support Representative - Retail", "Help merchants use our POS software over the phone. Night shift.", "phone"],
+    // The fifteenth: voicemails count in a list only after a written channel, never leading it and never their transcriptions;
+    // a hotline's name may take two words or "24/7" (a messaging one is still written); and the channels of the fifteenth's
+    // customer-service cases above.
+    ["Customer Support Specialist", "Turn customer voicemails and emails into tickets in Zendesk.", "email"],
+    ["Customer Support Representative", "Handle customer emails, chats, and voicemail transcriptions.", "chat"],
+    ["Customer Support Agent", "Answer customer emails and chats. Voicemail and email transcripts are reviewed by our QA team.", "chat"],
+    ["Customer Support Agent", "Respond to tickets, emails and voicemails within SLA.", "mixed"],
+    ["Customer Support Agent", "Answer emails, chats and voicemails from customers of our meal-kit subscription.", "mixed"],
+    ["Customer Service Representative", "Answer the customer care hotline and emails.", "mixed"], ["Customer Service Representative", "Answer the 24/7 hotline.", "phone"],
+    ["Customer Service Representative", "Answer the customer Viber hotline.", "chat"],
+    ["Hotline Agent", "Answer calls on our 24/7 customer hotline.", "phone"], ["Hotline Officer", "Answer the customer hotline and log complaints.", "phone"],
+    ["Delivery Hotline Agent", "Take delivery orders over the phone for our pizza chain.", "phone"],
+    ["Customer Service Representative (Office-Based)", "Answer customer calls and emails about their accounts. Assist walk-in clients at the front desk.", "mixed"],
+    ["Customer Service Representative - Office Based", "Answer phones and emails and process payments. Greet walk-in customers at the front desk.", "mixed"],
+    ["Office Customer Service Representative", "Answer phones and emails, process orders, and greet visitors at the front desk.", "mixed"],
+    ["Customer Service Representative (Office)", "Answer customer calls and emails about billing. Assist walk-in customers at the front desk.", "mixed"],
+    ["Customer Service Representative - Real Estate", "Answer calls and emails from tenants and greet walk-in clients at the front desk.", "mixed"],
+    ["Corporate Customer Service Representative", "Answer calls and emails from corporate clients and greet visitors at the front desk.", "mixed"],
+    ["Customer Service Representative - Insurance Office", "Answer incoming calls and emails from policyholders, process endorsements, and assist walk-in clients at the front desk.", "mixed"],
+    ["Customer Service Representative - Condo", "Answer calls and emails from unit owners and greet visitors at the front desk.", "mixed"],
+    ["Customer Service Representative - Warehouse", "Answer customer calls and emails about order status. Assist walk-in customers picking up orders at the front desk.", "mixed"],
+    ["Customer Experience Crew", "Answer customer chats and emails for our online store.", "chat"],
+    ["Reservations Agent - Hotel", "Answer guest calls and emails about room bookings and event planning services.", "mixed"],
+    ["Reservations Agent", "Answer guest calls and emails, book rooms, and manage corporate events and group bookings for our hotel.", "mixed"],
+    ["Reservations Agent", "Take room reservations by phone and email and assist guests with event planning for weddings and birthdays.", "mixed"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
 }
 
@@ -1305,6 +1400,13 @@ let aiFlow;
     "A customer on the phone gets more and more frustrated. What do you do?",
     "How do you de-escalate frustration on a call?",
   ]) check(`the caller's frustration is the angry-caller question: ${JSON.stringify(prompt)}`, !callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
+  // The fifteenth: each only as that evidence was. "Frustrating" as a verb, and the frustration the agent feels, leave the
+  // angry-caller question in (the seven above still take its place).
+  for (const prompt of [
+    "How do you keep calls short without frustrating customers?",
+    "How do you avoid frustrating customers when you put them on hold on a call?",
+    "How do you de-escalate the frustration you feel after a long call?",
+  ]) check(`"frustrating" as a verb, or the agent's own frustration, is not the angry-caller question: ${JSON.stringify(prompt)}`, callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ jobPost: { title: "Front desk", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [], voiceQuestions: ["Why us?", "How do you stay calm?", "What hours?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
   const worded = (await M.generateJobFlow({ brief: formFor("Medical or dental office", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;
@@ -1377,6 +1479,13 @@ let aiFlow;
       ["Customer Service Representative", "Makati", "Onsite only, no WFH. Answer customer chats and emails.", "Answer customer chats and emails at our Makati office.", false],
       ["Customer Service Representative", "Makati", "This is not a work from home job. Answer customer calls.", "Answer customer calls at our office.", false],
       ["Front Desk Receptionist", "Austin, TX", "Greet visitors at our office and answer phones.\nBenefits:\n- Work from home Fridays\n- HMO", "Greet visitors and answer phones at our office.", false],
+      // (The fifteenth: What they do only by a line that is nothing but the setup, and never a title that says on site too.)
+      ["Customer Service Representative", "Makati City", "Answer customer calls and emails for our telco account. Work setup: Onsite. Possible WFH after regularization.", "Answer customer calls and emails for our telco account at our Makati site.", false],
+      ["Customer Service Representative", "Makati City", "Answer customer calls for our insurance account. WFH is not available for this role.", "Answer customer calls for our insurance account.", false],
+      ["Customer Service Representative", "Makati City", "Answer customer calls. Must have WFH experience.", "Answer customer calls.", false],
+      ["Customer Service Representative", "Makati City", "Help customers who work from home set up their internet.", "Help customers set up their internet.", false],
+      ["CSR (Onsite / WFH)", "Makati", "Answer customer chats.", "Answer customer chats.", false],
+      ["Customer Service Representative", "Quezon City", "Answer customer chats. Fully remote.", "Answer customer chats from home.", true],
     ]) {
       const b0 = M.briefFromForm({ role, location, type: "Full-time · On-site", pay: "", start: "ASAP", work });
       const b = { ...b0, followUps: [{ questionId: M.JOB_KIND_ID, question: "", answer: M.JOB_KIND_CHIPS[0] }, { questionId: "cs-channel", question: "", answer: "Chat" }, { questionId: "cs-industry", question: "", answer: "Online store" }] };
