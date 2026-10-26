@@ -451,6 +451,7 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025550000_applications_removed_only_through_delete_their_information.sql` | `20261026005721` | `applications_removed_only_through_delete_their_information` |
 | `20261025560000_file_queue_fair_and_bounded.sql` | `20261026025751` | `file_queue_fair_and_bounded` |
 | `20261025570000_application_stays_on_its_job.sql` | `20261026025758` | `application_stays_on_its_job` |
+| `20261025580000_file_queue_many_accounts.sql` | `20261026044158` | `file_queue_many_accounts` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.
