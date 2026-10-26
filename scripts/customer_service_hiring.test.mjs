@@ -516,6 +516,9 @@ const CS = [
   ["Reservations Agent", "Organize corporate events for the hotel and respond to client emails."],
   ["Virtual Front Desk Agent", "Handle check-ins and check-outs via video call for our hotel guests."],
   ["Virtual Receptionist", "Handle guest check-ins and check-outs over video for our hotels."],
+  // The twentieth (M3): "our corporate clients" are the hotel's guests too; only clients the agency works "for" make it a
+  // planner (its "Plan corporate events for our clients…" is above, not customer service).
+  ["Reservations Agent", "Coordinate corporate events with the banquet team and answer calls from our corporate clients."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -965,6 +968,17 @@ const NOT_CS = [
   ["Guest Service Agent", "Oversee guest check-ins and check-outs, answer phones and handle billing.", "general"],
   ["Front Desk Officer", "Duties: check-in and check-out of guests; answering calls; handling reservations via phone and email.", "general"],
   ["Front Desk Agent", "Handle check-ins and check-outs by phone and in person.", "general"],
+  // The twentieth: "with" or "on" before the check-ins is the desk's own work too ("Assist with guest check-ins", "Coordinate
+  // with housekeeping on room status, process check-ins…"), and so are check-in procedures (H1). Only "about" or "regarding"
+  // makes them the topic.
+  ["Front Desk Agent", "Assist with guest check-ins and check-outs, answer phone calls and handle reservations.", "general"],
+  ["Guest Service Agent", "Greet guests on arrival, handle check-ins and check-outs, answer the phone and take reservations.", "general"],
+  ["Front Desk Agent", "Work closely with housekeeping, handle check-ins and check-outs and answer phone calls.", "cleaner"],
+  ["Front Desk Officer", "Coordinate with housekeeping on room status, process check-ins and check-outs and answer calls.", "cleaner"],
+  ["Front Desk Agent", "Assist with check-in and check-out procedures and answer guest calls.", "general"],
+  ["Guest Service Agent", "Assist guests with check-ins and check-outs and answer phone calls.", "general"],
+  ["Front Desk Officer", "Assist with reservations, check-ins and check-outs, and answer guest calls.", "admin"],
+  ["Front Desk Agent", "Help guests with check-in and check-out and answer the phone.", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));

@@ -286,8 +286,12 @@ seconds on 90 KB). In this order:
    service, "Front Desk Agent / Responsibilities:\n- Guest check-ins and
    check-outs\n- Answering phone calls", "Facilitate guest check-ins and
    check-outs", "Check-in and check-out guests"; only the eighteenth's
-   evidence is taken out, check-ins as the topic, after "about",
-   "regarding", "with" or "on", their times, procedures, policies, schedules
+   evidence is taken out, check-ins as the topic, after "about" or
+   "regarding" (the twentieth: "with" and "on" also lead the desk's own
+   work, "Assist with guest check-ins", "Coordinate with housekeeping on
+   room status, process check-ins…", so they no longer count), their
+   times, policies, schedules (the twentieth: not procedures, "Assist with
+   check-in and check-out procedures" is the desk's)
    or dates, and check-ins done by phone, video, chat or email unless in
    person too: "Handle check-ins and check-outs by phone and in person" is
    the desk's), the
@@ -434,7 +438,9 @@ seconds on 90 KB). In this order:
    clients, "for our clients", "for the hotel clients", "clients we serve",
    since a hotel's corporate clients are its guests: "Reservations Agent /
    Coordinate corporate events with the banquet team and answer calls from
-   corporate clients" is the venue's), and an event management company; or a conference or
+   corporate clients" is the venue's; the twentieth: only clients the agency
+   works "for", since "answer calls from our corporate clients" is a hotel's
+   too), and an event management company; or a conference or
    corporate event whose venues, catering or AV the work books (named before
    it, or after it only as what it books: "bookings for corporate events and
    conferences: venues, catering and AV", "Book conference venues and
@@ -572,8 +578,13 @@ the same things:
    starts a new one, is no second setup, "Work setup:\n- Permanent
    WFH\nInterview:\n- Onsite (Makati)"; the eighteenth; only a mark after it
    that says yes or names home, "WFH 💯", never "WFH 🔜", "WFH 👎" or
-   "WFH... soon!", and only an interview, training, nesting, hiring,
-   assessment, exam, onboarding or orientation heading keeps its on-site line
+   "WFH... soon!" (the twentieth: any marks again, never a "no", a "not
+   yet", a colon, a question or an ellipsis, since the eight marks left
+   "Permanent WFH 💻", "‼️ PERMANENT WFH ‼️" and "WORK FROM HOME!!!" on
+   site), and only an interview, training, nesting, hiring process,
+   assessment, exam, onboarding or orientation heading, after a word or two
+   at most ("Final interview:", "Paid training:", never "After training:";
+   the twentieth: "Hiring for:" lists two setups), keeps its on-site line
    from the setup: under any other, "Work setup:\n- Onsite (Makati)\nAfter
    regularization:\n- WFH", "Option 1:\n- Onsite (Makati)\nOption 2:\n- WFH"
    and a perk under a heading the perks reader does not know, "What we can

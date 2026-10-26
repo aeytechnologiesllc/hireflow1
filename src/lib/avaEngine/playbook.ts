@@ -567,7 +567,10 @@ const GUEST_DESK_TITLE = /\bguest (service|services|relations)\b/;
 // The verbs left the most common desk posts customer service: "Front Desk Agent / Responsibilities:\n- Guest check-ins and
 // check-outs\n- Answering phone calls", "Facilitate guest check-ins and check-outs", "Check-in and check-out guests". And
 // "Handle check-ins and check-outs by phone and in person" is a desk again, its LOW 5.)
-const DESK_CHECK_INS = /(?<!\b(about|regarding|with|on)\s+([\w,'-]+\s+){0,5})\bcheck-?ins? (and|&|\/) check-?outs?\b(?!\s+(times?|procedures?|policies|polic(y|ies)|schedules?|dates?))(?![^.;\n]{0,40}\b(via|by|over|through)\s+(the\s+|our\s+|a\s+)?(phones?|video|chats?|e-?mails?|calls?)\b(?!\s+(and|or|&)\s+in[-\s]person\b))/;
+// (The twentieth: only "about" or "regarding" before them makes check-ins the topic; "with" and "on" also lead the desk's
+// own work, "Assist with guest check-ins", "Coordinate with housekeeping on room status, process check-ins…", and so do
+// "check-in and check-out procedures".)
+const DESK_CHECK_INS = /(?<!\b(about|regarding)\s+([\w,'-]+\s+){0,5})\bcheck-?ins? (and|&|\/) check-?outs?\b(?!\s+(times?|policies|polic(y|ies)|schedules?|dates?))(?![^.;\n]{0,40}\b(via|by|over|through)\s+(the\s+|our\s+|a\s+)?(phones?|video|chats?|e-?mails?|calls?)\b(?!\s+(and|or|&)\s+in[-\s]person\b))/;
 const AT_OUR_LODGING = /\b(at|in) (our|the) ([\w-]+ )?(hotel|resort|inn|hostel|motel|lodge|pension( house)?|apartelle|lobby)\b/;
 const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?)\b/;
 // Where the agent sits or when they work says nothing about whose front desk
@@ -883,7 +886,8 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
     // (...only the agency's own clients, "for our clients", "for the hotel clients", "clients we serve", as all the
     // eighteenth's were; the nineteenth. A hotel's corporate clients are its guests: "Reservations Agent / Coordinate
     // corporate events with the banquet team and answer calls from corporate clients" was a planner.)
-    const venueOwn17 = VENUE_OWN_17.test(work) && !/\b(for|our)( [\w-]+){0,2} clients\b|\bclients we serve\b/.test(work);
+    // (The twentieth: "our corporate clients" are the hotel's guests too; only clients the agency works "for".)
+    const venueOwn17 = VENUE_OWN_17.test(work) && !/\bfor( [\w-]+){0,2} clients\b|\bclients we serve\b/.test(work);
     const planner = (EVENT_PLANNER.test(`${title} ${work}`) && !VENUE_BOOKED.test(`${title} ${work}`)) || (PLANNER_WORK.test(`${title} ${work}`) && !VENUE_OWN.test(`${title} ${work}`) && !venueOwn17 && !/\b(hotel|resort)\b/.test(title));
     return !NOT_GUEST_BOOKING.test(`${title} ${work}`) && !planner && !freight && !((IN_PERSON.test(work) || AT_THE_STORE.test(work)) && !REMOTE_CHANNEL.test(work)) && !dispatch;
   }
@@ -1127,7 +1131,9 @@ export function chipAnswersToBriefAnswers(
 // question mark: "WFH ❌", "WFH:", "WFH?".)
 // (The nineteenth, its LOW 1: only a mark that says yes or names home, as that evidence's did ("WFH 💯" too). Any other
 // mark after it read remote, a "not yet" too: "WFH 🔜", "WFH 👎", "WFH 🙅", "WFH 😢", and "WFH..." before "soon!".)
-const ONLY_REMOTE_LINE = /^(?![^a-z0-9]*(❌|✖|✗|✘|❎|🚫|⛔))[^a-z0-9]*((work |job )?(setup|set-up|arrangement|location|mode)\s*[:\-–]\s*)?(this is an? |this (role|position|job) is )?(permanent(ly)? |fully |100% )?(remote|work[- ]from[- ]home|wfh|home[- ]based)( (role|job|position|setup|set-up|work))?( ?\(permanent\))?\s*[.!]?\s*((✅|✔|✓|☑|💯|👍|🏠|🏡)\ufe0f?\s*)?$/;
+// (The twentieth: any marks again, as the eighteenth read them, but never a "no", a "not yet", a colon, a question or an
+// ellipsis: the eight marks left "Permanent WFH 💻", "‼️ PERMANENT WFH ‼️" and "WORK FROM HOME!!!" on site.)
+const ONLY_REMOTE_LINE = /^(?![^a-z0-9]*(❌|✖|✗|✘|❎|🚫|⛔))[^a-z0-9]*((work |job )?(setup|set-up|arrangement|location|mode)\s*[:\-–]\s*)?(this is an? |this (role|position|job) is )?(permanent(ly)? |fully |100% )?(remote|work[- ]from[- ]home|wfh|home[- ]based)( (role|job|position|setup|set-up|work))?( ?\(permanent\))?(?![^a-z0-9]*(❌|✖|✗|✘|❎|🚫|⛔|🔜|👎|🙅|😢|:|\?|\.\.|…))[^a-z0-9]*$/;
 // ...and never beside a line that is only another setup, as a post hiring for two lists them ("Work setup options:\n- Onsite\n-
 // WFH", "We are hiring for two setups:\n- WFH\n- Onsite (Taguig)", "Work setup: Hybrid\n- WFH"): the sixteenth's bullets read
 // those remote, which the fifteenth built on site (the seventeenth review). Only the setup, a place in brackets at most:
@@ -1138,7 +1144,9 @@ const ONLY_ON_SITE_LINE = /^[^a-z0-9]*((work |job )?(setup|set-up|arrangement|lo
 // keeps round sixteen's bullets (the eighteenth).
 const SETUP_PERKS = new RegExp(String.raw`(?<=^|\n)[ \t]*([-•*][ \t]*)?${BENEFIT_HEADING}[^\n:.;]{0,30}[:?][ \t]*(\n[ \t]*[^\w\s][^\n]*)+`, "g");
 // A heading whose on-site line is the interview or the training, not a second setup (remoteSetupLine; the nineteenth).
-const SEPARATE_HEADING = /^[^a-z0-9]*(interviews?|training|nesting|hiring|assessments?|exams?|onboarding|orientation)\b/;
+// (The twentieth: after a word or two, "Final interview:", "Paid training:", never "After training:"; and "hiring process",
+// not "Hiring for:", which lists two setups.)
+const SEPARATE_HEADING = /^[^a-z0-9]*((?!(after|post|upon|once|until|before)\b)[\w-]+\s+){0,2}(interviews?|training|nesting|hiring process|assessments?|exams?|onboarding|orientation)\b/;
 function remoteSetupLine(work: string): boolean {
   const lines = work.toLowerCase().replace(SETUP_PERKS, " ").replace(PERKS, " ").split(/(?<=[.!?])\s+|\n+/);
   // (The eighteenth: another setup counts only under the same heading as the remote line, where a line that ends in ":"
