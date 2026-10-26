@@ -249,7 +249,7 @@ export function TeamDocumentSheet({
     state === "waiting"
       ? { text: `Waiting for ${first} to sign`, bg: "var(--amber-bg)", fg: "var(--amber-fg)", Icon: Clock }
       : state === "yours"
-        ? { text: `${First} signed · your turn`, bg: "var(--action-soft)", fg: "var(--action-soft-fg)", Icon: PenLine }
+        ? { text: canSend ? `${First} signed · your turn` : `${First} signed · waiting on your team`, bg: "var(--action-soft)", fg: "var(--action-soft-fg)", Icon: PenLine }
         : state === "done"
           ? { text: "Signed by both", bg: "var(--action-soft)", fg: "var(--action-soft-fg)", Icon: CheckCircle2 }
           : state === "declined"
@@ -319,7 +319,9 @@ export function TeamDocumentSheet({
             <>
               {state === "waiting" && (
                 <div className="mb-4 rounded-[12px] px-4 py-3 text-[13.5px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }} data-team-document-wait>
-                  <strong style={{ color: "var(--hf-text)" }}>Nothing to do yet.</strong> {First} signs first. You'll get a notification when they do, and then you sign here to finish.
+                  {/* Only the account owner is notified when the applicant signs (document-signing), so this
+                      never promises a teammate a notification (the fourteenth product review). */}
+                  <strong style={{ color: "var(--hf-text)" }}>Nothing to do yet.</strong> {First} signs first. The account owner gets a notification when they do, and then it is signed here to finish.
                 </div>
               )}
               {state === "declined" && (
@@ -391,9 +393,12 @@ export function TeamDocumentSheet({
                   links that opened an empty viewer (the thirteenth product review). */}
               {!canSend && (state === "yours" || state === "done" || state === "declined" || state === "withdrawn" || state === "voided" || state === "expired") && (
                 <p className="mt-5 rounded-[12px] px-4 py-3 text-[13px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }} data-team-document-no-send>
+                  {/* Only a letter signed by both has a signed copy (the fourteenth product review). */}
                   {state === "yours"
                     ? "Someone on your team who may send documents signs this to finish it."
-                    : "Only someone on your team who may send documents can open the signed copy and the signing record."}
+                    : state === "done"
+                      ? "Only someone on your team who may send documents can open the signed copy and the signing record."
+                      : "Only someone on your team who may send documents can open the signing record."}
                 </p>
               )}
 
@@ -478,7 +483,7 @@ export function TeamDocumentSheet({
                 </div>
               )}
 
-              {state === "waiting" && (
+              {state === "waiting" && canSend && (
                 <div className="mt-5 flex justify-end">
                   <button type="button" className="text-[13px] underline underline-offset-2" style={{ color: "var(--ink-3)" }} onClick={() => onWithdraw(document)} data-team-document-withdraw>
                     {isOffer ? "Withdraw this offer" : "Withdraw"}

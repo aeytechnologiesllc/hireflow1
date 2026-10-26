@@ -104,6 +104,10 @@ eq("the status words; \"Closed\" names declined, withdrawn, voided and expired a
   const line2 = f.drawerCaption([teamDeclined], { canSend: true });
   check("the team's own decline is said as yours, never as one that came back", line2 === "1 you declined." , line2);
   check("the Closed list names voided letters too", f.resultLine("closed", 2, false) === "2 declined, withdrawn, voided or expired", f.resultLine("closed", 2, false));
+  // The fourteenth product review: with one expired letter left, the ask names it (the replaced one may have expired too).
+  const named = f.drawerCaption([{ ...ana, title: "House rules" }, benOld, benNew], { canSend: true });
+  check("beside a replaced letter, the one expired letter left is named", /send a new one for \u201cHouse rules\u201d if you still need it\.$/.test(named), named);
+  check("for a teammate who cannot sign, a document waiting on the countersign is not their turn", f.docStatus({ id: "y1", status: "Pending", candidateSignedAt: "2026-10-20T00:00:00Z" }, Date.now(), false) === "theirs" && f.docStatus({ id: "y1", status: "Pending", candidateSignedAt: "2026-10-20T00:00:00Z" }, Date.now(), true) === "yours");
 }
 
 // The line beside the meter. The tenth product review: a letter past its date

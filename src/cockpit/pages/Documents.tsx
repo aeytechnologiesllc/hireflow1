@@ -451,12 +451,12 @@ export default function CockpitDocuments() {
   const filtersOn = kind !== NO_FILTERS.kind || job !== NO_FILTERS.job || search.trim() !== "";
   const { result, status, jobs } = useMemo(() => {
     const rest = { kind, job, order, search };
-    const counted = applyDocFilters<RequestWithPerson>(rows, papers, { status: "all", ...rest }, requestTitle);
+    const counted = applyDocFilters<RequestWithPerson>(rows, papers, { status: "all", ...rest }, requestTitle, Date.now(), canSend);
     const chosen: FilterStatus = statusPick ?? (counted.counts.yours > 0 ? "yours" : "all");
-    const shown = chosen === "all" ? counted : applyDocFilters<RequestWithPerson>(rows, papers, { status: chosen, ...rest }, requestTitle);
+    const shown = chosen === "all" ? counted : applyDocFilters<RequestWithPerson>(rows, papers, { status: chosen, ...rest }, requestTitle, Date.now(), canSend);
     const jobTitles = [...new Set([...rows.map(docJob), ...papers.map((p) => p.jobTitle ?? "")].filter(Boolean))].sort();
     return { result: { ...shown, counts: counted.counts }, status: chosen, jobs: jobTitles };
-  }, [rows, papers, kind, job, order, search, statusPick]);
+  }, [rows, papers, kind, job, order, search, statusPick, canSend]);
   const clearFilters = () => {
     setKind(NO_FILTERS.kind);
     setJob(NO_FILTERS.job);

@@ -71,11 +71,15 @@ const when = (value: string | null | undefined): number | null => {
   return Number.isNaN(t) ? null : t;
 };
 
-/** Where a letter or file stands. */
-export function docStatus(row: DocRow, now: number = Date.now()): Exclude<FilterStatus, "all"> {
+/** Where a letter or file stands. `canSend`: whether the person looking may
+ *  sign for the business (the owner, or a teammate with "Send documents"); for
+ *  one who may not, a document waiting on the countersign is not their turn
+ *  (the fourteenth product review: the page opened on "Your turn 1" for a
+ *  signature they cannot give). */
+export function docStatus(row: DocRow, now: number = Date.now(), canSend = true): Exclude<FilterStatus, "all"> {
   if (row.isVoided || row.status === "Declined" || row.status === "Withdrawn" || row.status === "Voided" || row.status === "Expired") return "closed";
   if (row.status === "Signed" || row.status === "Submitted") return "done";
-  if (row.candidateSignedAt) return "yours";
+  if (row.candidateSignedAt) return canSend ? "yours" : "theirs";
   const expires = when(row.expiresAt);
   if (expires !== null && expires < now) return "closed";
   return "theirs";
@@ -141,19 +145,20 @@ export function applyDocFilters<R extends FilterableRequest>(
   filters: DocFilters,
   titleOf: (request: R) => string,
   now: number = Date.now(),
+  canSend = true,
 ): FilterResult<R> {
   const { status, ...rest } = filters;
   const docsLeft = docs.filter((row) => docPasses(row, rest));
   const requestsLeft = requests.filter((request) => requestPasses(request, titleOf(request), rest));
   const counts: Record<FilterStatus, number> = { all: 0, yours: 0, theirs: 0, done: 0, closed: 0 };
-  for (const row of docsLeft) counts[docStatus(row, now)] += 1;
+  for (const row of docsLeft) counts[docStatus(row, now, canSend)] += 1;
   for (const request of requestsLeft) counts[requestStatus(request)] += 1;
   counts.all = docsLeft.length + requestsLeft.length;
 
   const docSort = (a: DocRow, b: DocRow) => sortValue(a.createdAt, a.expiresAt, b.createdAt, b.expiresAt, filters.order);
   const requestSort = (a: R, b: R) => sortValue(a.created_at, a.due_date, b.created_at, b.due_date, filters.order);
   return {
-    docs: docsLeft.filter((row) => status === "all" || docStatus(row, now) === status).sort(docSort),
+    docs: docsLeft.filter((row) => status === "all" || docStatus(row, now, canSend) === status).sort(docSort),
     requests: requestsLeft.filter((request) => status === "all" || requestStatus(request) === status).sort(requestSort),
     counts,
   };
@@ -183,7 +188,7 @@ function counted(n: number, one: string, many: string): string {
 }
 
 /** The fields of a row the drawer's line and the "replaced" rule read. */
-export type CaptionRow = Pick<DocRow, "status"> & Partial<Pick<DocRow, "id" | "type" | "applicationId" | "createdAt" | "candidateSignedAt">>;
+export type CaptionRow = Pick<DocRow, "status"> & Partial<Pick<DocRow, "id" | "type" | "applicationId" | "createdAt" | "candidateSignedAt" | "title">>;
 
 /**
  * The later offer letter that replaced this one, or null. Only an offer
@@ -260,7 +265,11 @@ export function drawerCaption(rows: CaptionRow[], { canSend }: { canSend: boolea
     const people = new Set(rows.filter((r) => r.status === "Expired" && !replaced.has(r)).map((r, i) => r.applicationId ?? r.id ?? `row ${i}`)).size;
     // Beside a replaced letter, say which one wants a new copy (the thirteenth
     // product review: it read as if the replaced letter did).
-    const which = replaced.size > 0 ? (people === 1 ? " for the one that expired" : " for the ones that expired") : "";
+    // One expired letter left to act on: named, since the replaced one may have
+    // expired too (the fourteenth product review: "the one that expired" fit both).
+    const stillExpired = rows.filter((r) => r.status === "Expired" && !replaced.has(r));
+    const named = stillExpired.length === 1 && stillExpired[0].title ? ` for \u201c${stillExpired[0].title}\u201d` : null;
+    const which = replaced.size > 0 ? named ?? (people === 1 ? " for the one that expired" : " for the ones that expired") : "";
     return `${line} — ${people === 1 ? `send a new one${which} if you still need it` : `send new ones${which} if you still need them`}.`;
   }
   return `${line}.`;

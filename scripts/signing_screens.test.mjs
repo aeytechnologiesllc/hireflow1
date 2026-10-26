@@ -94,6 +94,9 @@ check("team: a closed letter (declined, withdrawn, voided, expired) links its si
 // The thirteenth product review: a teammate without "Send documents" is not offered "Sign to finish", the signed copy or the
 // signing record on a letter (document-signing refuses them; the record is empty to them); a plain line says who may.
 check("team: no Sign to finish, signed copy or signing record for a teammate who cannot send; a line says who may", /\{state === "yours" && canSend && \(\s*<section/.test(team) && /\{state === "done" && canSend && \(/.test(team) && /\{!canSend && \(state === "yours" \|\| state === "done"[^)]*\) && \(\s*<p[^>]*data-team-document-no-send>/.test(team));
+// The fourteenth product review: the line names the signed copy only for a letter that has one; no Withdraw, no "your turn",
+// and no promise of a notification for a teammate; the page passes canSend into the counts.
+check("team: no Withdraw or 'your turn' for a teammate who cannot send; the copy named only when it exists; the owner is the one notified", /\{state === "waiting" && canSend && \(/.test(team) && /canSend \? `\$\{First\} signed · your turn` : `\$\{First\} signed · waiting on your team`/.test(team) && /: state === "done"\s*\? "Only someone on your team who may send documents can open the signed copy and the signing record\."\s*: "Only someone on your team who may send documents can open the signing record\."/.test(team) && /The account owner gets a notification when they do/.test(team) && /requestTitle, Date\.now\(\), canSend\)/.test(docsPage));
 {
   // The dev preview answers as live does (it served the kept copy before
   // looking at a void, so `pdf,voided` hid the failure).
