@@ -1006,8 +1006,10 @@ reached function deployed):
   queues its earlier copy. Left for after the security fixer's picks: an
   ID photo on a still-open request whose link save and the dialog's own
   removal both failed has no timer yet (done in the security round 12
-  fix: `document_requests_sweep_strays`). **Round 14 is running**
-  (`p5r14_brief.md`).
+  fix: `document_requests_sweep_strays`). **Round 14** (`p5r14_report.md`)
+  found nothing MEDIUM and no regression: one LOW-MEDIUM (the automatic
+  pause can be dodged by a business deleting its own contact traces) and
+  two LOWs; **its fixer is running** (`p5r14_fix_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1061,7 +1063,10 @@ reached function deployed):
   b8431433, one left (a conflict between rounds). **Round 29**
   (`p4r29_report.md`), again no HIGH: three zero-cost narrowings (691
   rows better, 0 worse) in c1296137, plus checks that hold the
-  separator's limits. **Round 30 is running** (`p4r30_brief.md`).
+  separator's limits. **Round 30** (`p4r30_report.md`), no HIGH: four
+  MEDIUM regressions, fixed by its zero-cost patch and its colon option
+  in c1c7e6ba (the option's cost written down as a known limit). **Round
+  31 is running** (`p4r31_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1084,8 +1089,8 @@ reached function deployed):
   in a replied-to message with no customer word) is old, its regressions
   LOW–MEDIUM; fixed by 8edc67fc (six functions deployed). **Round 19**
   (`p6r19_report.md`) again found no MEDIUM regression (its MEDIUM is the
-  rest of the old one; one LOW–MEDIUM regression); **its fixer is running**
-  (`age19_fix_brief.md`).
+  rest of the old one; one LOW–MEDIUM regression); fixed by e3854798 (six
+  functions deployed). **Round 20 is running** (`p6r20_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
