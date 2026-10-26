@@ -972,8 +972,13 @@ reached function deployed):
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
   outlives its 24 hours / 7 days), one LOW-MEDIUM (twelve weakenings no test
-  catches) and three wording LOWs; none a regression. **Its fixer is
-  running** (`p5r12_fix_brief.md`, migrations from 20261025610000).
+  catches) and three wording LOWs; none a regression. Fixed by 91b8e8b3
+  (`id_papers_leave_on_time` live 20261026141250; document-cleanup and
+  delete-account deployed, the next hourly run answered `ok`): a deleted
+  request queues only a file storage holds, an applicant links only their
+  own upload, 50 requests per application and 300 an hour per business,
+  both papers queues read fairly by business, Delete Account and the
+  Privacy Policy say what stays. **Round 13 is running** (`p5r13_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -998,8 +1003,13 @@ reached function deployed):
   set grew), none newly failing. Fixed by 98a40caf (front end only; the
   first fixer hung on a shell command before changing anything and was
   restarted): round 17's rules cut back to their evidence, 61 new checks,
-  earlier probes unchanged at 158 of 6,975. **Round 19 is running**
-  (`p4r19_brief.md`).
+  earlier probes unchanged at 158 of 6,975. **Round 19**
+  (`p4r19_report.md`) found six HIGH and two MEDIUM regressions (a
+  country written after the client words was dropped, so "US company -
+  Makati" saved as the US and USD; hotlines with written duties read
+  mixed; either-way Types read on site; hotel check-in bullets read as
+  customer service), each with a validated fix; **its fixer is running**
+  (`p4r19_fix_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1007,7 +1017,12 @@ reached function deployed):
   (`p6r15_report.md`) found one HIGH regression (a quote that names the
   customer only inside it, "Are you a Medicare member? Are you 65 or
   older?", was dropped, and three practice cases with it) and four LOWs;
-  **its fixer is running** (`age15_fix_brief.md`).
+  fixed by 5104f206 (six functions deployed). **Round 16**
+  (`p6r16_report.md`) found two MEDIUM (customer lines still dropped when
+  the customer is named in the sentence before the quote; and, never
+  caught by any round, the Philippine self-introduction template "My name
+  is ___, ___ years old") and four smaller; **its fixer is running**
+  (`age16_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
