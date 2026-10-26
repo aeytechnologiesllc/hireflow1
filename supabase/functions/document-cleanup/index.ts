@@ -55,6 +55,14 @@ const REMOVAL_BUCKETS = new Set(["videos", "portfolios", "resumes", "voice-inter
  */
 const FOLDER_NOTES_PER_RUN = 200;
 const PATH_NOTES_PER_RUN = 1000;
+/**
+ * One withdrawal's worth (its recordings, video introduction and work
+ * samples; a resume, its page images and the form's files), which the pick
+ * takes together in a person's turn, whole or not at all (20261025600000,
+ * the eleventh security review). Someone holding more gives one a turn.
+ */
+const TURN_FOLDERS = 3;
+const TURN_PATHS = 6;
 /** Storage takes at most 1,000 names in one remove(). */
 const REMOVE_BATCH = 1000;
 /** Notes deleted (or marked tried) in one request: their ids go in the address. */
@@ -155,18 +163,22 @@ Deno.serve(async (req) => {
   // file, or a folder whose names start with a prefix. Tried again every hour
   // until storage takes them; the note goes once they are gone.
   // Taken fairly (storage_file_trash_fair_pick, 20261025560000,
-  // 20261025580000 and 20261025590000): a few from each person a run, each
-  // person's oldest note first, people in turn (by when the pick last took
-  // them, which it records itself), then the people with the fewest waiting
+  // 20261025580000, 20261025590000 and 20261025600000): a few from each
+  // person a run, people in turn (by when the pick last took them, which it
+  // records itself), a person's turn their oldest note, or all of their notes
+  // when they hold no more than one withdrawal's worth (TURN_FOLDERS,
+  // TURN_PATHS), whole or not at all; then the people with the fewest waiting
   // first; a note that failed waits out a back-off behind every note that is
   // due. The eighth security review: one account's 860 notes an hour, taken
   // 200 a run oldest first, held every real withdrawal up for days. The
   // ninth: by the fewest waiting alone, many accounts with one note each (or
   // one note each that failed every hour) kept a real withdrawal out of every
   // run. The tenth: by each note's age, 200 accounts' one-hour burst kept a
-  // place ahead of every later withdrawal for 30 runs. Folders and exact
-  // paths are read apart, so neither answer passes the API's 1,000-row
-  // ceiling.
+  // place ahead of every later withdrawal for 30 runs. The eleventh: one
+  // note a turn, a real withdrawal's later folders each waited behind every
+  // account that had joined the queue since, longer each time while new
+  // accounts kept coming. Folders and exact paths are read apart, so neither
+  // answer passes the API's 1,000-row ceiling.
   type Note = { id: string; bucket: string; path: string | null; folder: string | null; starts_with: string | null; attempts: number | null };
   const [folderPick, exactPick] = await Promise.all([
     admin.rpc("storage_file_trash_fair_pick", { p_exact: false }),
@@ -280,6 +292,12 @@ Deno.serve(async (req) => {
   // filling it waits behind everyone else, and this tells the admins it is
   // there, and how to see whether it is one account or many (the tenth
   // security review: "one candidate_id on many rows" described only one).
+  // Its wait for a real withdrawal counts up to TURN_FOLDERS from each person
+  // queued before it, and a run that ends up to TURN_FOLDERS - 1 short when
+  // the next turn does not fit, so it never says less than the pick takes
+  // (the eleventh security review: "an hour for every 200 people with files
+  // ahead of it" undercounted a stream of new accounts, and with turns of
+  // three folders it would say a third of the wait).
   let leftoversWaiting: number | null = null;
   let backedUp = false;
   let oldestWaiting: string | null = null;
@@ -355,7 +373,7 @@ Deno.serve(async (req) => {
   }
   const waitedTooLong = oldestWaiting !== null && Date.now() - Date.parse(oldestWaiting) > BACKLOG_HOURS * 3_600_000;
   if (leftoversWaiting !== null && (backedUp || waitedTooLong)) {
-    await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes up to ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} folders and ${PATH_NOTES_PER_RUN.toLocaleString("en-US")} files an hour, a few from each person in turn, so each file of a real removal waits about an hour for every ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} people with files ahead of it. To see who fills it, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each.`);
+    await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes up to ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} folders and ${PATH_NOTES_PER_RUN.toLocaleString("en-US")} files an hour, people in turn: all of a person's files at once when they are no more than one withdrawal's worth (${TURN_FOLDERS} folders, ${TURN_PATHS} files), else one a turn. So a real withdrawal goes in one run, after about an hour for every ${Math.floor((FOLDER_NOTES_PER_RUN - TURN_FOLDERS + 1) / TURN_FOLDERS)} people with files queued before it, and a larger removal (a Delete Account with several applications) gives one file a turn until it is down to that, each turn behind everyone who queued in the meantime. To see who fills it, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each.`);
   }
   if (unread.length > 0) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting }, 500);
   return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting });

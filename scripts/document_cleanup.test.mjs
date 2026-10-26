@@ -23,10 +23,12 @@
  *     waiting over three hours) is told to the admins once a day, through
  *     claim_daily_alert; a short queue is not;
  *   - it is read through storage_file_trash_fair_pick (the stand-in below
- *     answers as 20261025590000 does; the SQL itself is proved in
+ *     answers as 20261025600000 does; the SQL itself is proved in
  *     launch_locks_behaviour, sections 14 and 15): one person's 450 notes
  *     never keep another's out of the run (the eighth security review);
- *     the backlog alert says how to tell one account from many (the tenth);
+ *     the backlog alert says how to tell one account from many (the tenth),
+ *     and how long a real withdrawal waits when each person's turn can be
+ *     a withdrawal's worth (the eleventh);
  *   - exact paths go in one remove() a bucket for up to 1,000; a batch
  *     storage refuses is tried one path at a time, so one refused path keeps
  *     only its own note, and storage refusing everything costs three more
@@ -101,13 +103,16 @@ function freshWorld() {
 
 const order = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 /**
- * storage_file_trash_fair_pick as 20261025590000 makes it: the folders
+ * storage_file_trash_fair_pick as 20261025600000 makes it: the folders
  * (exact false, 200, 6 from one person) or the exact paths (exact true,
  * 1,000, 40 from one person); a note that failed waits behind every note that
  * is due for an hour a try (up to a day) and half an hour more; each person's
- * fewest-tries, oldest note first, people in turn (by when they were last
- * taken or the note became due, whichever is later); then the rest, the
- * people with the fewest waiting first. It records whom it took.
+ * turn (their fewest-tries, oldest note, or all of their notes when they hold
+ * no more than 3 folders or 6 exact paths), people in turn (by when they were
+ * last taken or their first note became due, whichever is later; the fewest
+ * waiting first among turns that come at once), each turn whole or not at
+ * all; then the rest, the people with the fewest waiting first. It records
+ * whom it took.
  */
 function fairPick(exact) {
   const person = (r) => r.candidate_id ?? r.application_id ?? `${r.bucket}:${r.path ?? r.folder}`;
@@ -118,17 +123,25 @@ function fairPick(exact) {
   const ranked = [];
   for (const [who, rows] of groups) {
     rows.sort((a, b) => a.attempts - b.attempts || order(a.queued_at, b.queued_at) || order(a.id, b.id));
-    rows.forEach((r, i) => ranked.push({ r, who, nth: i + 1, waiting: rows.length, due: due(r) }));
+    const firstDue = due(rows[0]);
+    rows.forEach((r, i) => ranked.push({ r, who, nth: i + 1, waiting: rows.length, due: due(r), firstDue, inTurn: i === 0 || rows.length <= (exact ? 6 : 3) }));
   }
-  const turn = (x) => Math.max(world.served.get(`${exact}:${x.who}`) ?? -Infinity, x.due);
-  const picked = ranked
+  const turn = (x) => Math.max(world.served.get(`${exact}:${x.who}`) ?? -Infinity, x.firstDue);
+  const placed = ranked
     .filter((x) => x.nth <= (exact ? 40 : 6))
     .sort((a, b) =>
       (a.due > now) - (b.due > now) ||
-      (a.nth > 1) - (b.nth > 1) ||
-      (a.nth === 1 ? turn(a) - turn(b) : 0) ||
-      a.waiting - b.waiting || a.nth - b.nth || a.r.attempts - b.r.attempts || order(a.r.queued_at, b.r.queued_at) || order(a.r.id, b.r.id))
-    .slice(0, exact ? 1000 : 200);
+      (!a.inTurn) - (!b.inTurn) ||
+      (a.inTurn ? turn(a) - turn(b) : 0) ||
+      a.waiting - b.waiting ||
+      (a.inTurn ? order(a.who, b.who) : 0) ||
+      a.nth - b.nth || a.r.attempts - b.r.attempts || order(a.r.queued_at, b.r.queued_at) || order(a.r.id, b.r.id));
+  // A turn is taken whole or not at all: by the place of its last note.
+  const turnEnds = new Map();
+  placed.forEach((x, i) => {
+    if (x.inTurn) turnEnds.set(`${x.who}:${x.due > now}`, i + 1);
+  });
+  const picked = placed.filter((x, i) => (x.inTurn ? turnEnds.get(`${x.who}:${x.due > now}`) : i + 1) <= (exact ? 1000 : 200));
   for (const x of picked) world.served.set(`${exact}:${x.who}`, now);
   return picked.map((x) => ({ ...x.r }));
 }
@@ -298,7 +311,11 @@ console.log("\nThe removal queue, and a backlog\n");
   check("a run takes 200 folder notes, oldest first: their files go, then the notes", r.status === 200 && r.body?.leftoversRemoved === 200 && world.tables.storage_file_trash.length === 250 && !world.storage.videos.has(`${id(2000)}/${id(600)}-intro.webm`), show(r.body));
   check("…250 still waiting is a backlog: the admins are told", r.body?.leftoversWaiting === 250 && told("Files queued for removal are backing up") === 1, show(r.body));
   const card = world.tables.notifications.find((n) => n.title === "Files queued for removal are backing up");
-  check("…in plain words: how many, since when, how fast it clears and how long a real removal waits", /^250 files are waiting in the removal queue/.test(card?.message ?? "") && /, the oldest since \d{4}-\d\d-\d\d \d\d:\d\d UTC\./.test(card?.message ?? "") && /deletes up to 200 folders and 1,000 files an hour, a few from each person in turn, so each file of a real removal waits about an hour for every 200 people with files ahead of it\./.test(card?.message ?? ""), card?.message);
+  check("…in plain words: how many, since when, how fast it clears and how long a real removal waits", /^250 files are waiting in the removal queue/.test(card?.message ?? "") && /, the oldest since \d{4}-\d\d-\d\d \d\d:\d\d UTC\./.test(card?.message ?? "") && /deletes up to 200 folders and 1,000 files an hour, people in turn: all of a person's files at once when they are no more than one withdrawal's worth \(3 folders, 6 files\), else one a turn\. So a real withdrawal goes in one run, after about an hour for every 66 people with files queued before it, and a larger removal \(a Delete Account with several applications\) gives one file a turn until it is down to that, each turn behind everyone who queued in the meantime\./.test(card?.message ?? ""), card?.message);
+  // The eleventh security review: "about an hour for every 200 people with
+  // files ahead of it" undercounted a stream of new accounts; each person
+  // queued before a real withdrawal now takes up to three folders in their
+  // turn, and a run may end two short of 200 rather than split one.
   // The tenth security review: "one candidate_id on many rows" described one
   // account, never many throwaway accounts with a few rows each.
   check("…and how to see who fills it: rows by candidate_id, one account or many", /To see who fills it, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each\.$/.test(card?.message ?? ""), card?.message);

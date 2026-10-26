@@ -72,17 +72,29 @@
  *      thousand accounts' failing notes, then a real withdrawal: taken
  *      within two runs); and a real withdrawal's oldest note waits only for
  *      those queued before it (200 accounts queuing a folder each an hour:
- *      one of its folders every run). The ninth security review, in the
- *      shape of its proofs; 20261025580000. And people take turns: each run
- *      records whom it took, so 200 accounts' burst of 30 folders an hour
- *      each, queued before a real withdrawal (for one hour or three, or going
- *      on), gives it a folder within two runs and all three within four
- *      (ranked by age it waited 30 runs for every hour of burst); 200 fresh
- *      accounts every hour, one a run; a real folder storage refused once is
- *      taken again within four runs while a flood goes on; folders and exact
- *      paths keep their own turns; the record is pruned only once its person
- *      holds nothing, and no browser may touch it. The tenth security
- *      review, in the shape of its proof; 20261025590000.
+ *      all three of its folders within three runs). The ninth security
+ *      review, in the shape of its proofs; 20261025580000. And people take
+ *      turns: each run records whom it took, so 200 accounts' burst of 30
+ *      folders an hour each, queued before a real withdrawal (for one hour or
+ *      three, or going on), gives it a folder within two runs and all three
+ *      within four (ranked by age it waited 30 runs for every hour of
+ *      burst); 200 fresh accounts every hour, one a run; a real folder
+ *      storage refused once is taken again within four runs while a flood
+ *      goes on; folders and exact paths keep their own turns; the record is
+ *      pruned only once its person holds nothing, and no browser may touch
+ *      it. The tenth security
+ *      review, in the shape of its proof; 20261025590000. And a withdrawal
+ *      goes together: a person's turn is all of their notes when they hold
+ *      no more than one withdrawal's worth (3 folders, 6 exact paths), taken
+ *      whole or not at all. 200 new accounts an hour with 30 folders each
+ *      from an hour before it, or 1,000 with one each after it, leave a real
+ *      withdrawal all in one run within two (one note a turn, its last folder
+ *      waited 11 and 31 runs); 1,000 new accounts an hour with one withdrawal
+ *      each, from an hour before, all in the run that ends the thousand
+ *      queued before it; accounts holding four folders still give one a
+ *      turn; a turn that would cross the run's 200 goes whole in the next;
+ *      exact paths the same, six to a turn. The eleventh security review, in
+ *      the shape of its proof; 20261025600000.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -1167,7 +1179,7 @@ console.log("\n15. Many accounts cannot keep a real removal out of the run\n");
     folderRuns.push({ picked: picked.length, victim: picked.filter((n) => n.application_id === victim).length });
   }
   check("200 accounts queuing one folder each an hour fill every run", folderRuns.every((x) => x.picked === 200), show(folderRuns));
-  check("…yet the real withdrawal gets a folder in every run, all three within three runs", folderRuns.every((x) => x.victim >= 1) && (await queued(victim)).length === 0, show(folderRuns));
+  check("…yet the real withdrawal's folders go, all three within three runs", (await queued(victim)).length === 0, show(folderRuns));
 
   // (C) The tenth security review (finding 1), in the shape of its proof
   // (probes/burst.mjs): 200 throwaway accounts, each starting and withdrawing
@@ -1291,6 +1303,66 @@ console.log("\n15. Many accounts cannot keep a real removal out of the run\n");
   check("…and a real folder storage refused once is taken again within four runs while it goes on, not after every note never tried", c2f.retried - c2f.refusedIn <= 4, shownRuns(c2f));
   const b2 = await realWithdrawal({ each: () => queueFolders(people(200), 1, 1) });
   check("200 fresh accounts every hour, one folder each: the real withdrawal still gets a folder every run, all three within three", b2.first === 1 && b2.all <= 3, shownRuns(b2));
+
+  // (D) The eleventh security review (finding 1), in the shape of its proof
+  // (probes/fresh3.mjs). One note a turn, and a person's next turn ranked by
+  // when the last one was: once a real withdrawal's first folder was taken,
+  // its other two waited behind every account that had queued anything since,
+  // so a stream of new accounts made each wait longer than the one before. A
+  // person's turn is now all of their notes when they hold no more than one
+  // withdrawal's worth (3 folders, 6 exact paths), taken whole or not at all;
+  // anyone holding more still gives one note a turn.
+  const cf = await realWithdrawal({ before: () => queueFolders(people(200), 30, 1), each: () => queueFolders(people(200), 30, 1) });
+  check("200 new accounts an hour with 30 folders each, from an hour before a real withdrawal: its three folders go together, within two runs (were the 2nd, 5th and 11th)", cf.first === cf.all && cf.all <= 2, shownRuns(cf));
+  const f10 = await realWithdrawal({ each: () => queueFolders(people(1000), 1, 1) });
+  check("1,000 new accounts an hour with one folder each, from the withdrawal on: all three in the next run (were the 1st, 6th and 31st)", f10.first === 1 && f10.all === 1, shownRuns(f10));
+  // Where more withdrawals were queued before it than a run takes (66 a
+  // run), it waits for those, never for the ones queued after it.
+  const w10 = await realWithdrawal({ before: () => queueFolders(people(1000), 3, 1), each: () => queueFolders(people(1000), 3, 1), runs: 20 });
+  check("1,000 new accounts an hour with one withdrawal (3 folders) each, from an hour before: all three in one run, the one that ends the thousand withdrawals queued before it (the 16th; were the 6th, the 41st and past the 90th)", w10.first === w10.all && w10.all <= Math.ceil(1001 / 66), shownRuns(w10));
+  // A withdrawal's worth, no more: accounts holding a little more each still
+  // take one folder a turn.
+  const k4 = await realWithdrawal({ before: () => queueFolders(people(1000), 4, 1), runs: 8 });
+  check("1,000 accounts with 4 folders each queued before it: one from each a turn, so its three go together in the 6th run (four a turn each: the 21st)", k4.first === k4.all && k4.all <= 6, shownRuns(k4));
+  // A turn that would cross the run's 200 waits for the next run, where it
+  // comes first: split, its last folders went behind everyone who had queued
+  // since.
+  const edge = await realWithdrawal({ before: () => queueFolders(people(199), 1, 1), each: () => queueFolders(people(1000), 1, 1) });
+  check("199 accounts' folders just before it, then 1,000 new accounts an hour: its turn would cross the run's 200, so all three go in the next run, together (split, they were the 1st, 7th and 37th)", edge.first === 2 && edge.all === 2, shownRuns(edge));
+
+  // Exact paths take turns the same way, six to a withdrawal (a resume, its
+  // page images and the form's files): 1,000 accounts holding 7 each queued
+  // before a real withdrawal, then 1,500 new accounts an hour with one each.
+  await db.query(`delete from public.storage_file_trash`);
+  if (served) await db.query(`delete from public.storage_file_trash_served`);
+  const FORMS = id(9, 80);
+  await makeUser(FORMS, "candidate");
+  const formsApp = await apply(FORMS, JOB_P);
+  const formFiles = Array.from({ length: 6 }, (_, k) => `${FORMS}/17290000000${k}.pdf`);
+  for (const p of formFiles) await putFile("resumes", p);
+  await as(user(FORMS), `update public.applications set resume_url = $2, notes = $3 where id = $1`, [formsApp, formFiles[0], JSON.stringify({ fileUploads: Object.fromEntries(formFiles.slice(1).map((p, k) => [`q${k}`, { url: p, imageUrls: [], isResume: false }])) })]);
+  await as(user(FORMS), `delete from public.applications where id = $1`, [formsApp]);
+  if (JSON.stringify(await queuedPaths(formsApp)) !== JSON.stringify([...formFiles].sort())) throw new Error(`setup: the withdrawal queued ${show(await queuedPaths(formsApp))}`);
+  /** k exact paths for each of n new people, as the trigger writes them, spread over the hour that starts `ago` hours back. */
+  const queuePaths = (n, k, ago) =>
+    db.query(
+      `insert into public.storage_file_trash (bucket, path, application_id, candidate_id, queued_at)
+       select 'resumes', p.person::text || '/17290000' || lpad(i::text, 5, '0') || '.pdf', gen_random_uuid(), p.person,
+              now() - interval '1 hour' * ($3::float8 - 0.98 * (i - 0.5) / ($2::int + 1))
+         from (select gen_random_uuid() as person from generate_series(1, $1::int)) p, generate_series(1, $2::int) as i`,
+      [n, k, ago],
+    );
+  await queuePaths(1000, 7, 1);
+  const formRuns = [];
+  for (let h = 1; h <= 8 && (await queuedPaths(formsApp)).length > 0; h += 1) {
+    await anHourPasses();
+    await queuePaths(1500, 1, 1);
+    const r = await as(SERVICE, `select id, application_id from public.storage_file_trash_fair_pick(true)`);
+    if (!r.ok) throw new Error(`the pick: ${r.error}`);
+    formRuns.push(r.rows.filter((n) => n.application_id === formsApp).length);
+    await db.query(`delete from public.storage_file_trash where id = any($1::uuid[])`, [r.rows.map((n) => n.id)]);
+  }
+  check("exact paths: a withdrawal's six files go together, in the run after 1,000 accounts holding seven each take one each, while 1,500 new accounts an hour queue a file each (one a turn, four went in the 2nd, 6th, 13th and 24th runs and two after the 40th)", JSON.stringify(formRuns) === JSON.stringify([0, 6]), show(formRuns));
 
   // Folders and exact paths are two queues, read by two calls in one run:
   // each keeps its own turns, so a withdrawal's folders taken first never

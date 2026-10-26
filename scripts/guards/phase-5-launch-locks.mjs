@@ -32,7 +32,10 @@
  *     every hour (the ninth); a burst by many accounts delays a later removal
  *     by about a run for every 200 of them, not for as long as their notes
  *     last, and a record is pruned only once its person holds nothing (the
- *     tenth).
+ *     tenth); a person's turn is all of their notes when they hold no more
+ *     than one withdrawal's worth (3 folders, 6 exact paths), taken whole or
+ *     not at all, so a stream of new accounts never makes a withdrawal's
+ *     later files wait longer each time (the eleventh).
  *   - applications-stay-on-their-job: nobody but the server changes an
  *     application's job (moving it to a throwaway job and deleting that was
  *     a way round Delete their information), and a deleted document's kept
@@ -406,7 +409,11 @@ export default [
       "note's age, 200 accounts' one-hour burst queued before a real withdrawal kept a place ahead of it for 30 runs, " +
       "and a real note that failed once was never tried again while a flood went on): each run records whom it took, " +
       "a person's first note is ranked by when they were last taken or it became due, whichever is later, a note that " +
-      "failed waits out a back-off, and a person's record goes only once they hold nothing in that queue.",
+      "failed waits out a back-off, and a person's record goes only once they hold nothing in that queue. A withdrawal " +
+      "goes together (the eleventh security review: one note a turn, a real withdrawal's later folders each waited " +
+      "behind every account that joined the queue since, longer each time while new accounts kept coming): a person's " +
+      "turn is all of their notes when they hold no more than one withdrawal's worth (3 folders, 6 exact paths), else " +
+      "their first note, and a turn is taken whole or not at all.",
     run: async ({ read, walk }) => {
       const detail = [];
       const pick = await latestDefinition({ read, walk }, "storage_file_trash_fair_pick");
@@ -418,11 +425,19 @@ export default [
         // day) and half an hour more; until then it waits behind every note
         // that is due (the ninth and tenth security reviews).
         if (!body.includes("case when m.attempts > 0 then coalesce(m.last_tried_at, m.queued_at) + least(m.attempts, 24) * interval '1 hour' + interval '30 minutes' else m.queued_at end as due_at")) detail.push(`${pick.rel}: storage_file_trash_fair_pick must make a note that failed due an hour a try after its last try (up to a day) and half an hour more, and one never tried due when it was queued`);
-        if (!/row_number\(\) over \(order by r\.due_at > now\(\), r\.nth > 1, case when r\.nth = 1 then greatest\(s\.served_at, r\.due_at\) end, r\.waiting, r\.nth, r\.attempts, r\.queued_at, r\.id\) as place from ranked r left join public\.storage_file_trash_served s on s\.exact = coalesce\(p_exact, false\) and s\.person = r\.person where r\.nth <= case when coalesce\(p_exact, false\) then 40 else 6 end \), picked as materialized \( select p\.id, p\.person, p\.place from placed p where p\.place <= case when coalesce\(p_exact, false\) then 1000 else 200 end \)/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must take at most 6 folders and 40 exact paths from one person, a note that failed behind every note that is due, each person's first note in turn (by when they were last taken or it became due, whichever is later), then the people with the fewest waiting first, 200 folders and 1,000 paths a run`);
+        // A person's turn: their first note, or all of their notes when they
+        // hold no more than one withdrawal's worth, ranked by when they were
+        // last taken or their first note became due (the eleventh security
+        // review: one note a turn, a withdrawal's later folders each waited
+        // behind every account that joined since, longer each time).
+        if (!body.includes("r.due_at > now() as held, (r.nth = 1 or r.waiting <= case when coalesce(p_exact, false) then 6 else 3 end) as in_turn, first_value(r.due_at) over (partition by r.person order by r.nth) as first_due from ranked r")) detail.push(`${pick.rel}: storage_file_trash_fair_pick must make a person's turn their first note, or all of their notes when they hold no more than 3 folders (6 exact paths)`);
+        // …taken whole or not at all, so a run that ends inside a turn leaves
+        // it for the next run rather than sending its last notes to the back.
+        if (!/row_number\(\) over \(order by r\.held, not r\.in_turn, case when r\.in_turn then greatest\(s\.served_at, r\.first_due\) end, r\.waiting, case when r\.in_turn then r\.person end, r\.nth, r\.attempts, r\.queued_at, r\.id\) as place from turned r left join public\.storage_file_trash_served s on s\.exact = coalesce\(p_exact, false\) and s\.person = r\.person where r\.nth <= case when coalesce\(p_exact, false\) then 40 else 6 end \), whole as \( select p\.id, p\.person, p\.place, case when p\.in_turn then max\(p\.place\) over \(partition by p\.person, p\.held, p\.in_turn\) else p\.place end as turn_ends from placed p \), picked as materialized \( select w\.id, w\.person, w\.place from whole w where w\.turn_ends <= case when coalesce\(p_exact, false\) then 1000 else 200 end \)/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must take at most 6 folders and 40 exact paths from one person, a note that failed behind every note that is due, people's turns in turn (by when they were last taken or their first note became due, whichever is later; the fewest waiting first among turns that come at once), each turn whole or not at all, then the people with the fewest waiting first, 200 folders and 1,000 paths a run`);
         // Each run records whom it took, in the same statement, and answers in
         // that order (the tenth security review).
         if (!/served as \( insert into public\.storage_file_trash_served \(exact, person, served_at\) select distinct coalesce\(p_exact, false\), p\.person, now\(\) from picked p on conflict \(exact, person\) do update set served_at = excluded\.served_at \) select t\.\* from picked p join public\.storage_file_trash t on t\.id = p\.id order by p\.place\s*$/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must record whom each run took (storage_file_trash_served, now()) and answer with exactly those notes, in their order`);
-        if (/\bperson\s*=(?!\s*r\.person\b)|where false|limit 0\b|place <= 0\b/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick is narrowed to nothing or to one person`);
+        if (/\bperson\s*=(?!\s*r\.person\b)|where false|limit 0\b|(?:place|turn_ends) <= 0\b/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick is narrowed to nothing or to one person`);
         if (pick.securityDefiner) detail.push(`${pick.alteredIn ?? pick.rel}: storage_file_trash_fair_pick must run with the caller's rights (only the server may read the queue)`);
         const sql = (await read(pick.rel)) ?? "";
         if (!/grant execute on function public\.storage_file_trash_fair_pick\(boolean\) to service_role;/i.test(sql) || !/revoke all on function public\.storage_file_trash_fair_pick\(boolean\) from public, anon, authenticated;/i.test(sql)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must be the service role's only`);

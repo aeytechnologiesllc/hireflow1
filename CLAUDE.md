@@ -275,13 +275,37 @@ these either; each has a guard or a test that CI runs:
   again. The bursts (one hour, three, going on) now give a real withdrawal a
   folder in the second run and all three by the fourth. document-cleanup's
   backlog alert says how to tell one account from many (rows by
-  `candidate_id`). Left until Turnstile is set up (an owner input): many
-  accounts still delay a real removal, never keep it out: each of its notes
-  waits about a run for every 200 people (1,000 for exact paths) with notes
-  ahead of it (1,000 accounts with 6 folders each: its first folder in the
-  sixth run, all three by the sixteenth), however many notes they hold.
-  Guard `file-queue-fair-and-bounded`; launch_locks_behaviour section 15,
-  `scripts/document_cleanup.test.mjs`.
+  `candidate_id`). Guard `file-queue-fair-and-bounded`; launch_locks_behaviour
+  section 15, `scripts/document_cleanup.test.mjs`.
+- (The eleventh security review, `20261025600000`.) A withdrawal goes
+  together. One note a turn, a real withdrawal's later folders each waited
+  behind every account that had joined the queue since its last turn, so a
+  stream of new accounts made each wait longer than the one before: 200 new
+  accounts an hour with 30 folders each, from an hour before it, took its
+  folders in the 2nd, 5th and 11th runs (the 7th, 20th and 46th after six
+  hours of it); 1,000 new accounts an hour with one folder each, in the 1st,
+  6th and 31st. A person's turn is now all of their notes when they hold no
+  more than one withdrawal's worth (3 folders, 6 exact paths), else their
+  first note, and a turn is taken whole or not at all (a run that would end
+  inside one ends up to 2 folders or 5 exact paths short, and the turn comes
+  first in the next run; split, its last folders went behind everyone who
+  had queued since). Both floods now take a real withdrawal all in one run,
+  within two; 1,000 accounts with 6 folders each queued before it, in the
+  6th (was the 6th, 11th and 16th). document-cleanup's backlog alert counts
+  up to three folders from each person queued before a real withdrawal.
+  Left until Turnstile is set up (an owner input): many accounts still delay
+  a real removal, never keep it out. A withdrawal waits for everyone queued
+  before it to have one turn, about a run for every 66 people (165 for exact
+  paths) however many notes they hold, and never for an account that queues
+  after it (1,000 new accounts an hour, one withdrawal each, from an hour
+  before it: all three in the 15th run, where one note a turn took its first
+  in the 6th and its third after the 80th). A person holding more than a
+  withdrawal's worth (a Delete Account with two applications, or with
+  signed papers) gives one note a turn until they are down to one, and each
+  of those turns waits behind everyone who joined since, as before (six
+  folders under 1,000 new accounts an hour: the 1st, 6th and 31st runs, the
+  rest after the 80th). Guard `file-queue-fair-and-bounded`;
+  launch_locks_behaviour section 15, `scripts/document_cleanup.test.mjs`.
 - The way to reach the company is **Contact us** (an applicant's own Help
   thread at `/contact`, `20261025200000_help_for_applicants.sql`; `/help` is
   staff-only on the staff host) or Help (a hiring team); Messages reach the
