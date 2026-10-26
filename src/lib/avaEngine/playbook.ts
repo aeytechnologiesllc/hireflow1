@@ -581,11 +581,15 @@ const GUEST_DESK_TITLE = /\bguest (service|services|relations)\b/;
 // reservations and handle check-ins" is the desk's two duties again, as the comment above says; and check-in requests,
 // concerns, issues, inquiries, questions, problems or changes are a topic, "Help guests with early check-in/check-out
 // requests" is a travel account's calls.)
-const DESK_CHECK_INS = /(?<!\b(about|regarding)\s+([\w,'-]+\s+){0,5}|\b(calls?|e-?mails?|inquir\w*|enquir\w*|questions?|concerns?|queries|information|info)[ \t]+on[ \t]+(((?!(and|or|&)\b)[\w'-]+[ \t]+){0,3}((and|or|&)[ \t]+)?|([\w'-]+,?[ \t]+){0,4}[\w'-]+,[ \t]+)|\b(via|by|over|through)[ \t]+(the[ \t]+|our[ \t]+|a[ \t]+)?(phones?|video|chats?|e-?mails?|calls?)([ \t]+(and|or|&)[ \t]+(phones?|video|chats?|e-?mails?|calls?))?[ \t]+with[ \t]+(([\w'-]+[ \t]+){0,2}|([\w'-]+,?[ \t]+){0,4}[\w'-]+,[ \t]+))\bcheck[- ]?ins?(\s*(and|&|\/)\s*check[- ]?outs?|\/outs?)\b(?!\s+(times?|policies|polic(y|ies)|schedules?|dates?|requests?|concerns?|issues?|inquir\w*|enquir\w*|questions?|problems?|changes?)\b)(?![^.;\n]{0,40}\b(via|by|over|through)\s+(the\s+|our\s+|a\s+)?(phones?|video|chats?|e-?mails?|calls?)\b(?!\s+(and|or|&)\s+in[-\s]person\b))/;
+// (The twenty-third: those topic nouns only after "with" and up to two words, so "Handle guest check-in and check-out
+// requests, answer phone calls" is a desk again; and the "over the phone with" window takes the "on" window's shape.)
+const DESK_CHECK_INS = /(?<!\b(about|regarding)\s+([\w,'-]+\s+){0,5}|\b(calls?|e-?mails?|inquir\w*|enquir\w*|questions?|concerns?|queries|information|info)[ \t]+on[ \t]+(((?!(and|or|&)\b)[\w'-]+[ \t]+){0,3}((and|or|&)[ \t]+)?|([\w'-]+,?[ \t]+){0,4}[\w'-]+,[ \t]+)|\b(via|by|over|through)[ \t]+(the[ \t]+|our[ \t]+|a[ \t]+)?(phones?|video|chats?|e-?mails?|calls?)([ \t]+(and|or|&)[ \t]+(phones?|video|chats?|e-?mails?|calls?))?[ \t]+with[ \t]+((((?!(and|or|&)\b)[\w'-]+[ \t]+){0,3}((and|or|&)[ \t]+)?)|([\w'-]+,?[ \t]+){0,4}[\w'-]+,[ \t]+)|\bwith[ \t]+([\w'-]+[ \t]+){0,2}(?=check[- ]?ins?(\s*(and|&|\/)\s*check[- ]?outs?|\/outs?)\s+(requests?|concerns?|issues?|inquir\w*|enquir\w*|questions?|problems?|changes?)\b))\bcheck[- ]?ins?(\s*(and|&|\/)\s*check[- ]?outs?|\/outs?)\b(?!\s+(times?|policies|polic(y|ies)|schedules?|dates?)\b)(?![^.;\n]{0,40}\b(via|by|over|through)\s+(the\s+|our\s+|a\s+)?(phones?|video|chats?|e-?mails?|calls?)\b(?!\s+(and|or|&)\s+in[-\s]person\b))/;
 const AT_OUR_LODGING = /\b(at|in) (our|the) ([\w-]+ )?(hotel|resort|inn|hostel|motel|lodge|pension( house)?|apartelle|lobby)\b/;
 // (The twenty-second: and hotels the agent serves for someone else, "our client hotels", "partner hotels", "US hotels", as an
 // Airbnb host's lodgings are: a hotel account's check-ins are not its own door.)
-const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|(client|partner) hotels?|hotels we (support|serve)|(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
+// (The twenty-third: "partner", "US" and "UK" hotels only after "for" or "of": "Experience in US hotels is an advantage" and
+// "coordinate room transfers with our partner hotels" are a real desk's.)
+const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|\b(for|of) (our |a |an |the )?(partner|us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
 // Where the agent sits or when they work says nothing about whose front desk
 // it is: "office hours", "work in our office in Ortigas" (the ninth review).
 const OFFICE_NOT_VENUE = /\b(work|working|report|reporting|based|stationed|sit|sitting)\s+(in|at|from|out of)\s+(our|the|an?)\s+([\w']+\s+)?office\b|\boffice[- ](hours|based|setup|set-up|schedule|days?)\b|\b(in|home|back)[- ]office\b/g;
@@ -858,7 +862,10 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
   // (The twenty-second: a lodging desk that greets or welcomes guests, works in the lobby or in person is at the door too,
   // check-ins or none: "Guest Service Agent / Welcome guests, answer phone calls and process payments" was customer service
   // in every round.)
-  const atTheDoor = /\bat the entrance\b/.test(work) || (/\bat the front desk\b/.test(work) && (DOOR_VENUE.test(title) || AT_THE_VENUE_DESK.test(work) || lodgingDesk)) || (lodgingDesk && (hostCheckIns || /\b(greet\w*|welcom\w*)( and (greet\w*|welcom\w*))? (our |the |arriving |incoming )?guests\b|\bin the (hotel )?lobby\b|\bwalk[- ]in guests\b|\bin[- ]person\b|\bface[- ]to[- ]face\b/.test(work)));
+  // (The twenty-third: never a greeting "on the phone" or "on every call", and never "in person" or "face-to-face" beside an
+  // interview, exam, assessment, hiring, screening, orientation, training or application: "Face-to-face interview in
+  // Makati" made a phone guest-services job a desk.)
+  const atTheDoor = /\bat the entrance\b/.test(work) || (/\bat the front desk\b/.test(work) && (DOOR_VENUE.test(title) || AT_THE_VENUE_DESK.test(work) || lodgingDesk)) || (lodgingDesk && (hostCheckIns || /\b(greet\w*|welcom\w*)( and (greet\w*|welcom\w*))? (our |the |arriving |incoming )?guests\b(?![^.;\n]{0,60}\b(on|over|by) (the |every |each |all )?(phones?|telephones?|calls?)\b)|\bin the (hotel )?lobby\b|\bwalk[- ]in guests\b|\b(in[- ]person|face[- ]to[- ]face)\b(?<!\binterviews?\s+(is\s+|are\s+|will be\s+)?(in[- ]person|face[- ]to[- ]face))(?!\s+((final|initial|first|job)\s+)?(interviews?|exams?|assessments?|hiring|screening|orientation|training|applications?)\b)/.test(work)));
   const offTheFloor = REMOTE_CHANNEL.test(title) || ONLINE_BUSINESS.test(title) || OFF_THE_FLOOR.test(floorWork) || ONLINE_BUSINESS.test(work) || REMOTE_WORDS.test(work) || (REMOTE_CHANNEL.test(floorWork) && !AT_THE_STORE.test(work) && !atTheDoor);
   // (...or the counter's own duties, which a title with no store part said nothing of: "Customer Service Associate / Greet
   // customers, take orders and handle the cash register", "Customer Service Representative / Take customer orders, prepare
@@ -1178,10 +1185,14 @@ function remoteSetupLine(work: string): boolean {
   // built and saved remote: "Work setup:\n- Onsite (Makati)\nAfter regularization:\n- WFH", "Option 1:\n- Onsite (Makati)\n
   // Option 2:\n- WFH", and a perk under a heading BENEFIT_HEADING does not know, "What we can offer:\n- HMO\n- WFH".)
   let heading = "";
-  const under = lines.map((line) => (/:\s*$/.test(line) ? (heading = line) : heading));
+  // (The twenty-third: a line with its own "Work setup:" label belongs to no heading, and a remote line is set aside only when
+  // an on-site line sits under the same hiring heading: a WFH setup after a training or hiring section was built on site.)
+  const under = lines.map((line) => (/:\s*$/.test(line) ? (heading = line) : /^[^a-z0-9]*((work|job) )?(setup|set-up|arrangement)\s*[:\-–]\s*[a-z0-9]/.test(line) ? "" : heading));
   // (The twenty-second: a remote line under the hiring's own heading is the hiring's too, so "Hiring setup:\n✅ Onsite\n✅
   // WFH" lists two setups, as it did before the twenty-first set its on-site line aside.)
-  return lines.some((line, i) => ONLY_REMOTE_LINE.test(line) && !SEPARATE_HEADING.test(under[i])) && !lines.some((line, i) => ONLY_ON_SITE_LINE.test(line) && !SEPARATE_HEADING.test(under[i]));
+  const onSite = lines.map((line) => ONLY_ON_SITE_LINE.test(line));
+  const listsTwo = (i: number) => SEPARATE_HEADING.test(under[i]) && lines.some((_, j) => onSite[j] && under[j] === under[i]);
+  return lines.some((line, i) => ONLY_REMOTE_LINE.test(line) && !listsTwo(i)) && !lines.some((_, i) => onSite[i] && !SEPARATE_HEADING.test(under[i]));
 }
 
 /** What the job builder's Type field starts on (AvaCreateJob.tsx). Until the business types in it, its "On-site" is only

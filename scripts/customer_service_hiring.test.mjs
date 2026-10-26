@@ -542,6 +542,14 @@ const CS = [
   ["Guest Service Agent", "Handle guest calls on bookings and check-ins and check-outs."],
   ["Customer Support Specialist", "Help customers with check-in/check-out issues in our property management software."],
   ["Customer Support Specialist", "Assist property managers with check in and check out automation in our software."],
+  // The twenty-third (H2, M1): an in-person or face-to-face interview is no door, nor is greeting or welcoming guests on the
+  // phone; check-ins handled "over the phone with" the guest take the "on" window's shape.
+  ["Guest Services Agent", "Handle calls from hotel guests about bookings, refunds and amenities. Face-to-face interview in Makati."],
+  ["Guest Services Agent", "Handle calls from hotel guests about bookings, refunds and amenities. In-person interview at our Ortigas office."],
+  ["Guest Services Agent (Hotel Account)", "Handle calls from hotel guests about bookings, refunds and amenities. Initial interview is in person."],
+  ["Guest Relations Associate", "Greet guests warmly on every call and help them with reservations."],
+  ["Guest Service Representative", "Welcome guests on the phone and help them with bookings and refunds."],
+  ["Guest Services Agent", "Assist guests over the phone with booking changes and check-in/check-out."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -1027,6 +1035,12 @@ const NOT_CS = [
   ["Guest Service Agent", "Assist guests in person and over the phone with check-ins and check-outs.", "general"],
   ["Guest Service Agent", "Welcome guests, answer phone calls and process payments.", "general"],
   ["Customer Service Representative - Hotel", "Handle guest check-ins and check-outs at the front desk using Opera PMS, and answer phone calls.", "general"],
+  // The twenty-third (H3): check-in requests or concerns are a topic only after "with", so a desk that handles them is a desk;
+  // and "partner", "US" or "UK" hotels count as someone else's only after "for" or "of", never in a qualification line.
+  ["Front Desk Agent", "Handle guest check-in and check-out requests, answer phone calls and process payments.", "general"],
+  ["Front Desk Officer", "Attend to guest check-in and check-out concerns and answer phone calls.", "admin"],
+  ["Front Desk Agent", "Handle check-ins and check-outs and answer phone calls. Experience in US hotels is an advantage.", "general"],
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and coordinate room transfers with our partner hotels.", "admin"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));

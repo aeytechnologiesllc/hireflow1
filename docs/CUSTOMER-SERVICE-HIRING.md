@@ -300,7 +300,11 @@ seconds on 90 KB). In this order:
    hotels", "partner hotels", "US hotels", are a hotel account's, not a
    door; a lodging desk that greets or welcomes guests, works in the
    lobby or in person is at the door; check-ins in a product's software,
-   SaaS or kiosk are a feature), their
+   SaaS or kiosk are a feature; the twenty-third: but never a greeting on
+   the phone, never "in person" or "face-to-face" beside an interview,
+   exam, training or application, check-in requests or concerns a topic
+   only after "with", and "partner", "US" or "UK" hotels someone else's
+   only after "for" or "of"), their
    times, policies, schedules (the twentieth: not procedures, "Assist with
    check-in and check-out procedures" is the desk's; the twenty-second:
    requests, concerns, issues, inquiries, questions, problems, changes)
@@ -604,7 +608,10 @@ the same things:
    now:"; and an on-site line takes the remote line's marks, so "‼️ ONSITE
    ‼️" beside "‼️ WFH ‼️" is a second setup; the twenty-second: a WFH line
    under such a heading is the hiring's too, so "Hiring setup:\n✅
-   Onsite\n✅ WFH" lists two setups and builds on site; the words are
+   Onsite\n✅ WFH" lists two setups and builds on site, but only when an
+   on-site line sits under that same heading, and a line with its own
+   "Work setup:" label belongs to no heading (the twenty-third: a WFH
+   setup after a training or hiring section was built on site); the words are
    any of hiring, recruitment, application or selection with any of
    process, setup, mode, venue, site, location or steps), keeps its on-site line
    from the setup: under any other, "Work setup:\n- Onsite (Makati)\nAfter
