@@ -945,6 +945,46 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-26 (morning) — the owner said "keep looping"; product down to one-line fixes
+
+Same session and way of working. The owner was asked whether the
+classifier and age-filter loops should stop at a lower bar and answered
+**"Keep looping"**: they run until a round finds nothing. Since 89d7fe41,
+all live (CI and Vercel green, every migration md5-checked first, every
+reached function deployed):
+
+- **Security rounds 8–9** (43ad2eff, 1d4b389b; migrations recorded in
+  docs/MIGRATION-HISTORY.md §4 through `file_queue_many_accounts`
+  20261026044158): one account's uploads hold up only its own removals, an
+  application stays on its job, many throwaway accounts cannot hold up a
+  removal for good, and a document's files are found by its id only, with
+  a test that fails on every weakening. **Round 10** (`sec10_report.md`)
+  found one LOW-MEDIUM regression (a 200-account burst delays later
+  removals about 30 runs per hour of burst); **its fixer is running**
+  (`r10_security_fix_brief.md`, migration 20261025590000).
+- **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
+  3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
+  owner and both kinds of teammate. A teammate who cannot send or review
+  is never shown a button that does nothing or told it is their turn; the
+  team's own decline is never quoted as the applicant's; a phone shows an
+  applicant's papers above the score only while one waits for review,
+  below it otherwise. Rounds 14–18 found only LOWs in the flows touched.
+  **Product round 19 is next** (`product19_brief.md`).
+- **Phase 4 round 17** (cc57adc3): the Type field decides over the title,
+  a client's country is never the job's. **Round 18** (`p4r18_report.md`)
+  found two HIGH regressions (a typed employment word made the default's
+  "On-site" a choice; "check-in and check-out" as a call topic became a
+  front desk) and validated patches; earlier probes 158 of 6,975 (the probe
+  set grew), none newly failing. **Its fixer is running**
+  (`p4r18_fix_brief.md`).
+- **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
+  (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
+  callback excused a call about a job); **its fixer is running**
+  (`age14_fix_brief.md`).
+- 4f97fe25: the dev server's dependency scan reads `index.html` only
+  (design mock-ups import "three", which the app does not install, and the
+  failed scan made a cold dev server too slow for the smoke test).
+
 ### 2026-10-26 (small hours) — security, product and growth converging; the classifier and age filter still looping
 
 Same session (Opus 5.5), same way of working as the entry below. Every
