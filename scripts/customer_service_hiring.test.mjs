@@ -560,6 +560,11 @@ const CS = [
   ["Guest Relations Associate", "Greet guests via phone and help them with reservations and refunds."],
   ["Guest Services Agent", "Help guests staying at US hotels with booking changes; answer calls and emails."],
   ["Guest Services Agent", "Handle bookings and refunds across our partner hotels; answer calls and emails from guests."],
+  // The twenty-fifth (M1): a guest or customer experience "for US hotels" is a hotel account's, not the applicant's past;
+  // only "experience in/with/at…" or "experience working for…" is.
+  ["Guest Services Agent", "Deliver a 5-star guest experience for US hotels. Process check-ins and check-outs, cancellations and refunds. Answer guest calls and emails."],
+  ["Guest Services Agent", "Create a great customer experience for UK hotels. Handle check-ins and check-outs, cancellations and refunds. Answer guest calls and emails."],
+  ["Guest Relations Associate", "Greet guests warmly on every call and help them with reservations."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -1055,6 +1060,13 @@ const NOT_CS = [
   // answers inquiries by phone is a desk; and US hotels in an experience line are the applicant's past, not an account.
   ["Front Desk Agent", "Greet and welcome guests, process check-ins and check-outs, answer inquiries by phone and email and process payments.", "general"],
   ["Front Desk Agent", "Handle check-ins and check-outs and answer phone calls. Experience working for US hotels is a plus.", "general"],
+  // The twenty-fifth (H1, H2): a greeting is "by phone" only within four words with no "and" between, so "Welcome guests and
+  // answer inquiries via phone…" is a desk; and only an interview's, training's or onboarding's own few words beside "in
+  // person" excuse it, never "We are hiring" or "(training provided)" in the same line.
+  ["Guest Service Agent", "Welcome guests and answer inquiries via phone and email, process payments and issue room keys.", "general"],
+  ["Guest Relations Officer", "We are hiring a Guest Relations Officer to assist guests in person and over the phone with their stay.", "admin"],
+  ["Guest Relations Officer", "WE'RE HIRING! Assist guests face to face and by phone during their stay.", "admin"],
+  ["Guest Relations Officer", "Assist guests in person and by phone with their stay (training provided).", "admin"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));

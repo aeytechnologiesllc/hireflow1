@@ -449,6 +449,13 @@ for (const [text, code] of [
     check(`15,000 setup lines under one heading are read in well under a second (${ms.toFixed(0)} ms, the twenty-fourth)`, ms < 400, `${ms.toFixed(0)} ms`);
   }
 }
+// The twenty-fifth Phase 4 review (H3, M2): an unbulleted "Setup:" line belongs to no heading again, as in round 23, so a bare
+// "Setup: Onsite" after a training or interview section is the job's; a bulleted "- Setup: Onsite" stays the section's.
+{
+  const mode = (work) => M.briefFromForm({ role: "Customer Service Representative", location: "Makati City", type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
+  for (const work of ["Answer customer calls.\nTraining:\n- 2 weeks paid training\n- WFH\nSetup: Onsite (Makati)","Answer customer calls.\nInterview:\n- WFH\nSetup: Onsite"]) check(`"${work.replace(/\n/g, " / ")}" is built on site (the twenty-fifth)`, mode(work) === "onsite", mode(work));
+  for (const work of ["Answer customer chats.\nHiring process:\n- Onsite (Makati)\nSetup: Permanent WFH","Answer customer chats.\nWork Setup: Permanent WFH\nTraining:\n- Duration: 2 weeks\n- Setup: Onsite (Makati)"]) check(`"${work.replace(/\n/g, " / ")}" is built remote (the twenty-fifth)`, mode(work) === "remote", mode(work));
+}
 // Publish saves is_remote as the brief's work mode (src/lib/jobFromFlow.ts). That is the fifteenth's rule exactly, which also
 // read the post when the place or Type said remote, only while these two hold: every place or Type that says remote makes the
 // brief remote or hybrid, and no employment type reads as a place (the sixteenth review).

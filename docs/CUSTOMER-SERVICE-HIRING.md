@@ -308,7 +308,12 @@ seconds on 90 KB). In this order:
    but after "with our/the", US or UK hotels anywhere but shortly after
    "experience"; a greeting's "by phone" stops at a comma, and the
    interview, training or onboarding beside "in person" is read in its
-   own sentence or line, in any wording), their
+   own sentence or line, in any wording; the twenty-fifth: only
+   "experience in/with/at" or "experience working for" is the applicant's
+   past, a "guest experience for US hotels" is an account's; chat or
+   email words count as a greeting "by phone" only within four words
+   with no "and" between; only an interview's, training's or
+   onboarding's own few words beside "in person" excuse it), their
    times, policies, schedules (the twentieth: not procedures, "Assist with
    check-in and check-out procedures" is the desk's; the twenty-second:
    requests, concerns, issues, inquiries, questions, problems, changes)
@@ -618,7 +623,9 @@ the same things:
    setup after a training or hiring section was built on site; the
    twenty-fourth: under hiring headings only, so a training's own "-
    Setup: Onsite" is the training's, and "Work location:" or "Work mode:"
-   lines belong to no heading either); the words are
+   lines belong to no heading either; the twenty-fifth: an unbulleted
+   "Setup:" line belongs to no heading too, a bulleted "- Setup:" stays
+   its section's); the words are
    any of hiring, recruitment, application or selection with any of
    process, setup, mode, venue, site, location or steps), keeps its on-site line
    from the setup: under any other, "Work setup:\n- Onsite (Makati)\nAfter
