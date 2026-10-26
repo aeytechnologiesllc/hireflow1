@@ -108,7 +108,10 @@ const elsewhere = (words: string) =>
   new RegExp(String.raw`(^|[.;!?]\s*|\b(all|any)\s+)(${words})( support)?\s+(are|is|will be|gets?|get)\s+(handled|covered|answered|taken|done|managed)\s+(by\s+(another|a separate|a different|our other|other|someone|the|our)\b[\w\s'-]{0,25}?\b(team|center|centre|department|staff|colleagues|agents|office)|elsewhere|separately|in-house)\b|\b(another|a separate|a different|our other) team (handles|takes|answers|covers|does) (the |all |our )?(${words})\b`);
 // What the agent is asked to have done before, never a duty: "Must have experience replying to emails", "Experience in
 // answering chats", "proficient in handling email support" (the eighteenth review). Bounded by its clause.
-const QUALIFIED_IN = /\b(experience[ds]?|background|proficien(t|cy)|skilled|familiar(ity)?|knowledge)\s+((in|with|at|of|on)\s+)?(answering|replying|responding|handling|managing|writing)\b[^.;,\n]*/g;
+// (...and by a colon or "who"/"you", where the duty starts again: "experienced in handling high call volumes who will also
+// reply to customer emails and chats", "Skilled in handling live chat too: you will also answer chats" lost their written
+// channel; the nineteenth review's LOW 3.)
+const QUALIFIED_IN = /\b(experience[ds]?|background|proficien(t|cy)|skilled|familiar(ity)?|knowledge)\s+((in|with|at|of|on)\s+)?(answering|replying|responding|handling|managing|writing)\b((?!\s(who|you)\b)[^.;,:\n])*/g;
 // A customer duty that names no channel, in its own part of a list ("Answer customer inquiries", "Handle customer
 // concerns", "Assist subscribers with load, billing and network concerns", "Assist customers with their orders"): a hotline
 // title's phone (the eighteenth review). Never one whose part names a channel: "Handle customer concerns via email and
@@ -282,9 +285,16 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // inquiries and handle email escalations" and "Handle customer inquiries; also reply to emails and Facebook messages" are
   // a mix (hotlineReply, below), and "Handle customer concerns. Must have experience replying to emails" the phone; each
   // dropped the phone.)
+  // (The nineteenth: an untied duty keeps the phone only when it comes before the first written reply, as all the
+  // eighteenth's did. Real posts list more than one duty, so a written-only hotline read as a mix as soon as a later duty named
+  // no channel: "Hotline Agent / Reply to customer emails and chats. Resolve customer complaints and escalate when needed",
+  // "Respond to customer emails within 24 hours. Assist customers with refunds". And messages taken, left or relayed for
+  // someone are no written reply, as the chat test reads them (chatIn): "Answer calls and take messages for the doctors".)
   const dutyWork = positiveWork.replace(QUALIFIED_IN, " ");
-  const writtenReply = /\b(answer|answering|reply|replying|respond|responding|handle|handling)\b( to)?[^.;,\n]{0,25}\b(live chats?|chats?|e-?mails?|tickets?|messages|sms|texts|viber|whatsapp|messenger)\b/.test(dutyWork);
-  const titlePhone = tPhone && !(tOnlyHotline && writtenReply && !UNTIED_DUTY.test(dutyWork) && !phoneWork && !list);
+  const replyAt = dutyWork.search(/\b(answer|answering|reply|replying|respond|responding|handle|handling)\b( to)?[^.;,\n]{0,25}\b(live chats?|chats?|e-?mails?|tickets?|(?<!\b(take|takes|taking|took|leave|leaves|leaving|relay|relays|relaying)\s)messages|sms|texts|viber|whatsapp|messenger)\b/);
+  const writtenReply = replyAt >= 0;
+  const untiedAt = dutyWork.search(UNTIED_DUTY);
+  const titlePhone = tPhone && !(tOnlyHotline && writtenReply && !(untiedAt >= 0 && untiedAt < replyAt) && !phoneWork && !list);
   const titleNames = tChat || tEmail || titlePhone || tWritten;
   const phoneOut = hardNoPhone || ((softNoPhone || elsewhere(PHONE).test(work)) && !phoneWork && !voiceAccount);
   const chatOut = noChat || (elsewhere(CHAT).test(work) && !/\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\bchats?\b/.test(work));
@@ -301,7 +311,10 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // A list names a written channel even when it is only "text" or "SMS".
   // (...and a hotline that keeps its phone beside a written reply adds that reply, whichever channel it names: "24/7 Hotline
   // Agent / Assist customers with their orders. Reply to messages on Facebook as backup" is a mix; the eighteenth.)
-  const hotlineReply = tOnlyHotline && titlePhone && writtenReply;
+  // (Only when the words take no calls themselves, as the eighteenth's did: with calls, the chat and email tests say what
+  // else the agent writes. The reply window ran from "answer" across "calls and take" to "messages", so "Answer calls and
+  // relay messages to the right department" and "Handle calls and log messages in the CRM" read as a mix; the nineteenth.)
+  const hotlineReply = tOnlyHotline && titlePhone && writtenReply && !phoneWork;
   const written = chat || email || (list && !chatOut) || (tWritten && !chatOut) || (hotlineReply && !(chatOut && emailOut));
   if (phone && written) return "mixed";
   if (phone) return "phone";

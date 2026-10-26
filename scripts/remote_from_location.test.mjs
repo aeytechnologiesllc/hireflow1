@@ -341,6 +341,55 @@ for (const [text, code] of [
 ]) {
   check(`${JSON.stringify(text)} is ${code ? `in ${code}` : "in no country"} (the eighteenth)`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
 }
+// The nineteenth Phase 4 review, each case both ways.
+// H1: a country or a city named once the client's words are gone is the job's own, wherever it stands; the eighteenth's
+// "only before the client's words" is only for a note that names none (its cases above keep their country).
+for (const [text, code] of [
+  ["Remote (US company) - India", "IN"], ["Remote (US company) - Canada", "CA"], ["Remote (US company) - Pakistan", "PK"], ["Remote (US company) - Australia", "AU"],
+  ["Remote (US company) - UK", "GB"], ["Remote (US brand) - Ireland", "IE"], ["Remote (US startup) - Toronto, Canada", "CA"], ["Remote - US company - hiring in India", "IN"],
+  ["Remote — US startup — Pakistan only", "PK"], ["US startup | Remote | India", "IN"], ["US company, remote in Canada", "CA"], ["Remote (UK company) - India", "IN"],
+  ["UK company - Remote, India", "IN"], ["US company - Makati", "PH"], ["US company, Makati City", "PH"], ["US company | Ortigas", "PH"], ["US company (Makati office)", "PH"],
+  ["US startup - Quezon City", "PH"], ["US company - Onsite, Makati", "PH"], ["US company · Makati · Hybrid", "PH"], ["Remote (US company) - Cebu", "PH"],
+  ["Remote (US company), Makati", "PH"], ["WFH (US company) - Davao", "PH"], ["US BPO | Makati | Night shift", "PH"], ["Remote (US agency) - Lahore, Pakistan", "PK"],
+  ["US shop - Cebu (WFH)", "PH"],
+  ["Remote (US company) - Full-time", "US"], ["Remote (US-based position) - Night shift", "US"], ["Remote (UK-based role) - GMT hours", "GB"], ["Remote - US-based role, EST hours", "US"],
+  ["Remote (US company) - Latin America", "US"], ["Makati (US BPO)", "PH"], ["Taguig (US call center)", "PH"], ["Las Pinas (US company)", null], ["Remote (US company)", "US"],
+]) {
+  check(`${JSON.stringify(text)} is ${code ? `in ${code}` : "in no country"} (the nineteenth)`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
+}
+{
+  const mode = (role, location, work = "", type = "Full-time · On-site", typeChosen) => M.briefFromForm({ role, location, type, typeChosen, pay: "", start: "ASAP", work }).workMode;
+  // H3: a Type partly at home is hybrid, by the place field's own rule, and training or an interview on site with a plain
+  // space is the training; a Type that is on site as needed, monthly or quarterly is still on site, as the place reads it.
+  for (const type of ["Full-time · Remote (occasional onsite)", "Full-time · WFH or Onsite", "Full-time · Onsite or WFH", "Full-time · WFH / Onsite", "Full-time · Remote / On-site", "Full-time · Remote or On-site", "Full-time · On-site / Remote"]) {
+    for (const role of ["Work From Home Chat Support Agent", "Customer Service Representative"]) check(`Type ${JSON.stringify(type)} (typed) is hybrid for ${JSON.stringify(role)} (the nineteenth)`, mode(role, "Makati City", "", type, true) === "hybrid", mode(role, "Makati City", "", type, true));
+  }
+  for (const type of ["Full-time · WFH (training onsite)", "Full-time · WFH (training on site)"]) check(`Type ${JSON.stringify(type)} (typed) is remote (the nineteenth)`, mode("Customer Service Representative", "Makati City", "", type, true) === "remote", mode("Customer Service Representative", "Makati City", "", type, true));
+  for (const type of ["Full-time · Remote (On-site 1x/month)", "Full-time · Remote (on-site meetings monthly)", "Full-time · Remote, quarterly onsite meetups", "Full-time · Remote, onsite as needed", "Full-time · Remote (Onsite optional)", "Full-time · WFH, report onsite monthly"]) {
+    check(`Type ${JSON.stringify(type)} (typed) is still on site, as the place reads it`, mode("Work From Home Chat Support Agent", "Philippines", "", type, true) === "onsite", mode("Work From Home Chat Support Agent", "Philippines", "", type, true));
+  }
+  // H5: any employment wording before the default's "· On-site" is still the default's place, typed or an old draft's; a
+  // place, an in-person word or a typed on-site word still decides.
+  for (const type of ["Regular · On-site", "Probationary · On-site", "Full-time / Part-time · On-site", "Part-time or Full-time · On-site", "Part-time (20 hrs/week) · On-site", "Part-time 4hrs/day · On-site", "Full-time (Night shift) · On-site", "Full-time · Night shift · On-site", "Temp · On-site", "Intern · On-site", "Contractor · On-site", "Freelancer · On-site", "Fixed-term · On-site", "Per diem · On-site", "PRN · On-site", "Full-time · Day shift · On-site", "Full-time · Mon-Fri · On-site"]) {
+    check(`Type ${JSON.stringify(type)} leaves a WFH title remote, typed or an old draft's (the nineteenth)`, mode("Work From Home Chat Support Agent", "Philippines", "", type, true) === "remote" && mode("Work From Home Chat Support Agent", "Philippines", "", type) === "remote", `${mode("Work From Home Chat Support Agent", "Philippines", "", type, true)} ${mode("Work From Home Chat Support Agent", "Philippines", "", type)}`);
+  }
+  for (const type of ["On-site", "Onsite", "On-site only", "Office-based", "Not remote", "In-office", "Full-time · Onsite", "Full-time, On-site", "Full-time - On-site", "Full-time · In person", "Full-time · On-site (Makati)"]) {
+    check(`Type ${JSON.stringify(type)} (typed) still puts a WFH title on site`, mode("Work From Home Chat Support Agent", "Philippines", "", type, true) === "onsite", mode("Work From Home Chat Support Agent", "Philippines", "", type, true));
+  }
+  // H6: "Training Onsite" and "Interview Onsite", the other word order, are the training; "Onsite then WFH", the first month
+  // or two weeks on site are still the job's.
+  for (const role of ["WFH CSR (Training Onsite)", "WFH CSR - Training onsite in Makati", "WFH CSR (Interview Onsite)"]) check(`${JSON.stringify(role)} is built remote (the nineteenth)`, mode(role, "Makati City") === "remote", mode(role, "Makati City"));
+  for (const role of ["WFH CSR - Onsite then WFH", "WFH CSR (Onsite first month)", "WFH CSR (onsite for 2 weeks training)"]) check(`${JSON.stringify(role)} is still built on site`, mode(role, "Makati City") === "onsite", mode(role, "Makati City"));
+  // M1: only an interview's or a training's heading keeps its on-site line from the setup; any other heading's WFH line is no
+  // second setup; LOW 1: a mark after the setup line only when it says yes or names home; LOW 2: "What you'll get to enjoy:"
+  // heads perks.
+  for (const work of ["Answer customer calls.\nWork setup:\n- Onsite (Makati)\nAfter regularization:\n- WFH", "Answer customer calls.\nWork setup:\n- Onsite\nAfter 6 months:\n- Permanent WFH", "Job details:\nSchedule: Night shift\nWork setup: Onsite\nSalary: 25k\nAfter training:\n- WFH", "Answer customer calls.\nWork setup options:\nOption 1:\n- Onsite (Makati)\nOption 2:\n- WFH", "Positions available:\nTaguig site:\n- Onsite\nNationwide:\n- WFH", "Answer customer calls.\nWork Setup:\n- Onsite (Makati)\nWhat we can offer:\n- HMO\n- WFH", "Answer customer calls.\nWork Setup:\n- Onsite (Makati)\nYou'll enjoy:\n- HMO\n- WFH", "Answer customer calls.\nWork Setup:\n- Onsite (Makati)\nWhat awaits you:\n- HMO\n- WFH\n- Free meals", "Answer customer chats.\nWFH 🔜", "Answer customer chats.\nWFH 👎", "Answer customer chats.\nWFH 🙅", "Answer customer chats.\nWFH 😢", "Answer customer chats.\nWFH... soon!", "Answer customer calls.\nWhat you'll get to enjoy:\n- HMO\n- WFH\n- Free meals", "Answer customer calls.\nWhat you get to enjoy:\n- HMO\n- Permanent WFH"]) {
+    check(`"${work.replace(/\n/g, " / ")}" is built on site (the nineteenth)`, mode("Customer Service Representative", "Makati City", work) === "onsite", mode("Customer Service Representative", "Makati City", work));
+  }
+  for (const work of ["Answer customer chats.\nWFH 💯", "Answer customer chats.\nPermanent WFH 🏠", "Answer customer chats.\nWork From Home ✅", "Answer customer chats.\nWork setup:\n- Permanent WFH\nInterview:\n- Onsite (Makati)", "Answer customer chats.\nTraining:\n- Onsite (2 weeks)\nWork setup:\n- Permanent WFH"]) {
+    check(`"${work.replace(/\n/g, " / ")}" is still built remote`, mode("Chat Support Agent", "Philippines", work) === "remote", mode("Chat Support Agent", "Philippines", work));
+  }
+}
 // Publish saves is_remote as the brief's work mode (src/lib/jobFromFlow.ts). That is the fifteenth's rule exactly, which also
 // read the post when the place or Type said remote, only while these two hold: every place or Type that says remote makes the
 // brief remote or hybrid, and no employment type reads as a place (the sixteenth review).

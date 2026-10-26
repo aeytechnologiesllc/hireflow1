@@ -507,6 +507,15 @@ const CS = [
   ["Associate", "Compensation:\n₱20,000 - ₱25,000\n📞 Answer inbound customer calls for our healthcare account\n📧 Reply to patient emails"],
   ["Virtual Assistant", "What you'll get to do:\n- Answer customer emails and live chats\n- Process refunds"],
   ["Team Member", "What you get to do:\n- Answer inbound customer calls"],
+  // The nineteenth Phase 4 review: a hotel's reservations agent whose words name corporate clients, not the agency's own, is
+  // the venue's (M1b). And the other side of H4 and LOW 5: check-ins done by video, and the eighteenth's six above (the
+  // topic of calls, their times or procedures, or done over the phone), stay customer service.
+  ["Reservations Agent", "Coordinate corporate events with the banquet team and answer calls from corporate clients."],
+  ["Reservations Agent", "Handle reservations and coordinate corporate events with the banquet team. Build relationships with corporate clients."],
+  ["Reservations Coordinator", "Answer inquiries and coordinate corporate events for the hotel; follow up with corporate clients by email."],
+  ["Reservations Agent", "Organize corporate events for the hotel and respond to client emails."],
+  ["Virtual Front Desk Agent", "Handle check-ins and check-outs via video call for our hotel guests."],
+  ["Virtual Receptionist", "Handle guest check-ins and check-outs over video for our hotels."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -945,6 +954,17 @@ const NOT_CS = [
   ["Reservations Coordinator", "Coordinate corporate events for our clients and work with the banquet office of the hotel they choose.", "admin"],
   ["Booking Coordinator", "Plan and execute corporate events for clients; negotiate rates for the hotel or resort they pick.", "admin"],
   ["Booking Coordinator", "Organize corporate events for the hotel clients we serve as an event agency.", "admin"],
+  // The nineteenth: a desk's check-ins and check-outs are its own whatever verb takes them, or none, as the most common hotel
+  // posts write them (H4); by phone and in person is still the desk's (LOW 5). (The other side is in CS: check-ins as the
+  // topic of calls, their times or procedures, or done by phone, video or chat.)
+  ["Front Desk Agent", "Responsibilities:\n- Guest check-ins and check-outs\n- Answering phone calls\n- Handling reservations", "general"],
+  ["Front Desk Officer", "Facilitate guest check-ins and check-outs, answer phone inquiries and process payments.", "general"],
+  ["Front Desk Associate", "Check-in and check-out guests, answer the phone and take reservations.", "general"],
+  ["Front Office Associate", "Ensure smooth check-ins and check-outs, answer guest calls and manage bookings.", "general"],
+  ["Guest Relations Officer", "Accommodate guest check-ins and check-outs and answer phone inquiries.", "general"],
+  ["Guest Service Agent", "Oversee guest check-ins and check-outs, answer phones and handle billing.", "general"],
+  ["Front Desk Officer", "Duties: check-in and check-out of guests; answering calls; handling reservations via phone and email.", "general"],
+  ["Front Desk Agent", "Handle check-ins and check-outs by phone and in person.", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -975,6 +995,16 @@ for (const [title, work, want] of NOT_CS) {
   }
   const ms18 = performance.now() - t1;
   check(`…and four for the eighteenth's rules (${ms18.toFixed(0)} ms)`, ms18 < 1000, `${ms18.toFixed(0)} ms`);
+  // (The nineteenth: the check-in desk's look back for its topic word, the qualification that ends at "who" or "you", and a
+  // hotline's first reply and first untied duty, on a huge pasted line.)
+  const huge19 = ["about the guest check-ins and check-outs ".repeat(1500), "experienced in handling calls ".repeat(2500) + "who will reply to emails", "reply to customer emails. answer customer inquiries ".repeat(1500), "regarding late early guest member check-ins & check-outs times ".repeat(1200)];
+  const t2 = performance.now();
+  for (const w of huge19) {
+    M.channelForBrief({ roleTitle: "Hotline Agent", whatTheyDo: w, followUps: [] });
+    M.detectFamily(brief("Front Desk Agent", w));
+  }
+  const ms19 = performance.now() - t2;
+  check(`…and four for the nineteenth's rules (${ms19.toFixed(0)} ms)`, ms19 < 1000, `${ms19.toFixed(0)} ms`);
 }
 
 // The fourth Phase 4 review: the guess is only the start; the business confirms the kind of job.
@@ -1313,6 +1343,29 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Call Center Agent", "Take inbound calls. Must have experience replying to emails.", "phone"],
     ["Phone Support Agent", "Answer inbound calls and reply to customer emails.", "mixed"],
     ["Email Support Specialist", "Reply to customer emails. Proficient in handling live chats.", "email"],
+    // The nineteenth: an untied duty keeps a hotline's phone only before its first written reply, so a written-only hotline
+    // with more than one duty is written (H2); a hotline that takes calls adds no written channel from messages it takes,
+    // relays, leaves or logs, and messages taken, left or relayed for someone are no written reply; a qualification ends at
+    // "who", "you" or a colon, where the duty starts again (LOW 3). The other side: a duty before the reply keeps the phone
+    // beside it (the eighteenth's above), and a hotline's calls beside its emails are a mix.
+    ["Hotline Agent", "Reply to customer emails and chats. Resolve customer complaints and escalate when needed.", "chat"],
+    ["Hotline Agent", "Responsibilities:\n- Reply to customer emails and chats\n- Resolve customer complaints and escalate when needed", "chat"],
+    ["Hotline Agent", "Reply to customer chats. Help customers reset passwords.", "chat"],
+    ["Hotline Agent", "Respond to customer emails within 24 hours. Assist customers with refunds.", "email"],
+    ["Hotline Agent", "Answer customer emails and chats; resolve customer issues.", "chat"],
+    ["Hotline Agent", "Reply to customer emails and chats and help customers track orders.", "chat"],
+    ["Hotline Operator", "Answer calls and take messages for the doctors.", "phone"],
+    ["Hotline Operator", "Answer calls and relay messages to the right department.", "phone"],
+    ["Hotline Receptionist", "Answer the hotline and take messages for the doctors.", "phone"],
+    ["Hotline Agent", "Answer calls and leave messages for the account managers.", "phone"],
+    ["Hotline Agent", "Answer calls and respond to voicemail messages.", "phone"],
+    ["Hotline Agent", "Answer calls and send messages to field technicians.", "phone"],
+    ["Hotline Agent", "Handle calls and log messages in the CRM.", "phone"],
+    ["Customer Hotline Officer", "Handle inbound calls and forward messages to the concerned department.", "phone"],
+    ["Hotline Agent", "Answer inquiries and take messages for the doctors.", "phone"],
+    ["Customer Support (Phone)", "We need someone experienced in handling high call volumes who will also reply to customer emails and chats.", "mixed"],
+    ["Email Support Specialist", "Reply to customer emails. Skilled in handling live chat too: you will also answer chats.", "chat"],
+    ["Hotline Agent", "Answer calls and reply to customer emails.", "mixed"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
@@ -1841,6 +1894,46 @@ let aiFlow;
         const placeOk = row.location_country_code === country && (row.salary_currency !== "USD" || /\$/.test(pay)) && (remote || country !== "PH" || row.salary_currency === "PHP") && (city !== "none" || !row.location_city);
         check(`the ${plan} plan builds and Publish saves ${remote ? "remote" : "on site"} (the eighteenth): ${JSON.stringify(role)}, ${location}, Type "${type}"${typeChosen === undefined ? "" : typeChosen ? " (typed)" : " (default)"} (${country}${city === "none" ? ", no city" : ""})`, (b0.workMode === "remote") === remote && row.is_remote === remote && connection === remote && /typing speed and reply time measured/.test(note) === remote && placeOk, `${b0.workMode} saved=${row.is_remote} connection=${connection} ${row.location_country_code} ${row.salary_currency} ${row.location_city}`);
       }
+    }
+    // The nineteenth: a country or city after the client's words is the job's own, so "US company - Makati" is a Philippine
+    // job paid in PHP whose skills check is written for second-language readers, and "Remote (US company) - India" is India
+    // (H1); a Type partly at home is hybrid, never the business's on-site choice (H3); any employment wording before the
+    // default's "· On-site" leaves the title's remote job (H5); "Training Onsite" in a WFH title is the training (H6); an
+    // on-site setup line under any heading but an interview's or training's keeps the job on site (M1).
+    for (const [role, location, type, typeChosen, work, mode, pay, country] of [
+      ["Customer Service Representative", "US company - Makati", "Full-time · On-site", undefined, "Answer customer calls about orders.", "onsite", "25,000 - 30,000 per month", "PH"],
+      ["Customer Service Representative", "US company | Ortigas", "Full-time · On-site", undefined, "Answer customer calls about orders.", "onsite", "25,000 - 30,000 per month", "PH"],
+      ["Customer Support Specialist", "Remote (US company) - India", "Full-time · Remote", true, "Answer customer emails.", "remote", "$8/hr", "IN"],
+      ["Customer Support Specialist", "Remote (US company) - Canada", "Full-time · Remote", true, "Answer customer emails.", "remote", "$20/hr", "CA"],
+      ["Remote Customer Support Specialist", "Austin, TX", "Full-time · Remote (occasional onsite)", true, "Answer customer chats.", "hybrid", "18/hr", "US"],
+      ["Work From Home Chat Support Agent", "Austin, TX", "Regular · On-site", true, "Answer customer chats.", "remote", "18/hr", "US"],
+      ["Work From Home Chat Support Agent", "Austin, TX", "Full-time / Part-time · On-site", true, "Answer customer chats.", "remote", "18/hr", "US"],
+      ["WFH CSR (Training Onsite)", "Makati City", "Full-time · On-site", undefined, "Answer customer calls.", "remote", "20,000/month", "PH"],
+      ["Customer Service Representative", "Austin, TX", "Full-time · On-site", undefined, "Answer customer calls.\nWork setup:\n- Onsite\nAfter 6 months:\n- Permanent WFH", "onsite", "18/hr", "US"],
+    ]) {
+      const remote = mode === "remote";
+      const b0 = M.briefFromForm({ role, location, type, typeChosen, pay, start: "ASAP", work });
+      const b = { ...b0, followUps: [{ questionId: M.JOB_KIND_ID, question: "", answer: M.JOB_KIND_CHIPS[0] }, { questionId: "cs-channel", question: "", answer: "Chat" }, { questionId: "cs-industry", question: "", answer: "Online store" }] };
+      for (const plan of ["template", "AI"]) {
+        globalThis.fetch = async () => new Response(JSON.stringify({ jobPost: { title: role, summary: work, responsibilities: ["Answer customers"], requirements: ["Clear writing"], niceToHaves: [] }, application: ["Hours?", "Why?", "Experience?"], quiz: [], simulation: [], voiceQuestions: ["Tell us about a hard customer.", "Why this job?", "How do you stay calm?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+        const flow = plan === "template" ? M.generateTemplateFlow({ brief: b, rigor: "standard" }).flow : (await M.generateJobFlow({ brief: b, rigor: "standard" })).flow;
+        globalThis.__fakeSupabase = fakeSupabase();
+        await M.createJobFromFlow(flow, b, { status: "published", voiceInterview: false });
+        const row = globalThis.__fakeSupabase.inserted[0] ?? {};
+        const connection = flow.phases.some((p) => p.kind === "equipment_check");
+        const secondLanguage = /second-language reader/.test(flow.phases.find((p) => p.kind === "quiz").rationale);
+        // (A remote job's pay is in USD only with a "$"; an on-site or hybrid one is paid in its own country's money.)
+        const currencyOk = remote ? row.salary_currency !== "USD" || /\$/.test(pay) : row.salary_currency === (country === "PH" ? "PHP" : "USD");
+        check(`the ${plan} plan builds and Publish saves ${mode} (the nineteenth): ${JSON.stringify(role)}, ${location}, Type "${type}"${typeChosen ? " (typed)" : ""}, "${work.replace(/\n/g, " / ").slice(0, 40)}…" (${country})`, b0.workMode === mode && row.is_remote === remote && connection === remote && row.location_country_code === country && currencyOk && secondLanguage === (remote || country !== "US"), `${b0.workMode} saved=${row.is_remote} connection=${connection} ${row.location_country_code} ${row.salary_currency} secondLanguage=${secondLanguage}`);
+      }
+    }
+    // (H2: a written-only hotline's builder starts on chat and never asks about calls or says the interview does.)
+    {
+      const b0 = M.briefFromForm({ role: "Hotline Agent", location: "Makati City", type: "Full-time · On-site", pay: "20,000/month", start: "ASAP", work: "Responsibilities:\n- Reply to customer emails and chats\n- Resolve customer complaints and escalate when needed" });
+      const fu = M.PLAYBOOKS.customer_service.followUps({}, b0);
+      const b = { ...b0, followUps: [{ questionId: M.JOB_KIND_ID, question: "", answer: M.JOB_KIND_CHIPS[0] }, ...M.chipAnswersToBriefAnswers(fu, {})] };
+      const note = M.generateTemplateFlow({ brief: b, rigor: "standard" }).flow.phases.find((p) => p.kind === "simulation").rationale;
+      check("a written-only hotline starts on chat, asks how many chats at once, and its plan never says the interview asks about calls (the nineteenth)", fu[0].def === 0 && !/calls/i.test(fu.find((f) => f.id === "cs-load").question) && !/handle calls/.test(note), `${fu[0].def} ${fu.find((f) => f.id === "cs-load").question} | ${note}`);
     }
     const noInterview = M.applyCustomerServicePack([{ id: "ph_app", kind: "application", order: 0, title: "App", candidateDescription: "", rationale: "", config: { kind: "application", questions: [] }, rubric: { criteria: [] }, weight: 0.1, scoringMode: "auto" }], formFor("Online store", "Phone", "Remote"));
     check("a plan with no written interview never says the interview asks about calls", !/written interview/i.test(noInterview.find((p) => p.kind === "simulation").rationale), noInterview.find((p) => p.kind === "simulation").rationale);

@@ -262,7 +262,9 @@ const PLAN_AS_WORK = String.raw`(?!\s+(verif\w*|information|info|cards?|claims?|
 // (The seventeenth review: "What's in it for you?", with its question mark, as the builder's own setup line reads emoji bullets now.)
 // (The eighteenth: "What you'll get to do:" heads the duties, never the perks: "Virtual Assistant / What you'll get to do:\n-
 // Answer customer emails and live chats" was no customer service.)
-const BENEFIT_HEADING = String.raw`(benefits?|full benefits|perks?|we offer|what we offer|what you get(?!\s+to\b)|what you'll get(?!\s+to\b)|what['’]?s in it for you|compensation|compensation (and|&) benefits|why (join us|work here|work with us))`;
+// (Only "to do", the nineteenth review's LOW 2: "What you'll get to enjoy:" and "What you get to enjoy:" head the perks, and
+// their "- WFH" bullet made an on-site job remote.)
+const BENEFIT_HEADING = String.raw`(benefits?|full benefits|perks?|we offer|what we offer|what you get(?!\s+to\s+do\b)|what you'll get(?!\s+to\s+do\b)|what['’]?s in it for you|compensation|compensation (and|&) benefits|why (join us|work here|work with us))`;
 const PERKS = new RegExp(
   [
     // A "Benefits:" heading and the bullets under it.
@@ -559,7 +561,13 @@ const GUEST_DESK_TITLE = /\bguest (service|services|relations)\b/;
 // on-site desk: "Guest Services Agent / Answer guest calls and emails about reservations, check-in and check-out times and
 // billing", "Guest Relations Associate / Handle guest calls about reservations, check-ins and check-outs for our client
 // hotels", "Guest Services Agent - Hotel BPO / Handle check-ins and check-outs over the phone for US hotel guests".)
-const DESK_CHECK_INS = /\b(handl\w*|manag\w*|process\w*|perform\w*|do|doing|assist\w* with)\s+((guest|guests'?|the|all|late|early|member|members'?)\s+){0,2}check-?ins? (and|&|\/) check-?outs?\b(?![^.;\n]{0,40}\b(via|by|over|through)\s+(the\s+|our\s+|a\s+)?(phones?|video|chats?|e-?mails?|calls?)\b)/;
+// (The nineteenth: no verb list, which that evidence never needed. Only what it showed is taken out: check-ins as the topic,
+// after "about", "regarding", "with" or "on" ("Help users of our hotel booking app with check-ins and check-outs"), or their
+// times, procedures, policies, schedules or dates, and check-ins done by phone, video, chat or email, unless in person too.
+// The verbs left the most common desk posts customer service: "Front Desk Agent / Responsibilities:\n- Guest check-ins and
+// check-outs\n- Answering phone calls", "Facilitate guest check-ins and check-outs", "Check-in and check-out guests". And
+// "Handle check-ins and check-outs by phone and in person" is a desk again, its LOW 5.)
+const DESK_CHECK_INS = /(?<!\b(about|regarding|with|on)\s+([\w,'-]+\s+){0,5})\bcheck-?ins? (and|&|\/) check-?outs?\b(?!\s+(times?|procedures?|policies|polic(y|ies)|schedules?|dates?))(?![^.;\n]{0,40}\b(via|by|over|through)\s+(the\s+|our\s+|a\s+)?(phones?|video|chats?|e-?mails?|calls?)\b(?!\s+(and|or|&)\s+in[-\s]person\b))/;
 const AT_OUR_LODGING = /\b(at|in) (our|the) ([\w-]+ )?(hotel|resort|inn|hostel|motel|lodge|pension( house)?|apartelle|lobby)\b/;
 const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?)\b/;
 // Where the agent sits or when they work says nothing about whose front desk
@@ -872,7 +880,10 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
     // words since the fifteenth: PLANNER_WORK, VENUE_OWN.)
     // (...nor in a title that names a hotel or resort, the seventeenth: VENUE_OWN.)
     // (...nor the seventeenth's own two forms, only where the words name no clients; the eighteenth: VENUE_OWN_17.)
-    const venueOwn17 = VENUE_OWN_17.test(work) && !/\bclients?\b/.test(work);
+    // (...only the agency's own clients, "for our clients", "for the hotel clients", "clients we serve", as all the
+    // eighteenth's were; the nineteenth. A hotel's corporate clients are its guests: "Reservations Agent / Coordinate
+    // corporate events with the banquet team and answer calls from corporate clients" was a planner.)
+    const venueOwn17 = VENUE_OWN_17.test(work) && !/\b(for|our)( [\w-]+){0,2} clients\b|\bclients we serve\b/.test(work);
     const planner = (EVENT_PLANNER.test(`${title} ${work}`) && !VENUE_BOOKED.test(`${title} ${work}`)) || (PLANNER_WORK.test(`${title} ${work}`) && !VENUE_OWN.test(`${title} ${work}`) && !venueOwn17 && !/\b(hotel|resort)\b/.test(title));
     return !NOT_GUEST_BOOKING.test(`${title} ${work}`) && !planner && !freight && !((IN_PERSON.test(work) || AT_THE_STORE.test(work)) && !REMOTE_CHANNEL.test(work)) && !dispatch;
   }
@@ -1114,7 +1125,9 @@ export function chipAnswersToBriefAnswers(
 // that says no: "❌ WFH" in "Work setup:\n✅ Onsite\n❌ WFH".)
 // (The eighteenth: a mark after it too, "Permanent WFH 🏠", "Work From Home ✅", never one that says no, a colon or a
 // question mark: "WFH ❌", "WFH:", "WFH?".)
-const ONLY_REMOTE_LINE = /^(?![^a-z0-9]*(❌|✖|✗|✘|❎|🚫|⛔))[^a-z0-9]*((work |job )?(setup|set-up|arrangement|location|mode)\s*[:\-–]\s*)?(this is an? |this (role|position|job) is )?(permanent(ly)? |fully |100% )?(remote|work[- ]from[- ]home|wfh|home[- ]based)( (role|job|position|setup|set-up|work))?( ?\(permanent\))?(?![^a-z0-9]*(❌|✖|✗|✘|❎|🚫|⛔|:|\?))[^a-z0-9]*$/;
+// (The nineteenth, its LOW 1: only a mark that says yes or names home, as that evidence's did ("WFH 💯" too). Any other
+// mark after it read remote, a "not yet" too: "WFH 🔜", "WFH 👎", "WFH 🙅", "WFH 😢", and "WFH..." before "soon!".)
+const ONLY_REMOTE_LINE = /^(?![^a-z0-9]*(❌|✖|✗|✘|❎|🚫|⛔))[^a-z0-9]*((work |job )?(setup|set-up|arrangement|location|mode)\s*[:\-–]\s*)?(this is an? |this (role|position|job) is )?(permanent(ly)? |fully |100% )?(remote|work[- ]from[- ]home|wfh|home[- ]based)( (role|job|position|setup|set-up|work))?( ?\(permanent\))?\s*[.!]?\s*((✅|✔|✓|☑|💯|👍|🏠|🏡)\ufe0f?\s*)?$/;
 // ...and never beside a line that is only another setup, as a post hiring for two lists them ("Work setup options:\n- Onsite\n-
 // WFH", "We are hiring for two setups:\n- WFH\n- Onsite (Taguig)", "Work setup: Hybrid\n- WFH"): the sixteenth's bullets read
 // those remote, which the fifteenth built on site (the seventeenth review). Only the setup, a place in brackets at most:
@@ -1124,23 +1137,32 @@ const ONLY_ON_SITE_LINE = /^[^a-z0-9]*((work |job )?(setup|set-up|arrangement|lo
 // WFH" and "We offer:\n👉 HMO from day 1\n👉 WFH" stay perks (the seventeenth review). Only here: the classifier's PERKS
 // keeps round sixteen's bullets (the eighteenth).
 const SETUP_PERKS = new RegExp(String.raw`(?<=^|\n)[ \t]*([-•*][ \t]*)?${BENEFIT_HEADING}[^\n:.;]{0,30}[:?][ \t]*(\n[ \t]*[^\w\s][^\n]*)+`, "g");
+// A heading whose on-site line is the interview or the training, not a second setup (remoteSetupLine; the nineteenth).
+const SEPARATE_HEADING = /^[^a-z0-9]*(interviews?|training|nesting|hiring|assessments?|exams?|onboarding|orientation)\b/;
 function remoteSetupLine(work: string): boolean {
   const lines = work.toLowerCase().replace(SETUP_PERKS, " ").replace(PERKS, " ").split(/(?<=[.!?])\s+|\n+/);
   // (The eighteenth: another setup counts only under the same heading as the remote line, where a line that ends in ":"
   // starts a new heading. A bullet under "Interview:" or "Training:" is no second setup: "Work setup:\n- Permanent WFH\n
   // Interview:\n- Onsite (Makati)" and "Training:\n- Onsite (2 weeks)\nWork setup:\n- Permanent WFH" were built on site.)
-  let heading = 0;
-  const under = lines.map((line) => (/:\s*$/.test(line) ? ++heading : heading));
-  const remoteUnder = new Set(lines.flatMap((line, i) => (ONLY_REMOTE_LINE.test(line) ? [under[i]] : [])));
-  return remoteUnder.size > 0 && !lines.some((line, i) => ONLY_ON_SITE_LINE.test(line) && remoteUnder.has(under[i]));
+  // (The nineteenth: only an interview, training, nesting, hiring, assessment, exam, onboarding or orientation heading, the
+  // eighteenth's evidence, is another heading. Any heading let a WFH line under it undo an on-site setup, so on-site jobs were
+  // built and saved remote: "Work setup:\n- Onsite (Makati)\nAfter regularization:\n- WFH", "Option 1:\n- Onsite (Makati)\n
+  // Option 2:\n- WFH", and a perk under a heading BENEFIT_HEADING does not know, "What we can offer:\n- HMO\n- WFH".)
+  let heading = "";
+  const under = lines.map((line) => (/:\s*$/.test(line) ? (heading = line) : heading));
+  return lines.some((line) => ONLY_REMOTE_LINE.test(line)) && !lines.some((line, i) => ONLY_ON_SITE_LINE.test(line) && !SEPARATE_HEADING.test(under[i]));
 }
 
 /** What the job builder's Type field starts on (AvaCreateJob.tsx). Until the business types in it, its "On-site" is only
  *  this default, which the place, the title and What they do may overrule (briefFromForm). */
 export const DEFAULT_JOB_TYPE = "Full-time · On-site";
-// The default's own form once the business has changed only its employment word: "Part-time · On-site", "Contract ·
+// The default's own tail once the business has changed only what comes before it: "Part-time · On-site", "Contract ·
 // On-site", "Full time · On-site", "Project-based · On-site", or the default retyped (the eighteenth review).
-const DEFAULT_PLACE_LEFT = /^\s*((full|part)[-\s]?time|contract(ual)?|temporary|freelance|project[-\s]based|permanent|seasonal|casual|internship)\s*·\s*on-site\s*$/;
+// (The nineteenth: whatever employment wording comes before it, not a closed list of words, so "Regular · On-site",
+// "Probationary · On-site", "Full-time / Part-time · On-site", "Part-time (20 hrs/week) · On-site", "Full-time · Night shift
+// · On-site", "Temp · On-site" and "PRN · On-site" are the default's place too, as long as what comes before names no place
+// (placeSaysRemote) and no in-person word (briefFromForm).)
+const DEFAULT_PLACE_TAIL = /\s*·\s*on-site\s*$/;
 // A Type that says in person, which names no on-site or remote word: "Full-time · In person", "Part-time · In-store" (the
 // eighteenth review's LOW 4).
 const TYPE_IN_PERSON = /\bin[-\s]?(person|store)\b/;
@@ -1151,7 +1173,10 @@ const TYPE_IN_PERSON = /\bin[-\s]?(person|store)\b/;
 // "Work From Home CSR - Onsite Assessment in Ortigas", "WFH CSR (2 weeks onsite nesting)", "WFH CSR - Training is onsite",
 // "WFH CSR | Training: Onsite" were built on site and saved is_remote=false. "Onsite during training", "Onsite for the first
 // month" and "Onsite equipment pickup" stay on site, as "Onsite 2 weeks then Permanent WFH" does.)
-const ON_SITE_TRAINING = /\b(on[-\s]?site|in[-\s]?office|office[-\s]based)\s+(training|onboarding|orientation|nesting|interviews?|hiring|exams?|assessments?)\b|\b(training|interviews?|nesting)\s*(is\s+|:\s*)(on[-\s]?site|in[-\s]?office)\b/gi;
+// (The nineteenth: training, an interview or nesting followed by on site with a plain space too, the word order Philippine
+// posts use: "WFH CSR (Training Onsite)", "WFH CSR - Training onsite in Makati", "WFH CSR (Interview Onsite)", and a Type
+// "Full-time · WFH (training onsite)" were built on site. "Onsite then WFH" and "Onsite for 2 weeks training" stay on site.)
+const ON_SITE_TRAINING = /\b(on[-\s]?site|in[-\s]?office|office[-\s]based)\s+(training|onboarding|orientation|nesting|interviews?|hiring|exams?|assessments?)\b|\b(training|interviews?|nesting)(\s+is\s+|\s*:\s*|\s+)(on[-\s]?site|in[-\s]?office)\b/gi;
 
 export function briefFromForm(fields: {
   role: string;
@@ -1181,22 +1206,29 @@ export function briefFromForm(fields: {
   // whether it says remote, so "Full-time · Onsite (WFH after regularization)", "Full-time · On-site, WFH not available" and
   // "Full-time · Onsite (Remote not available)" were built remote. Only on-site training is taken out, as from a title:
   // "Full-time · WFH (onsite training)" is remote. "Full-time · Onsite then WFH" is on site, as the title rule reads it.)
-  const typePlace = placeSaysRemote(wm.replace(ON_SITE_TRAINING, " "));
+  const typeBesidesTraining = wm.replace(ON_SITE_TRAINING, " ");
+  const typePlace = placeSaysRemote(typeBesidesTraining);
   const titleBesidesTraining = fields.role.replace(ON_SITE_TRAINING, " ");
   // (The eighteenth: any keystroke in Type marked it chosen, so a business that changed "Full-time" to "Part-time" and left
   // the default's "· On-site" had chosen on site: "Work From Home Chat Support Agent" with "Part-time · On-site" was built and
   // saved on site, a US one paid in USD. The business chose the employment word, not the place. So the default's own form,
-  // an employment word and "· On-site" (DEFAULT_PLACE_LEFT), is still the default's place, typed or not, and an old draft
+  // an employment word and "· On-site" (DEFAULT_PLACE_TAIL), is still the default's place, typed or not, and an old draft
   // with no record reads it the same way. A place typed in it decides: "On-site", "On-site only", "Office-based", "Not
   // remote", "Full-time · On-site (Makati)", and "In person" or "In-store", which name no remote word (TYPE_IN_PERSON).)
-  const onSiteTypeChosen = typeChosen && !DEFAULT_PLACE_LEFT.test(wm) && (typePlace === "not_remote" || (typePlace === null && TYPE_IN_PERSON.test(wm)));
+  // (The nineteenth: any employment wording before the tail, DEFAULT_PLACE_TAIL. "Full-time · Onsite", "Full-time, On-site"
+  // and "Full-time - On-site" are typed, not the default's, and still decide.)
+  const defaultTail = DEFAULT_PLACE_TAIL.test(wm) && placeSaysRemote(wm.replace(DEFAULT_PLACE_TAIL, "")) === null && !TYPE_IN_PERSON.test(wm);
+  const onSiteTypeChosen = typeChosen && !defaultTail && (typePlace === "not_remote" || (typePlace === null && TYPE_IN_PERSON.test(wm)));
   // The Type field ("Full-time · Remote", "Work from home", "WFH") first, then
   // the place: the Type field starts on "Full-time · On-site", and a place
   // written "Remote", "Home-based, Philippines" or "Makati (WFH)" is a remote
   // job whatever it still says (the second and third Phase 7 product audits:
   // those were built on-site, with no connection check). One rule for both,
   // placeSaysRemote (src/lib/jobLocation.ts).
-  if (/\bhybrid\b/.test(wm)) workMode = "hybrid";
+  // (The nineteenth: the Type takes the place field's own hybrid rule, placeSaysHybrid, now that it is read whole: "Full-time ·
+  // Remote (occasional onsite)", "Full-time · WFH or Onsite" and "Full-time · On-site / Remote" were the business's on-site
+  // choice, decided over the title, where the place field reads them hybrid. On-site training is still the training.)
+  if (/\bhybrid\b/.test(wm) || placeSaysHybrid(typeBesidesTraining)) workMode = "hybrid";
   else if (typePlace === "remote") workMode = "remote";
   else if (placeSaysRemote(fields.location) === "remote") workMode = "remote";
   // (A place partly at home is hybrid: "Remote with occasional onsite", "WFH or Onsite (Makati)", never "no hybrid"; the twelfth Phase 4 review.)

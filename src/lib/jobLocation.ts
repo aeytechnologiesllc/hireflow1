@@ -134,9 +134,17 @@ export function inferCountryCode(locationText?: string | null): string | null {
   // left counted, so "Remote (US company) - Full-time", "Remote (US-based position) - Night shift", "Remote - US-based role,
   // EST hours" and "Remote (UK-based role) - GMT hours" lost their country, and a job the geocoder missed was saved with
   // none and the note as its city. "Las Pinas (US company)" still has no country.)
+  // (The nineteenth: a country or a city named once the client's words are gone is the job's own, wherever it stands, as the
+  // sixteenth and seventeenth read it; the eighteenth's rule is only for a note that names none. It threw away a place after
+  // the client: "US company - Makati", "Remote (US company) - India", "Remote (UK company) - India", "US startup | Remote |
+  // India" were saved in the client's country, a Philippine job paid in USD. "US company - Mandaluyong", a city the hints do
+  // not know after the client's words, is still the US: Publish's city reader asks this of "(US company) - Full-time" once
+  // "Remote" is gone (fallbackLocationFields, jobFromFlow.ts), and nothing tells the two notes apart.)
+  const own = countryOfText(elsewhere);
+  if (own) return own;
   const first = FIRST_CLIENT_IF_ELSEWHERE.exec(kept);
   const placeLeft = /[a-z]/i.test((first ? kept.slice(0, first.index) : elsewhere).replace(NOT_A_PLACE, " "));
-  return countryOfText(placeLeft ? elsewhere : kept);
+  return placeLeft ? null : countryOfText(kept);
 }
 function countryOfText(text: string): string | null {
   if (!text.trim()) return null;
