@@ -589,7 +589,9 @@ const AT_OUR_LODGING = /\b(at|in) (our|the) ([\w-]+ )?(hotel|resort|inn|hostel|m
 // Airbnb host's lodgings are: a hotel account's check-ins are not its own door.)
 // (The twenty-third: "partner", "US" and "UK" hotels only after "for" or "of": "Experience in US hotels is an advantage" and
 // "coordinate room transfers with our partner hotels" are a real desk's.)
-const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|\b(for|of) (our |a |an |the )?(partner|us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
+// (The twenty-fourth: "partner hotels" anywhere but after "with our/the", and US or UK hotels anywhere but shortly after
+// "experience": "for guests staying at US hotels" and "across our partner hotels" are an account's again.)
+const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|(?<!\bwith (our |the )?)partner hotels?|(?<!\bexperience\b[^.;\n]{0,30})\b(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
 // Where the agent sits or when they work says nothing about whose front desk
 // it is: "office hours", "work in our office in Ortigas" (the ninth review).
 const OFFICE_NOT_VENUE = /\b(work|working|report|reporting|based|stationed|sit|sitting)\s+(in|at|from|out of)\s+(our|the|an?)\s+([\w']+\s+)?office\b|\boffice[- ](hours|based|setup|set-up|schedule|days?)\b|\b(in|home|back)[- ]office\b/g;
@@ -865,7 +867,10 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
   // (The twenty-third: never a greeting "on the phone" or "on every call", and never "in person" or "face-to-face" beside an
   // interview, exam, assessment, hiring, screening, orientation, training or application: "Face-to-face interview in
   // Makati" made a phone guest-services job a desk.)
-  const atTheDoor = /\bat the entrance\b/.test(work) || (/\bat the front desk\b/.test(work) && (DOOR_VENUE.test(title) || AT_THE_VENUE_DESK.test(work) || lodgingDesk)) || (lodgingDesk && (hostCheckIns || /\b(greet\w*|welcom\w*)( and (greet\w*|welcom\w*))? (our |the |arriving |incoming )?guests\b(?![^.;\n]{0,60}\b(on|over|by) (the |every |each |all )?(phones?|telephones?|calls?)\b)|\bin the (hotel )?lobby\b|\bwalk[- ]in guests\b|\b(in[- ]person|face[- ]to[- ]face)\b(?<!\binterviews?\s+(is\s+|are\s+|will be\s+)?(in[- ]person|face[- ]to[- ]face))(?!\s+((final|initial|first|job)\s+)?(interviews?|exams?|assessments?|hiring|screening|orientation|training|applications?)\b)/.test(work)));
+  // (The twenty-fourth: the greeting's "by phone" window stops at a comma, so "Greet and welcome guests, process check-ins…,
+  // answer inquiries by phone" is a desk again; and the interview, training or onboarding beside "in person" is read in the
+  // same sentence or line, in any wording: "Interview: face to face.", "Training is in person in Makati.")
+  const atTheDoor = /\bat the entrance\b/.test(work) || (/\bat the front desk\b/.test(work) && (DOOR_VENUE.test(title) || AT_THE_VENUE_DESK.test(work) || lodgingDesk)) || (lodgingDesk && (hostCheckIns || /\b(greet\w*|welcom\w*)( and (greet\w*|welcom\w*))? (our |the |arriving |incoming )?guests\b(?![^.;\n,]{0,60}\b(on|over|by|via|through|during|when answering) (the |every |each |all |a )?(phones?|telephones?|calls?|chats?|e-?mails?)\b)|\bin the (hotel )?lobby\b|\bwalk[- ]in guests\b|(?<!\b(interviews?|training|exams?|assessments?|hiring|screening|orientation|onboarding|nesting|applications?|apply|applicants?)\b[^.;\n]{0,80})\b(in[- ]person|face[- ]to[- ]face)\b(?![^.;\n]{0,80}\b(interviews?|training|exams?|assessments?|hiring|screening|orientation|onboarding|nesting|applications?|apply)\b)/.test(work)));
   const offTheFloor = REMOTE_CHANNEL.test(title) || ONLINE_BUSINESS.test(title) || OFF_THE_FLOOR.test(floorWork) || ONLINE_BUSINESS.test(work) || REMOTE_WORDS.test(work) || (REMOTE_CHANNEL.test(floorWork) && !AT_THE_STORE.test(work) && !atTheDoor);
   // (...or the counter's own duties, which a title with no store part said nothing of: "Customer Service Associate / Greet
   // customers, take orders and handle the cash register", "Customer Service Representative / Take customer orders, prepare
@@ -1175,6 +1180,7 @@ const SETUP_PERKS = new RegExp(String.raw`(?<=^|\n)[ \t]*([-•*][ \t]*)?${BENEF
 // (The twenty-first: the hiring's own setup, mode, venue, site, location or steps, and a recruitment, application or selection
 // process; never a bare "Hiring now:" or "Hiring CSRs:", which list the job's setups.)
 const SEPARATE_HEADING = /^[^a-z0-9]*((?!(after|post|upon|once|until|before)\b)[\w-]+\s+){0,2}(interviews?|training|nesting|(hiring|recruitment|application|selection) (process|set-?up|mode|venue|site|location|steps?)|assessments?|exams?|onboarding|orientation)\b/;
+const HIRING_HEADING = /^[^a-z0-9]*((?!(after|post|upon|once|until|before)\b)[\w-]+\s+){0,2}(hiring|recruitment|application|selection) (process|set-?up|mode|venue|site|location|steps?)\b/;
 function remoteSetupLine(work: string): boolean {
   const lines = work.toLowerCase().replace(SETUP_PERKS, " ").replace(PERKS, " ").split(/(?<=[.!?])\s+|\n+/);
   // (The eighteenth: another setup counts only under the same heading as the remote line, where a line that ends in ":"
@@ -1187,11 +1193,15 @@ function remoteSetupLine(work: string): boolean {
   let heading = "";
   // (The twenty-third: a line with its own "Work setup:" label belongs to no heading, and a remote line is set aside only when
   // an on-site line sits under the same hiring heading: a WFH setup after a training or hiring section was built on site.)
-  const under = lines.map((line) => (/:\s*$/.test(line) ? (heading = line) : /^[^a-z0-9]*((work|job) )?(setup|set-up|arrangement)\s*[:\-–]\s*[a-z0-9]/.test(line) ? "" : heading));
+  // (The twenty-fourth: hiring headings only (HIRING_HEADING), as the comment says, so a training's own "- Setup: Onsite" is
+  // the training's; the label that frees a line needs "work" or "job" and takes "location" and "mode" too; and the headings
+  // with an on-site line are read once, so the check is linear: 15,000 lines under one heading took over a second.)
+  const under = lines.map((line) => (/:\s*$/.test(line) ? (heading = line) : /^[^a-z0-9]*(work|job) (setup|set-up|arrangement|location|mode)\s*[:\-–]\s*[a-z0-9]/.test(line) ? "" : heading));
   // (The twenty-second: a remote line under the hiring's own heading is the hiring's too, so "Hiring setup:\n✅ Onsite\n✅
   // WFH" lists two setups, as it did before the twenty-first set its on-site line aside.)
   const onSite = lines.map((line) => ONLY_ON_SITE_LINE.test(line));
-  const listsTwo = (i: number) => SEPARATE_HEADING.test(under[i]) && lines.some((_, j) => onSite[j] && under[j] === under[i]);
+  const onSiteUnder = new Set(under.filter((_, j) => onSite[j]));
+  const listsTwo = (i: number) => HIRING_HEADING.test(under[i]) && onSiteUnder.has(under[i]);
   return lines.some((line, i) => ONLY_REMOTE_LINE.test(line) && !listsTwo(i)) && !lines.some((_, i) => onSite[i] && !SEPARATE_HEADING.test(under[i]));
 }
 

@@ -304,7 +304,11 @@ seconds on 90 KB). In this order:
    the phone, never "in person" or "face-to-face" beside an interview,
    exam, training or application, check-in requests or concerns a topic
    only after "with", and "partner", "US" or "UK" hotels someone else's
-   only after "for" or "of"), their
+   only after "for" or "of"; the twenty-fourth: "partner hotels" anywhere
+   but after "with our/the", US or UK hotels anywhere but shortly after
+   "experience"; a greeting's "by phone" stops at a comma, and the
+   interview, training or onboarding beside "in person" is read in its
+   own sentence or line, in any wording), their
    times, policies, schedules (the twentieth: not procedures, "Assist with
    check-in and check-out procedures" is the desk's; the twenty-second:
    requests, concerns, issues, inquiries, questions, problems, changes)
@@ -611,7 +615,10 @@ the same things:
    Onsite\n✅ WFH" lists two setups and builds on site, but only when an
    on-site line sits under that same heading, and a line with its own
    "Work setup:" label belongs to no heading (the twenty-third: a WFH
-   setup after a training or hiring section was built on site); the words are
+   setup after a training or hiring section was built on site; the
+   twenty-fourth: under hiring headings only, so a training's own "-
+   Setup: Onsite" is the training's, and "Work location:" or "Work mode:"
+   lines belong to no heading either); the words are
    any of hiring, recruitment, application or selection with any of
    process, setup, mode, venue, site, location or steps), keeps its on-site line
    from the setup: under any other, "Work setup:\n- Onsite (Makati)\nAfter

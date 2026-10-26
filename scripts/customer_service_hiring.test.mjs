@@ -550,6 +550,16 @@ const CS = [
   ["Guest Relations Associate", "Greet guests warmly on every call and help them with reservations."],
   ["Guest Service Representative", "Welcome guests on the phone and help them with bookings and refunds."],
   ["Guest Services Agent", "Assist guests over the phone with booking changes and check-in/check-out."],
+  // The twenty-fourth (H2, M1): an interview, training or onboarding in person, in any wording, and a greeting by phone or
+  // chat are no door; hotels named "at", "staying at" or "across" are still someone else's.
+  ["Guest Services Agent", "Handle calls and emails from hotel guests about bookings, refunds and amenities. Interview: face to face."],
+  ["Guest Services Agent", "Handle calls and emails from hotel guests about bookings, refunds and amenities. Face-to-face or online interview."],
+  ["Guest Services Agent", "Handle calls and emails from hotel guests about bookings, refunds and amenities. Training is in person in Makati."],
+  ["Guest Services Agent", "Handle calls and emails from hotel guests about bookings, refunds and amenities. In-person onboarding in our Ortigas office."],
+  ["Guest Services Agent", "Handle calls and emails from hotel guests about bookings, refunds and amenities. You will report in person for training."],
+  ["Guest Relations Associate", "Greet guests via phone and help them with reservations and refunds."],
+  ["Guest Services Agent", "Help guests staying at US hotels with booking changes; answer calls and emails."],
+  ["Guest Services Agent", "Handle bookings and refunds across our partner hotels; answer calls and emails from guests."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -1041,6 +1051,10 @@ const NOT_CS = [
   ["Front Desk Officer", "Attend to guest check-in and check-out concerns and answer phone calls.", "admin"],
   ["Front Desk Agent", "Handle check-ins and check-outs and answer phone calls. Experience in US hotels is an advantage.", "general"],
   ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and coordinate room transfers with our partner hotels.", "admin"],
+  // The twenty-fourth (H1, M1): a greeting's "by phone" window stops at a comma, so a desk that greets guests and then
+  // answers inquiries by phone is a desk; and US hotels in an experience line are the applicant's past, not an account.
+  ["Front Desk Agent", "Greet and welcome guests, process check-ins and check-outs, answer inquiries by phone and email and process payments.", "general"],
+  ["Front Desk Agent", "Handle check-ins and check-outs and answer phone calls. Experience working for US hotels is a plus.", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));

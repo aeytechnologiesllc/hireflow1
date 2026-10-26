@@ -435,6 +435,20 @@ for (const [text, code] of [
   for (const work of ["Answer customer chats.\nTraining:\n- 2 weeks paid training\nWork setup: Permanent WFH","Answer customer chats.\nHiring Process:\n- Initial Interview\n- Assessment\n- Final Interview\nWork Setup: Permanent WFH\nSchedule: Night Shift","Answer customer chats.\nTraining:\n- 1 week paid training\n✅ Permanent WFH\n✅ HMO","Answer customer chats.\nHiring setup:\n✅ WFH","Answer customer chats.\nHiring setup:\n- Onsite (Makati)\nWork setup: Permanent WFH"]) check(`"${work.replace(/\n/g, " / ")}" is built remote (the twenty-third)`, mode(work) === "remote", mode(work));
   for (const work of ["Answer customer calls and emails.\nHiring setup:\n✅ Onsite\n✅ WFH","Answer customer calls.\nApplication process:\n- WFH\n- Onsite"]) check(`"${work.replace(/\n/g, " / ")}" is still built on site (the twenty-third)`, mode(work) === "onsite", mode(work));
 }
+// The twenty-fourth Phase 4 review (H3): the two-setup rule is for hiring headings only, so a training's own "- Setup:
+// Onsite" bullet or "- Onsite (2 weeks)" is the training's; "Work location:" and "Work mode:" lines belong to no heading. And
+// (LOW 1) the rule reads each heading once, so 15,000 lines under one heading take milliseconds, not seconds, on every keystroke.
+{
+  const mode = (work) => M.briefFromForm({ role: "Customer Service Representative", location: "Makati City", type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
+  for (const work of ["Answer customer chats.\nWork Setup: Permanent WFH\nTraining:\n- Duration: 2 weeks\n- Setup: Onsite (Makati)","Answer customer chats.\nTraining:\n- Onsite (2 weeks)\n✅ Permanent WFH\n✅ HMO","Answer customer chats.\nTraining:\n- 2 weeks paid training\nWork location: Remote","Answer customer chats.\nInterview:\n- Online\nWork mode: WFH"]) check(`"${work.replace(/\n/g, " / ")}" is built remote (the twenty-fourth)`, mode(work) === "remote", mode(work));
+  for (const work of ["Answer customer calls and emails.\nHiring setup:\n✅ Onsite\n✅ WFH"]) check(`"${work.replace(/\n/g, " / ")}" is still built on site (the twenty-fourth)`, mode(work) === "onsite", mode(work));
+  for (const work of ["Training:\n" + "- WFH\n".repeat(15000) + "- Onsite\n", "Hiring setup:\n" + "✅ WFH\n".repeat(15000) + "✅ Onsite\n"]) {
+    const t0 = performance.now();
+    mode(work);
+    const ms = performance.now() - t0;
+    check(`15,000 setup lines under one heading are read in well under a second (${ms.toFixed(0)} ms, the twenty-fourth)`, ms < 400, `${ms.toFixed(0)} ms`);
+  }
+}
 // Publish saves is_remote as the brief's work mode (src/lib/jobFromFlow.ts). That is the fifteenth's rule exactly, which also
 // read the post when the place or Type said remote, only while these two hold: every place or Type that says remote makes the
 // brief remote or hybrid, and no employment type reads as a place (the sixteenth review).
