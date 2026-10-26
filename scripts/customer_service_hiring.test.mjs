@@ -1109,6 +1109,12 @@ const NOT_CS = [
   ["Front Desk Officer", "Handle check-ins and check-outs, answer phone calls and process payments.\nWork experience not less than 2 years in US hotels.", "admin"],
   ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nNO PLACEMENT FEE\nExperience: 1 year as a front desk agent in US hotels", "general"],
   ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nQualifications:\n- No tattoos\n- Experience in US hotels preferred", "general"],
+  // The thirty-second (M2, M3): a seller's or merchant's support line followed by an operations head (coordinator,
+  // technician, VA…) is that job, not customer service; and "not lesser than", the Philippine form, is the applicant's past.
+  ["Seller Support Coordinator", "Coordinate with suppliers, upload products to Shopee and Lazada and track stock levels.", "admin"],
+  ["Merchant Support Technician", "Install, repair and replace POS terminals at merchant locations.", "general"],
+  ["Seller Support VA", "Manage our Amazon and Shopify store listings, update inventory and run PPC campaigns.", "cash"],
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nExperience: Not lesser than 1 year in US hotels.", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -1515,6 +1521,12 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Customer Service Representative", "Call patients to confirm appointments and answer their questions.", "phone"],
     ["Customer Service Representative", "Call back customers who left a message.", "phone"],
     ["Chat Support Agent", "Chat only, never call customers.", "chat"],
+    // The thirty-second (M1): "on-call" support, "phone" as a noun and a customer word that begins a support line ("phone
+    // customer service experience") are no calls of the agent's.
+    ["Customer Support Specialist", "Answer customer emails and support tickets in Zendesk for our SaaS product. Provide on-call customer support one weekend a month.", "email"],
+    ["Technical Support Engineer", "Troubleshoot API issues by email and Slack. Join the on-call customer support rotation.", "email"],
+    ["Customer Service Representative", "Answer customer chats and emails. Previous phone customer service experience is a plus.", "chat"],
+    ["Chat Support Agent", "Help our mobile phone customers with billing, load and SIM concerns.", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {

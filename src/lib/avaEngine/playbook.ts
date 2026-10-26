@@ -65,8 +65,9 @@ const CS_TITLE = new RegExp(
   [
     String.raw`\b(customer|client|guest|member|player) (services?|supports?|care|success|experience|happiness|relations)\b`,
     // A seller's, merchant's, rider's or driver's support is the platform's customer service, as "Merchant Support Agent" is
-    // (the thirty-first Phase 4 review: the bare noun read as the cash family).
-    String.raw`\b(seller|merchant|rider|driver|courier|subscriber|passenger) (supports?|care)\b`,
+    // (the thirty-first Phase 4 review: the bare noun read as the cash family), never with an operations head after it,
+    // "Seller Support Coordinator", "Merchant Support Technician", "Seller Support VA" (the thirty-second).
+    String.raw`\b(seller|merchant|rider|driver|courier|subscriber|passenger) (supports?|care)\b(?!\s+(coordinators?|technicians?|techs?|va|virtual assistants?|assistants?|staff|workers?|admins?|administrators?|clerks?|attendants?|field|hub|program|encoders?|analysts?|engineers?)\b)`,
     // "patient care" is nursing work; a patient services desk is customer service.
     String.raw`\bpatient (services?|experience|support) (agent|rep|representative|specialist|coordinator|advisor|associate)\b`,
     // (A hotline's agent or officer answers its calls, as Philippine posts name the phone line: "Hotline Agent / Answer calls on
@@ -610,7 +611,8 @@ const AT_OUR_LODGING = /\b(at|in) (our|the) ([\w-]+ )?(hotel|resort|inn|hostel|m
 // line, never a "NO PLACEMENT FEE" or "- No tattoos" line above.)
 // (The thirty-first: "not" turns it off before any word but "less" or "fewer", round 29's reading kept, "Experience not
 // essential!", "not compulsory"; and any space on the line, a no-break space too, between "no" and "experience".)
-const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|(?<!\bwith (our |the )?)partner hotels?|(?<!(?<!\b(guest|customer)\s+|\b(no|zero|without)[^\S\n]+([\w-]+[^\S\n]+){0,2})\bexperience\b(?!:?\s+(is\s+)?not\b(?!\s+(less|lower|below|under|more|fewer)\b))(?=:[^.;!?\n]{0,120}\b(us|u\.s\.|uk)(-based)? hotel|[^.;\n]{0,45}\b(us|u\.s\.|uk)(-based)? hotel)[^.;\n]{0,45}\b((in|at|from|with|of)\s+|working\s+for\s+)([\w-]+\s+){0,3})\b(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
+// (The thirty-second: "not lesser than", the Philippine form, is "not less than".)
+const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|(?<!\bwith (our |the )?)partner hotels?|(?<!(?<!\b(guest|customer)\s+|\b(no|zero|without)[^\S\n]+([\w-]+[^\S\n]+){0,2})\bexperience\b(?!:?\s+(is\s+)?not\b(?!\s+(less(er)?|lower|below|under|more|fewer)\b))(?=:[^.;!?\n]{0,120}\b(us|u\.s\.|uk)(-based)? hotel|[^.;\n]{0,45}\b(us|u\.s\.|uk)(-based)? hotel)[^.;\n]{0,45}\b((in|at|from|with|of)\s+|working\s+for\s+)([\w-]+\s+){0,3})\b(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
 // Where the agent sits or when they work says nothing about whose front desk
 // it is: "office hours", "work in our office in Ortigas" (the ninth review).
 const OFFICE_NOT_VENUE = /\b(work|working|report|reporting|based|stationed|sit|sitting)\s+(in|at|from|out of)\s+(our|the|an?)\s+([\w']+\s+)?office\b|\boffice[- ](hours|based|setup|set-up|schedule|days?)\b|\b(in|home|back)[- ]office\b/g;
