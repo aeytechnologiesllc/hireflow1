@@ -23,7 +23,7 @@
  *     waiting over three hours) is told to the admins once a day, through
  *     claim_daily_alert; a short queue is not;
  *   - it is read through storage_file_trash_fair_pick (the stand-in below
- *     answers as 20261025600000 does; the SQL itself is proved in
+ *     answers as 20261025620000 does; the SQL itself is proved in
  *     launch_locks_behaviour, sections 14 and 15): one person's 450 notes
  *     never keep another's out of the run (the eighth security review);
  *     the backlog alert says how to tell one account from many (the tenth),
@@ -48,7 +48,11 @@
  *     deletes it (the thirteenth Phase 5 review); a file sent again on a
  *     request still open (queued by the database, 20261025640000) goes alone,
  *     never the request's folder or the file it links now; and when it cannot
- *     tell which requests are open, it touches none and tells the admins.
+ *     tell which requests are open, it touches none and tells the admins;
+ *   - a pick the database stops at its time limit is told as such, with who
+ *     to look for, never only "it tries again every hour" (the twelfth
+ *     security review: ranking the whole queue, the pick timed out on every
+ *     run from about 700,000 notes on).
  *
  * Run with: node scripts/document_cleanup.test.mjs
  */
@@ -117,6 +121,10 @@ function freshWorld() {
     // document_cleanup_served: when the ID-paper picks last took each business ('due' or 'deleted').
     docServed: new Map(),
     dueArgs: [],
+    // An error a pick answers with instead of its rows, by function name.
+    rpcError: {},
+    // The ID requests with no link the due pick has looked at (document_requests_swept).
+    swept: new Set(),
   };
 }
 
@@ -127,7 +135,10 @@ function freshWorld() {
  * for before p_sent_before; each business's longest-due paper first,
  * businesses in turn (by when they were last taken or it became due,
  * whichever is later), then the businesses with the fewest due first; 200 a
- * run. It records whom it took.
+ * run. It records whom it took. And, as 20261025630000 adds, before it picks
+ * it looks once at each ID request with no link asked for before
+ * p_sent_before and queues each file in its own folder in
+ * document_file_trash, naming the business (document_requests_sweep_strays).
  */
 function duePick(args) {
   world.dueArgs.push(args);
@@ -136,6 +147,15 @@ function duePick(args) {
   const sent = Date.parse(args?.p_sent_before);
   const kinds = Array.isArray(args?.p_kinds) ? args.p_kinds : [];
   const at = (v) => (v == null ? NaN : Date.parse(v));
+  for (const r of world.tables.document_requests) {
+    if (r.file_url != null || !["government_id", "nbi_clearance", "proof_of_address"].includes(r.document_type) || !kinds.includes(r.document_type) || !(at(r.created_at) <= sent) || world.swept.has(r.id)) continue;
+    world.swept.add(r.id);
+    for (const name of [...world.storage["requested-documents"]].filter((p) => p.startsWith(`${r.candidate_id}/${r.id}/`)).sort()) {
+      if (!world.tables.document_file_trash.some((t) => t.request_id === r.id && t.file_url === name)) {
+        world.tables.document_file_trash.push({ id: `stray-${world.tables.document_file_trash.length + 1}`, candidate_id: r.candidate_id, request_id: r.id, file_url: name, employer_id: r.employer_id, attempts: 0, last_tried_at: null, queued_at: new Date(now).toISOString() });
+      }
+    }
+  }
   const rows = world.tables.document_requests.filter((r) =>
     r.file_url != null && kinds.includes(r.document_type) &&
     ((r.team_opened_at != null && at(r.team_opened_at) <= opened) ||
@@ -196,16 +216,17 @@ function trashPick() {
 
 const order = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 /**
- * storage_file_trash_fair_pick as 20261025600000 makes it: the folders
+ * storage_file_trash_fair_pick as 20261025620000 makes it: the folders
  * (exact false, 200, 6 from one person) or the exact paths (exact true,
  * 1,000, 40 from one person); a note that failed waits behind every note that
  * is due for an hour a try (up to a day) and half an hour more; each person's
  * turn (their fewest-tries, oldest note, or all of their notes when they hold
- * no more than 3 folders or 6 exact paths), people in turn (by when they were
- * last taken or their first note became due, whichever is later; the fewest
- * waiting first among turns that come at once), each turn whole or not at
- * all; then the rest, the people with the fewest waiting first. It records
- * whom it took.
+ * no more than 3 folders or 6 exact paths, or up to that many in a later
+ * turn while they hold no more than twice that), people in turn (by when
+ * they were last taken or their first note became due, whichever is later;
+ * the fewest waiting first among turns that come at once), each turn whole
+ * or not at all; then the rest, the people with the fewest waiting first. It
+ * records whom it took.
  */
 function fairPick(exact) {
   const person = (r) => r.candidate_id ?? r.application_id ?? `${r.bucket}:${r.path ?? r.folder}`;
@@ -217,7 +238,10 @@ function fairPick(exact) {
   for (const [who, rows] of groups) {
     rows.sort((a, b) => a.attempts - b.attempts || order(a.queued_at, b.queued_at) || order(a.id, b.id));
     const firstDue = due(rows[0]);
-    rows.forEach((r, i) => ranked.push({ r, who, nth: i + 1, waiting: rows.length, due: due(r), firstDue, inTurn: i === 0 || rows.length <= (exact ? 6 : 3) }));
+    // Up to a withdrawal's worth in a later turn, for someone holding no more than two (20261025620000).
+    const oldest = Math.min(...rows.map((r) => Date.parse(r.queued_at)));
+    const later = rows.length <= (exact ? 12 : 6) && (world.served.get(`${exact}:${who}`) ?? -Infinity) >= oldest;
+    rows.forEach((r, i) => ranked.push({ r, who, nth: i + 1, waiting: rows.length, due: due(r), firstDue, inTurn: i === 0 || rows.length <= (exact ? 6 : 3) || (later && i < (exact ? 6 : 3)) }));
   }
   const turn = (x) => Math.max(world.served.get(`${exact}:${x.who}`) ?? -Infinity, x.firstDue);
   const placed = ranked
@@ -289,6 +313,7 @@ function query(table) {
 function client() {
   return {
     rpc: async (fn, args) => {
+      if (world.rpcError[fn]) return { data: null, error: world.rpcError[fn] };
       if (fn === "document_requests_due_pick") return { data: duePick(args), error: null };
       if (fn === "document_file_trash_fair_pick") return { data: trashPick(), error: null };
       if (fn === "document_cleanup_secret_matches") return { data: args.p_given === SECRET, error: null };
@@ -407,7 +432,7 @@ console.log("\nThe removal queue, and a backlog\n");
   check("a run takes 200 folder notes, oldest first: their files go, then the notes", r.status === 200 && r.body?.leftoversRemoved === 200 && world.tables.storage_file_trash.length === 250 && !world.storage.videos.has(`${id(2000)}/${id(600)}-intro.webm`), show(r.body));
   check("…250 still waiting is a backlog: the admins are told", r.body?.leftoversWaiting === 250 && told("Files queued for removal are backing up") === 1, show(r.body));
   const card = world.tables.notifications.find((n) => n.title === "Files queued for removal are backing up");
-  check("…in plain words: how many, since when, how fast it clears and how long a real removal waits", /^250 files are waiting in the removal queue/.test(card?.message ?? "") && /, the oldest since \d{4}-\d\d-\d\d \d\d:\d\d UTC\./.test(card?.message ?? "") && /deletes up to 200 folders and 1,000 files an hour, people in turn: all of a person's files at once when they are no more than one withdrawal's worth \(3 folders, 6 files\), else one a turn\. So a real withdrawal goes in one run, after about an hour for every 66 people with files queued before it, and a larger removal \(a Delete Account with several applications\) gives one file a turn until it is down to that, each turn behind everyone who queued in the meantime\./.test(card?.message ?? ""), card?.message);
+  check("…in plain words: how many, since when, how fast it clears and how long a real removal waits", /^250 files are waiting in the removal queue/.test(card?.message ?? "") && /, the oldest since \d{4}-\d\d-\d\d \d\d:\d\d UTC\./.test(card?.message ?? "") && /deletes up to 200 folders and 1,000 files an hour, people in turn: all of a person's files at once when they are no more than one withdrawal's worth \(3 folders, 6 files\), else one a turn, and up to that many in each later turn while they hold no more than two withdrawals' worth \(6 folders, 12 files\)\. So a real withdrawal goes in one run, after about an hour for every 66 people with files queued before it; a Delete Account with two applications goes in three turns, and a larger removal gives one file a turn until it is down to that, each turn behind everyone who queued in the meantime\./.test(card?.message ?? ""), card?.message);
   // The eleventh security review: "about an hour for every 200 people with
   // files ahead of it" undercounted a stream of new accounts; each person
   // queued before a real withdrawal now takes up to three folders in their
@@ -710,6 +735,86 @@ console.log("\nOnly the request's own folder, and a paper sent again (the thirte
   const blind = await runIt();
   check("when it cannot read which requests are open, it deletes nothing of the queue and keeps every note as it was", world.storage["requested-documents"].has(now) && world.storage["requested-documents"].has(earlier) && world.tables.document_file_trash.length === 1 && world.tables.document_file_trash[0].attempts === 0, show(blind.body));
   check("…answers as a failed read, and the admins are told", blind.status === 500 && blind.body?.error === "read_failed" && told("Files of deleted requests are not being deleted") === 1, show(blind));
+}
+
+console.log("\nAn ID photo an open request never linked (asked of the twelfth security round)\n");
+{
+  // The upload went up, saving its link failed and so did the dialog's own
+  // removal: the request is open with no link and its folder holds the
+  // photo. Seven days after it was asked for, the due pick queues that file
+  // (20261025630000) and the same run deletes it alone: the request stays
+  // open, with no link, and nothing counts as a failure.
+  const BIZ = id(61);
+  const STRAY = id(62);
+  const EMPTY = id(63);
+  const YOUNG = id(64);
+  const ask = (rid, days) => ({ id: rid, candidate_id: ANA, employer_id: BIZ, document_type: "government_id", file_url: null, status: "pending", team_opened_at: null, submitted_at: null, created_at: hoursAgo(24 * days) });
+  const strayFile = `${ANA}/${STRAY}/1729000000000.jpg`;
+  const youngFile = `${ANA}/${YOUNG}/1729000000000.jpg`;
+  reset((w) => {
+    w.tables.document_requests.push(ask(STRAY, 8), ask(EMPTY, 8), ask(YOUNG, 6));
+    for (const p of [strayFile, youngFile]) w.storage["requested-documents"].add(p);
+  });
+  const r = await runIt();
+  check("an ID request with no link, asked for 8 days ago, whose folder holds a photo: the photo is deleted in that run", r.status === 200 && !world.storage["requested-documents"].has(strayFile) && world.tables.document_file_trash.length === 0, show({ body: r.body, left: world.tables.document_file_trash }));
+  check("…the request stays open, with no link, and nothing counts as a failure", world.tables.document_requests.find((q) => q.id === STRAY)?.file_url === null && r.body?.failed === 0 && r.body?.orphansFailed === 0 && told("ID papers were not deleted on time") === 0, show(r.body));
+  check("…one asked for 6 days ago keeps its photo for now, and one with nothing in its folder costs nothing", world.storage["requested-documents"].has(youngFile) && r.body?.orphans === 1, show(r.body));
+  // Both ways: by the time the run comes, the applicant has linked that very
+  // file after all; it is their paper now, deleted on its own clock.
+  reset((w) => {
+    w.tables.document_requests.push(ask(STRAY, 8));
+    w.storage["requested-documents"].add(strayFile);
+  });
+  await duePick({ p_kinds: ["government_id", "nbi_clearance", "proof_of_address"], p_opened_before: hoursAgo(24), p_sent_before: hoursAgo(24 * 7) });
+  Object.assign(world.tables.document_requests.find((q) => q.id === STRAY), { file_url: strayFile, status: "submitted", submitted_at: new Date().toISOString() });
+  world.dueArgs.length = 0;
+  const relinked = await runIt();
+  check("…and a photo the request links by the time of the run is kept (its note goes)", relinked.status === 200 && world.storage["requested-documents"].has(strayFile) && world.tables.document_file_trash.length === 0, show(relinked.body));
+}
+
+console.log("\nA pick the database stops at its time limit (the twelfth security review)\n");
+{
+  // Ranking the whole removal queue, the pick passed the API's 8-second
+  // statement timeout at about 700,000 notes; every run then failed to read
+  // it, the alert said only "It tries again every hour", which never helped,
+  // and the backlog alert (which says how to find the accounts) stopped,
+  // since it runs only after a read. The picks read only a run's worth now;
+  // a read that still times out says so, and how to find who fills it.
+  const TIMEOUT = { code: "57014", message: "canceling statement due to statement timeout" };
+  const DUE = id(801);
+  reset((w) => {
+    w.rpcError.storage_file_trash_fair_pick = TIMEOUT;
+    w.tables.storage_file_trash.push({ id: "q1", bucket: "videos", folder: id(2001), starts_with: `${id(601)}-`, path: null, candidate_id: id(2001), application_id: id(601), attempts: 0, queued_at: hoursAgo(5) });
+    w.tables.document_requests.push({ id: DUE, candidate_id: ANA, employer_id: id(21), document_type: "government_id", file_url: `${ANA}/${DUE}/1.jpg`, status: "submitted", team_opened_at: hoursAgo(25), submitted_at: hoursAgo(30), created_at: hoursAgo(40) });
+    w.storage["requested-documents"].add(`${ANA}/${DUE}/1.jpg`);
+  });
+  const r = await runIt();
+  const card = world.tables.notifications.find((n) => n.title === "Files queued for removal are not being deleted");
+  check("the removal queue's pick timed out: the run answers as a failed read, and the ID papers still go", r.status === 500 && r.body?.error === "read_failed" && !world.storage["requested-documents"].has(`${ANA}/${DUE}/1.jpg`), show(r));
+  check(
+    "…and the admins are told it timed out, that trying again will not help, and how to find who fills the queue",
+    told("Files queued for removal are not being deleted") === 1 &&
+      /took longer than the database allows and was stopped \(canceling statement due to statement timeout\): nothing in that queue is deleted until it is read in time, and trying again every hour does not help while the queue is this big\./.test(card?.message ?? "") &&
+      /check that table and its triggers are there\. To see who fills the queue, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each\.$/.test(card?.message ?? ""),
+    card?.message,
+  );
+  reset((w) => {
+    w.rpcError.storage_file_trash_fair_pick = { code: "08006", message: "connection reset" };
+  });
+  await runIt();
+  const other = world.tables.notifications.find((n) => n.title === "Files queued for removal are not being deleted");
+  check("…another read failure is told as before (it tries again every hour)", /could not read the files queued for removal \(.*\) \(connection reset\)\. It tries again every hour\.$/.test(other?.message ?? "") && !/time limit|took longer/.test(other?.message ?? ""), other?.message);
+  reset((w) => {
+    w.rpcError.document_file_trash_fair_pick = TIMEOUT;
+    w.rpcError.document_requests_due_pick = { message: "canceling statement due to statement timeout" };
+  });
+  await runIt();
+  const trashCard = world.tables.notifications.find((n) => n.title === "Files of deleted requests are not being deleted");
+  const dueCard = world.tables.notifications.find((n) => n.title === "ID papers are not being deleted");
+  check("the papers' picks timed out: each is told so, with who to look for (rows by employer_id)",
+    /took longer than the database allows and was stopped/.test(trashCard?.message ?? "") && /count document_file_trash's rows by employer_id\.$/.test(trashCard?.message ?? "") &&
+      /took longer than the database allows and was stopped/.test(dueCard?.message ?? "") && /no ID is deleted until it is read in time/.test(dueCard?.message ?? "") && /count document_requests' rows that still have a file, by employer_id\.$/.test(dueCard?.message ?? ""),
+    show({ trash: trashCard?.message, due: dueCard?.message }));
 }
 
 globalThis.fetch = realFetch;

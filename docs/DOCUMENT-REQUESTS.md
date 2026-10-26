@@ -95,20 +95,26 @@ Wise or PayPal and is paid there. A test fails if a bank kind is added.
 The Privacy Policy says all of this (`src/content/legal.ts`), and
 `scripts/legal_pages.test.mjs` fails if the hours, days or kinds drift from the code.
 
-**What is still left (the thirteenth Phase 5 review, finding 2).** An ID photo
-that a request still open does not link is found by nothing on a timer: the
-due papers are read by their link (`document_requests_due_pick` takes only a
-request with `file_url`). After this round that is only a photo whose upload
-went through while both the link's save and the dialog's own removal failed
-(the connection dropped for good, or the page was closed in between), and the
-applicant never sent it again. It stays in that request's folder until the
-request, its application or the account is deleted (the folder is queued then),
-or until the paper is sent again and that copy is deleted on its own time (the
-cleanup empties the whole folder). The applicant was told it failed ("Failed to
-upload document"), so nobody on the hiring side has it, but storage still does.
-The review's third direction closes it: the due pick also taking an ID request
-with no link whose folder storage holds, 7 days after it was asked for. That is
-a change to `document_requests_due_pick`, left to the round that owns the picks.
+**An ID photo a request still open never linked (the thirteenth Phase 5
+review, finding 2; closed by the twelfth security round, `20261025630000`).**
+Its upload went through while both the link's save and the dialog's own removal
+failed (the connection dropped for good, or the page was closed in between),
+and the applicant never sent it again. The due papers are read by their link,
+so nothing on a timer found it. Now, before it picks, `document_requests_due_pick`
+looks at each ID request with no link seven days after it was asked for
+(`document_requests_sweep_strays`: in the order they were asked for, 5,000 a
+run, from where the last run stopped, each request once) and queues each file
+storage holds in its own folder, `<applicant>/<request>/`, in
+`document_file_trash`, naming the business, as a file sent again is queued; the
+same hourly run deletes that file alone (the request is still open, so never
+the folder, nor a file it links by then). When storage cannot be read, nothing
+is queued and the request is looked at again next run. Left: a photo uploaded
+after its request was looked at, still unlinked, stays until the request, its
+application or the account is deleted (the folder is queued then), or until the
+paper is sent again and that copy is deleted on its own time. And until
+Turnstile is set up, many businesses each asking 300 ID papers an hour that
+nobody answers can make the look-up run behind (5,000 a run, in the order they
+were asked for), which delays such a photo, never a linked paper.
 Also left: past 50 sends again in a day, one applicant's earlier copies wait for
 their request's own deadline (as before), and a paper named under "Something
 else" is kept until its application goes, by the rule above.

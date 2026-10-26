@@ -34,8 +34,11 @@
 -- withdrawal each (3 folders), from an hour before it: all three in the 15th
 -- run, where its first went in the 6th and its third after the 80th.
 -- A person holding more than a withdrawal's worth (a Delete Account with two
--- applications or more) still gives one note a turn until they are down to
--- one, and each of those turns waits behind the people who joined since.
+-- applications or more) still gives one note a turn until they are down to a
+-- withdrawal's worth, and then the rest go together; each of those turns
+-- waits behind the people who joined since, now up to a withdrawal's worth
+-- from each of them (one under 20261025590000: the twelfth security review,
+-- finding 2, and 20261025620000).
 -- The caps are unchanged (6 folders and 40 exact paths from one person, 200
 -- folders and 1,000 exact paths a run; a run now takes up to 2 folders or 5
 -- exact paths fewer when the next turn would not fit), and so are the

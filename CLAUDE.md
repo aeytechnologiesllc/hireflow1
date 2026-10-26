@@ -301,11 +301,63 @@ these either; each has a guard or a test that CI runs:
   before it: all three in the 15th run, where one note a turn took its first
   in the 6th and its third after the 80th). A person holding more than a
   withdrawal's worth (a Delete Account with two applications, or with
-  signed papers) gives one note a turn until they are down to one, and each
-  of those turns waits behind everyone who joined since, as before (six
-  folders under 1,000 new accounts an hour: the 1st, 6th and 31st runs, the
-  rest after the 80th). Guard `file-queue-fair-and-bounded`;
-  launch_locks_behaviour section 15, `scripts/document_cleanup.test.mjs`.
+  signed papers) gave one note a turn until they were down to a withdrawal's
+  worth, each of those turns behind everyone who joined since, up to three
+  folders from each of them where 20261025590000 took one (six folders under
+  100 new accounts an hour each holding one withdrawal, from six hours before
+  it: the 4th, 10th, 19th and 32nd runs, against 590's 2/5/8/12/17/22; under
+  1,000 new accounts an hour with one folder each, the 1st, 6th and 31st,
+  the rest after the 80th): the twelfth security review's finding 2, fixed
+  below. Guard `file-queue-fair-and-bounded`; launch_locks_behaviour section
+  15, `scripts/document_cleanup.test.mjs`.
+- (The twelfth security review, `20261025620000`, `20261025630000`.) A run
+  reads a run's worth, however big a queue grows. Ranking the whole queue on
+  every call, `storage_file_trash_fair_pick` passed the API's 8-second
+  statement timeout at about 700,000 folder notes (a day of 1,000 free
+  accounts at the start limit); from then on every hourly run's pick was
+  cancelled, whether or not the flood went on, and no folder was removed for
+  anyone. Each person's turn is now kept in `storage_file_trash_turns` (one
+  row for each person and kind of note: notes waiting, when their first note
+  is due, when a run last took them, the rank) by the queue's own statement
+  triggers (`storage_file_trash_turns_sync`; `storage_file_trash_served_sync`
+  copies the record), which lock the turns they touch in one order before
+  they read them again. The pick reads the first 200 people whose turn has
+  come (1,000 for exact paths) by index and only their first notes, and ranks
+  those as before: the same notes in the same order (random queues, and every
+  flood of the tenth to twelfth reviews run in lockstep with 20261025600000's
+  pick), and a pick at ten times the queue as fast (the old one ten times
+  slower). The papers' two picks had the same shape and a flood can reach it
+  (a business asks 300 papers an hour, 7,200 a day, against 4,800 a day taken
+  for everyone; a hundred confirmed businesses reach 700,000 in a day), so
+  `document_file_trash_turns` and `document_requests_due_turns` (the three ID
+  kinds with a file, when the first is due by document-cleanup's 24 hours and
+  7 days) are kept the same way; the due pick counts each business's due
+  papers up to 201 for its "fewest due first" (two businesses each holding
+  more compare as equal) and takes only the three ID kinds. Before it picks,
+  the due pick also queues, once, the files in the folder of an ID request
+  with no link seven days after it was asked for (the thirteenth Phase 5
+  review's finding 2; `document_requests_sweep_strays`, 5,000 requests a run
+  from the mark in `document_requests_swept`, into `document_file_trash`, where
+  document-cleanup deletes that file alone). document-cleanup's alert for a
+  read that times out says so and how to find who fills the queue. The turns
+  are kept only by those triggers: a write with triggers off (replica mode)
+  must be followed by rebuilding them as the migrations' backfill does.
+  Finding 2 (LOW): someone holding no more than two withdrawals' worth (6
+  folders, 12 exact paths) who has had a turn since their oldest note was
+  queued now takes up to a withdrawal's worth in each later turn, whole or not
+  at all (the Delete Account above: the 4th, 10th for three, 19th; the 1st,
+  6th for three, 31st; under 200 new accounts an hour with 30 folders each,
+  the 2nd, 5th for three, 11th, was the 23rd). No row of the tenth to twelfth
+  reviews' tables is worse. What it costs: accounts holding exactly two
+  withdrawals' worth take up to three in each later turn too, so a real
+  withdrawal queued after their first turns waits longer behind them (1,000
+  such accounts taken once three runs before it: the 12th run, was the 6th;
+  1,000 new ones an hour: the 8th, was the 6th), never longer than the same
+  accounts already make it wait as accounts holding one withdrawal each
+  (1,000 new an hour: the 15th; anything queued before it: a run for every
+  200 of its folders). Guards `file-queue-fair-and-bounded`,
+  `id-papers-leave-on-time`; launch_locks_behaviour sections 15 (E), 18 and
+  21, `scripts/document_cleanup.test.mjs`.
 - The way to reach the company is **Contact us** (an applicant's own Help
   thread at `/contact`, `20261025200000_help_for_applicants.sql`; `/help` is
   staff-only on the staff host) or Help (a hiring team); Messages reach the
@@ -353,10 +405,11 @@ these either; each has a guard or a test that CI runs:
   storage holds it, naming the business, 50 a day for one applicant), and
   document-cleanup deletes, for a request still open, only that file, never
   its folder or the file it links now. The upload dialog removes a photo whose
-  link failed to save. Left (docs/DOCUMENT-REQUESTS.md): a photo whose link
-  save and removal both failed, on a request still open, has no timer until
-  `document_requests_due_pick` also takes an ID request with no link whose
-  folder holds something. Section 20, `scripts/document_cleanup.test.mjs`,
+  link failed to save. A photo whose link save and removal both failed, on a
+  request still open, is queued seven days after the request was asked for
+  since `20261025630000` (the twelfth security review's round, above); only
+  one uploaded after that, still unlinked, waits for its request's own end
+  (docs/DOCUMENT-REQUESTS.md). Section 20, `scripts/document_cleanup.test.mjs`,
   `scripts/requested_document_url.test.mjs` (the real function).
 - When a day's AI budget is reached, applicants are told to come back later
   today or tomorrow (`wait: "long"`, `aiUnavailableExtra`), never "a couple

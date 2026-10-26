@@ -115,6 +115,15 @@
  *      only; a paper named under "Something else" goes with its application;
  *      an applicant withdraws only while nobody has decided and nothing is
  *      signed.
+ *  18. A run reads a run's worth, however big the queues grow (the twelfth
+ *      security review, finding 1, in the shape of its proof: ranking the
+ *      whole removal queue, the pick passed the API's 8-second timeout at
+ *      about 700,000 notes; 20261025620000, 20261025630000): each queue's
+ *      turns (storage_file_trash_turns, document_file_trash_turns,
+ *      document_requests_due_turns) are the queue as it stands after every
+ *      kind of write, the server's run included, and nobody else may write
+ *      them; each of the four picks at ten times the queue takes less than
+ *      twice as long (the old ones about ten times).
  *  19. Who may move an ID paper's clock, and which file a request may point
  *      to, after every migration (the thirteenth Phase 5 review, finding 1:
  *      its weakenings K1 to K9 of the two guards passed every test): no
@@ -130,6 +139,12 @@
  *      20261025640000), only where storage holds it, naming its business, at
  *      most 50 a day for one applicant; never from the hiring side or the
  *      server.
+ *  21. An ID photo an open request never linked (its link save and the
+ *      dialog's removal both failed) is queued seven days after the request
+ *      was asked for, each request looked at once, 5,000 a run, only the ID
+ *      kinds, never while storage cannot be read (the thirteenth Phase 5
+ *      review's finding 2, asked of the twelfth security round;
+ *      20261025630000).
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -1368,6 +1383,40 @@ console.log("\n15. Many accounts cannot keep a real removal out of the run\n");
   const edge = await realWithdrawal({ before: () => queueFolders(people(199), 1, 1), each: () => queueFolders(people(1000), 1, 1) });
   check("199 accounts' folders just before it, then 1,000 new accounts an hour: its turn would cross the run's 200, so all three go in the next run, together (split, they were the 1st, 7th and 37th)", edge.first === 2 && edge.all === 2, shownRuns(edge));
 
+  // (E) The twelfth security review (finding 2), in the shape of its probe
+  // (probes/edge.mjs, M3): a Delete Account with two applications (six
+  // folders) gave one a turn until it was down to three, each turn behind
+  // everyone who queued since, now up to three folders from each of them.
+  // Someone holding no more than two withdrawals' worth who has had a turn
+  // since their oldest note was queued takes up to a withdrawal's worth a
+  // turn (20261025620000).
+  const sixFolders = async (eachHour, hoursBefore, runs) => {
+    await db.query(`delete from public.storage_file_trash`);
+    if (served) await db.query(`delete from public.storage_file_trash_served`);
+    for (let h = 0; h < hoursBefore; h += 1) {
+      await anHourPasses();
+      await eachHour();
+      const r = await as(SERVICE, `select id from public.storage_file_trash_fair_pick(false)`);
+      await db.query(`delete from public.storage_file_trash where id = any($1::uuid[])`, [(r.rows ?? []).map((n) => n.id)]);
+    }
+    const who = id(9, 200 + (victims += 1));
+    await db.query(`insert into public.storage_file_trash (bucket, folder, starts_with, application_id, candidate_id)
+      select b, case when b = 'voice-interview-recordings' then a::text else $1 end, case when b = 'voice-interview-recordings' then '' else a::text || '-' end, a, $1::uuid
+        from (values (gen_random_uuid()), (gen_random_uuid())) apps (a), unnest(array['voice-interview-recordings', 'videos', 'portfolios']) b`, [who]);
+    const taken = [];
+    for (let h = 1; h <= runs && taken.length < 6; h += 1) {
+      await anHourPasses();
+      await eachHour();
+      const r = await as(SERVICE, `select id, candidate_id from public.storage_file_trash_fair_pick(false)`);
+      if (!r.ok) throw new Error(`the pick: ${r.error}`);
+      for (const n of r.rows) if (n.candidate_id === who) taken.push(h);
+      await db.query(`delete from public.storage_file_trash where id = any($1::uuid[])`, [r.rows.map((n) => n.id)]);
+    }
+    return taken;
+  };
+  const six = await sixFolders(() => queueFolders(people(100), 3, 1), 1, 14);
+  check("a Delete Account with two applications (six folders), under 100 new accounts an hour each withdrawing one, from an hour before: one, then three together, then the last two (the 1st, 3rd and 6th runs; one a turn, the last three waited for the 10th)", JSON.stringify(six) === JSON.stringify([1, 3, 3, 3, 6, 6]), JSON.stringify(six));
+
   // Exact paths take turns the same way, six to a withdrawal (a resume, its
   // page images and the form's files): 1,000 accounts holding 7 each queued
   // before a real withdrawal, then 1,500 new accounts an hour with one each.
@@ -1799,6 +1848,263 @@ console.log("\n17. What a removal or a withdrawal keeps, and what it takes\n");
   check("…nor one with a document they signed, though nobody decided yet (S10)", !(await withdraws("reviewing", true)));
 }
 
+// ---------------------------------------------------------------------------
+console.log("\n18. A run reads a run's worth, however big the queues grow\n");
+{
+  // The twelfth security review (finding 1), in the shape of its proof
+  // (probes/perf.mjs, pg/time3.sql): storage_file_trash_fair_pick ranked the
+  // whole queue on every call, document-cleanup calls it through the API
+  // (an 8-second statement timeout), and a note leaves only once a run has
+  // picked it. At about 700,000 folder notes, a day of 1,000 free accounts
+  // at the start limit, every run's pick timed out from then on, and no
+  // folder was removed for anyone again. The papers' two picks had the same
+  // shape. Each queue's turns are now kept by its own triggers
+  // (20261025620000, 20261025630000), and a run reads the people it can reach
+  // by index. (a) The turns are the queues as they stand, whatever writes
+  // them; (b) a pick at ten times the queue takes less than twice as long
+  // (the old picks took about ten times as long).
+  const there = async (t) => (await one(`select to_regclass($1) is not null as there`, [t])).there;
+  const turnsTables = ["public.storage_file_trash_turns", "public.document_file_trash_turns", "public.document_requests_due_turns"];
+  const kept = (await Promise.all(turnsTables.map(there))).every(Boolean);
+  check("each queue's turns are kept in a table of their own (storage_file_trash_turns, document_file_trash_turns, document_requests_due_turns)", kept);
+  /** How many turns differ from their queue counted afresh (null without the tables). */
+  const drift = async () => {
+    if (!kept) return null;
+    return one(`
+      with s as (
+        select (t.path is not null) as exact, coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) as person, count(*)::int as waiting,
+               (array_agg(case when t.attempts > 0 then coalesce(t.last_tried_at, t.queued_at) + least(t.attempts, 24) * interval '1 hour' + interval '30 minutes' else t.queued_at end order by t.attempts, t.queued_at, t.id))[1] as first_due
+          from public.storage_file_trash t group by 1, 2
+      ), sv as (select s.*, v.served_at from s left join public.storage_file_trash_served v on v.exact = s.exact and v.person = s.person),
+      d as (
+        select coalesce(t.employer_id, t.candidate_id)::text as person, count(*)::int as waiting, (count(*) filter (where t.attempts > 0))::int as failed,
+               (array_agg(case when t.attempts > 0 then coalesce(t.last_tried_at, t.queued_at) + least(t.attempts, 24) * interval '1 hour' + interval '30 minutes' else t.queued_at end order by t.attempts, t.queued_at, t.id))[1] as first_due
+          from public.document_file_trash t group by 1
+      ), dv as (select d.*, v.served_at from d left join public.document_cleanup_served v on v.queue = 'deleted' and v.person = d.person),
+      q as (
+        select coalesce(r.employer_id, r.candidate_id)::text as person, count(*)::int as on_file,
+               least(min(r.team_opened_at) + interval '24 hours', min(r.submitted_at) filter (where r.team_opened_at is null) + interval '168 hours',
+                     min(r.created_at) filter (where r.team_opened_at is null and r.submitted_at is null) + interval '168 hours') as first_due
+          from public.document_requests r where r.file_url is not null and r.document_type in ('government_id', 'nbi_clearance', 'proof_of_address') group by 1
+      ), qv as (select q.*, v.served_at from q left join public.document_cleanup_served v on v.queue = 'due' and v.person = q.person)
+      select (select count(*)::int from ((select * from sv except select exact, person, waiting, first_due, served_at from public.storage_file_trash_turns)
+                                         union all (select exact, person, waiting, first_due, served_at from public.storage_file_trash_turns except select * from sv)) x) as removal,
+             (select count(*)::int from ((select * from dv except select person, waiting, failed, first_due, served_at from public.document_file_trash_turns)
+                                         union all (select person, waiting, failed, first_due, served_at from public.document_file_trash_turns except select * from dv)) x) as deleted,
+             (select count(*)::int from ((select * from qv except select person, on_file, first_due, served_at from public.document_requests_due_turns)
+                                         union all (select person, on_file, first_due, served_at from public.document_requests_due_turns except select * from qv)) x) as due`);
+  };
+  const noDrift = (d) => d !== null && d.removal === 0 && d.deleted === 0 && d.due === 0;
+
+  // (a) Every way a queue is written: rows in and out, a note's tries and
+  // times, a note moved to another person, the record written and cleared.
+  await db.exec(`delete from public.storage_file_trash; delete from public.storage_file_trash_served; delete from public.document_file_trash; delete from public.document_cleanup_served;`);
+  const [P1, P2, P3, P4] = [id("e", 1), id("e", 2), id("e", 3), id("e", 4)];
+  await db.query(`insert into public.storage_file_trash (bucket, folder, starts_with, path, application_id, candidate_id, attempts, queued_at, last_tried_at)
+    select b, case when b = 'resumes' then null else p::text end, case when b = 'resumes' then null else 'x' || g || '-' end,
+           case when b = 'resumes' then p::text || '/' || g || '.pdf' end, null, p, (g % 3 = 0)::int * 2, now() - interval '1 minute' * g, case when g % 3 = 0 then now() - interval '2 hours' end
+      from unnest($1::uuid[]) p, unnest(array['videos', 'resumes']) b, generate_series(1, 5) g`, [[P1, P2, P3]]);
+  await db.query(`insert into public.storage_file_trash (bucket, folder, starts_with) values ('portfolios', 'nobody-folder', '')`);
+  const writes = [
+    `update public.storage_file_trash set attempts = attempts + 1, last_tried_at = now() where candidate_id = '${P1}' and path is null`,
+    `update public.storage_file_trash set queued_at = queued_at - interval '1 hour', last_tried_at = last_tried_at - interval '1 hour'`,
+    `update public.storage_file_trash set candidate_id = '${P3}' where candidate_id = '${P2}' and path is not null`,
+    `delete from public.storage_file_trash where candidate_id = '${P1}' and path is not null`,
+    `insert into public.storage_file_trash_served (exact, person, served_at) values (false, '${P1}', now() - interval '3 hours'), (true, '${P3}', now()), (false, 'someone-gone', now())`,
+    `update public.storage_file_trash_served set served_at = served_at - interval '1 hour'`,
+    `delete from public.storage_file_trash_served where person = '${P1}'`,
+    `delete from public.storage_file_trash where candidate_id = '${P2}'`,
+    // Some of a person's notes go, not all: the count goes down.
+    `delete from public.storage_file_trash where id in (select id from public.storage_file_trash where candidate_id = '${P3}' and path is null order by queued_at limit 2)`,
+    // A person's record written while they hold nothing, then a note of theirs
+    // queued (with an older time, as a clock that moved might give it).
+    `insert into public.storage_file_trash_served (exact, person, served_at) values (false, '${P4}', now())`,
+    `insert into public.storage_file_trash (bucket, folder, starts_with, candidate_id, queued_at) values ('videos', '${P4}', 'x-', '${P4}', now() - interval '3 hours')`,
+  ];
+  const after = [];
+  for (const w of writes) {
+    await db.query(w);
+    after.push((await drift())?.removal ?? null);
+  }
+  check("the removal queue's turns are the queue as it stands after every kind of write (notes in and out, tries, times, a note moved to another person, the record written and cleared)", kept && after.every((n) => n === 0), show(after));
+  const pickedNow = await as(SERVICE, `select id from public.storage_file_trash_fair_pick(false)`);
+  check("…and after a run, which writes the record itself", pickedNow.ok && noDrift(await drift()), show({ ok: pickedNow.ok, drift: await drift() }));
+  await db.exec(`truncate public.storage_file_trash`);
+  check("…and a truncated queue leaves no turn", !kept || (await one(`select count(*)::int n from public.storage_file_trash_turns`)).n === 0);
+
+  const [B1, B2, B3, B4] = [id("e", 11), id("e", 12), id("e", 13), id("e", 14)];
+  const docWrites = [
+    `insert into public.document_file_trash (candidate_id, request_id, employer_id, attempts, queued_at) select '${P1}', gen_random_uuid(), case when g % 2 = 0 then '${B1}'::uuid else '${B2}'::uuid end, (g % 4 = 0)::int, now() - interval '1 minute' * g from generate_series(1, 12) g`,
+    `insert into public.document_file_trash (candidate_id, request_id) values ('${P2}', gen_random_uuid())`,
+    `update public.document_file_trash set attempts = attempts + 1, last_tried_at = now() where employer_id = '${B1}'`,
+    `update public.document_file_trash set employer_id = '${B1}' where employer_id = '${B2}' and attempts = 0`,
+    `insert into public.document_cleanup_served (queue, person, served_at) values ('deleted', '${B1}', now() - interval '2 hours'), ('due', '${B1}', now())`,
+    `delete from public.document_file_trash where employer_id = '${B2}'`,
+    `delete from public.document_file_trash where id in (select id from public.document_file_trash where employer_id = '${B1}' order by queued_at limit 2)`,
+    `insert into public.document_cleanup_served (queue, person, served_at) values ('deleted', '${B3}', now())`,
+    `insert into public.document_file_trash (candidate_id, request_id, employer_id, queued_at) values ('${P1}', gen_random_uuid(), '${B3}', now() - interval '3 hours')`,
+  ];
+  const docAfter = [];
+  for (const w of docWrites) {
+    await db.query(w);
+    docAfter.push((await drift())?.deleted ?? null);
+  }
+  check("the deleted requests' turns are their queue as it stands after every kind of write", kept && docAfter.every((n) => n === 0), show(docAfter));
+  const HOLD = id("e", 20);
+  await makeUser(HOLD, "candidate");
+  const holdApp = await apply(HOLD, JOB);
+  const papers = await as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, status, file_url, submitted_at, team_opened_at, created_at)
+    select $1, case when g % 2 = 0 then $2::uuid else $3::uuid end, $4::uuid, (array['government_id', 'nbi_clearance', 'proof_of_address', 'custom'])[1 + g % 4], 'submitted',
+           case when g % 5 = 0 then null else $4::text || '/' || gen_random_uuid() || '/1.jpg' end,
+           case when g % 3 = 0 then null else now() - interval '1 day' * g end, case when g % 2 = 0 then now() - interval '1 hour' * g end, now() - interval '9 days'
+      from generate_series(1, 20) g returning id`, [holdApp, B1, B2, HOLD]);
+  if (!papers.ok) throw new Error(`setup: the papers: ${papers.error}`);
+  const dueWrites = [
+    [`update public.document_requests set file_url = null, file_deleted_at = now() where id = $1`, [papers.rows[1].id]],
+    [`update public.document_requests set team_opened_at = now() - interval '30 hours' where id = $1`, [papers.rows[2].id]],
+    [`update public.document_requests set document_type = 'custom' where id = $1`, [papers.rows[3].id]],
+    [`update public.document_requests set status = 'approved', reviewed_at = now() where id = $1`, [papers.rows[4].id]],
+    [`delete from public.document_requests where id = $1`, [papers.rows[6].id]],
+    [`update public.document_cleanup_served set served_at = served_at - interval '1 hour'`, []],
+    [`insert into public.document_cleanup_served (queue, person, served_at) values ('due', $1, now())`, [B4]],
+    [`insert into public.document_requests (application_id, employer_id, candidate_id, document_type, status, file_url, submitted_at, created_at) values ($1, $2, $3::uuid, 'government_id', 'submitted', $3::text || '/x/1.jpg', now() - interval '8 days', now() - interval '9 days')`, [holdApp, B4, HOLD]],
+    [`delete from public.document_requests where application_id = $1`, [holdApp]],
+  ];
+  const dueAfter = [];
+  for (const [w, params] of dueWrites) {
+    const r = await as(SERVICE, w, params);
+    if (!r.ok) throw new Error(`setup: ${w}: ${r.error}`);
+    dueAfter.push((await drift())?.due ?? null);
+  }
+  check("the due ID papers' turns are the requests as they stand after every kind of write (a file gone, a paper opened, its kind or status changed, a request deleted)", kept && dueAfter.every((n) => n === 0), show(dueAfter));
+  const tries = kept ? await Promise.all(turnsTables.flatMap((t) => [
+    as(user(ANA), `select * from ${t}`),
+    as(ANON, `select * from ${t}`),
+    as(user(ANA), `delete from ${t}`),
+    as(SERVICE, `delete from ${t}`),
+  ])) : [];
+  check("…and no browser may read or write a turn, nor the server but through its own triggers", kept && tries.every((r) => !r.ok), show(tries.map((r) => r.ok || r.error)));
+
+  // (c) What only the turns' order can miss: a person whose first note
+  // failed and waits out its back-off ranks after now(), so their other
+  // notes, due, are read only when a run has room (the old pick took them,
+  // the waiting one last); and businesses served in the same run rank
+  // together, and the fewest due goes first among them however many tie.
+  await db.exec(`delete from public.storage_file_trash; delete from public.storage_file_trash_served; delete from public.document_file_trash; delete from public.document_cleanup_served;`);
+  const [HELD, FREE] = [id("e", 30), id("e", 31)];
+  await db.query(`insert into public.storage_file_trash (bucket, folder, starts_with, candidate_id, attempts, queued_at, last_tried_at) values
+    ('videos', $1::text, 'a-', $1::uuid, 1, now() - interval '5 hours', now() - interval '30 minutes'),
+    ('videos', $1::text, 'b-', $1::uuid, 2, now() - interval '6 hours', now() - interval '4 hours'),
+    ('videos', $2::text, 'c-', $2::uuid, 0, now() - interval '1 hour', null)`, [HELD, FREE]);
+  const roomy = await as(SERVICE, `select candidate_id, attempts from public.storage_file_trash_fair_pick(false)`);
+  check("a person whose first note waits out its back-off has their due note taken when the run has room, the waiting one last (as the old pick did)", roomy.ok && JSON.stringify(roomy.rows.map((n) => [n.candidate_id, n.attempts])) === JSON.stringify([[FREE, 0], [HELD, 2], [HELD, 1]]), show(roomy.rows ?? roomy.error));
+  await db.query(`insert into public.document_file_trash (candidate_id, request_id, employer_id, attempts, queued_at, last_tried_at) values
+    ($3, gen_random_uuid(), $1, 1, now() - interval '5 hours', now() - interval '30 minutes'),
+    ($3, gen_random_uuid(), $1, 2, now() - interval '6 hours', now() - interval '4 hours'),
+    ($3, gen_random_uuid(), $2, 0, now() - interval '1 hour', null)`, [HELD, FREE, P1]);
+  const roomyPapers = await as(SERVICE, `select employer_id, attempts from public.document_file_trash_fair_pick()`);
+  check("…and a business's the same, in the deleted requests' queue", roomyPapers.ok && JSON.stringify(roomyPapers.rows.map((n) => [n.employer_id, n.attempts])) === JSON.stringify([[FREE, 0], [HELD, 2], [HELD, 1]]), show(roomyPapers.rows ?? roomyPapers.error));
+  // The businesses one run took rank together (up to 200): 150 with 5 due ID
+  // papers each and a real one with 3, its papers due last and its id last,
+  // after 199 others taken an hour before them, so the run's 200th place
+  // falls inside the tie.
+  const EARLY = Array.from({ length: 199 }, (_, i) => `e6${String(i).padStart(6, "0")}-0000-4000-8000-000000000000`);
+  const TIED = Array.from({ length: 150 }, (_, i) => `e7${String(i).padStart(6, "0")}-0000-4000-8000-000000000000`);
+  const REAL_BIZ = "efffffff-0000-4000-8000-000000000000";
+  // (Earlier sections' ID papers still due are set aside: only these rank.)
+  const setAside = await as(SERVICE, `update public.document_requests set file_url = null, file_deleted_at = now() where file_url is not null and document_type in ('government_id', 'nbi_clearance', 'proof_of_address') returning id`);
+  if (!setAside.ok) throw new Error(`setup: setting earlier papers aside: ${setAside.error}`);
+  await makeUser(id("e", 32), "candidate");
+  const tieApp = await apply(id("e", 32), JOB);
+  const tied = await as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, status, file_url, submitted_at, team_opened_at)
+    select $1::uuid, b, $2::uuid, 'government_id', 'submitted', $2::text || '/' || gen_random_uuid() || '/1.jpg', now() - interval '40 hours', now() - interval '30 hours' + (n || ' seconds')::interval
+      from unnest($3::uuid[]) b, generate_series(1, 5) n
+    union all
+    select $1::uuid, b, $2::uuid, 'government_id', 'submitted', $2::text || '/' || gen_random_uuid() || '/1.jpg', now() - interval '40 hours', now() - interval '31 hours'
+      from unnest($5::uuid[]) b
+    union all
+    select $1::uuid, $4::uuid, $2::uuid, 'government_id', 'submitted', $2::text || '/' || gen_random_uuid() || '/1.jpg', now() - interval '40 hours', now() - interval '25 hours' - (n || ' seconds')::interval
+      from generate_series(1, 3) n`, [tieApp, id("e", 32), TIED, REAL_BIZ, EARLY]);
+  if (!tied.ok) throw new Error(`setup: the tied papers: ${tied.error}`);
+  await db.query(`insert into public.document_cleanup_served (queue, person, served_at)
+    select 'due', b, now() - interval '61 minutes' from unnest($1::text[]) b
+    union all select 'due', b, now() - interval '1 minute' from unnest($2::text[]) b`, [EARLY, [...TIED, REAL_BIZ]]);
+  const tieRun = await as(SERVICE, `select id from public.document_requests_due_pick(array['government_id', 'nbi_clearance', 'proof_of_address'], now() - interval '24 hours', now() - interval '7 days')`);
+  const realPapers = (await db.query(`select id from public.document_requests where employer_id = $1`, [REAL_BIZ])).rows.map((r) => r.id);
+  check("businesses one run took rank together: when the run's 200th place falls among them, the one with the fewest due (3 against 5) goes, though its id sorts last", tieRun.ok && tieRun.rows.length === 200 && tieRun.rows.some((r) => realPapers.includes(r.id)), show({ n: tieRun.rows?.length, error: tieRun.error }));
+  await as(SERVICE, `delete from public.document_requests where application_id = $1`, [tieApp]);
+
+  // (b) What a run costs as the queues grow ten times over. A run inside a
+  // transaction rolled back, each the fastest of seven, so it never changes
+  // the record or what the next run sees.
+  const runMs = async (sql) => {
+    const ms = [];
+    for (let i = 0; i < 7; i += 1) {
+      await db.query("begin");
+      try {
+        await db.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true), set_config('role', 'service_role', true)`);
+        const t = performance.now();
+        await db.query(sql);
+        ms.push(performance.now() - t);
+      } finally {
+        await db.query("rollback");
+      }
+    }
+    return Math.min(...ms);
+  };
+  // Less than twice as long, give or take 30 ms (a run that is a few
+  // milliseconds either way on a busy machine is not the queue's size; the
+  // old picks took 400 to 800 ms more).
+  const flat = (small, big) => big < 2 * small + 30;
+  const ms = (x) => `${Math.round(x)} ms`;
+  await db.exec(`delete from public.storage_file_trash; delete from public.storage_file_trash_served; delete from public.document_file_trash; delete from public.document_cleanup_served;`);
+  const queueRemovals = async (folders, paths) => {
+    await db.query(`insert into public.storage_file_trash (bucket, folder, starts_with, candidate_id, queued_at)
+      select 'videos', p.person::text, gen_random_uuid()::text || '-', p.person, now() - interval '1 second' * (random() * 86400)
+        from (select gen_random_uuid() as person from generate_series(1, $1::int / 3)) p, generate_series(1, 3) n`, [folders]);
+    await db.query(`insert into public.storage_file_trash (bucket, path, candidate_id, queued_at)
+      select 'resumes', p.person::text || '/f' || n || '.pdf', p.person, now() - interval '1 second' * (random() * 86400)
+        from (select gen_random_uuid() as person from generate_series(1, $1::int / 6)) p, generate_series(1, 6) n`, [paths]);
+  };
+  const businesses = (n, from = 0) => Array.from({ length: n }, (_, i) => `e5${String(from + i).padStart(6, "0")}-0000-4000-8000-000000000000`);
+  const FLOODED = businesses(400);
+  const queueDeleted = (n) => as(SERVICE, `insert into public.document_file_trash (candidate_id, request_id, employer_id, queued_at)
+    select $3::uuid, gen_random_uuid(), ($2::uuid[])[1 + (g % array_length($2::uuid[], 1))], now() - interval '1 second' * (random() * 86400)
+      from generate_series(1, $1::int) g`, [n, FLOODED, HOLD]);
+  await makeUser(id("e", 21), "candidate");
+  const DUE_APP = await apply(id("e", 21), JOB);
+  const queueDue = (n, from) => as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, status, file_url, submitted_at, team_opened_at)
+    select $1, ($3::uuid[])[1 + (g % array_length($3::uuid[], 1))], $2::uuid, 'government_id', 'submitted', $2::text || '/' || gen_random_uuid() || '/1.jpg', now() - interval '30 hours', now() - interval '25 hours' - interval '1 second' * (random() * 86400)
+      from generate_series(1, $4::int) g`, [DUE_APP, id("e", 21), businesses(n / 10, from), n]);
+  const PICKS = {
+    folders: `select id from public.storage_file_trash_fair_pick(false)`,
+    paths: `select id from public.storage_file_trash_fair_pick(true)`,
+    deleted: `select id from public.document_file_trash_fair_pick()`,
+    due: `select id from public.document_requests_due_pick(array['government_id', 'nbi_clearance', 'proof_of_address'], now() - interval '24 hours', now() - interval '7 days')`,
+  };
+  const SMALL = 10000;
+  await queueRemovals(SMALL, SMALL);
+  const smallDeleted = await queueDeleted(SMALL);
+  const smallDue = await queueDue(SMALL, 0);
+  if (!smallDeleted.ok || !smallDue.ok) throw new Error(`setup: the papers' queues: ${show({ d: smallDeleted.error, q: smallDue.error })}`);
+  const small = {};
+  for (const [k, q] of Object.entries(PICKS)) small[k] = await runMs(q);
+  await queueRemovals(9 * SMALL, 9 * SMALL);
+  await queueDeleted(9 * SMALL);
+  await queueDue(9 * SMALL, SMALL / 10);
+  const big = {};
+  for (const [k, q] of Object.entries(PICKS)) big[k] = await runMs(q);
+  const sizes = await one(`select (select count(*)::int from public.storage_file_trash where path is null) as folders, (select count(*)::int from public.storage_file_trash where path is not null) as paths,
+    (select count(*)::int from public.document_file_trash) as deleted, (select count(*)::int from public.document_requests where file_url is not null and team_opened_at is not null) as due`);
+  check(`the queues grew ten times over: ${show(sizes)}`, sizes.folders >= 9 * SMALL && sizes.paths >= 9 * SMALL && sizes.deleted >= 10 * SMALL && sizes.due >= 10 * SMALL, show(sizes));
+  check(`a run of folders at ten times the queue takes less than twice as long (${ms(small.folders)}, then ${ms(big.folders)})`, flat(small.folders, big.folders));
+  check(`…of exact paths, the same (${ms(small.paths)}, then ${ms(big.paths)})`, flat(small.paths, big.paths));
+  check(`…of deleted requests' files, the same (${ms(small.deleted)}, then ${ms(big.deleted)})`, flat(small.deleted, big.deleted));
+  check(`…of ID papers that are due, the same (${ms(small.due)}, then ${ms(big.due)})`, flat(small.due, big.due));
+  await db.exec(`delete from public.storage_file_trash; delete from public.storage_file_trash_served; delete from public.document_file_trash; delete from public.document_cleanup_served;`);
+  await as(SERVICE, `delete from public.document_requests where application_id = $1`, [DUE_APP]);
+}
+
 // The papers' own people for sections 19 and 20 (an id range of their own).
 const P13 = (n) => `9d130000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 const ID_KINDS = `array['government_id', 'nbi_clearance', 'proof_of_address']`;
@@ -2004,6 +2310,102 @@ console.log("\n20. A paper sent again, or taken back: the database queues the ea
   }
   const loopNotes = (await notesOf(loopRid)).length;
   check("one applicant sending a paper again 55 times: every send goes in, 50 earlier files are queued that day", day() !== startedOn || (sends === 56 && loopNotes === 50), show({ sends, loopNotes }));
+  await db.query(`delete from public.document_file_trash`);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n21. An ID photo an open request never linked goes seven days after it was asked for\n");
+{
+  // The thirteenth Phase 5 review (finding 2) left one: an applicant's ID
+  // photo went up, saving its link failed and so did the upload dialog's own
+  // removal, and the request stayed open: nothing on a timer found the file,
+  // since the due pick takes a request by its link. Before it picks, the due
+  // pick now looks at ID requests with no link asked for seven days ago, each
+  // once, at most 5,000 a run, and queues the files in each one's own folder
+  // in document_file_trash (20261025630000): document-cleanup deletes that
+  // file alone in the business's turn.
+  const R21 = (n) => `9d210000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const SWEPT = (await one(`select to_regclass('public.document_requests_swept') is not null as there`)).there;
+  if (SWEPT) await db.query(`update public.document_requests_swept set created_at = '-infinity', id = '00000000-0000-0000-0000-000000000000'`);
+  await db.query(`delete from public.document_file_trash`);
+  const STRAY = R21(1);
+  await makeUser(STRAY, "candidate");
+  const strayApp = await apply(STRAY, JOB);
+  /** A request as the business made it, asked for `days` ago (the server's stamp). */
+  const asked = async (type, days) => {
+    const r = await as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, custom_document_name, created_at)
+      values ($1, $2, $3, $4, case when $4 = 'custom' then 'Diploma' end, now() - interval '1 day' * $5) returning id`, [strayApp, BIZ, STRAY, type, days]);
+    if (!r.ok) throw new Error(`setup: the request: ${r.error}`);
+    return r.rows[0].id;
+  };
+  const strayOld = await asked("government_id", 8);
+  const emptyOld = await asked("nbi_clearance", 8);
+  const strayYoung = await asked("government_id", 6);
+  const namedOld = await asked("custom", 8);
+  const linkedOld = await asked("proof_of_address", 8);
+  const strayFile = `${STRAY}/${strayOld}/1729000000000.jpg`;
+  const youngFile = `${STRAY}/${strayYoung}/1729000000000.jpg`;
+  const namedFile = `${STRAY}/${namedOld}/1729000000000.pdf`;
+  const linkedFile = `${STRAY}/${linkedOld}/1729000000000.jpg`;
+  for (const f of [strayFile, youngFile, namedFile, linkedFile]) await putFile("requested-documents", f);
+  const linked = await as(user(STRAY), `update public.document_requests set file_url = $2, file_name = 'Bill.jpg', status = 'submitted' where id = $1`, [linkedOld, linkedFile]);
+  if (!linked.ok) throw new Error(`setup: the link: ${linked.error}`);
+  const notesFor = async (request) => (await db.query(`select file_url, employer_id from public.document_file_trash where request_id = $1`, [request])).rows;
+  const picked = await duePapers();
+  check("an ID request with no link, asked for 8 days ago, whose folder holds a photo: the photo is queued for deletion, naming the business that asked", SWEPT && JSON.stringify(await notesFor(strayOld)) === JSON.stringify([{ file_url: strayFile, employer_id: BIZ }]), show(await notesFor(strayOld)));
+  check("…an ID request with no link whose folder holds nothing: nothing queued", (await notesFor(emptyOld)).length === 0);
+  check("…one asked for 6 days ago: not yet", (await notesFor(strayYoung)).length === 0);
+  check("…a paper named under \"Something else\": never (it is kept until its application goes)", (await notesFor(namedOld)).length === 0);
+  check("…a request with a link: not by this (its file goes on its own clock)", (await notesFor(linkedOld)).length === 0 && !picked.has(strayOld));
+  const trashRun = await as(SERVICE, `select request_id, file_url from public.document_file_trash_fair_pick()`);
+  check("…and document_file_trash_fair_pick takes the photo in the business's turn", trashRun.ok && trashRun.rows.some((n) => n.request_id === strayOld && n.file_url === strayFile), show(trashRun.rows?.length));
+  await db.query(`delete from public.document_file_trash where request_id = $1`, [strayOld]);
+  await duePapers();
+  check("each request is looked at once: the next run does not queue it again", (await notesFor(strayOld)).length === 0);
+  const dayOn = await as(SERVICE, `select id from public.document_requests_due_pick(${ID_KINDS}, now() - interval '24 hours', now() - interval '5 days')`);
+  check("…and the one asked for 6 days ago is queued once its seven days are up (here: the cutoff two days on)", dayOn.ok && JSON.stringify((await notesFor(strayYoung)).map((n) => n.file_url)) === JSON.stringify([youngFile]), show(await notesFor(strayYoung)));
+  // Storage cannot be read: nothing is queued and the mark stays, so the
+  // request is looked at again; the due papers are picked all the same.
+  await db.query(`delete from public.document_file_trash`);
+  const later = await asked("government_id", 9);
+  const laterFile = `${STRAY}/${later}/1729000000000.jpg`;
+  await putFile("requested-documents", laterFile);
+  if (SWEPT) await db.query(`update public.document_requests_swept set created_at = '-infinity', id = '00000000-0000-0000-0000-000000000000'`);
+  await db.exec(`alter table storage.objects rename to objects_away`);
+  let blind;
+  try {
+    blind = await as(SERVICE, `select id from public.document_requests_due_pick(${ID_KINDS}, now() - interval '24 hours', now() - interval '7 days')`);
+  } finally {
+    await db.exec(`alter table storage.objects_away rename to objects`);
+  }
+  const markAfterBlind = SWEPT ? await one(`select created_at = '-infinity' as unmoved from public.document_requests_swept`) : null;
+  check("when storage cannot be read, the due pick still answers, nothing is queued, and the mark does not move", blind.ok && (await notesFor(later)).length === 0 && markAfterBlind?.unmoved === true, show({ blind: blind.error, mark: markAfterBlind }));
+  await duePapers();
+  check("…so the next run queues it", JSON.stringify((await notesFor(later)).map((n) => n.file_url)) === JSON.stringify([laterFile]), show(await notesFor(later)));
+  // 6,000 ID requests with no link and nothing in their folders, asked for
+  // before a real one whose photo is there: 5,000 a run, so it is queued in
+  // the second run.
+  await db.query(`delete from public.document_file_trash`);
+  const flooded = await as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, created_at)
+    select $1, $2, $3, 'government_id', now() - interval '20 days' + g * interval '1 second' from generate_series(1, 6000) g`, [strayApp, STRANGER, STRAY]);
+  if (!flooded.ok) throw new Error(`setup: the flood: ${flooded.error}`);
+  const real = await asked("government_id", 10);
+  const realFile = `${STRAY}/${real}/1729000000000.jpg`;
+  await putFile("requested-documents", realFile);
+  if (SWEPT) await db.query(`update public.document_requests_swept set created_at = '-infinity', id = '00000000-0000-0000-0000-000000000000'`);
+  const runsTill = [];
+  for (let run = 1; run <= 3 && (await notesFor(real)).length === 0; run += 1) {
+    await duePapers();
+    runsTill.push(run);
+  }
+  check("6,000 such requests with nothing in their folders asked for before a real one: its photo is queued in the second run (5,000 looked at a run)", (await notesFor(real)).length === 1 && runsTill.at(-1) === 2, show(runsTill));
+  const sweepTries = [
+    await as(user(STRAY), `select public.document_requests_sweep_strays(${ID_KINDS}, now())`),
+    await as(user(STRAY), `select * from public.document_requests_swept`),
+    await as(ANON, `update public.document_requests_swept set created_at = 'infinity'`),
+  ];
+  check("…and no browser may run the sweep or move its mark", sweepTries.every((r) => !r.ok), show(sweepTries.map((r) => r.ok || r.error)));
+  await as(SERVICE, `delete from public.document_requests where application_id = $1`, [strayApp]);
   await db.query(`delete from public.document_file_trash`);
 }
 

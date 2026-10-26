@@ -35,7 +35,12 @@
  *     tenth); a person's turn is all of their notes when they hold no more
  *     than one withdrawal's worth (3 folders, 6 exact paths), taken whole or
  *     not at all, so a stream of new accounts never makes a withdrawal's
- *     later files wait longer each time (the eleventh).
+ *     later files wait longer each time (the eleventh), and up to one
+ *     withdrawal's worth a turn for someone holding no more than two once they
+ *     have had a turn (the twelfth's finding 2); and a run reads only
+ *     the people it can reach, from each person's turn, which the queue's own
+ *     statement triggers keep (storage_file_trash_turns), so a queue of any
+ *     size is read within the API's timeout (the twelfth).
  *   - applications-stay-on-their-job: nobody but the server changes an
  *     application's job (moving it to a throwaway job and deleting that was
  *     a way round Delete their information), and a deleted document's kept
@@ -48,6 +53,109 @@
  */
 
 import { grantsToBrowser, latestDefinition, migrationTexts, triggerProblems } from "./phase-7-launch-locks.mjs";
+
+/** A name as SQL may write it: quoted or not, with or without "public.". */
+const inPublic = (name) => `(?:"?public"?\\s*\\.\\s*)?"?${name}"?`;
+
+/**
+ * What keeps a statement trigger from keeping a queue's turns (the twelfth
+ * security review): its latest CREATE on public.<table> must be AFTER <event>
+ * … FOR EACH STATEMENT EXECUTE FUNCTION public.<fn>(), with its transition
+ * table (but on TRUNCATE) and no WHEN, and no later migration may drop it,
+ * drop its function with CASCADE, or switch it off, to replica only or to
+ * always. A turn that misses one statement stays wrong, and a pick that reads
+ * the turns then misses or repeats that person.
+ */
+export async function turnTriggerProblems(ctx, { name, table, event, fn }) {
+  const events = [];
+  (await migrationTexts(ctx)).forEach(({ rel, sql }, file) => {
+    for (const m of sql.matchAll(new RegExp(`\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?TRIGGER\\s+"?${name}"?\\s[^;]*;`, "gi"))) {
+      const on = /\bON\s+(?:ONLY\s+)?((?:"?\w+"?\s*\.\s*)?"?\w+"?)/i.exec(m[0]);
+      if (on && new RegExp(`^${inPublic(table)}$`, "i").test(on[1])) events.push({ rel, file, at: m.index, kind: "create", text: m[0] });
+    }
+    for (const m of sql.matchAll(new RegExp(`\\bDROP\\s+TRIGGER\\s+(?:IF\\s+EXISTS\\s+)?"?${name}"?\\s+ON\\s+(?:ONLY\\s+)?${inPublic(table)}\\b[^;]*;`, "gi"))) events.push({ rel, file, at: m.index, kind: "drop" });
+    for (const m of sql.matchAll(new RegExp(`\\bDROP\\s+(?:FUNCTION|ROUTINE)\\s+(?:IF\\s+EXISTS\\s+)?[^;]*${inPublic(fn)}\\b[^;]*\\bCASCADE\\b[^;]*;`, "gi"))) events.push({ rel, file, at: m.index, kind: "drop" });
+    for (const m of sql.matchAll(new RegExp(`\\bALTER\\s+TABLE\\s+(?:IF\\s+EXISTS\\s+)?(?:ONLY\\s+)?${inPublic(table)}\\s[^;]*;`, "gi"))) {
+      for (const a of m[0].matchAll(new RegExp(`\\b(DISABLE|ENABLE(?:\\s+(?:REPLICA|ALWAYS))?)\\s+TRIGGER\\s+("?${name}"?|ALL|USER)\\b`, "gi"))) {
+        events.push({ rel, file, at: m.index, kind: /^ENABLE$/i.test(a[1]) ? "on" : "off", text: a[0] });
+      }
+    }
+  });
+  events.sort((a, b) => a.file - b.file || a.at - b.at);
+  const made = events.filter((e) => e.kind === "create").at(-1);
+  if (!made) return [`supabase/migrations: no AFTER ${event} trigger ${name} on public.${table}`];
+  const problems = [];
+  const def = made.text.replace(/\s+/g, " ");
+  const referencing = event === "TRUNCATE" ? "" : "REFERENCING (?:OLD|NEW) TABLE AS \\w+(?: NEW TABLE AS \\w+)? ";
+  if (!new RegExp(`\\bAFTER ${event} ON ${inPublic(table)} ${referencing}FOR EACH STATEMENT EXECUTE FUNCTION ${inPublic(fn)}\\s*\\(\\s*\\)\\s*;$`, "i").test(def)) {
+    problems.push(`${made.rel}: ${name} must be AFTER ${event} ON public.${table}${event === "TRUNCATE" ? "" : " with its transition table"}, FOR EACH STATEMENT, running public.${fn}() with no WHEN`);
+  }
+  let off = null;
+  for (const e of events) {
+    if (e.file < made.file || (e.file === made.file && e.at <= made.at)) continue;
+    if (e.kind === "drop") problems.push(`${e.rel}: ${name} (or its function, CASCADE) is dropped after it was made`);
+    else if (e.kind === "off") off = e;
+    else if (e.kind === "on") off = null;
+  }
+  if (off) problems.push(`${off.rel}: ${name} is switched off, or to fire only as a replica or always (${off.text})`);
+  return problems;
+}
+
+/**
+ * The indexes a run reads by (the twelfth security review): each made, and
+ * none dropped by a later migration. Without one, a pick still answers, only
+ * by reading every turn or every note again, and passes the API's timeout
+ * once the queue is big enough.
+ */
+export async function indexProblems(ctx, names) {
+  const detail = [];
+  const texts = await migrationTexts(ctx);
+  for (const name of names) {
+    let made = -1;
+    let dropped = null;
+    texts.forEach(({ rel, sql }, file) => {
+      const flat = sql.replace(/\s+/g, " ");
+      if (new RegExp(`\\bcreate (?:unique )?index (?:concurrently )?(?:if not exists )?"?${name}"? on\\b`, "i").test(flat)) {
+        made = file;
+        dropped = null;
+      }
+      if (made >= 0 && file >= made && new RegExp(`\\bdrop index (?:concurrently )?(?:if exists )?(?:[^;]*,\\s*)?${inPublic(name)}(?:\\s|,|;)`, "i").test(flat)) dropped = rel;
+      if (made >= 0 && file >= made && new RegExp(`\\balter index (?:if exists )?${inPublic(name)} rename\\b`, "i").test(flat)) dropped = rel;
+    });
+    if (made < 0) detail.push(`supabase/migrations: no index ${name}`);
+    else if (dropped) detail.push(`${dropped}: index ${name} is dropped (or renamed) after it was made: a run would read every turn or note again`);
+  }
+  return detail;
+}
+
+/**
+ * A queue's turns table is the server's: made as written, row-level security
+ * on, nothing for public, anon or authenticated, and the service role may
+ * only read it (its writers are the queue's own triggers); no later grant to
+ * a browser role, write grant to the service role, policy or switch-off.
+ */
+export async function turnsTableProblems(ctx, { table, made, readable = true }) {
+  const detail = [];
+  const texts = await migrationTexts(ctx);
+  const all = texts.map((t) => t.sql).join("\n").replace(/\s+/g, " ");
+  if (!all.includes(made)) detail.push(`supabase/migrations: public.${table} is not made as written (${made.slice(0, 90)}…)`);
+  if (!all.includes(`alter table public.${table} enable row level security;`) || !all.includes(`revoke all on table public.${table} from public, anon, authenticated, service_role;`) || (readable && !all.includes(`grant select on table public.${table} to service_role;`))) {
+    detail.push(`supabase/migrations: public.${table} must have row-level security on, nothing for public, anon or authenticated, and ${readable ? "only select" : "nothing"} for the service role`);
+  }
+  // Grants from the migration that makes it on (an earlier one cannot reach it).
+  const from = texts.findIndex((t) => t.sql.replace(/\s+/g, " ").includes(made));
+  for (const { rel, sql } of texts.slice(Math.max(0, from))) {
+    const flat = sql.replace(/\s+/g, " ");
+    for (const m of flat.matchAll(/\bgrant\s+([^;]*?)\s+on\s+(?:table\s+)?([^;]*?)\s+to\s+([^;]*);/gi)) {
+      const named = new RegExp(`(?:^|[\\s,])${inPublic(table)}(?:$|[\\s,])`, "i").test(m[2]) || /^all\s+tables\s+in\s+schema\s+[^;]*\bpublic\b/i.test(m[2]);
+      if (!named) continue;
+      if (/(?:^|[\s,"])(anon|authenticated|public)(?:$|[\s,"])/i.test(m[3])) detail.push(`${rel}: public.${table} granted to a browser role`);
+      else if (/\bservice_role\b/i.test(m[3]) && (!readable || !/^select$/i.test(m[1].trim()))) detail.push(`${rel}: public.${table} ${readable ? "made writable by" : "granted to"} the service role (only the server's own functions ${readable ? "write" : "touch"} it)`);
+    }
+    if (new RegExp(`\\b${table}\\b[^;]*\\b(?:disable|no force) row level security\\b|\\bcreate policy\\b[^;]*\\bon\\s+${inPublic(table)}\\b`, "i").test(flat)) detail.push(`${rel}: public.${table} opened (row-level security off, or a policy)`);
+  }
+  return detail;
+}
 
 const ENTITY = "Southern Digital Technologies LLC";
 
@@ -413,14 +521,26 @@ export default [
       "goes together (the eleventh security review: one note a turn, a real withdrawal's later folders each waited " +
       "behind every account that joined the queue since, longer each time while new accounts kept coming): a person's " +
       "turn is all of their notes when they hold no more than one withdrawal's worth (3 folders, 6 exact paths), else " +
-      "their first note, and a turn is taken whole or not at all.",
+      "their first note, and a turn is taken whole or not at all; once they have had a turn and hold no more than two " +
+      "withdrawals' worth, up to one withdrawal's worth a turn (the twelfth security review, finding 2: a Delete Account " +
+      "with two applications gave one a turn, each turn behind everyone who queued since). A run reads a run's worth (the twelfth security " +
+      "review: ranking the whole queue on every call, the pick passed the API's 8-second timeout at about 700,000 " +
+      "notes, and then no run ever emptied it): each person's turn is kept in storage_file_trash_turns by the queue's " +
+      "own statement triggers, and the pick reads the first 200 turns that have come (1,000 for exact paths) by index " +
+      "and only their first notes.",
     run: async ({ read, walk }) => {
       const detail = [];
       const pick = await latestDefinition({ read, walk }, "storage_file_trash_fair_pick");
       const body = (pick?.body ?? "").replace(/\s+/g, " ");
       if (!pick) detail.push("supabase/migrations: no storage_file_trash_fair_pick (document-cleanup's fair pick, 20261025560000)");
       else {
-        if (!/row_number\(\) over \(partition by m\.person order by m\.attempts, m\.queued_at, m\.id\) as nth, count\(\*\) over \(partition by m\.person\) as waiting/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must number each person's notes (fewest tries, oldest first) and count how many each has waiting`);
+        // Only the people a run can reach, from their turns, and only their
+        // first notes, numbered as before (fewest tries, oldest first; how
+        // many each has waiting from their turn), the twelfth security
+        // review: ranking the whole queue, the pick passed the API's 8-second
+        // timeout at about 700,000 notes, and then no run ever emptied it.
+        if (!body.includes("with come as materialized ( select s.person, s.waiting, s.served_at from public.storage_file_trash_turns s where s.exact = coalesce(p_exact, false) and s.rank <= now() order by s.rank, s.waiting, s.person limit case when coalesce(p_exact, false) then 1000 else 200 end ), run as materialized ( select count(*) >= case when coalesce(p_exact, false) then 1000 else 200 end as full from come ), people as materialized ( select c.person, c.waiting, c.served_at from come c union all select s.person, s.waiting, s.served_at from public.storage_file_trash_turns s, run where s.exact = coalesce(p_exact, false) and s.rank > now() and not run.full )")) detail.push(`${pick.rel}: storage_file_trash_fair_pick must read the first 200 people whose turn has come (1,000 for exact paths) from storage_file_trash_turns, by rank, the fewest waiting, then the person, and everyone else only when fewer have come`);
+        if (!body.includes("cross join lateral ( select t as note, t.id, t.attempts, t.queued_at, t.last_tried_at, row_number() over (order by t.attempts, t.queued_at, t.id) as nth from public.storage_file_trash t where (t.path is not null)::int = coalesce(p_exact, false)::int and coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) = p.person order by t.attempts, t.queued_at, t.id limit case when not run.full then (case when coalesce(p_exact, false) then 40 else 6 end) when p.waiting <= case when coalesce(p_exact, false) then 12 else 6 end then p.waiting else 1 end ) n")) detail.push(`${pick.rel}: storage_file_trash_fair_pick must number each person's notes (fewest tries, oldest first), reading at most 6 folders (40 exact paths) of each, and when a run's people have come only what their turn can be (all of them up to two withdrawals' worth, else the first), and take how many each has waiting from their turn`);
         // A note that failed is due an hour a try after its last try (up to a
         // day) and half an hour more; until then it waits behind every note
         // that is due (the ninth and tenth security reviews).
@@ -430,13 +550,17 @@ export default [
         // last taken or their first note became due (the eleventh security
         // review: one note a turn, a withdrawal's later folders each waited
         // behind every account that joined since, longer each time).
-        if (!body.includes("r.due_at > now() as held, (r.nth = 1 or r.waiting <= case when coalesce(p_exact, false) then 6 else 3 end) as in_turn, first_value(r.due_at) over (partition by r.person order by r.nth) as first_due from ranked r")) detail.push(`${pick.rel}: storage_file_trash_fair_pick must make a person's turn their first note, or all of their notes when they hold no more than 3 folders (6 exact paths)`);
+        // …or, once they have had a turn since their oldest note was queued
+        // and hold no more than two withdrawals' worth, up to one (the twelfth
+        // security review, finding 2: a Delete Account with two applications
+        // gave one a turn, each turn behind everyone who queued since).
+        if (!body.includes("r.due_at > now() as held, (r.nth = 1 or r.waiting <= case when coalesce(p_exact, false) then 6 else 3 end or (r.waiting <= case when coalesce(p_exact, false) then 12 else 6 end and r.nth <= case when coalesce(p_exact, false) then 6 else 3 end and r.served_at >= min(r.queued_at) over (partition by r.person))) as in_turn, first_value(r.due_at) over (partition by r.person order by r.nth) as first_due from ranked r")) detail.push(`${pick.rel}: storage_file_trash_fair_pick must make a person's turn their first note, or all of their notes when they hold no more than 3 folders (6 exact paths), or up to that many once they have had a turn and hold no more than twice that`);
         // …taken whole or not at all, so a run that ends inside a turn leaves
         // it for the next run rather than sending its last notes to the back.
-        if (!/row_number\(\) over \(order by r\.held, not r\.in_turn, case when r\.in_turn then greatest\(s\.served_at, r\.first_due\) end, r\.waiting, case when r\.in_turn then r\.person end, r\.nth, r\.attempts, r\.queued_at, r\.id\) as place from turned r left join public\.storage_file_trash_served s on s\.exact = coalesce\(p_exact, false\) and s\.person = r\.person where r\.nth <= case when coalesce\(p_exact, false\) then 40 else 6 end \), whole as \( select p\.id, p\.person, p\.place, case when p\.in_turn then max\(p\.place\) over \(partition by p\.person, p\.held, p\.in_turn\) else p\.place end as turn_ends from placed p \), picked as materialized \( select w\.id, w\.person, w\.place from whole w where w\.turn_ends <= case when coalesce\(p_exact, false\) then 1000 else 200 end \)/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must take at most 6 folders and 40 exact paths from one person, a note that failed behind every note that is due, people's turns in turn (by when they were last taken or their first note became due, whichever is later; the fewest waiting first among turns that come at once), each turn whole or not at all, then the people with the fewest waiting first, 200 folders and 1,000 paths a run`);
+        if (!body.includes("row_number() over (order by r.held, not r.in_turn, case when r.in_turn then greatest(r.served_at, r.first_due) end, r.waiting, case when r.in_turn then r.person end, r.nth, r.attempts, r.queued_at, r.id) as place from turned r where r.nth <= case when coalesce(p_exact, false) then 40 else 6 end ), whole as ( select p.note, p.id, p.person, p.place, case when p.in_turn then max(p.place) over (partition by p.person, p.held, p.in_turn) else p.place end as turn_ends from placed p ), picked as materialized ( select w.note, w.id, w.person, w.place from whole w where w.turn_ends <= case when coalesce(p_exact, false) then 1000 else 200 end )")) detail.push(`${pick.rel}: storage_file_trash_fair_pick must take at most 6 folders and 40 exact paths from one person, a note that failed behind every note that is due, people's turns in turn (by when they were last taken or their first note became due, whichever is later; the fewest waiting first among turns that come at once), each turn whole or not at all, then the people with the fewest waiting first, 200 folders and 1,000 paths a run`);
         // Each run records whom it took, in the same statement, and answers in
         // that order (the tenth security review).
-        if (!/served as \( insert into public\.storage_file_trash_served \(exact, person, served_at\) select distinct coalesce\(p_exact, false\), p\.person, now\(\) from picked p on conflict \(exact, person\) do update set served_at = excluded\.served_at \) select t\.\* from picked p join public\.storage_file_trash t on t\.id = p\.id order by p\.place\s*$/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must record whom each run took (storage_file_trash_served, now()) and answer with exactly those notes, in their order`);
+        if (!/served as \( insert into public\.storage_file_trash_served \(exact, person, served_at\) select distinct coalesce\(p_exact, false\), p\.person, now\(\) from picked p on conflict \(exact, person\) do update set served_at = excluded\.served_at \) select \(p\.note\)\.\* from picked p order by p\.place\s*$/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must record whom each run took (storage_file_trash_served, now()) and answer with exactly those notes, in their order`);
         if (/\bperson\s*=(?!\s*r\.person\b)|where false|limit 0\b|(?:place|turn_ends) <= 0\b/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick is narrowed to nothing or to one person`);
         if (pick.securityDefiner) detail.push(`${pick.alteredIn ?? pick.rel}: storage_file_trash_fair_pick must run with the caller's rights (only the server may read the queue)`);
         const sql = (await read(pick.rel)) ?? "";
@@ -463,13 +587,40 @@ export default [
       // again, ahead of everyone who waited since).
       const prune = await latestDefinition({ read, walk }, "prune_storage_file_trash_served");
       const pruneBody = (prune?.body ?? "").replace(/\s+/g, " ");
-      if (!prune?.securityDefiner || !pruneBody.includes("delete from public.storage_file_trash_served s where s.served_at < now() - interval '1 day' and not exists ( select 1 from public.storage_file_trash t where (t.path is not null) = s.exact and coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) = s.person );") || !body.includes("coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) as person")) {
+      const sync = await latestDefinition({ read, walk }, "storage_file_trash_turns_sync");
+      const syncBody = (sync?.body ?? "").replace(/\s+/g, " ");
+      if (!prune?.securityDefiner || !pruneBody.includes("delete from public.storage_file_trash_served s where s.served_at < now() - interval '1 day' and not exists ( select 1 from public.storage_file_trash t where (t.path is not null) = s.exact and coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) = s.person );") || !syncBody.includes("coalesce(n.candidate_id::text, n.application_id::text, n.bucket || ':' || coalesce(n.path, n.folder)) as person") || !syncBody.includes("coalesce(o.candidate_id::text, o.application_id::text, o.bucket || ':' || coalesce(o.path, o.folder)) as person") || !body.includes("coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) = p.person")) {
         detail.push(`${prune?.rel ?? "supabase/migrations"}: prune_storage_file_trash_served must drop a person's record only a day after their last turn and once they hold nothing in that queue, read as the pick reads a person`);
       }
       if (prune && (!/revoke all on function public\.prune_storage_file_trash_served\(\) from public, anon, authenticated;/i.test((await read(prune.rel)) ?? "") || (await grantsToBrowser({ read, walk }, "prune_storage_file_trash_served")).length)) detail.push(`${prune.rel}: prune_storage_file_trash_served must be the server's only`);
       const scheduledAt = all.search(/perform cron\.schedule\('prune-storage-file-trash-served', '\d{1,2} \d{1,2} \* \* \*', 'select public\.prune_storage_file_trash_served\(\)'\);(?![\s\S]*cron\.schedule\('prune-storage-file-trash-served')/i);
       const unscheduledAt = Math.max(-1, ...[...all.matchAll(/cron\.unschedule\('prune-storage-file-trash-served'\)/gi)].map((m) => m.index));
       if (scheduledAt < 0 || unscheduledAt > scheduledAt) detail.push("supabase/migrations: prune_storage_file_trash_served must run daily (pg_cron, prune-storage-file-trash-served), and no later migration may unschedule it");
+      // Each person's turn is kept by the queue's own triggers, for every
+      // statement that writes the queue or the record (the twelfth security
+      // review): a turn that misses one is wrong, and the pick reads only
+      // turns. The turns are the server's, read only by the pick.
+      detail.push(...(await turnsTableProblems({ read, walk }, {
+        table: "storage_file_trash_turns",
+        made: "create table if not exists public.storage_file_trash_turns ( exact boolean not null, person text not null, waiting integer not null default 0, first_due timestamptz, served_at timestamptz, rank timestamptz generated always as (greatest(served_at, first_due)) stored, primary key (exact, person) );",
+      })));
+      if (!all.includes("create index if not exists storage_file_trash_turns_rank on public.storage_file_trash_turns (exact, rank, waiting, person);") || !all.includes("create index if not exists storage_file_trash_by_person on public.storage_file_trash (((path is not null)::int), (coalesce(candidate_id::text, application_id::text, bucket || ':' || coalesce(path, folder))), attempts, queued_at, id);")) {
+        detail.push("supabase/migrations: the turns must be indexed by rank, the fewest waiting and the person, and the queue by kind, person, tries, age and id (storage_file_trash_turns_rank, storage_file_trash_by_person), so a run reads a run's worth");
+      }
+      detail.push(...(await indexProblems({ read, walk }, ["storage_file_trash_turns_rank", "storage_file_trash_by_person"])));
+      for (const [table, fn, events] of [
+        ["storage_file_trash", "storage_file_trash_turns_sync", ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]],
+        ["storage_file_trash_served", "storage_file_trash_served_sync", ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]],
+      ]) {
+        for (const event of events) detail.push(...(await turnTriggerProblems({ read, walk }, { name: `${table === "storage_file_trash" ? "storage_file_trash_turns" : "storage_file_trash_served"}_${event.toLowerCase()}`, table, event, fn })));
+      }
+      if (!sync?.securityDefiner || !syncBody.includes("exit when v_held = cardinality(v_exact);") || !syncBody.includes("for update of s) held;") || !syncBody.includes("select case when t.attempts > 0 then coalesce(t.last_tried_at, t.queued_at) + least(t.attempts, 24) * interval '1 hour' + interval '30 minutes' else t.queued_at end as due_at from public.storage_file_trash t where (t.path is not null)::int = k.exact::int and coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) = k.person order by t.attempts, t.queued_at, t.id limit 1 ) f on true left join public.storage_file_trash_served v on v.exact = k.exact and v.person = k.person where s.exact = k.exact and s.person = k.person;") || !syncBody.includes("where s.exact = k.exact and s.person = k.person and s.first_due is null;")) {
+        detail.push(`${sync?.rel ?? "supabase/migrations"}: storage_file_trash_turns_sync must run with its own rights, lock every turn it touches before it reads them again, read each person's first note, and when it is due, as the pick numbers and backs it off (the turns' rank and the pick must agree: a run's people are chosen by one and ranked by the other), copy their record, and drop a turn whose person holds nothing`);
+      }
+      const servedSync = await latestDefinition({ read, walk }, "storage_file_trash_served_sync");
+      if (!servedSync?.securityDefiner || !(servedSync.body ?? "").replace(/\s+/g, " ").includes("set served_at = v.served_at from unnest(v_exact, v_person) as k (exact, person) left join public.storage_file_trash_served v on v.exact = k.exact and v.person = k.person")) {
+        detail.push(`${servedSync?.rel ?? "supabase/migrations"}: storage_file_trash_served_sync must copy each written record into its person's turn, with its own rights`);
+      }
       // document-cleanup: the queue read only through the pick, both kinds;
       // exact paths in bulk; a refused batch tried one path at a time, with a
       // stop when storage itself refuses.

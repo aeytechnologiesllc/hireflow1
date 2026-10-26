@@ -8,7 +8,11 @@
  *     of one application and 300 an hour; document-cleanup reads the files of
  *     deleted requests and the due ID papers only through their fair picks
  *     (service role only, businesses in turn, 200 a run), and tells the
- *     admins once a day when either backs up (20261025610000).
+ *     admins once a day when either backs up (20261025610000); each pick
+ *     reads only the businesses a run can reach, from turns their tables'
+ *     own statement triggers keep, and the due pick first queues, once, the
+ *     files in the folder of an ID request with no link seven days after it
+ *     was asked for (the twelfth security review, 20261025630000).
  *   - delete-account-says-what-stays: Delete Account's confirm says what
  *     stays (the signing record, as proof; a few technical records), and
  *     delete-account empties every bucket it promises and no longer tries to
@@ -20,6 +24,7 @@
  */
 
 import { grantsToBrowser, latestDefinition, migrationTexts, triggerProblems } from "./phase-7-launch-locks.mjs";
+import { indexProblems, turnTriggerProblems, turnsTableProblems } from "./phase-5-launch-locks.mjs";
 
 const flat = (s) => (s ?? "").replace(/\s+/g, " ");
 /** A TypeScript file without its comments. */
@@ -77,20 +82,70 @@ export default [
         if (!new RegExp(`revoke all on function public\\.${fn}\\(${args}\\) from public, anon, authenticated;`, "i").test(sql) || !new RegExp(`grant execute on function public\\.${fn}\\(${args}\\) to service_role;`, "i").test(sql)) detail.push(`${def.rel}: ${fn} must be the service role's only`);
         for (const rel of await grantsToBrowser(ctx, fn)) detail.push(`${rel}: ${fn} granted to a browser role`);
         const body = flat(def.body);
-        if (!/row_number\(\) over \(partition by \w\.person order by/i.test(body) || !/case when \w\.nth = 1 then greatest\(s\.served_at, \w\.due_at\) end, \w\.waiting, \w\.nth/i.test(body) || !/where p\.place <= 200 \)/i.test(body) || !/on conflict \(queue, person\) do update set served_at = excluded\.served_at/i.test(body)) {
+        if (!/case when \w\.nth = 1 then greatest\(\w\.served_at, \w\.due_at\) end, \w\.waiting, \w\.nth/i.test(body) || !/where p\.place <= 200 \)/i.test(body) || !/on conflict \(queue, person\) do update set served_at = excluded\.served_at/i.test(body)) {
           detail.push(`${def.rel}: ${fn} must take each business's first paper in turn (by when it was last taken or became due, whichever is later), then the fewest waiting first, 200 a run, and record whom it took`);
         }
-        if (!/coalesce\(\w\.employer_id, \w\.candidate_id\)::text as person/i.test(body)) detail.push(`${def.rel}: ${fn} must take papers by the business that asked (a flood is always one business's; applicant accounts cost nothing)`);
+        if (!/coalesce\(\w\.employer_id, \w\.candidate_id\)::text = p\.person/i.test(body)) detail.push(`${def.rel}: ${fn} must take papers by the business that asked (a flood is always one business's; applicant accounts cost nothing)`);
         if (/\bwhere false\b|\blimit 0\b|place <= 0\b/i.test(body)) detail.push(`${def.rel}: ${fn} is narrowed to nothing`);
       }
-      const due = flat((await latestDefinition(ctx, "document_requests_due_pick"))?.body);
-      if (!due.includes("where r.file_url is not null and r.document_type = any (p_kinds) and (r.team_opened_at <= p_opened_before or (r.team_opened_at is null and r.submitted_at <= p_sent_before) or (r.team_opened_at is null and r.submitted_at is null and r.created_at <= p_sent_before))")) {
-        detail.push("supabase/migrations: document_requests_due_pick must take only the papers of the given kinds with a file, opened before the first cutoff, or never opened and sent (or, never marked sent, asked for) before the second");
-      }
+      // Each pick reads only the businesses a run can reach, from their turns
+      // (the twelfth security review: ranking every row passed the API's
+      // 8-second timeout well within what a flood of businesses can leave).
       const trashPick = flat((await latestDefinition(ctx, "document_file_trash_fair_pick"))?.body);
+      if (!trashPick.includes("with come as materialized ( select s.person, s.waiting, s.failed, s.served_at from public.document_file_trash_turns s where s.rank <= now() order by s.rank, s.waiting, s.first_attempts, s.first_queued_at, s.first_id limit 200 )") || !trashPick.includes("from public.document_file_trash_turns s, run where s.rank > now() and not run.full )") || !trashPick.includes("row_number() over (order by t.attempts, t.queued_at, t.id) as nth from public.document_file_trash t where coalesce(t.employer_id, t.candidate_id)::text = p.person order by t.attempts, t.queued_at, t.id limit case when run.full then 1 when p.waiting - p.failed >= 200 then 200 else p.waiting end")) {
+        detail.push("supabase/migrations: document_file_trash_fair_pick must read the first 200 businesses whose turn has come from document_file_trash_turns, one note each, and every business (up to its 200th note never tried) only when fewer have come");
+      }
       if (!trashPick.includes("case when m.attempts > 0 then coalesce(m.last_tried_at, m.queued_at) + least(m.attempts, 24) * interval '1 hour' + interval '30 minutes' else m.queued_at end as due_at") || !/order by r\.due_at > now\(\), r\.nth > 1/i.test(trashPick)) {
         detail.push("supabase/migrations: document_file_trash_fair_pick must put a note that failed behind every note that is due until its back-off (an hour a try, up to a day, and half an hour more) ends");
       }
+      const due = flat((await latestDefinition(ctx, "document_requests_due_pick"))?.body);
+      const ID = "r.document_type in ('government_id', 'nbi_clearance', 'proof_of_address') and r.document_type = any (p_kinds)";
+      if (!due.includes(`r.file_url is not null and r.team_opened_at is not null and ${ID} and r.team_opened_at <= p_opened_before order by r.team_opened_at, r.id`) || !due.includes(`r.file_url is not null and r.team_opened_at is null and r.submitted_at is not null and ${ID} and r.submitted_at <= p_sent_before order by r.submitted_at, r.id`) || !due.includes(`r.file_url is not null and r.team_opened_at is null and r.submitted_at is null and ${ID} and r.created_at <= p_sent_before order by r.created_at, r.id`)) {
+        detail.push("supabase/migrations: document_requests_due_pick must take only the papers of the given kinds with a file, opened before the first cutoff, or never opened and sent (or, never marked sent, asked for) before the second");
+      }
+      if (!due.includes("with strays as materialized ( select public.document_requests_sweep_strays(p_kinds, p_sent_before) as queued ), first_come as materialized ( select s.person, s.rank, s.served_at from public.document_requests_due_turns s where s.rank <= now() order by s.rank, s.person limit 200 ), run as materialized ( select count(*) >= 200 as full, (select f.rank from first_come f order by f.rank desc, f.person desc limit 1) as last_rank, (select f.person from first_come f order by f.rank desc, f.person desc limit 1) as last_person, (select s.queued from strays s) as strays_queued from first_come )") || !due.includes("where run.full and s.rank = run.last_rank and s.person > run.last_person order by s.person limit 200)") || !due.includes("limit 201) x) as waiting from people p")) {
+        detail.push("supabase/migrations: document_requests_due_pick must read the first 200 businesses whose first paper is due from document_requests_due_turns, and any that rank with the 200th, count each one's due papers up to 201, and look for unlinked photos first");
+      }
+      // …by these indexes, none dropped later.
+      detail.push(...(await indexProblems(ctx, ["document_file_trash_by_business", "document_file_trash_turns_rank", "document_requests_due_opened", "document_requests_due_sent", "document_requests_due_asked", "document_requests_due_turns_rank", "document_requests_unlinked"])));
+      // The turns are kept by the tables' own triggers, for every statement;
+      // only the server reads them.
+      for (const [table, made] of [
+        ["document_file_trash_turns", "create table if not exists public.document_file_trash_turns ( person text primary key, waiting integer not null default 0, failed integer not null default 0, first_id uuid, first_attempts integer, first_queued_at timestamptz, first_due timestamptz, served_at timestamptz, rank timestamptz generated always as (greatest(served_at, first_due)) stored );"],
+        ["document_requests_due_turns", "create table if not exists public.document_requests_due_turns ( person text primary key, on_file integer not null default 0, first_due timestamptz, served_at timestamptz, rank timestamptz generated always as (greatest(served_at, first_due)) stored );"],
+      ]) detail.push(...(await turnsTableProblems(ctx, { table, made })));
+      for (const [prefix, table, fn] of [
+        ["document_file_trash_turns", "document_file_trash", "document_file_trash_turns_sync"],
+        ["document_requests_due_turns", "document_requests", "document_requests_due_turns_sync"],
+        ["document_cleanup_served", "document_cleanup_served", "document_cleanup_served_sync"],
+      ]) {
+        for (const event of ["INSERT", "UPDATE", "DELETE", "TRUNCATE"]) detail.push(...(await turnTriggerProblems(ctx, { name: `${prefix}_${event.toLowerCase()}`, table, event, fn })));
+        const sync = await latestDefinition(ctx, fn);
+        if (!sync?.securityDefiner || !/exit when v_held = cardinality\(v_person\);|for update of s;/i.test(flat(sync.body))) detail.push(`${sync?.rel ?? "supabase/migrations"}: ${fn} must run with its own rights and lock every turn it touches before it reads them again`);
+      }
+      const trashSync = flat((await latestDefinition(ctx, "document_file_trash_turns_sync"))?.body);
+      if (!trashSync.includes("case when t.attempts > 0 then coalesce(t.last_tried_at, t.queued_at) + least(t.attempts, 24) * interval '1 hour' + interval '30 minutes' else t.queued_at end as due_at from public.document_file_trash t where coalesce(t.employer_id, t.candidate_id)::text = k.person order by t.attempts, t.queued_at, t.id limit 1")) {
+        detail.push("supabase/migrations: document_file_trash_turns_sync must find each business's first note and when it is due as document_file_trash_fair_pick does (fewest tries, oldest; an hour a try, up to a day, and half an hour)");
+      }
+      const dueSync = flat((await latestDefinition(ctx, "document_requests_due_turns_sync"))?.body);
+      if (!dueSync.includes("coalesce(n.employer_id, n.candidate_id)::text as person, count(*)::int as d from new_requests n where n.file_url is not null and n.document_type in ('government_id', 'nbi_clearance', 'proof_of_address')") || !dueSync.includes("first_due = least( (select r.team_opened_at + interval '24 hours'") || !dueSync.includes("(select r.submitted_at + interval '168 hours'") || !dueSync.includes("(select r.created_at + interval '168 hours'")) {
+        detail.push("supabase/migrations: document_requests_due_turns_sync must count each business's ID papers with a file and find when the first is due: 24 hours after it was opened, else 168 after it was sent or asked for (document-cleanup's own cutoffs)");
+      }
+      // The photo an open request never linked: looked for once, by a
+      // function of the server's own, 5,000 requests a run, only the ID kinds.
+      const sweep = await latestDefinition(ctx, "document_requests_sweep_strays");
+      const sweepBody = flat(sweep?.body);
+      if (!sweep?.securityDefiner || (await grantsToBrowser(ctx, "document_requests_sweep_strays")).length || !/revoke all on function public\.document_requests_sweep_strays\(text\[\], timestamptz\) from public, anon, authenticated;/i.test((await read(sweep?.rel ?? "")) ?? "")) {
+        detail.push(`${sweep?.rel ?? "supabase/migrations"}: document_requests_sweep_strays must be the server's only, with its own rights`);
+      }
+      if (!sweepBody.includes("where r.file_url is null and r.document_type in ('government_id', 'nbi_clearance', 'proof_of_address') and r.created_at <= p_sent_before and (r.created_at, r.id) > (v_mark.created_at, v_mark.id) order by r.created_at, r.id limit 5000") || !sweepBody.includes("and o.name like l.candidate_id::text || '/' || l.id::text || '/%'") || !sweepBody.includes("and l.document_type = any (p_kinds)")) {
+        detail.push(`${sweep?.rel ?? "supabase/migrations"}: document_requests_sweep_strays must look once at each ID request with no link asked for before the cutoff, 5,000 a run, and queue only the files in that request's own folder`);
+      }
+      detail.push(...(await turnsTableProblems(ctx, {
+        table: "document_requests_swept",
+        made: "create table if not exists public.document_requests_swept ( only_row boolean primary key default true check (only_row), created_at timestamptz not null default '-infinity', id uuid not null default '00000000-0000-0000-0000-000000000000' );",
+        readable: false,
+      })));
       // Whom each run took is the server's own record.
       const texts = await migrationTexts(ctx);
       const all = flat(texts.map((t) => t.sql).join("\n"));

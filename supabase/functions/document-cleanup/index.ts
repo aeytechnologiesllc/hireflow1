@@ -35,8 +35,12 @@
 // only itself (the eighth security review), many accounts hold up nobody for
 // good (the ninth), and a burst by many accounts delays a later removal about
 // a run for every 200 of them, not for as long as their notes last (the
-// tenth). When the queue backs up (a run's worth still waiting, or a note
-// waiting over three hours), the platform admins are told once a day.
+// tenth). Each of the three picks reads only what a run can take, however
+// big its queue grows (the twelfth security review: ranking the whole queue,
+// the pick passed the API's 8-second timeout at about 700,000 notes, and no
+// run emptied it again); a read that still times out is told as such. When
+// the queue backs up (a run's worth still waiting, or a note waiting over
+// three hours), the platform admins are told once a day.
 //
 // Called every hour by the database's own scheduler (pg_cron, the
 // `document-cleanup` job), never by a browser. The job sends a secret it reads
@@ -73,7 +77,9 @@ const PATH_NOTES_PER_RUN = 1000;
  * One withdrawal's worth (its recordings, video introduction and work
  * samples; a resume, its page images and the form's files), which the pick
  * takes together in a person's turn, whole or not at all (20261025600000,
- * the eleventh security review). Someone holding more gives one a turn.
+ * the eleventh security review). Someone holding more gives one a turn, and
+ * up to one withdrawal's worth in each later turn while they hold no more
+ * than two (20261025620000, the twelfth security review's finding 2).
  */
 const TURN_FOLDERS = 3;
 const TURN_PATHS = 6;
@@ -85,6 +91,17 @@ const IDS_PER_REQUEST = 100;
 const REFUSED_IN_A_ROW = 3;
 /** A note never tried after this long means the queue is backed up (each person's are taken oldest first, every hour). */
 const BACKLOG_HOURS = 3;
+
+/**
+ * A read the database stopped at its time limit (the API's 8 seconds;
+ * Postgres's query_canceled, 57014). Trying again every hour cannot help
+ * while what it reads is that big (the twelfth security review: the removal
+ * queue's pick, which ranked every note, timed out from about 700,000 on,
+ * so no run ever emptied the queue again), so the admins are told that, and
+ * how to find who fills it.
+ */
+const timedOut = (e: { code?: string; message?: string } | null | undefined) =>
+  !!e && (e.code === "57014" || /statement timeout|canceling statement/i.test(String(e.message ?? "")));
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -246,7 +263,8 @@ Deno.serve(async (req) => {
   // person a run, people in turn (by when the pick last took them, which it
   // records itself), a person's turn their oldest note, or all of their notes
   // when they hold no more than one withdrawal's worth (TURN_FOLDERS,
-  // TURN_PATHS), whole or not at all; then the people with the fewest waiting
+  // TURN_PATHS), or up to that much in each later turn while they hold no
+  // more than two, whole or not at all; then the people with the fewest waiting
   // first; a note that failed waits out a back-off behind every note that is
   // due. The eighth security review: one account's 860 notes an hour, taken
   // 200 a run oldest first, held every real withdrawal up for days. The
@@ -256,7 +274,11 @@ Deno.serve(async (req) => {
   // place ahead of every later withdrawal for 30 runs. The eleventh: one
   // note a turn, a real withdrawal's later folders each waited behind every
   // account that had joined the queue since, longer each time while new
-  // accounts kept coming. Folders and exact paths are read apart, so neither
+  // accounts kept coming. The twelfth: ranking the whole queue, the pick
+  // passed the API's 8-second timeout at about 700,000 notes, and from then on
+  // no run emptied it; it reads only the people a run can reach now
+  // (storage_file_trash_turns, 20261025620000), and a read that still times
+  // out is told as such. Folders and exact paths are read apart, so neither
   // answer passes the API's 1,000-row ceiling.
   type Note = { id: string; bucket: string; path: string | null; folder: string | null; starts_with: string | null; attempts: number | null };
   const [folderPick, exactPick] = await Promise.all([
@@ -431,10 +453,14 @@ Deno.serve(async (req) => {
   // queue never hides a later "no ID is deleted" (the ninth review: one key
   // for all three did).
   if (error) {
-    await tell("read-requests", "ID papers are not being deleted", `document-cleanup could not read the ID-paper requests (${String(error.message ?? error).slice(0, 160)}): no ID is deleted until it can. It tries again every hour.`);
+    await tell("read-requests", "ID papers are not being deleted", timedOut(error)
+      ? `document-cleanup's read of the ID-paper requests took longer than the database allows and was stopped (${String(error.message ?? error).slice(0, 160)}): no ID is deleted until it is read in time, and trying again every hour does not help while so many papers wait. The read takes only a run's worth of businesses (document_requests_due_pick, by document_requests_due_turns), so check that table and its triggers are there. To see who holds the papers, count document_requests' rows that still have a file, by employer_id.`
+      : `document-cleanup could not read the ID-paper requests (${String(error.message ?? error).slice(0, 160)}): no ID is deleted until it can. It tries again every hour.`);
   }
   if (trashError) {
-    await tell("read-trash", "Files of deleted requests are not being deleted", `document-cleanup could not read the files of deleted requests (${String(trashError.message).slice(0, 160)}). It tries again every hour.`);
+    await tell("read-trash", "Files of deleted requests are not being deleted", timedOut(trashError)
+      ? `document-cleanup's read of the files of deleted requests took longer than the database allows and was stopped (${String(trashError.message).slice(0, 160)}): none is deleted until it is read in time, and trying again every hour does not help while the queue is this big. The read takes only a run's worth of businesses (document_file_trash_fair_pick, by document_file_trash_turns), so check that table and its triggers are there. To see who fills it, count document_file_trash's rows by employer_id.`
+      : `document-cleanup could not read the files of deleted requests (${String(trashError.message).slice(0, 160)}). It tries again every hour.`);
   }
   // Not knowing which of their requests are still open is a failed read too:
   // none of the notes was touched (the thirteenth Phase 5 review). The same
@@ -455,7 +481,9 @@ Deno.serve(async (req) => {
     await tell("due-backlog", "ID papers are waiting past their time", `At least ${DUE_PER_RUN} ID papers were due for deletion this run (24 hours after the hiring side first opened them, or 7 days after they were sent). document-cleanup deletes up to ${DUE_PER_RUN} an hour, each business's in turn, and the rest wait for the next run. To see who holds them, count document_requests' rows that still have a file, by employer_id.`);
   }
   if (leftoverError) {
-    await tell("read-leftovers", "Files queued for removal are not being deleted", `document-cleanup could not read the files queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash) (${String(leftoverError.message).slice(0, 160)}). It tries again every hour.`);
+    await tell("read-leftovers", "Files queued for removal are not being deleted", timedOut(leftoverError)
+      ? `document-cleanup's read of the files queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash) took longer than the database allows and was stopped (${String(leftoverError.message).slice(0, 160)}): nothing in that queue is deleted until it is read in time, and trying again every hour does not help while the queue is this big. The read takes only a run's worth of people (storage_file_trash_fair_pick, by storage_file_trash_turns), so check that table and its triggers are there. To see who fills the queue, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each.`
+      : `document-cleanup could not read the files queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash) (${String(leftoverError.message).slice(0, 160)}). It tries again every hour.`);
   }
   const unread = [error, trashError, openError, leftoverError].filter(Boolean);
   if (counts.failed > 0 || orphansFailed > 0) {
@@ -470,7 +498,7 @@ Deno.serve(async (req) => {
   }
   const waitedTooLong = oldestWaiting !== null && Date.now() - Date.parse(oldestWaiting) > BACKLOG_HOURS * 3_600_000;
   if (leftoversWaiting !== null && (backedUp || waitedTooLong)) {
-    await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes up to ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} folders and ${PATH_NOTES_PER_RUN.toLocaleString("en-US")} files an hour, people in turn: all of a person's files at once when they are no more than one withdrawal's worth (${TURN_FOLDERS} folders, ${TURN_PATHS} files), else one a turn. So a real withdrawal goes in one run, after about an hour for every ${Math.floor((FOLDER_NOTES_PER_RUN - TURN_FOLDERS + 1) / TURN_FOLDERS)} people with files queued before it, and a larger removal (a Delete Account with several applications) gives one file a turn until it is down to that, each turn behind everyone who queued in the meantime. To see who fills it, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each.`);
+    await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes up to ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} folders and ${PATH_NOTES_PER_RUN.toLocaleString("en-US")} files an hour, people in turn: all of a person's files at once when they are no more than one withdrawal's worth (${TURN_FOLDERS} folders, ${TURN_PATHS} files), else one a turn, and up to that many in each later turn while they hold no more than two withdrawals' worth (${2 * TURN_FOLDERS} folders, ${2 * TURN_PATHS} files). So a real withdrawal goes in one run, after about an hour for every ${Math.floor((FOLDER_NOTES_PER_RUN - TURN_FOLDERS + 1) / TURN_FOLDERS)} people with files queued before it; a Delete Account with two applications goes in three turns, and a larger removal gives one file a turn until it is down to that, each turn behind everyone who queued in the meantime. To see who fills it, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each.`);
   }
   if (unread.length > 0) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting }, 500);
   return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting });
