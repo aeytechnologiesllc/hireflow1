@@ -199,13 +199,20 @@ export function useReviewRequest() {
   return useMutation({
     retry: false,
     mutationFn: async ({ request, approve, reason }: { request: ApplicantRequest; approve: boolean; reason?: string }) => {
-      const { error } = await supabase
+      const { data: changed, error } = await supabase
         .from("document_requests")
         // reviewed_at is set by the database's guard either way; sent too so
         // the page reads the same before the row comes back.
         .update((approve ? { status: "approved", reviewed_at: new Date().toISOString() } : { status: "rejected", reviewed_at: new Date().toISOString(), rejection_reason: (reason ?? "").trim().slice(0, 300) || null }) as never)
-        .eq("id", request.id);
+        .eq("id", request.id)
+        .select("id");
       if (error) throw new Error(approve ? "It could not be approved. Try again." : "It could not be sent back. Try again.");
+      // A row the policy did not let this person change comes back as none,
+      // with no error: say so, and never tell the applicant to send it again
+      // (the fifteenth product review: a teammate without "Send documents" saw
+      // "approved" and nothing changed, and the applicant was asked for a
+      // paper they then had no way to send).
+      if (!changed || changed.length === 0) throw new Error("Only someone on your team who may send documents can approve it or ask for it again.");
       if (!approve) {
         try {
           await supabase.from("notifications").insert({

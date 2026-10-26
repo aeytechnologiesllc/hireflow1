@@ -76,18 +76,23 @@ const when = (value: string | null | undefined): number | null => {
  *  one who may not, a document waiting on the countersign is not their turn
  *  (the fourteenth product review: the page opened on "Your turn 1" for a
  *  signature they cannot give). */
-export function docStatus(row: DocRow, now: number = Date.now(), canSend = true): Exclude<FilterStatus, "all"> {
+export function docStatus(row: DocRow, now: number = Date.now(), canSend = true): Exclude<FilterStatus, "all"> | null {
   if (row.isVoided || row.status === "Declined" || row.status === "Withdrawn" || row.status === "Voided" || row.status === "Expired") return "closed";
   if (row.status === "Signed" || row.status === "Submitted") return "done";
-  if (row.candidateSignedAt) return canSend ? "yours" : "theirs";
+  // For one who may not sign, it is someone else's on the team: in All only,
+  // never "Waiting on them", which reads as the applicant still to sign (the
+  // fifteenth product review).
+  if (row.candidateSignedAt) return canSend ? "yours" : null;
   const expires = when(row.expiresAt);
   if (expires !== null && expires < now) return "closed";
   return "theirs";
 }
 
-/** Where a request stands. */
-export function requestStatus(request: { status: string }): Exclude<FilterStatus, "all"> {
-  if (request.status === "submitted" || request.status === "reviewed") return "yours";
+/** Where a request stands. A paper sent back is the reviewer's turn, and only
+ *  someone who may send documents reviews it (the live update policy): for
+ *  anyone else it is in All only (the fifteenth product review). */
+export function requestStatus(request: { status: string }, canSend = true): Exclude<FilterStatus, "all"> | null {
+  if (request.status === "submitted" || request.status === "reviewed") return canSend ? "yours" : null;
   if (request.status === "approved") return "done";
   return "theirs";
 }
@@ -151,15 +156,21 @@ export function applyDocFilters<R extends FilterableRequest>(
   const docsLeft = docs.filter((row) => docPasses(row, rest));
   const requestsLeft = requests.filter((request) => requestPasses(request, titleOf(request), rest));
   const counts: Record<FilterStatus, number> = { all: 0, yours: 0, theirs: 0, done: 0, closed: 0 };
-  for (const row of docsLeft) counts[docStatus(row, now, canSend)] += 1;
-  for (const request of requestsLeft) counts[requestStatus(request)] += 1;
+  for (const row of docsLeft) {
+    const st = docStatus(row, now, canSend);
+    if (st) counts[st] += 1;
+  }
+  for (const request of requestsLeft) {
+    const st = requestStatus(request, canSend);
+    if (st) counts[st] += 1;
+  }
   counts.all = docsLeft.length + requestsLeft.length;
 
   const docSort = (a: DocRow, b: DocRow) => sortValue(a.createdAt, a.expiresAt, b.createdAt, b.expiresAt, filters.order);
   const requestSort = (a: R, b: R) => sortValue(a.created_at, a.due_date, b.created_at, b.due_date, filters.order);
   return {
     docs: docsLeft.filter((row) => status === "all" || docStatus(row, now, canSend) === status).sort(docSort),
-    requests: requestsLeft.filter((request) => status === "all" || requestStatus(request) === status).sort(requestSort),
+    requests: requestsLeft.filter((request) => status === "all" || requestStatus(request, canSend) === status).sort(requestSort),
     counts,
   };
 }
@@ -268,9 +279,15 @@ export function drawerCaption(rows: CaptionRow[], { canSend }: { canSend: boolea
     // One expired letter left to act on: named, since the replaced one may have
     // expired too (the fourteenth product review: "the one that expired" fit both).
     const stillExpired = rows.filter((r) => r.status === "Expired" && !replaced.has(r));
-    const named = stillExpired.length === 1 && stillExpired[0].title ? ` for \u201c${stillExpired[0].title}\u201d` : null;
+    // Distinct papers: two expired copies of one letter to one person still
+    // need one new one (the eleventh review); two different papers need two
+    // (the fifteenth: "the one that expired" fitted neither of them).
+    const titles = [...new Set(stillExpired.map((r) => r.title).filter((t): t is string => !!t))];
+    const allTitled = stillExpired.every((r) => !!r.title);
+    const named = allTitled && titles.length > 0 && titles.length <= 2 ? ` for ${titles.map((t) => `\u201c${t}\u201d`).join(" and ")}` : null;
     const which = replaced.size > 0 ? named ?? (people === 1 ? " for the one that expired" : " for the ones that expired") : "";
-    return `${line} — ${people === 1 ? `send a new one${which} if you still need it` : `send new ones${which} if you still need them`}.`;
+    const many = people > 1 || titles.length > 1;
+    return `${line} — ${many ? `send new ones${which} if you still need them` : `send a new one${which} if you still need it`}.`;
   }
   return `${line}.`;
 }

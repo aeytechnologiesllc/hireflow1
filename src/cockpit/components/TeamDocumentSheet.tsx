@@ -105,6 +105,7 @@ export function TeamDocumentSheet({
   document,
   open,
   canSend,
+  isOwner = false,
   newerLetterSentAt = null,
   onClose,
   onWithdraw,
@@ -114,6 +115,8 @@ export function TeamDocumentSheet({
   open: boolean;
   /** The owner, or a teammate with "Send documents": the only ones told to send a new letter. */
   canSend: boolean;
+  /** The account owner (the one document-signing notifies when the applicant signs). */
+  isOwner?: boolean;
   /** When a later letter to the same person went out (laterLetter), if one did. */
   newerLetterSentAt?: string | null;
   onClose: () => void;
@@ -320,8 +323,14 @@ export function TeamDocumentSheet({
               {state === "waiting" && (
                 <div className="mb-4 rounded-[12px] px-4 py-3 text-[13.5px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }} data-team-document-wait>
                   {/* Only the account owner is notified when the applicant signs (document-signing), so this
-                      never promises a teammate a notification (the fourteenth product review). */}
-                  <strong style={{ color: "var(--hf-text)" }}>Nothing to do yet.</strong> {First} signs first. The account owner gets a notification when they do, and then it is signed here to finish.
+                      never promises a teammate a notification (the fourteenth product review), and tells each
+                      reader who signs next (the fifteenth: the owner read about "the account owner"). */}
+                  <strong style={{ color: "var(--hf-text)" }}>Nothing to do yet.</strong> {First} signs first.{" "}
+                  {isOwner
+                    ? "You'll get a notification when they do, and then you sign here to finish."
+                    : canSend
+                      ? "The account owner gets a notification when they do; then you or the owner sign here to finish."
+                      : "The account owner gets a notification when they do; then someone on your team who may send documents signs it here."}
                 </div>
               )}
               {state === "declined" && (

@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { PanelLabel } from "./ProfileSection";
 import { isTypedAnswer, openRequestFile, useApplicantRequests, useCancelRequest, useReviewRequest, type ApplicantRequest } from "../hooks/useApplicantRequests";
 import { useAuth } from "@/hooks/useAuth";
+import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { idDeletion, requestKind, requestTitle, shownAnswer, statusWords, timeLeft } from "@/lib/documentRequests";
 
 /**
@@ -36,7 +37,12 @@ function tone(status: string): { background: string; color: string } {
 export function RequestRow({ request, person }: { request: ApplicantRequest; person?: string }) {
   const review = useReviewRequest();
   const cancel = useCancelRequest();
-  const { role } = useAuth();
+  const { role, isTeamMember } = useAuth();
+  const { data: teamPermissions } = useTeamMemberPermissions();
+  // Approving or asking again is the owner's, or a teammate's with "Send
+  // documents" (the live document_requests update policy); anyone else gets
+  // a line instead of buttons that change nothing (the fifteenth product review).
+  const canReview = isTeamMember ? !!teamPermissions?.canSendDocuments : role === "employer";
   const [cancelArmed, setCancelArmed] = useState(false);
   const queryClient = useQueryClient();
   const [asking, setAsking] = useState(false);
@@ -124,7 +130,12 @@ export function RequestRow({ request, person }: { request: ApplicantRequest; per
               </button>
             </>
           )}
-          {received && (
+          {received && !canReview && (
+            <span className="self-center text-[12px]" style={{ color: "var(--ink-3)" }} data-request-no-review>
+              Someone on your team who may send documents approves this.
+            </span>
+          )}
+          {received && canReview && (
             <>
               <button type="button" className="ck-btn ck-btn-primary !px-2.5 !py-1.5 !text-[12.5px]" onClick={() => void decide(true)} disabled={review.isPending} data-request-approve>
                 Approve

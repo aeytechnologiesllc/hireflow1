@@ -107,7 +107,14 @@ eq("the status words; \"Closed\" names declined, withdrawn, voided and expired a
   // The fourteenth product review: with one expired letter left, the ask names it (the replaced one may have expired too).
   const named = f.drawerCaption([{ ...ana, title: "House rules" }, benOld, benNew], { canSend: true });
   check("beside a replaced letter, the one expired letter left is named", /send a new one for \u201cHouse rules\u201d if you still need it\.$/.test(named), named);
-  check("for a teammate who cannot sign, a document waiting on the countersign is not their turn", f.docStatus({ id: "y1", status: "Pending", candidateSignedAt: "2026-10-20T00:00:00Z" }, Date.now(), false) === "theirs" && f.docStatus({ id: "y1", status: "Pending", candidateSignedAt: "2026-10-20T00:00:00Z" }, Date.now(), true) === "yours");
+  // The fifteenth: in All only, never "Waiting on them" (which reads as the applicant still to sign); the same for a paper to review.
+  check("for a teammate who cannot sign or review, a countersign or a paper sent back is in All only", f.docStatus({ id: "y1", status: "Pending", candidateSignedAt: "2026-10-20T00:00:00Z" }, Date.now(), false) === null && f.docStatus({ id: "y1", status: "Pending", candidateSignedAt: "2026-10-20T00:00:00Z" }, Date.now(), true) === "yours" && f.requestStatus({ status: "submitted" }, false) === null && f.requestStatus({ status: "submitted" }, true) === "yours");
+  {
+    const view = f.applyDocFilters([{ id: "y2", status: "Pending", candidateSignedAt: "2026-10-20T00:00:00Z", type: "File", title: "House rules", candidate: "Jo", role: "CSR", createdAt: "2026-10-20T00:00:00Z" }], [{ id: "q1", status: "submitted", created_at: "2026-10-21T00:00:00Z" }], { status: "all", kind: "all", job: "all", order: "newest", search: "" }, () => "Government ID", Date.now(), false);
+    check("…counted in All, and in no bucket", view.counts.all === 2 && view.counts.yours === 0 && view.counts.theirs === 0, JSON.stringify(view.counts));
+  }
+  const twoPapers = f.drawerCaption([{ ...ana, title: "Offer Letter — Server" }, { id: "e3", status: "Expired", applicationId: "a-ana", type: "File", title: "House rules" }, benOld, benNew], { canSend: true });
+  check("two different expired papers beside a replaced letter: both named, new ones", /send new ones for \u201cOffer Letter — Server\u201d and \u201cHouse rules\u201d if you still need them\.$/.test(twoPapers), twoPapers);
 }
 
 // The line beside the meter. The tenth product review: a letter past its date

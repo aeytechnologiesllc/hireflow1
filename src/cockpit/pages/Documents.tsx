@@ -779,6 +779,7 @@ export default function CockpitDocuments() {
         document={sheetDocument}
         open={!!sheetDocId}
         canSend={canSend}
+        isOwner={!isTeamMember}
         newerLetterSentAt={sheetNewer?.createdAt ?? null}
         onClose={() => setSheetDocId(null)}
         onWithdraw={(doc) => {
