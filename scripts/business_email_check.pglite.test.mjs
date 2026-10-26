@@ -70,6 +70,8 @@ const NOT_THE_CHECK = {
   "20261025520000_growth_front_page_not_staff.sql": "admin_growth's front-page count leaves out the staff host; reads page counts and sign-up tags, nothing of the check",
   "20261025540000_file_queue_only_what_is_there.sql": "a deleted application or request queues only the files storage holds, and a browser starts at most 20 applications an hour (applications and the removal queues); it reads a job's business and a profile's resume link, and changes nothing of jobs, profiles or the check",
   "20261025550000_applications_removed_only_through_delete_their_information.sql": "drops the two business delete policies on applications; nothing of jobs, profiles or the check",
+  "20261025560000_file_queue_fair_and_bounded.sql": "the removal queue names each row's applicant and is taken fairly (storage_file_trash_fair_pick), a deleted application queues at most 200 exact paths a day, and the start limit reads a job's business from published_jobs_public (read only); nothing of jobs, profiles or the check",
+  "20261025570000_application_stays_on_its_job.sql": "an application's job is the server's to change, and a deleted document queues its kept copies (applications, documents and the removal queue); nothing of jobs, profiles or the check",
   "20261025270000_phase5_review6.sql": "the AI budget's new-business day only when smaller (no change to the check)",
   "20261025250000_phase5_review5.sql": "the AI budget reads business_email_verified and live jobs (no change to either); nothing of jobs, profiles or the check's tables",
   "20261025260000_drop_evaluation_move_backup.sql": "drops the evaluations move's private backup; nothing of jobs, profiles or the check's tables",

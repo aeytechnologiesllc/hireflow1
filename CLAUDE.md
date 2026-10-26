@@ -201,7 +201,10 @@ these either; each has a guard or a test that CI runs:
   through `remove-applicant` → `remove_applicant` (service role only, logged).
   It is a business's only way: the two old browser delete policies on
   `applications` are dropped (`20261025550000`; only the applicant's own
-  withdrawal is left; a deleted job's cascade is unaffected).
+  withdrawal is left; a deleted job's cascade is unaffected), and nobody but
+  the server changes an application's job (`applications_stay_on_their_job`,
+  `application_job_fixed`, `20261025570000`): moving one to a throwaway job
+  and deleting that job was a way round it (the eighth security review).
   A document's files are found by its id only (`documents/<id>/`), never by
   its file address (a business writes that; the first version would have
   deleted another business's signed copy); a teammate only on jobs they are
@@ -216,9 +219,26 @@ these either; each has a guard or a test that CI runs:
   (`applications_start_limit`, `client_send_allowed('application', …)`,
   `too_many_applications`): one account looping "start, withdraw" had buried
   every real removal. document-cleanup tells the admins once a day when the
-  queue backs up (`cleanup:backlog`: 200 still waiting, or one over three
-  hours). A deleted request whose photo went up without its link saved still
-  queues its folder.
+  queue backs up (`cleanup:backlog`: a run's worth of folders or of exact
+  paths still waiting, or one over three hours). A deleted request whose
+  photo went up without its link saved still queues its folder.
+- (The eighth security review, `20261025560000`, `20261025570000`.) One
+  account's uploads hold up only its own removals: each queue row names its
+  applicant (`storage_file_trash.candidate_id`); document-cleanup reads the
+  queue only through `storage_file_trash_fair_pick` (service role only), in
+  rounds, a few from each person a run (6 folders, 40 exact paths), the people
+  with the fewest waiting first, up to 200 folders and 1,000 exact paths a
+  run, and clears exact paths in one `remove()` a bucket (a refused batch is
+  tried one path at a time; three refused in a row stops it). A deleted
+  application queues at most 200 exact paths a day for one applicant
+  (`check_rate_limit('file-queue-paths', …, 200, 86400)`; the three folders
+  always). The start limit's "10 with one business" was 10 with one job (an
+  applicant cannot read the jobs row before applying); it reads the business
+  from `published_jobs_public` now. A deleted document queues its kept copies
+  (`documents/<id>/`, `documents_queue_files`, AFTER DELETE, SECURITY
+  DEFINER) however the row goes. Guards `file-queue-fair-and-bounded`,
+  `applications-stay-on-their-job`; launch_locks_behaviour sections 1, 9, 11,
+  13 and 14, `scripts/document_cleanup.test.mjs`.
 - The way to reach the company is **Contact us** (an applicant's own Help
   thread at `/contact`, `20261025200000_help_for_applicants.sql`; `/help` is
   staff-only on the staff host) or Help (a hiring team); Messages reach the
@@ -337,7 +357,10 @@ these either; each has a guard or a test that CI runs:
   replays every migration, then exercises the file queue, remove_applicant,
   the AI budget, the bell and inbox limits, reports, invite codes, the plain
   paths and a clean insert as anon / authenticated / service role. A new lock
-  belongs in it.
+  belongs in it. (Round 8.) Every weakening the eighth review tried of
+  sections 9-13 fails a test there, not only a guard, and its loops are
+  bounded (a budget that stops counting fails section 12; it used to hang
+  until CI's timeout).
 
 **Trusted-results foundation is built AND live-enforced.** The
 `recordStepResult` path and the `public.trusted_result_enforcement` table

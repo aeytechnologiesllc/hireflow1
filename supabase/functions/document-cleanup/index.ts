@@ -20,9 +20,13 @@
 // and a deleted application's recordings, video introduction, work samples
 // and the files sent with its form, where storage holds them (a withdrawal,
 // Delete Account, a deleted job; the database's own
-// applications_queue_voice_recordings trigger). When the queue backs up (a
-// run's worth still waiting, or a note waiting over three hours), the
-// platform admins are told once a day.
+// applications_queue_voice_recordings trigger), and a deleted document's kept
+// copies (documents_queue_files). It takes them fairly, a few from each
+// person a run, the people with the fewest waiting first
+// (storage_file_trash_fair_pick), and clears exact paths in bulk, so one
+// account that fills the queue holds up only itself (the eighth security
+// review). When the queue backs up (a run's worth still waiting, or a note
+// waiting over three hours), the platform admins are told once a day.
 //
 // Called every hour by the database's own scheduler (pg_cron, the
 // `document-cleanup` job), never by a browser. The job sends a secret it reads
@@ -30,6 +34,7 @@
 // (document_cleanup_secret_matches, service role only). Without it: 401, and
 // nothing is read. The answer is counts only.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
+import { isPlainObjectPath } from "../_shared/ownDocumentFile.ts";
 
 /** The identity papers: the same list as ID_PAPER_KINDS in src/lib/documentRequests.ts. */
 const DELETED_KINDS = ["government_id", "nbi_clearance", "proof_of_address"];
@@ -39,9 +44,21 @@ const DAYS_UNOPENED = 7;
 const BUCKET = "requested-documents";
 /** The buckets an applicant's removal may leave a file in (storage_file_trash's own check). */
 const REMOVAL_BUCKETS = new Set(["videos", "portfolios", "resumes", "voice-interview-recordings", "documents"]);
-/** Notes of the removal queue taken each run (every hour). */
-const LEFTOVERS_PER_RUN = 200;
-/** A note never tried after this long means the queue is backed up (it is taken oldest first, every hour). */
+/**
+ * Notes of the removal queue taken each run (every hour): the numbers
+ * storage_file_trash_fair_pick takes (20261025560000), at most 6 folders and
+ * 40 exact paths from one person. A folder costs a list and a remove; exact
+ * paths go in one remove() a bucket.
+ */
+const FOLDER_NOTES_PER_RUN = 200;
+const PATH_NOTES_PER_RUN = 1000;
+/** Storage takes at most 1,000 names in one remove(). */
+const REMOVE_BATCH = 1000;
+/** Notes deleted (or marked tried) in one request: their ids go in the address. */
+const IDS_PER_REQUEST = 100;
+/** A batch storage refuses is tried one path at a time; this many refused in a row is storage itself refusing. */
+const REFUSED_IN_A_ROW = 3;
+/** A note never tried after this long means the queue is backed up (each person's are taken oldest first, every hour). */
 const BACKLOG_HOURS = 3;
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -130,63 +147,132 @@ Deno.serve(async (req) => {
     orphans += 1;
   }
   // Files an applicant's removal could not delete at the time
-  // (remove-applicant; storage_file_trash, 20261025180000): an exact file, or
-  // a folder whose names start with a prefix. Tried again every hour until
-  // storage takes them; the note goes once they are gone.
-  const { data: leftovers, error: leftoverError } = await admin
-    .from("storage_file_trash")
-    .select("id, bucket, path, folder, starts_with, attempts")
-    // Fewest tries first, so notes that keep failing never hold up new ones.
-    .order("attempts", { ascending: true })
-    .order("queued_at", { ascending: true })
-    .limit(LEFTOVERS_PER_RUN);
+  // (remove-applicant; storage_file_trash, 20261025180000), a deleted
+  // application's own files and a deleted document's kept copies: an exact
+  // file, or a folder whose names start with a prefix. Tried again every hour
+  // until storage takes them; the note goes once they are gone.
+  // Taken fairly (storage_file_trash_fair_pick, 20261025560000): a few from
+  // each person a run, the people with the fewest waiting first, fewest tries
+  // first within each person. The eighth security review: one account's 860
+  // notes an hour, taken 200 a run oldest first, held every real withdrawal
+  // up for days. Folders and exact paths are read apart, so neither answer
+  // passes the API's 1,000-row ceiling.
+  type Note = { id: string; bucket: string; path: string | null; folder: string | null; starts_with: string | null; attempts: number | null };
+  const [folderPick, exactPick] = await Promise.all([
+    admin.rpc("storage_file_trash_fair_pick", { p_exact: false }),
+    admin.rpc("storage_file_trash_fair_pick", { p_exact: true }),
+  ]);
+  const leftoverError = folderPick.error ?? exactPick.error;
   if (leftoverError) console.error("[document-cleanup] could not read the removal queue:", leftoverError.message);
-  let leftoversRemoved = 0;
-  let leftoversFailed = 0;
-  for (const note of leftovers ?? []) {
+  const leftovers: Note[] = [...((folderPick.data ?? []) as Note[]), ...((exactPick.data ?? []) as Note[])];
+  const done: string[] = [];
+  const failed: { note: Note; why: string }[] = [];
+  // Only a plain path, in one of the buckets a removal uses: never one that
+  // starts with "/" or holds "..", "//", "%", a backslash or a control
+  // character (isPlainObjectPath: a service-key request reads "%2e%2e" as a
+  // step out of the folder).
+  const plain = (p: unknown) => typeof p === "string" && p.length >= 3 && !p.startsWith("/") && !p.includes("..") && !p.includes("//") && isPlainObjectPath(p);
+  const exact = new Map<string, Note[]>();
+  for (const note of leftovers) {
     const bucket = String(note.bucket);
-    const plain = (p: unknown) => typeof p === "string" && p.length >= 3 && !p.startsWith("/") && !p.includes("..") && !p.includes("//");
-    if (!REMOVAL_BUCKETS.has(bucket) || !(plain(note.path) || plain(note.folder))) {
+    if (!REMOVAL_BUCKETS.has(bucket) || !(note.path ? plain(note.path) : plain(note.folder))) {
       console.error(`[document-cleanup] skipped a removal note that is not a plain path (${note.id})`);
-      leftoversFailed += 1;
+      failed.push({ note, why: "not a plain path" });
       continue;
     }
-    let paths: string[] = [];
-    let failure: string | null = null;
-    if (note.path) paths = [String(note.path)];
-    else {
-      const prefix = String(note.starts_with ?? "");
-      const { data: listed, error: listError } = await admin.storage.from(bucket).list(String(note.folder), { limit: 1000, ...(prefix ? { search: prefix } : {}) });
-      if (listError) failure = listError.message;
-      else paths = (listed ?? []).filter((f) => f.name && f.name.startsWith(prefix)).map((f) => `${note.folder}/${f.name}`);
+    if (note.path) {
+      exact.set(bucket, [...(exact.get(bucket) ?? []), note]);
+      continue;
     }
+    // A folder: what it holds under the prefix, then one remove.
+    const prefix = String(note.starts_with ?? "");
+    let failure: string | null = null;
+    let paths: string[] = [];
+    const { data: listed, error: listError } = await admin.storage.from(bucket).list(String(note.folder), { limit: 1000, ...(prefix ? { search: prefix } : {}) });
+    if (listError) failure = listError.message;
+    else paths = (listed ?? []).filter((f) => f.name && f.name.startsWith(prefix)).map((f) => `${note.folder}/${f.name}`);
     if (!failure && paths.length > 0) {
       const { error: removeError } = await admin.storage.from(bucket).remove(paths);
       if (removeError) failure = removeError.message;
     }
-    if (failure) {
-      leftoversFailed += 1;
-      console.error(`[document-cleanup] removal note ${note.id} (${bucket}) failed again, attempt ${Number(note.attempts ?? 0) + 1}:`, failure);
-      await admin.from("storage_file_trash").update({ attempts: Number(note.attempts ?? 0) + 1, last_tried_at: new Date().toISOString() }).eq("id", note.id);
-      continue;
-    }
-    await admin.from("storage_file_trash").delete().eq("id", note.id);
-    leftoversRemoved += 1;
+    if (failure) failed.push({ note, why: failure });
+    else done.push(note.id);
   }
+  // Exact paths in bulk: one remove() a bucket for up to 1,000 (the eighth
+  // security review: one call a path could not keep up). A batch storage
+  // refuses is tried again one path at a time, so a path it will not take
+  // never keeps the others; three refused in a row is storage itself
+  // refusing, and the rest of that batch waits for the next hour.
+  for (const [bucket, notes] of exact) {
+    for (let i = 0; i < notes.length; i += REMOVE_BATCH) {
+      const batch = notes.slice(i, i + REMOVE_BATCH);
+      const { error: batchError } = await admin.storage.from(bucket).remove(batch.map((n) => String(n.path)));
+      if (!batchError) {
+        done.push(...batch.map((n) => n.id));
+        continue;
+      }
+      let refusedInARow = 0;
+      for (const note of batch) {
+        if (refusedInARow >= REFUSED_IN_A_ROW) {
+          failed.push({ note, why: batchError.message });
+          continue;
+        }
+        const { error: oneError } = await admin.storage.from(bucket).remove([String(note.path)]);
+        if (oneError) {
+          refusedInARow += 1;
+          failed.push({ note, why: oneError.message });
+        } else {
+          refusedInARow = 0;
+          done.push(note.id);
+        }
+      }
+    }
+  }
+  // The notes whose files are gone go, a hundred a request.
+  for (let i = 0; i < done.length; i += IDS_PER_REQUEST) {
+    const { error: dropError } = await admin.from("storage_file_trash").delete().in("id", done.slice(i, i + IDS_PER_REQUEST));
+    if (dropError) console.error("[document-cleanup] could not drop the notes of files already gone (they are tried again next hour):", dropError.message);
+  }
+  // Each one that failed is tried again next hour, after every note never
+  // tried: its tries go up by one (notes grouped by the tries they had).
+  const byTries = new Map<number, string[]>();
+  failed.forEach(({ note, why }, n) => {
+    const tries = Number(note.attempts ?? 0);
+    if (n < 20) console.error(`[document-cleanup] removal note ${note.id} (${note.bucket}) failed again, attempt ${tries + 1}:`, why);
+    byTries.set(tries, [...(byTries.get(tries) ?? []), note.id]);
+  });
+  if (failed.length > 20) console.error(`[document-cleanup] …and ${failed.length - 20} more removal notes failed again`);
+  const triedAt = new Date().toISOString();
+  for (const [tries, ids] of byTries) {
+    for (let i = 0; i < ids.length; i += IDS_PER_REQUEST) {
+      await admin.from("storage_file_trash").update({ attempts: tries + 1, last_tried_at: triedAt }).in("id", ids.slice(i, i + IDS_PER_REQUEST));
+    }
+  }
+  const leftoversRemoved = done.length;
+  const leftoversFailed = failed.length;
   // What is still waiting, never tried, after this run: the queue is backed
-  // up when a whole run's worth is, or when one note has waited more than
-  // BACKLOG_HOURS (the eleventh Phase 5 review: one account looping "start
-  // an application, withdraw it" filled the queue far faster than 200 an
-  // hour, every real removal waited behind it, and nobody was told, since
-  // only failures were).
+  // up when a whole run's worth of folders or of exact paths is, or when one
+  // note has waited more than BACKLOG_HOURS (the eleventh Phase 5 review: one
+  // account looping "start an application, withdraw it" filled the queue far
+  // faster than it cleared, every real removal waited behind it, and nobody
+  // was told, since only failures were). Since the fair pick, an account
+  // filling it waits behind everyone else, and this tells the admins it is
+  // there.
   let leftoversWaiting: number | null = null;
+  let backedUp = false;
   let oldestWaiting: string | null = null;
   if (!leftoverError) {
-    const { count, error: countError } = await admin.from("storage_file_trash").select("id", { count: "exact", head: true }).eq("attempts", 0);
+    const waiting = (exactPaths: boolean) => {
+      const q = admin.from("storage_file_trash").select("id", { count: "exact", head: true }).eq("attempts", 0);
+      return exactPaths ? q.not("path", "is", null) : q.is("path", null);
+    };
+    const [folders, paths] = await Promise.all([waiting(false), waiting(true)]);
     const { data: oldest, error: oldestError } = await admin.from("storage_file_trash").select("queued_at").eq("attempts", 0).order("queued_at", { ascending: true }).limit(1);
-    if (countError || oldestError) console.error("[document-cleanup] could not count the removal queue:", (countError ?? oldestError)?.message);
+    const countError = folders.error ?? paths.error ?? oldestError;
+    if (countError) console.error("[document-cleanup] could not count the removal queue:", countError.message);
     else {
-      leftoversWaiting = count ?? 0;
+      leftoversWaiting = (folders.count ?? 0) + (paths.count ?? 0);
+      backedUp = (folders.count ?? 0) >= FOLDER_NOTES_PER_RUN || (paths.count ?? 0) >= PATH_NOTES_PER_RUN;
       oldestWaiting = typeof oldest?.[0]?.queued_at === "string" ? oldest[0].queued_at : null;
     }
   }
@@ -246,8 +332,8 @@ Deno.serve(async (req) => {
     await tell("leftovers", "Files queued for removal are not all deleted", `document-cleanup could not delete ${leftoversFailed} file${leftoversFailed === 1 ? "" : "s"} queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; see its logs). It tries again every hour.`);
   }
   const waitedTooLong = oldestWaiting !== null && Date.now() - Date.parse(oldestWaiting) > BACKLOG_HOURS * 3_600_000;
-  if (leftoversWaiting !== null && (leftoversWaiting >= LEFTOVERS_PER_RUN || waitedTooLong)) {
-    await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes ${LEFTOVERS_PER_RUN} an hour, oldest first. If one account is filling it, its folder shows in the queue.`);
+  if (leftoversWaiting !== null && (backedUp || waitedTooLong)) {
+    await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes up to ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} folders and ${PATH_NOTES_PER_RUN.toLocaleString("en-US")} files an hour, a few from each person at a time, so one account filling it holds up only itself. Such an account shows as one candidate_id on many rows.`);
   }
   if (unread.length > 0) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversWaiting }, 500);
   return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversWaiting });

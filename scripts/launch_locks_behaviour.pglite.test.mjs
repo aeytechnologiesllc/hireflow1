@@ -19,7 +19,10 @@
  *   1. A deleted application queues its recordings, video introduction and
  *      work samples in storage_file_trash (3 rows, each where storage holds a
  *      file) and the files sent with its form: the applicant's own
- *      withdrawal, Delete Account, a deleted job, and remove_applicant.
+ *      withdrawal, Delete Account, a deleted job, and remove_applicant. Never
+ *      the profile's own resume, a path in another person's folder or one
+ *      stepping out of the applicant's ("..", "%2e%2e"), never one file twice,
+ *      and at most 40 a deleted application (the eighth security review).
  *   2. remove_applicant: refused to anon and authenticated; the service role
  *      removes for the job's owner, logs it, refuses a stranger.
  *   3. ai_budget_take (service role only): a business stops at 2,000 units a
@@ -43,16 +46,24 @@
  *   8. A new application starts clean.
  *   9. One account cannot flood the file queue: an application queues only
  *      the files storage holds, and one account starts at most 10
- *      applications an hour with one business and 20 in all (the eleventh
- *      Phase 5 review, in the shape of its flood proof).
+ *      applications an hour with one business (on any of its jobs) and 20 in
+ *      all (the eleventh Phase 5 review, in the shape of its flood proof).
  *  10. A deleted request's papers are queued for document-cleanup, a photo
  *      whose link was never saved included (document_requests_trash_file).
  *  11. remove_applicant refuses a teammate assigned elsewhere, no longer
- *      active, or not managing applicants.
+ *      active, not managing applicants, or of another business.
  *  12. ai_budget_take counts a teammate against their business, and tells
  *      the admins at 80% (platform:80) and at 100% (platform:100) apart.
- *  13. A business deletes no application straight through the API; Delete
- *      their information still does (20261025550000).
+ *  13. A business deletes no application straight through the API, through a
+ *      function of its own rights a browser may call, or by moving it to a
+ *      throwaway job and deleting that (20261025570000); Delete their
+ *      information still does; a deleted document's kept copies are queued
+ *      (documents_queue_files), from a cascade or the business's own delete.
+ *  14. One account's uploads hold up only its own removals: at most 200
+ *      exact paths a day for one applicant, and document-cleanup's next run
+ *      (storage_file_trash_fair_pick) takes a real withdrawal queued after
+ *      one account's flood, or seventy (the eighth security review, in the
+ *      shape of its flood proof; 20261025560000).
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -236,6 +247,7 @@ const TM_OK = id(6, 1); // active, manages applicants, on every job
 const TM_ELSEWHERE = id(6, 2); // active, manages applicants, assigned to JOB_NEW only
 const TM_GONE = id(6, 3); // manages applicants, no longer active
 const TM_VIEW = id(6, 4); // active, on every job, does not manage applicants
+const TM_STRANGER = id(6, 5); // active, manages applicants, on every job of ANOTHER business (STRANGER)
 
 const businesses = [[ADMIN, "HireFlow"], [BIZ, "Clinic One"], [NEWBIZ, "New Shop"], [BIZ_E, "Dental Two"], [PBIZ, "Plain Co"], [QBIZ, "Quick Co"], [STRANGER, "Elsewhere"]];
 const applicants = [WD, GONE, JOBLESS, REMOVED, ANA, ANA2, ANA3, ANA4, ...R, ...S];
@@ -360,6 +372,77 @@ console.log("\n1. A deleted application's files are queued for removal\n");
   check("the business deletes a job: each of its applications queues the same 3", d.ok && d.rows.length === 1 && queuesAll(joblessRows, joblessApp, JOBLESS), show({ d, joblessRows }));
   check("…and the resume sent with it", JSON.stringify(await queuedPaths(joblessApp)) === JSON.stringify([CV]), show(await queuedPaths(joblessApp)));
   check("nobody but the server reads the queue", !(await as(user(WD), `select * from public.storage_file_trash`)).ok || (await as(user(WD), `select * from public.storage_file_trash`)).rows.length === 0);
+
+  // The eighth security review (finding 3): each of the rules below could be
+  // dropped from the trigger and every test still passed.
+  // The form sets an application's resume_url to the profile's own resume
+  // (ApplicationFormPhase.tsx: finalResumeUrl = profile.resume_url); a
+  // withdrawal must never queue it.
+  const PROF = id(7, 1);
+  await makeUser(PROF, "candidate");
+  const PROFILE_CV = `${PROF}/1729000000000_profile.pdf`;
+  await putFile("resumes", PROFILE_CV);
+  await db.query(`update public.profiles set resume_url = $2 where user_id = $1`, [PROF, PROFILE_CV]);
+  const profApp = await apply(PROF, JOB);
+  const usesProfile = await as(user(PROF), `update public.applications set resume_url = $2 where id = $1`, [profApp, PROFILE_CV]);
+  if (!usesProfile.ok) throw new Error(`setup: the profile's resume could not be sent: ${usesProfile.error}`);
+  await as(user(PROF), `delete from public.applications where id = $1`, [profApp]);
+  check("a withdrawal whose resume is the profile's own queues nothing of it", (await queuedPaths(profApp)).length === 0 && (await one(`select count(*)::int n from public.storage_file_trash where path = $1`, [PROFILE_CV])).n === 0, show(await queuedPaths(profApp)));
+
+  // One file, listed by an application withdrawn and then by a later one
+  // (it is still there until document-cleanup runs): one row, not one each.
+  const TWICE = id(7, 2);
+  await makeUser(TWICE, "candidate");
+  const TWICE_CV = `${TWICE}/1729000000000.pdf`;
+  await putFile("resumes", TWICE_CV);
+  for (const job of [JOB, JOB_P]) {
+    const a = await apply(TWICE, job);
+    const w = await as(user(TWICE), `update public.applications set resume_url = $2 where id = $1`, [a, TWICE_CV]);
+    if (!w.ok) throw new Error(`setup: the resume could not be sent: ${w.error}`);
+    await as(user(TWICE), `delete from public.applications where id = $1`, [a]);
+  }
+  check("one file listed by two deleted applications is queued once", (await one(`select count(*)::int n from public.storage_file_trash where bucket = 'resumes' and path = $1`, [TWICE_CV])).n === 1);
+
+  // 41 files listed: the trigger queues 40 a deleted application.
+  const MANY = id(7, 3);
+  await makeUser(MANY, "candidate");
+  const manyApp = await apply(MANY, JOB);
+  const uploads = {};
+  for (let k = 0; k < 41; k += 1) {
+    const p = `${MANY}/17290000${String(k).padStart(5, "0")}.pdf`;
+    await putFile("resumes", p);
+    uploads[`q${k}`] = { url: p, imageUrls: [], isResume: false };
+  }
+  const listed = await as(user(MANY), `update public.applications set notes = $2 where id = $1`, [manyApp, JSON.stringify({ fileUploads: uploads })]);
+  if (!listed.ok) throw new Error(`setup: the 41 files could not be listed: ${listed.error}`);
+  await as(user(MANY), `delete from public.applications where id = $1`, [manyApp]);
+  check("41 files listed by one application: 40 are queued", (await queuedPaths(manyApp)).length === 40, String((await queuedPaths(manyApp)).length));
+
+  // Paths the business wrote into its applicant's notes, then deleted the
+  // job: another person's file (their own application still lists it), and
+  // two that start in the applicant's folder but step out of it ("..", and
+  // "%2e%2e", which a service-key request reads as ".."). Storage refuses
+  // such names, so these stand for the worst case: as if it held them.
+  const OWNER = id(7, 4);
+  const OTHER = id(7, 5);
+  for (const u of [OWNER, OTHER]) await makeUser(u, "candidate");
+  const OTHER_CV = `${OTHER}/1729000000000.pdf`;
+  await putFile("resumes", OTHER_CV);
+  const otherApp = await apply(OTHER, JOB_P);
+  await as(user(OTHER), `update public.applications set resume_url = $2 where id = $1`, [otherApp, OTHER_CV]);
+  const JOB_REWRITTEN = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Weekend chat agent', 'Answer patients by chat at weekends.', 'published') returning id`, [BIZ])).id;
+  const ownerApp = await apply(OWNER, JOB_REWRITTEN);
+  const OWN = `${OWNER}/1729000000000.pdf`;
+  const DOTS = `${OWNER}/../${OTHER}/1729000000000.pdf`;
+  const ENCODED = `${OWNER}/%2e%2e/${OTHER}/1729000000000.pdf`;
+  for (const p of [OWN, DOTS, ENCODED]) await putFile("resumes", p);
+  const rewritten = await as(user(BIZ), `update public.applications set notes = $2 where id = $1`, [ownerApp, JSON.stringify({ fileUploads: { q1: { url: OWN }, q2: { url: OTHER_CV }, q3: { url: DOTS }, q4: { url: ENCODED } } })]);
+  if (!rewritten.ok) throw new Error(`setup: the business could not write the notes: ${rewritten.error}`);
+  await as(user(BIZ), `delete from public.jobs where id = $1`, [JOB_REWRITTEN]);
+  const rewrittenPaths = await queuedPaths(ownerApp);
+  check("a path the business wrote into another person's folder is never queued", !rewrittenPaths.includes(OTHER_CV) && (await one(`select count(*)::int n from public.storage_file_trash where path = $1`, [OTHER_CV])).n === 0, show(rewrittenPaths));
+  check("…nor one that steps out of the applicant's folder (\"..\", \"%2e%2e\")", !rewrittenPaths.includes(DOTS) && !rewrittenPaths.includes(ENCODED), show(rewrittenPaths));
+  check("…while the applicant's own file goes", JSON.stringify(rewrittenPaths) === JSON.stringify([OWN]), show(rewrittenPaths));
 }
 
 // ---------------------------------------------------------------------------
@@ -612,6 +695,10 @@ console.log("\n9. One account cannot flood the file queue\n");
       }
       loops += 1;
     }
+    // Another job of the same business counts with the first (the eighth
+    // security review: keying the limit by job let ten more through a job).
+    const sameBusiness = await as(user(account), `insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [JOB, account]);
+    if (sameBusiness.ok) await as(user(account), `delete from public.applications where id = $1`, [sameBusiness.rows[0].id]);
     let more = 0;
     let totalRefusal = "";
     for (const job of [JOB_P, ...elsewhere]) {
@@ -624,7 +711,7 @@ console.log("\n9. One account cannot flood the file queue\n");
         }
       }
     }
-    return { loops, refusal, more, totalRefusal, sameHour: hour() === startedIn };
+    return { loops, refusal, sameBusiness: sameBusiness.ok ? "allowed" : sameBusiness.error, more, totalRefusal, sameHour: hour() === startedIn };
   };
   // The limit counts in clock hours: a run that crosses one is done again by
   // a fresh account.
@@ -635,15 +722,25 @@ console.log("\n9. One account cannot flood the file queue\n");
     f = await floodFrom(FLOOD_AGAIN);
   }
   check("one account starts at most 10 applications an hour with one business, then is refused", f.loops === 10 && /too_many_applications/.test(f.refusal), `${f.loops} ${f.refusal}`);
+  check("…on another of that business's jobs too", /too_many_applications/.test(f.sameBusiness), f.sameBusiness);
   const fromFlood = (await one(`select count(*)::int n from public.storage_file_trash where folder in ($1, $2) or path like $3 or path like $4`, [FLOOD, FLOOD_AGAIN, `${FLOOD}/%`, `${FLOOD_AGAIN}/%`])).n;
   check("…and an application started and withdrawn with nothing uploaded queues nothing", fromFlood === 0, String(fromFlood));
   check("…and at most 20 an hour in all, whichever businesses", f.loops + f.more === 20 && /too_many_applications/.test(f.totalRefusal), `${f.loops + f.more} ${f.totalRefusal}`);
   const real2 = await apply(REAL_AFTER, JOB);
   await putStepFiles(real2, REAL_AFTER);
   await as(user(REAL_AFTER), `delete from public.applications where id = $1`, [real2]);
-  // document-cleanup reads 200 a run, fewest attempts first, oldest first.
-  const pick = (await db.query(`select application_id from public.storage_file_trash order by attempts asc, queued_at asc limit 200`)).rows.map((r) => r.application_id);
-  check("a real withdrawal before and after it is in document-cleanup's next run", pick.includes(real) && pick.includes(real2), String((await one(`select count(*)::int n from public.storage_file_trash`)).n));
+  // What document-cleanup's next run takes (storage_file_trash_fair_pick, as
+  // the service role: folders, then exact paths).
+  const pick = [];
+  let pickError = "";
+  for (const exact of [false, true]) {
+    const r = await as(SERVICE, `select application_id from public.storage_file_trash_fair_pick($1)`, [exact]);
+    if (r.ok) pick.push(...r.rows.map((row) => row.application_id));
+    else pickError = r.error;
+  }
+  check("a real withdrawal before and after it is in document-cleanup's next run", pick.includes(real) && pick.includes(real2), pickError || String((await one(`select count(*)::int n from public.storage_file_trash`)).n));
+  const peek = await as(user(FLOOD), `select * from public.storage_file_trash_fair_pick(false)`);
+  check("…and only the server takes the queue's next run", !peek.ok && /permission denied/.test(peek.error), show(peek));
   const server = await as(SERVICE, `insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [JOB_NEW, FLOOD]);
   check("the server's own insert is not counted against the account", server.ok, show(server));
 }
@@ -693,11 +790,16 @@ console.log("\n11. remove_applicant: a teammate only on the jobs they work on\n"
     await makeUser(u, "team_member");
     await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_manage_pipeline, assigned_job_ids) values ($1, $2, $3, $4, $5, $6::uuid[])`, [u, BIZ, emailOf(u), status, manages, jobs]);
   }
+  // A teammate of another business, active, managing applicants on all its
+  // jobs (the eighth security review: no test had one, so a remove_applicant
+  // that stopped comparing the business passed).
+  await makeUser(TM_STRANGER, "team_member");
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_manage_pipeline, assigned_job_ids) values ($1, $2, $3, 'active', true, '{}'::uuid[])`, [TM_STRANGER, STRANGER, emailOf(TM_STRANGER)]);
   const SOMEONE = id(5, 5);
   await makeUser(SOMEONE, "candidate");
   const app = await apply(SOMEONE, JOB);
   const call = (actor) => as(SERVICE, `select public.remove_applicant($1, $2, null) as r`, [app, actor]);
-  for (const [actor, who] of [[TM_ELSEWHERE, "a teammate assigned to another job only"], [TM_GONE, "a teammate no longer active"], [TM_VIEW, "a teammate who does not manage applicants"]]) {
+  for (const [actor, who] of [[TM_ELSEWHERE, "a teammate assigned to another job only"], [TM_GONE, "a teammate no longer active"], [TM_VIEW, "a teammate who does not manage applicants"], [TM_STRANGER, "a teammate of another business"]]) {
     const r = await call(actor);
     check(`refused for ${who}`, r.ok && r.rows[0].r?.reason === "not_allowed" && (await one(`select count(*)::int n from public.applications where id = $1`, [app])).n === 1, show(r));
   }
@@ -741,11 +843,14 @@ console.log("\n12. The AI budget: a teammate counts for their business; the 80% 
   check("…and the alert names the business (business:<id>), not the teammate", (await alerts()).includes(`business:${BIZ}`) && !(await alerts()).some((a) => a.includes(TM_OK)), JSON.stringify(await alerts()));
 
   // The platform has 2,000 + 100 (the former teammate's own day) counted.
-  while ((await platform()) < 7_900) await take(100, null);
+  // Each loop is bounded: a budget that stops counting makes these checks
+  // fail, not the test run forever (the eighth security review's A2 ran until
+  // CI's per-file timeout).
+  for (let i = 0; i < 100 && (await platform()) < 7_900; i += 1) await take(100, null);
   check("no 80% alert below 80% of the platform's day", (await platform()) === 7_900 && !(await alerts()).includes("platform:80") && (await adminTold("80% of today's AI budget is used")) === 0, JSON.stringify({ calls: await platform(), alerts: await alerts() }));
   await take(100, null);
   check("at 8,000 of 10,000 the admins are told 80% is used (platform:80)", (await alerts()).includes("platform:80") && (await adminTold("80% of today's AI budget is used")) === 1, JSON.stringify(await alerts()));
-  while ((await platform()) < 10_000) await take(100, null);
+  for (let i = 0; i < 100 && (await platform()) < 10_000; i += 1) await take(100, null);
   check("…once on the way to 10,000", (await adminTold("80% of today's AI budget is used")) === 1);
   const refused = await take(100, null);
   check("past 10,000 the call is refused", refused.ok && refused.rows[0].ok === false, show(refused));
@@ -771,8 +876,168 @@ console.log("\n13. A business removes an application only through Delete their i
   check("…the application is still there", (await one(`select count(*)::int n from public.applications where id = $1`, [app])).n === 1);
   const policies = (await db.query(`select policyname from pg_policies where schemaname = 'public' and tablename = 'applications' and cmd = 'DELETE' order by policyname`)).rows.map((r) => r.policyname);
   check("…the only delete rule left on applications is the applicant's own withdrawal", JSON.stringify(policies) === JSON.stringify(["Candidates can delete their own applications"]), JSON.stringify(policies));
+  // Nor through a function of its own rights a browser may call (the eighth
+  // security review's P3, a SECURITY DEFINER delete for the job's owner, was
+  // caught only by another test's list of functions).
+  const doors = (await db.query(`
+    select p.oid::regprocedure::text as fn
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prosecdef
+       and (has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'))
+       and p.prosrc ~* 'delete\\s+from\\s+(only\\s+)?("?public"?\\s*\\.\\s*)?"?applications"?([^_a-z0-9]|$)'
+     order by 1`)).rows.map((r) => r.fn);
+  check("…nor through a function a browser may call that deletes applications with its own rights", doors.length === 0, JSON.stringify(doors));
   const removed = await as(SERVICE, `select public.remove_applicant($1, $2, 'asked in a message') as r`, [app, BIZ]);
   check("…and Delete their information still removes it, logged", removed.ok && removed.rows[0].r?.ok === true && (await one(`select reason from private.applicant_removals where application_id = $1`, [app]))?.reason === "asked in a message", show(removed));
+
+  // The eighth security review (finding 2): another door. Move the
+  // application to a throwaway job of the business's own, then delete that
+  // job (probes/move2.mjs): the application went by cascade, unlogged, with a
+  // document the applicant had signed. An application now stays on its job.
+  const MOVED = id(5, 9);
+  await makeUser(MOVED, "candidate");
+  const movedApp = await apply(MOVED, JOB);
+  const draft = await as(user(BIZ), `insert into public.jobs (employer_id, title, description, status) values ($1, 'Temporary', 'x', 'draft') returning id`, [BIZ]);
+  if (!draft.ok) throw new Error(`setup: BIZ could not make a draft job: ${draft.error}`);
+  const DRAFT = draft.rows[0].id;
+  const move = (who) => as(who, `update public.applications set job_id = $2 where id = $1 returning id`, [movedApp, DRAFT]);
+  const byOwner = await move(user(BIZ));
+  check("the job's owner cannot move an application to another job of theirs", !byOwner.ok && /application_job_fixed/.test(byOwner.error), show(byOwner));
+  const byTeammate = await move(user(TM_OK));
+  check("…nor a teammate who manages applicants", !byTeammate.ok && /application_job_fixed/.test(byTeammate.error), show(byTeammate));
+  const byApplicant = await move(user(MOVED));
+  check("…nor the applicant", !byApplicant.ok || byApplicant.rows.length === 0, show(byApplicant));
+  const gone = await as(user(BIZ), `delete from public.jobs where id = $1 returning id`, [DRAFT]);
+  check("…so deleting that job leaves the application where it was", gone.ok && (await one(`select job_id from public.applications where id = $1`, [movedApp]))?.job_id === JOB, show(gone));
+  const other = await as(user(BIZ), `update public.applications set status = 'reviewing' where id = $1 returning id`, [movedApp]);
+  check("…while the team still moves it along its own job", other.ok && other.rows.length === 1, show(other));
+
+  // A deleted document's kept copies (documents/<id>/) go with it, however
+  // the row goes: here a job the business deletes, with an offer the
+  // applicant signed and one never written to storage.
+  const SIGNED = id(5, 10);
+  await makeUser(SIGNED, "candidate");
+  const JOB_DOC = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Phone agent, evenings', 'Answer the phone in the evening.', 'published') returning id`, [BIZ])).id;
+  const signedApp = await apply(SIGNED, JOB_DOC);
+  const DOC = "d0000000-0000-4000-8000-000000000001";
+  const DOC_EMPTY = "d0000000-0000-4000-8000-000000000002";
+  for (const doc of [DOC, DOC_EMPTY]) {
+    await db.query(`insert into public.documents (id, application_id, name, file_url, sender_id, recipient_id, status, candidate_signed_at, v1_hash, v2_hash) values ($1, $2, 'Offer', 'data:text/plain;base64,eA==', $3, $4, 'pending', now(), 'v1', 'v2')`, [doc, signedApp, BIZ, SIGNED]);
+  }
+  await putFile("documents", `documents/${DOC}/original-v1.pdf`);
+  // The business deletes a letter not yet signed ("Employers can delete
+  // undelivered documents"), straight from its browser: no cascade, so the
+  // trigger runs as the business, and only its own rights can write the queue.
+  const DOC_UNSIGNED = "d0000000-0000-4000-8000-000000000003";
+  await db.query(`insert into public.documents (id, application_id, name, file_url, sender_id, recipient_id, status) values ($1, $2, 'Offer, draft', 'data:text/plain;base64,eA==', $3, $4, 'pending')`, [DOC_UNSIGNED, signedApp, BIZ, SIGNED]);
+  await putFile("documents", `documents/${DOC_UNSIGNED}/original-v0.pdf`);
+  const unsignedGone = await as(user(BIZ), `delete from public.documents where id = $1 returning id`, [DOC_UNSIGNED]);
+  const unsignedRows = (await db.query(`select folder from public.storage_file_trash where bucket = 'documents' and folder = $1`, [`documents/${DOC_UNSIGNED}`])).rows;
+  check("a letter the business deletes before it is signed queues its copies too", unsignedGone.ok && unsignedGone.rows.length === 1 && unsignedRows.length === 1, show({ unsignedGone, unsignedRows }));
+  const jobGone = await as(user(BIZ), `delete from public.jobs where id = $1 returning id`, [JOB_DOC]);
+  const docRows = (await db.query(`select bucket, folder, starts_with, to_jsonb(t) ->> 'candidate_id' as candidate_id from public.storage_file_trash t where bucket = 'documents' and application_id = $1 and folder in ($2, $3) order by folder`, [signedApp, `documents/${DOC}`, `documents/${DOC_EMPTY}`])).rows;
+  check("a deleted job takes its documents' kept copies with it: documents/<id>/ is queued", jobGone.ok && JSON.stringify(docRows) === JSON.stringify([{ bucket: "documents", folder: `documents/${DOC}`, starts_with: "", candidate_id: SIGNED }]), show(docRows));
+  check("…and a document with nothing in storage queues nothing", !docRows.some((r) => r.folder.includes(DOC_EMPTY)));
+  const direct = await db.query(`select count(*)::int n from public.documents where application_id = $1`, [signedApp]);
+  check("…(the documents went with the application, by cascade)", direct.rows[0].n === 0);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n14. One account's uploads hold up only its own removals\n");
+{
+  // The eighth security review (finding 1), in the shape of its proof
+  // (probes/flood.mjs): a throwaway applicant starts 20 applications in the
+  // hour, puts a tiny file in each of the three per-application folders and
+  // 40 in its resume folder (the storage rules allow both at any time), lists
+  // the 40 in the form and withdraws. That was 860 rows from one account in
+  // an hour, while document-cleanup took 200 a run, oldest first, so every
+  // real withdrawal after it waited days.
+  const jobs = [];
+  for (const [biz, n] of [[BIZ, 1], [STRANGER, 2], [BIZ_E, 3]]) {
+    jobs.push((await one(`insert into public.jobs (employer_id, title, description, status) values ($1, $2, 'Answer customers by chat.', 'published') returning id`, [biz, `Chat agent ${n}`])).id);
+  }
+  const hour = () => Math.floor(Date.now() / 3_600_000);
+  const floodWithUploads = async (account) => {
+    const startedIn = hour();
+    let apps = 0;
+    let refused = "";
+    let fileNo = 0;
+    for (const job of jobs) {
+      for (let i = 0; i < 10 && !refused; i += 1) {
+        const r = await as(user(account), `insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [job, account]);
+        if (!r.ok) {
+          refused = r.error;
+          break;
+        }
+        const app = r.rows[0].id;
+        apps += 1;
+        await putFile("voice-interview-recordings", `${app}/x.webm`);
+        await putFile("videos", `${account}/${app}-x.webm`);
+        await putFile("portfolios", `${account}/${app}-x.pdf`);
+        const fileUploads = {};
+        for (let k = 0; k < 40; k += 1) {
+          const p = `${account}/17290000${String(fileNo++).padStart(5, "0")}.pdf`;
+          await putFile("resumes", p);
+          fileUploads[`q${k}`] = { url: p, imageUrls: [], isResume: false };
+        }
+        const w = await as(user(account), `update public.applications set notes = $2 where id = $1`, [app, JSON.stringify({ fileUploads })]);
+        const d = await as(user(account), `delete from public.applications where id = $1 returning id`, [app]);
+        if (!w.ok || !d.ok || d.rows.length !== 1) throw new Error(`setup: the flood could not list or withdraw: ${show({ w, d })}`);
+      }
+      if (refused) break;
+    }
+    return { apps, refused, sameHour: hour() === startedIn };
+  };
+  // The start limit counts in clock hours and the path cap in UTC days: a
+  // run that crosses an hour is done again by a fresh account.
+  let FL = id(8, 1);
+  await makeUser(FL, "candidate");
+  let f = await floodWithUploads(FL);
+  if (!f.sameHour) {
+    FL = id(8, 2);
+    await makeUser(FL, "candidate");
+    f = await floodWithUploads(FL);
+  }
+  check("one account starts 20 applications in the hour, each with its uploads, and the 21st is refused", f.apps === 20 && /too_many_applications/.test(f.refused), `${f.apps} ${f.refused}`);
+  const mine = await one(`select count(*) filter (where path is null)::int folders, count(*) filter (where path is not null)::int paths from public.storage_file_trash t where to_jsonb(t) ->> 'candidate_id' = $1`, [FL]);
+  check("…each withdrawal's three folders are queued (60), past the cap too: never nothing", mine.folders === 60, show(mine));
+  check("…but its exact paths stop at 200 for the day, not 800", mine.paths === 200, show(mine));
+
+  // A real withdrawal, after the flood.
+  const LATE = id(8, 3);
+  await makeUser(LATE, "candidate");
+  const late = await apply(LATE, JOB);
+  await putStepFiles(late, LATE);
+  const LATE_CV = `${LATE}/1729000000000.pdf`;
+  await putFile("resumes", LATE_CV);
+  await as(user(LATE), `update public.applications set resume_url = $2 where id = $1`, [late, LATE_CV]);
+  await as(user(LATE), `delete from public.applications where id = $1`, [late]);
+  const oldestFirst = (await db.query(`select application_id from public.storage_file_trash order by attempts asc, queued_at asc limit 200`)).rows.map((r) => r.application_id);
+  check("the flood is big enough to matter: 200 a run, oldest first, would not reach the real withdrawal", !oldestFirst.includes(late), String((await one(`select count(*)::int n from public.storage_file_trash`)).n));
+  const nextRun = async () => {
+    const folders = await as(SERVICE, `select * from public.storage_file_trash_fair_pick(false)`);
+    const paths = await as(SERVICE, `select * from public.storage_file_trash_fair_pick(true)`);
+    check("the server takes document-cleanup's next run (storage_file_trash_fair_pick)", folders.ok && paths.ok, show({ folders: folders.error, paths: paths.error }));
+    return { folders: folders.rows ?? [], paths: paths.rows ?? [] };
+  };
+  let run = await nextRun();
+  check("document-cleanup's next run takes all of the real withdrawal: its three folders and its resume", run.folders.filter((r) => r.application_id === late).length === 3 && JSON.stringify(run.paths.filter((r) => r.application_id === late).map((r) => r.path)) === JSON.stringify([LATE_CV]), show({ folders: run.folders.length, paths: run.paths.length }));
+  check("…and at most 6 of the flood's folders and 40 of its exact paths", run.folders.filter((r) => r.candidate_id === FL).length === 6 && run.paths.filter((r) => r.candidate_id === FL).length === 40, show({ folders: run.folders.filter((r) => r.candidate_id === FL).length, paths: run.paths.filter((r) => r.candidate_id === FL).length }));
+  check("…at most 200 folders and 1,000 exact paths in all", run.folders.length <= 200 && run.paths.length <= 1000);
+
+  // Seventy such accounts (sign-up is free), as the trigger leaves their
+  // notes: seven folders each, all older than the real withdrawal's. Taken
+  // oldest first, or one round after another by age alone, the real
+  // withdrawal's third folder would fall past the run's 200; the people
+  // with the fewest waiting come first in every round.
+  const seventy = await as(SERVICE, `
+    insert into public.storage_file_trash (bucket, folder, starts_with, application_id, candidate_id, queued_at)
+    select 'videos', person::text, app::text || '-', app, person, now() - interval '1 hour'
+      from (select gen_random_uuid() as person from generate_series(1, 70)) people,
+           lateral (select gen_random_uuid() as app, people.person as p from generate_series(1, 7)) apps`);
+  check("seventy accounts' notes are in the queue, each with its person", seventy.ok, show(seventy));
+  run = await nextRun();
+  check("…and with seventy flooding accounts, the real withdrawal is still all in the next run", run.folders.filter((r) => r.application_id === late).length === 3 && run.folders.length === 200, show({ late: run.folders.filter((r) => r.application_id === late).length, all: run.folders.length }));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

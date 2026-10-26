@@ -18,7 +18,19 @@
  *     the remove-applicant function, which names the actor from the sign-in
  *     (no browser delete rule but the applicant's own withdrawal); a deleted
  *     application queues the files storage holds for it, and one account
- *     starts at most 20 applications an hour (the eleventh Phase 5 review).
+ *     starts at most 20 applications an hour (the eleventh Phase 5 review),
+ *     10 with one business on any of its jobs, and queues at most 200 exact
+ *     paths a day (the eighth security review).
+ *   - file-queue-fair-and-bounded: document-cleanup takes the removal queue
+ *     fairly (storage_file_trash_fair_pick: a few from each person a run, the
+ *     people with the fewest waiting first) and clears exact paths in bulk,
+ *     so one account's uploads hold up only itself (the eighth security
+ *     review).
+ *   - applications-stay-on-their-job: nobody but the server changes an
+ *     application's job (moving it to a throwaway job and deleting that was
+ *     a way round Delete their information), and a deleted document's kept
+ *     copies are queued for removal however the row goes (the eighth
+ *     security review).
  *   - named-papers-kept-until-the-application-goes: the Terms and the request
  *     screen never promise the business can delete a paper it named itself;
  *     once something is sent, only Delete their information (or a deleted
@@ -310,13 +322,18 @@ export default [
       // form queued three empty rows, and one account looping "start,
       // withdraw" buried every real removal behind them.
       const tuples = [["voice-interview-recordings", "old\\.id::text", "''"], ["videos", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"], ["portfolios", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"]].map(([bucket, folder, prefix]) => `\\('${bucket}', ${folder}, ${prefix}\\)`);
-      if (!new RegExp(`^\\s*declare [^$]*? begin begin insert into public\\.storage_file_trash \\(bucket, folder, starts_with, application_id\\) select t\\.bucket, t\\.folder, t\\.starts_with, old\\.id from \\(values ${tuples.join(", ")} \\) as t \\(bucket, folder, starts_with\\) where t\\.folder is not null and coalesce\\(private\\.storage_holds\\(t\\.bucket, t\\.folder \\|\\| '/' \\|\\| t\\.starts_with\\), true\\); exception when others then raise log [^;]*; end; `, "i").test(queue)) {
-        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the recordings, videos and portfolios folders of a deleted application where storage holds a file (or cannot say), first thing, as written`);
+      // Each row names its applicant (candidate_id), for document-cleanup's
+      // fair pick (the eighth security review).
+      if (!new RegExp(`^\\s*declare [^$]*? begin begin insert into public\\.storage_file_trash \\(bucket, folder, starts_with, application_id, candidate_id\\) select t\\.bucket, t\\.folder, t\\.starts_with, old\\.id, old\\.candidate_id from \\(values ${tuples.join(", ")} \\) as t \\(bucket, folder, starts_with\\) where t\\.folder is not null and coalesce\\(private\\.storage_holds\\(t\\.bucket, t\\.folder \\|\\| '/' \\|\\| t\\.starts_with\\), true\\); exception when others then raise log [^;]*; end; `, "i").test(queue)) {
+        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the recordings, videos and portfolios folders of a deleted application where storage holds a file (or cannot say), first thing, each naming its applicant, as written`);
       }
-      // …and the files sent with its form (the eleventh review, finding 4).
-      if (!/continue when not coalesce\(private\.storage_holds\('resumes', v_path\), true\); insert into public\.storage_file_trash \(bucket, path, application_id\) values \('resumes', v_path, old\.id\); end loop;/.test(queue) || !/ return old; end;?\s*$/.test(queue)) {
-        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the resume and the form's files a deleted application lists`);
+      // …and the files sent with its form (the eleventh review, finding 4), at
+      // most 40 a deleted application and 200 a day for one applicant (the
+      // eighth security review: one account's uploads queued 800 an hour).
+      if (!/continue when not coalesce\(private\.storage_holds\('resumes', v_path\), true\); exit when not coalesce\(\(public\.check_rate_limit\('file-queue-paths', old\.candidate_id::text, 200, 86400\) ->> 'allowed'\)::boolean, true\); insert into public\.storage_file_trash \(bucket, path, application_id, candidate_id\) values \('resumes', v_path, old\.id, old\.candidate_id\); end loop;/.test(queue) || !/ return old; end;?\s*$/.test(queue)) {
+        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the resume and the form's files a deleted application lists, at most 200 a day for one applicant (check_rate_limit 'file-queue-paths', 200, 86400)`);
       }
+      if (!/foreach v_path in array v_paths\[1:40\] loop/.test(queue)) detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue at most 40 files a deleted application (v_paths[1:40])`);
       const holds = await latestDefinition({ read, walk }, String.raw`"?private"?\s*\.\s*"?storage_holds`);
       const holdsBody = (holds?.body ?? "").replace(/\s+/g, " ");
       if (!holds?.securityDefiner || !/r\.rolsuper or r\.rolbypassrls\)\) then return null; end if;/.test(holdsBody) || !/exception when others then return null; end;?\s*$/.test(holdsBody)) {
@@ -329,6 +346,12 @@ export default [
       const allowance = ((await latestDefinition({ read, walk }, "client_send_allowed"))?.body ?? "").replace(/\s+/g, " ");
       if (!/IF NOT public\.client_send_allowed\('application', coalesce\(business, NEW\.job_id\)\) THEN RAISE EXCEPTION 'too_many_applications'/i.test(startLimit) || !/ELSIF p_kind = 'application' THEN pair_limit := 10; total_limit := 20;/i.test(allowance)) {
         detail.push("supabase/migrations: a browser must start at most 10 applications an hour with one business and 20 in all (applications_start_limit, client_send_allowed 'application')");
+      }
+      // The business is read where an applicant may read it (the eighth
+      // security review: from the jobs row, hidden from an applicant before
+      // they apply, it was always NULL and the limit was per job).
+      if (!/SELECT p\.employer_id INTO business FROM public\.published_jobs_public p WHERE p\.id = NEW\.job_id;/i.test(startLimit)) {
+        detail.push("supabase/migrations: applications_start_limit must read the job's business from published_jobs_public (an applicant cannot read the jobs row before applying, so the limit became one per job)");
       }
       // A business deletes an application only through remove_applicant (the
       // eleventh review, finding 3): the only DELETE rule left on applications
@@ -347,6 +370,73 @@ export default [
       if (!/p_actor: caller\.userId/.test(fn) || !/requireSignedInUser\(req, corsHeaders\)/.test(fn)) detail.push("remove-applicant: the actor must come from the caller's sign-in");
       const menu = (await read("src/cockpit/components/ApplicantRowMenu.tsx")) ?? "";
       if (!/key: "delete", label: "Delete their information"/.test(menu)) detail.push("ApplicantRowMenu.tsx: 'Delete their information' is gone from the ⋯ menu");
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "file-queue-fair-and-bounded",
+    why:
+      "One account's uploads hold up only its own removals (the eighth security review: one throwaway account queued " +
+      "860 rows an hour while document-cleanup took 200 a run, oldest first and one remove() a path, so every real " +
+      "withdrawal, Delete Account and remove-applicant leftover after it waited days). document-cleanup reads the " +
+      "queue only through storage_file_trash_fair_pick (service role only: a few from each person a run, the people " +
+      "with the fewest waiting first) and clears exact paths in one remove() a bucket.",
+    run: async ({ read, walk }) => {
+      const detail = [];
+      const pick = await latestDefinition({ read, walk }, "storage_file_trash_fair_pick");
+      const body = (pick?.body ?? "").replace(/\s+/g, " ");
+      if (!pick) detail.push("supabase/migrations: no storage_file_trash_fair_pick (document-cleanup's fair pick, 20261025560000)");
+      else {
+        if (!/row_number\(\) over \(partition by m\.person order by m\.attempts, m\.queued_at, m\.id\) as nth, count\(\*\) over \(partition by m\.person\) as waiting/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must number each person's notes (fewest tries, oldest first) and count how many each has waiting`);
+        if (!/where r\.nth <= case when coalesce\(p_exact, false\) then 40 else 6 end order by r\.nth, r\.waiting, r\.attempts, r\.queued_at, r\.id limit case when coalesce\(p_exact, false\) then 1000 else 200 end\s*$/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must take at most 6 folders and 40 exact paths from one person, in rounds, the people with the fewest waiting first, 200 folders and 1,000 paths a run`);
+        if (/person\s*=|where false|limit 0\b/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick is narrowed to nothing or to one person`);
+        if (pick.securityDefiner) detail.push(`${pick.alteredIn ?? pick.rel}: storage_file_trash_fair_pick must run with the caller's rights (only the server may read the queue)`);
+        const sql = (await read(pick.rel)) ?? "";
+        if (!/grant execute on function public\.storage_file_trash_fair_pick\(boolean\) to service_role;/i.test(sql) || !/revoke all on function public\.storage_file_trash_fair_pick\(boolean\) from public, anon, authenticated;/i.test(sql)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must be the service role's only`);
+        for (const rel of await grantsToBrowser({ read, walk }, "storage_file_trash_fair_pick")) detail.push(`${rel}: storage_file_trash_fair_pick granted to a browser role`);
+      }
+      // document-cleanup: the queue read only through the pick, both kinds;
+      // exact paths in bulk; a refused batch tried one path at a time, with a
+      // stop when storage itself refuses.
+      const fn = ((await read("supabase/functions/document-cleanup/index.ts")) ?? "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+      if (!/admin\.rpc\("storage_file_trash_fair_pick", \{ p_exact: false \}\)/.test(fn) || !/admin\.rpc\("storage_file_trash_fair_pick", \{ p_exact: true \}\)/.test(fn)) detail.push("document-cleanup: the removal queue must be read through storage_file_trash_fair_pick, folders and exact paths");
+      if (/from\("storage_file_trash"\)\s*\.select\("[^"]*\b(?:path|folder)\b/.test(fn)) detail.push("document-cleanup: reads the removal queue's notes straight from the table, not through the fair pick");
+      if (!/const REMOVE_BATCH = 1000;/.test(fn) || !/\.remove\(batch\.map\(\(n\) => String\(n\.path\)\)\)/.test(fn)) detail.push("document-cleanup: exact paths must go in one remove() a bucket, up to 1,000");
+      if (!/if \(refusedInARow >= REFUSED_IN_A_ROW\) \{/.test(fn) || !/\.remove\(\[String\(note\.path\)\]\)/.test(fn)) detail.push("document-cleanup: a batch storage refuses must be tried one path at a time, stopping once storage itself refuses");
+      if (!/isPlainObjectPath\(p\)/.test(fn) || !/!p\.includes\("\.\."\)/.test(fn)) detail.push("document-cleanup: a removal note must be a plain path (no \"..\", \"%\", backslash or control character) before it reaches storage");
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "applications-stay-on-their-job",
+    why:
+      "A business could delete one chosen application without Delete their information: move it to a throwaway job " +
+      "of its own, then delete that job (the eighth security review; the protect triggers return early for the hiring " +
+      "team and the UPDATE policies have no WITH CHECK). Nobody but the server changes an application's job " +
+      "(applications_stay_on_their_job), and a deleted document's kept copies (documents/<id>/) are queued for " +
+      "removal however the row goes (documents_queue_files, with its own rights, never failing the delete).",
+    run: async ({ read, walk }) => {
+      const detail = [];
+      detail.push(...(await triggerProblems({ read, walk }, { name: "applications_stay_on_their_job", table: "applications", timing: "BEFORE", event: "UPDATE", fn: "applications_stay_on_their_job" })));
+      // On every update, never UPDATE OF some columns (an update that leaves
+      // them out would pass by).
+      let made = "";
+      for (const { sql } of await migrationTexts({ read, walk })) {
+        for (const m of sql.matchAll(/\bCREATE\s+(?:OR\s+REPLACE\s+)?TRIGGER\s+"?applications_stay_on_their_job"?\s[^;]*;/gi)) made = m[0].replace(/\s+/g, " ");
+      }
+      if (made && !/\bBEFORE UPDATE ON\b/i.test(made)) detail.push("supabase/migrations: applications_stay_on_their_job must run on every update of an application (BEFORE UPDATE ON, not UPDATE OF)");
+      const stay = await latestDefinition({ read, walk }, "applications_stay_on_their_job");
+      const stayBody = (stay?.body ?? "").replace(/\s+/g, " ");
+      if (!/^\s*begin if new\.job_id is distinct from old\.job_id and coalesce\(auth\.role\(\), ''\) <> 'service_role' and \(coalesce\(auth\.role\(\), ''\) <> '' or current_user in \('anon', 'authenticated'\)\) then raise exception 'application_job_fixed'/i.test(stayBody)) {
+        detail.push(`${stay?.rel ?? "supabase/migrations"}: applications_stay_on_their_job must refuse any change of an application's job but the server's, first thing`);
+      }
+      detail.push(...(await triggerProblems({ read, walk }, { name: "documents_queue_files", table: "documents", timing: "AFTER", event: "DELETE", fn: "documents_queue_files" })));
+      const docs = await latestDefinition({ read, walk }, "documents_queue_files");
+      const docsBody = (docs?.body ?? "").replace(/\s+/g, " ");
+      if (!docs?.securityDefiner) detail.push(`${docs?.alteredIn ?? docs?.rel ?? "supabase/migrations"}: documents_queue_files must run with its own rights (a business's delete cannot write storage_file_trash)`);
+      if (!/^\s*begin begin if old\.id is not null and coalesce\(private\.storage_holds\('documents', 'documents\/' \|\| old\.id::text \|\| '\/'\), true\) then insert into public\.storage_file_trash \(bucket, folder, starts_with, application_id, candidate_id\) values \('documents', 'documents\/' \|\| old\.id::text, '', old\.application_id, old\.recipient_id\); end if; exception when others then raise log [^;]*; end; return old; end;?\s*$/i.test(docsBody)) {
+        detail.push(`${docs?.rel ?? "supabase/migrations"}: documents_queue_files must queue documents/<id>/ of every deleted document where storage holds a file (or cannot say), in its own exception block, as written`);
+      }
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

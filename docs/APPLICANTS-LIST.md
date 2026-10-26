@@ -725,6 +725,12 @@ kept in the deletion record only):
   record of who, the signed copies and form files left with nothing pointing
   at them) are dropped (`20261025550000`, the eleventh Phase 5 review). The
   applicant's own withdrawal and a deleted job's cascade are unchanged.
+  Nobody but the server changes an application's job either
+  (`applications_stay_on_their_job`, `20261025570000`): moving one to a
+  throwaway job and deleting that job was another way round it (the eighth
+  security review). A deleted document queues its kept copies
+  (`documents/<id>/`) for document-cleanup however it goes
+  (`documents_queue_files`).
 - **Stays:** their messages (their conversation too; they lose the link to
   the application), the signing audit log (it cannot be changed, by design;
   it loses the link to the document; the confirm says so), the original file

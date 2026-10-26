@@ -229,8 +229,12 @@ check("…while a name with a comma or an '&' stays whole, an encoded one is rea
 check("…even with a stray \"%\" elsewhere and an accented name encoded in small letters (the eighth)", (() => { const mine = `${ANA}/1700_Résumé.pdf`; const got = FILES.resumeFilesToRemove(ANA, mine, "", JSON.stringify({ note: "Scored 100% on typing", other: `https://x.supabase.co/storage/v1/object/sign/resumes/${ANA}/1700_R%c3%a9sum%c3%a9.pdf?token=y` })); return !got.includes(mine); })());
 check("a file another application still uses stays, even when one side stored it encoded (the seventh)", (() => { const enc = `https://x.supabase.co/storage/v1/object/sign/resumes/${ANA}/1700_Scan%202026`; const got = FILES.resumeFilesToRemove(ANA, null, JSON.stringify({ d: `${enc}?token=z` }), JSON.stringify({ other: `${enc}?token=y` })); return !got.some((p) => p.includes("1700_Scan")); })());
 check("a file name with a space is still found in the notes ('Scan 2026')", FILES.resumeFilesToRemove(ANA, null, JSON.stringify({ q: `${ANA}/1700_Scan 2026` }), "").includes(`${ANA}/1700_Scan 2026`));
-check("document-cleanup tries the fewest-tried notes first, and a failed ID-papers read never skips the queue", /\.order\("attempts", \{ ascending: true \}\)/.test(cleanup) && !/return json\(\{ error: "read_failed" \}, 500\)/.test(cleanup));
-check("document-cleanup retries the queue, plain paths in the known buckets only, and drops a note only once its files are gone", /\.from\("storage_file_trash"\)[\s\S]*REMOVAL_BUCKETS\.has\(bucket\)[\s\S]*\.remove\(paths\)[\s\S]*\.from\("storage_file_trash"\)\.delete\(\)/.test(cleanup) && /attempts: Number\(note\.attempts \?\? 0\) \+ 1/.test(cleanup));
+// Since the eighth security review the queue is read through
+// storage_file_trash_fair_pick (fewest tries first within each person, a few
+// from each person a run; the SQL is proved in launch_locks_behaviour,
+// section 14), folders and exact paths apart.
+check("document-cleanup tries the fewest-tried notes first (through the fair pick), and a failed ID-papers read never skips the queue", /admin\.rpc\("storage_file_trash_fair_pick", \{ p_exact: false \}\)/.test(cleanup) && /admin\.rpc\("storage_file_trash_fair_pick", \{ p_exact: true \}\)/.test(cleanup) && !/return json\(\{ error: "read_failed" \}, 500\)/.test(cleanup));
+check("document-cleanup retries the queue, plain paths in the known buckets only, and drops a note only once its files are gone", /storage_file_trash_fair_pick[\s\S]*REMOVAL_BUCKETS\.has\(bucket\)[\s\S]*\.remove\(paths\)[\s\S]*\.remove\(batch\.map\(\(n\) => String\(n\.path\)\)\)[\s\S]*\.from\("storage_file_trash"\)\.delete\(\)\.in\("id", done\.slice\(/.test(cleanup) && /update\(\{ attempts: tries \+ 1, last_tried_at: triedAt \}\)/.test(cleanup));
 
 console.log("\nOn the applicant's page\n");
 const menu = read("src/cockpit/components/ApplicantRowMenu.tsx");
