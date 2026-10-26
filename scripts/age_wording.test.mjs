@@ -42,8 +42,11 @@
  * fifteenth and sixteenth rounds, in the seventeenth; 200,485 from the trees at
  * the last three rounds, this one and the main working tree, and the same 212
  * items, against the fifteenth, sixteenth and seventeenth rounds, in the
- * eighteenth) to see what the new rules drop that the old ones kept; the
- * seventh to eighteenth reviews' fixes drop none of them.
+ * eighteenth; 201,935 from the trees at the last three rounds, this one and the
+ * main working tree, and the same 212 items, against the sixteenth,
+ * seventeenth and eighteenth rounds, in the nineteenth) to see what the new
+ * rules drop that the old ones kept; the seventh to nineteenth reviews' fixes
+ * drop none of them.
  *
  * Run with: node scripts/age_wording.test.mjs
  */
@@ -1654,6 +1657,197 @@ for (const [line, drops, why] of [
   ['The client asks for mature agents. Ask: "How old are you?"', false, "a client who calls or asks is the case's own customer (a tax desk's \"The client asks why her refund is late\"), as the seventeenth round's BPO client that \"is a US health plan\" or \"wants mature agents\" never was; \"asks for\" is a customer's as often (\"The client asks for a refund\"), and a screening call, an interview or an applicant named before it still drops it"],
   ['Reply to the welcome message: "Hi, I\'m ___, ___ years old."', false, "a message replied to is the customer's unless the label names the hiring side, a question or the reply's own words (\"Reply to the welcome message with your intro:\" drops); a welcome message is a desk's as often"],
 ]) check(`(18th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, A.asksAgeOrStatus(line) === drops);
+
+// The nineteenth Phase 6 review: the eighteenth round's early return for a message replied to went past its cases both ways.
+// A label that says how to reply or names the chat's own question ("Reply to this chat with empathy:", "Respond to this email
+// with an apology and a date:", "Answer the question in this chat:") still left a customer's own age to be read as the
+// applicant's (every round; four practice cases dropped whole, the owner's gaming case among them), and the label alone made
+// an applicant's own self-introduction a customer's message ("To apply, reply to this email:", "Step 2 of your application.",
+// "Reply to the screening email:", "Reply to the job post:", "… Candidates must use this format.", "Her reply to the first
+// message:"; a regression against both earlier rounds, in the job post's "How to apply" line, the application questions, the
+// written interview's grader and the interview guide). Its intro written or sent to someone else read a warm transfer as the
+// writer's own, and its narrowings and widenings of the account, the customer's line, "Introduce yourself (", "your
+// profile:", "describe a time", the role, the welcome, the hire's HMO, the desk's count and "opens" each read one side as the
+// other. Each was narrowed back to its round's cases; every check in this list but the pins and the known items fails on the
+// eighteenth round's module.
+console.log("\nThe nineteenth review's cases\n");
+for (const line of [
+  // Finding 1: a label that says how to reply, or names the chat's own question, before a customer's own age.
+  'Reply to this chat with empathy: "I\'m 64 years old and want to know when my Medicare plan starts."',
+  'Reply to this chat with empathy: "Hi, I\'m 15 years old and I bought gems with my mom\'s card. Can I get a refund?"',
+  'With empathy, reply to this chat: "I\'m 70 years old and my prescription refill is late again."',
+  'Respond to this email with an apology and a date: "I\'m 70 years old and my prescription refill is late again."',
+  'Reply to this message with care: "I\'m 64 years old and want to know when my Medicare plan starts."', 'Reply to this ticket with next steps: "I\'m 16 years old and my subscription renewed without asking."',
+  'Reply to the chat using plain words: "I\'m 70 years old and my prescription refill is late again."', 'Reply to this chat with a short, kind answer: "I\'m 64 years old and want to know when my Medicare plan starts."',
+  'Reply to this chat and answer her questions: "I\'m 70 years old and need to move my appointment to Friday."', 'Answer the question in this chat: "I\'m 64 years old and want to know when my Medicare plan starts."',
+  'Reply with empathy to this chat: "I\'m 70 years old and my prescription refill is late again."',
+  'Reply to this chat with the correct information: "I\'m 64 years old and want to know when my Medicare plan starts."',
+  'Reply to this ticket using your knowledge base: "I\'m 16 years old and my subscription renewed without asking."',
+  // …and the seventeenth round's case, a customer word in the message after such a label.
+  'Reply to this chat with empathy: "I\'m 70 years old, a member since 2010, and my refill is late."', 'Reply to the chat using the macro: "I\'m 72 years old, a patient of Dr. Cruz, and I need a refill."',
+  'Reply to this chat and answer her questions: "I\'m 70 years old and a member. Is my plan changing?"',
+  // Finding 3: a warm transfer's intro written or sent to someone, or about the caller.
+  "Send a brief intro to the nurse: [Name], [Age], [Reason for call].", "Write a short intro for the nurse: [Name], [Age], [Reason for call].",
+  "Write a brief intro for Tier 2: [Username], [Age], [Issue].", "Send a quick intro to the specialist: caller [Name], [Age], [Issue].",
+  "Post a quick intro in the escalation channel: [Name], [Age], [Account], [Problem].", "Before you transfer, send a quick intro to the nurse line: [Name], [Age], [Reason].",
+  "Write a quick intro about the patient: [Name], [Age], [Concern].",
+  // Finding 4: a bank customer's current account, a customer's line under a longer label, "Introduce yourself (…)" before
+  // the customer's details, "your profile:" said to a customer, a desk's "recall / share a time".
+  'Opening message: "Hi, I\'m 68 years old and my current account was charged twice."', 'Opening message: "I\'m 75 years old and my current account is locked."',
+  'Chat opener: "Hi, I\'m 70 years old and my last account statement shows a fee I don\'t know."', 'Opening message: "I\'m 70 years old and my recent account activity looks wrong."',
+  "Practice chat 1 — Customer: Hi, I'm [Name], [Age] years old, and my order is late.", "Mock call script — Caller: Hi, my name is [Name], I'm [Age] years old, and my card was declined.",
+  "Sample chat transcript: Customer: Hi, I'm [Name], [Age] years old, and my claim was denied.", "Role-play 2 (billing) — Caller: My name is [Name], I'm [Age] years old, and I was double-charged.",
+  "Chat simulation, round 1 — Member: Hi, I'm [Name], [Age] years old, and I need my ID card.", "Opening line from the caller: Hi, I'm [Name], [Age] years old, and I need a refill.",
+  "Introduce yourself (first name only), then read back the patient's [Name], [Age] and [Allergies].", "Pediatric nurse line: introduce yourself (name, role), then ask for the child's [Name], [Age] and [Weight].",
+  'Say: "Please check your profile: Name, [Age], Address must match your ID."', "Ask the patient to confirm what is on your profile: [Name], [DOB], [Age].",
+  'Ask: "Can you recall a time the customer app charged you twice? Are you over 18?"', 'Ask: "Can you share a time when a member benefit was denied? Are you 65 or older?"',
+]) check(`(19th review) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+for (const line of [
+  // Finding 2: an applicant's own self-introduction after a reply label, put to someone applying before the quote, after it
+  // or in it, or the applicant's own reply in a reviewer's note.
+  'To apply, reply to this email: "Hi, I\'m [Name], [Age] years old, and I\'d like to apply for the Chat Support role."', 'To apply, reply to this email: "Hi, I\'m ___, ___ years old, from ___."',
+  'Step 2 of your application. Reply to this message: "Hi, I\'m [Name], [Age] years old, [Civil Status]."', 'Video interview question 2. Reply to this message: "My name is ___, ___ years old."',
+  'All applicants must do this. Reply to our email: "Hi, I\'m ___, ___ years old, from ___."',
+  'Reply to this message: "Hi, I\'m [Name], [Age] years old." Candidates must use this format.', 'Reply to the screening email: "Good day! My name is ___, ___ years old, single, and I have 2 years of BPO experience."',
+  'Screening step. Reply to our email: "Hi, I\'m ___, ___ years old, from ___."', 'Reply to the job post: "Hi, I\'m ___, ___ years old, from ___."', 'Reply to the job post: "I\'m 24 years old and single."',
+  'Reply to our Facebook post: "Hi, I\'m ___, ___ years old, from ___."', 'Respond to our invitation email: "Good day! My name is ___, ___ years old, single, and I have 2 years of BPO experience."',
+  'Reply to our email: "My date of birth is ___ and my civil status is ___."', 'Reply to our email: "I am 24 years old and single, with no kids."',
+  'Respond to the shortlist message: "Hi, I\'m ___, ___ years old, from ___."', 'Reply to the email you received from us: "Hi, I\'m ___, ___ years old, from ___."',
+  'Reply to: "Hello, I am [Name], [Age] years old, and I would like to apply."', 'Answer this email: "Hi! I\'m [Name], [Age] years old, and I\'m interested in this position."',
+  'Reply to our message: "Hi, I\'m [Name], [Age] years old, and I am applying for the Customer Service Representative position."', 'Reply to Ana\'s email: "Hello, I am [Name], [Age] years old, and I would like to apply."',
+  'Reply to this message: "Hi, I\'m [Name], [Age] years old, and I\'d like to apply for the Chat Support role."',
+  'Her reply to the first message: "I\'m 19 years old and this is my first job."', 'Her answer to the opening message: "I\'m 19 years old and this is my first job."',
+  'Responding to the chat: "I\'m 30 years old and single, so nights are fine."', 'Ask about her reply to the chat: "I\'m 30 years old and single, so nights are fine."',
+  'Her reply to the practice chat: "I am 45 years old and very patient with customers."',
+  'In your video, reply to this message: "Hi, I\'m ___, ___ years old, from ___."', 'Thanks for applying! Reply to this message: "Hi, I\'m ___, ___ years old, from ___."',
+  // Finding 5: the role, the welcome and the hire's HMO in other words, the desk's count of the agent's own, an applicant's
+  // template next to "the caller begins".
+  'Say: "Hi, this is Ana from customer care. Do you have a minute to talk about a role with us? How old are you?"', 'Say: "Hi, this is Ana from customer care. We have open roles on our team. Are you married?"',
+  'Say: "Hi, I\'m Ana from customer care at Bright Clinic. Are you still interested in a role here? How old are you?"', 'Say: "Thanks for contacting member support! We have roles open for night shift. Are you single or married?"',
+  'Opening message: "Welcome to our team at Bright Clinic! To confirm your tax filing status, are you married or single?"', 'Opening message: "Welcome to the team and congratulations! To confirm your tax filing status, are you married or single?"',
+  'Opening message: "Welcome to the team :) To confirm your tax filing status, are you married or single?"', 'Ask: "To confirm your premium for the HMO as a new hire, how many dependents do you have?"',
+  'Ask: "How many members do you plan to enroll in your first month? How old are you?"', 'Ask: "How many guests did you have per shift at your last hotel booking desk? How old are you?"',
+  'Ask: "How many customers did you want to enroll per month at your last job? How old are you?"',
+  "Record your intro before the caller begins: Hi, I'm ___, ___ years old, from ___.", "Write your opener for when a customer opens the chat: Hi, I'm [Name], [Age] years old, and I'll help you today.",
+]) check(`(19th review) asks for age or marks it: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line) && A.marksAgeOrFamily(line));
+// …and in the real paths: generate-flow's simulation filter (:252) keeps the review's practice cases whole and
+// ai-generate-workflow's configWithoutAgeAsks (:607) deletes none of their prompts; ai-generate-job-content's description
+// (textWithoutAgeAsks, :387) loses its "How to apply" line and generate-flow's application filter (:249) both template
+// questions; the written interview's grader (interviewContext.ts, interviewEvaluationFrom) and the interview guide
+// (guideMaterial.ts, personalGuideFrom) leave out the applicant's own reply quoted with her age.
+const reviewCases19 = [
+  { title: "Medicare start date", prompt: 'Reply to this chat with empathy: "I\'m 64 years old and want to know when my Medicare plan starts." Explain the Initial Enrollment Period.' },
+  { title: "Minor's purchase", prompt: 'Reply to the chat with empathy and the refund policy: "Hi, I\'m 15 years old and I bought gems with my mom\'s card. Can I get a refund?"' },
+  { title: "Refill delay", prompt: 'Respond to this email with an apology and a new date: "I\'m 70 years old and my prescription refill is late again."' },
+  { title: "Appointment move", prompt: 'With empathy, reply to this message: "I\'m 70 years old and need to move my appointment to Friday." Offer two times.' },
+  { title: "Nurse transfer", prompt: "A patient asks about her new medication. Send a brief intro to the nurse: [Name], [Age], [Reason for call]. Then transfer the call." },
+  { title: "Tier 2 escalation", prompt: "A player cannot log in after a reset. Write a short intro for Tier 2: [Username], [Age], [Region], [Problem]. Then hand off the chat." },
+  { title: "Pharmacist handoff", prompt: "A caller has a refill question. Write a quick intro about the patient: [Name], [Age], [Medication]. Then warm-transfer." },
+  { title: "Late order", prompt: "Practice chat 1 — Customer: Hi, I'm [Name], [Age] years old, and my order is late. Reply with a fix." },
+  { title: "Declined card", prompt: "Mock call script — Caller: Hi, my name is [Name], I'm [Age] years old, and my card was declined. Resolve it." },
+  { title: "Double charge", prompt: 'Opening message: "Hi, I\'m 68 years old and my current account was charged twice." Find the charge and explain the refund.' },
+  { title: "Locked account", prompt: 'Opening message: "I\'m 75 years old and my current account is locked." Walk her through unlocking it.' },
+];
+check(`(19th review) the review's ${reviewCases19.length} practice cases are kept whole, and no step prompt is deleted`, A.withoutAgeAsks(reviewCases19, (s) => `${s.title}. ${s.prompt}`).length === reviewCases19.length && reviewCases19.every((s) => !A.asksAgeOrStatus(s.prompt)));
+{
+  const description = ["We are hiring a Chat Support Agent for a US dental clinic.", 'How to apply: To apply, reply to this email: "Hi, I\'m [Name], [Age] years old, [Civil Status], and I\'d like to apply for the Chat Support role."', "We review every application within 3 days."].join("\n");
+  const application = ["Tell us about a time you calmed an upset customer.", 'Step 2 of your application. Reply to this message: "Hi, I\'m [Name], [Age] years old, [Civil Status], from [City]."', 'Reply to the screening email: "Good day! My name is ___, ___ years old, single, and I have 2 years of BPO experience."'];
+  check("(19th review) …a job post's \"How to apply\" line and the application's template questions are dropped, the rest kept", A.textWithoutAgeAsks(description) === "We are hiring a Chat Support Agent for a US dental clinic.\nWe review every application within 3 days." && JSON.stringify(A.withoutAgeAsks(application)) === JSON.stringify([application[0]]));
+  const C19 = await import("../supabase/functions/ai-chat-interview/interviewContext.ts");
+  const M19 = await import("../supabase/functions/interview-guide/guideMaterial.ts");
+  const g = C19.interviewEvaluationFrom({
+    score: 62, recommendation: "Maybe", credibilityRating: "Medium", strengths: ["Clear, warm writing"],
+    concerns: ['Her reply to the first message: "I\'m 19 years old and this is my first job." Little real experience.', "Vague about the refund steps"],
+    inconsistencies: [{ claim: "Says 3 years of BPO experience", evidence: 'Her answer to the opening message: "I\'m 19 years old and this is my first job."', assessment: "The two do not fit" }, { claim: "Claimed 5 years", evidence: "Form says 1-2 years", assessment: "Exaggeration" }],
+    summary: 'Clear writer. Her reply to the first message: "I\'m 30 years old and single, so nights are fine."',
+  }, { leadRole: false, messages: [] });
+  check("(19th review) …and the written interview's grader leaves out a concern, an inconsistency and a summary sentence quoting her own reply with her age", JSON.stringify(g.concerns) === JSON.stringify(["Vague about the refund steps"]) && g.inconsistencies.length === 1 && g.inconsistencies[0].evidence === "Form says 1-2 years" && g.summary === "Clear writer.", JSON.stringify(g));
+  const record = { job: C19.interviewJobFrom({ title: "Chat Support Agent", description: "Answer customers.", quiz_questions: [] }), family: "support", notes: { applicationAnswers: [] }, interview: [], practiceLines: [] };
+  const q = (question, why) => ({ question, why, listenFor: "A concrete example.", redFlag: "No example.", source: "application", quote: "" });
+  const guide19 = M19.personalGuideFrom({
+    atAGlance: ['Her answer to the opening message: "I\'m 19 years old and this is my first job."', "Says 3 years in chat support."],
+    questions: [q("Walk me through the last refund you handled.", "From the form."), q("Tell me about a customer who stayed angry.", "From the form."), q("How would you cover a weekend shift?", 'Her reply to the first message: "I\'m 30 years old and single, so nights are fine."')],
+    confirm: ["Confirm they can start on 1 November."],
+  }, record);
+  check("(19th review) …and the interview guide leaves out an at-a-glance line and a question whose reason quotes it", guide19 && JSON.stringify(guide19.atAGlance) === JSON.stringify(["Says 3 years in chat support."]) && guide19.questions.length === 2, JSON.stringify(guide19));
+}
+// …and the review's grids: (A) its reply labels before three customers' own messages, every one kept whatever manner or
+// question of the chat the label names (its "Reply to this question:", naming no chat, is a known item below); (B) its 25
+// reply labels before four applicant templates, every one that names applying, a step of the hiring or the business's own
+// message dropped (the rest are the known items below).
+{
+  const msgs = ['"I\'m 64 years old and want to know when my Medicare plan starts."', '"Hi, I\'m 15 years old and I bought gems with my mom\'s card. Can I get a refund?"', '"I\'m 70 years old and my prescription refill is late again."'];
+  const labels = ["Reply to this chat:", "Reply to this chat with empathy:", "With empathy, reply to this chat:", "Reply to this chat with a short, kind answer:", "Reply to this message with care:",
+    "Respond to this email with an apology and a date:", "Reply to the chat using plain words:", "Reply to this chat and answer her questions:", "Answer this question from a caller:",
+    "Answer the question in this chat:", "Reply to this chat with the correct information:", "Reply with empathy to this chat:", "Using the knowledge base, reply to this chat:", "Reply to this ticket with next steps:",
+    "Reply to this email with the policy:", "Reply to the chat below with a helpful answer:", "Write a reply to this message:", "Reply to this chat in under 60 words:"];
+  const lines = labels.flatMap((label) => msgs.map((m) => `${label} ${m}`));
+  const dropped = lines.filter((line) => A.asksAgeOrStatus(line));
+  check(`(19th review) a customer's own age in the message replied to is hers whatever the label says of the reply (${lines.length} lines)`, lines.length === 54 && dropped.length === 0, dropped.slice(0, 3).join(" | "));
+  const intros = ['"Hi, I\'m ___, ___ years old, from ___."', '"Hi! I\'m [Name], [Age] years old, and I\'m interested in this position."', '"Good day! My name is ___, ___ years old, single, and I have 2 years of BPO experience."', '"Hello, I am [Name], [Age] years old, and I would like to apply."'];
+  const hiring = ["Reply to the job post:", "Reply to this job post:", "Reply to our job post:", "Reply to our Facebook post:", "Respond to our invitation email:", "Reply to our email:",
+    "Reply to the email you received from us:", "Reply to our message:", "Reply to our first message:", "Reply to the screening email:", "Respond to the shortlist message:", "Reply to the interview invite email:"];
+  const hLines = hiring.flatMap((label) => intros.map((m) => `${label} ${m}`));
+  const kept = hLines.filter((line) => !A.asksAgeOrStatus(line));
+  check(`(19th review) …and an applicant's template after a label naming the job, a step of the hiring or the business's own message is hers (${hLines.length} lines)`, hLines.length === 48 && kept.length === 0, kept.slice(0, 3).join(" | "));
+  const others = ["Reply to: ", "Respond to the message below:", "Answer this email:", "Reply to Ana's email:", "Reply to this message from Bright Clinic:", "Reply to the onboarding email:", "Reply to the text from our team:"];
+  const asking = [intros[1], intros[3]].flatMap((m) => others.map((label) => `${label} ${m}`));
+  const keptAsking = asking.filter((line) => !A.asksAgeOrStatus(line));
+  check(`(19th review) …and after any other reply label, a template that asks to apply or names the position is hers (${asking.length} lines)`, asking.length === 14 && keptAsking.length === 0, keptAsking.slice(0, 3).join(" | "));
+}
+// Finding 6: the review's three weakenings that changed no check (NOT_A_CUSTOMERS_MESSAGE losing its digit lookbehind or
+// gaining "team", the "why … want to" window widened to 200 characters), and this round's own parts the review's lines do not
+// reach: a customer's own wish to apply for a benefit, a bare "apply" in a message naming a plan, a reply to write. They pass
+// on the eighteenth round's module too.
+for (const line of [
+  'Reply to this chat on the 24-hr refill line: "I\'m 70 years old and my prescription refill is late again."', 'As the billing team, reply to this chat: "I\'m 70 years old and my prescription refill is late again."',
+  'Ask: "Tell me why you called today and whether you want to help a member of your household enroll. Are you 65 or older?"',
+  'Reply to this chat: "I\'m 64 years old and want to apply for Medicare. When can I start?"', 'Reply to this chat: "I\'m 66 years old and I saw your senior plan. I\'d like to apply."',
+  'Write a reply to this message: "I\'m 70 years old and my prescription refill is late again."',
+  'Your task is to reply to this chat: "I\'m 64 years old and want to know when my Medicare plan starts."', 'You will respond to this email: "I\'m 70 years old and my prescription refill is late again."',
+  'Write your reply to this message: "I\'m 70 years old and my prescription refill is late again."',
+]) check(`(19th review, pin) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+for (const line of [
+  // …and a bio is always the writer's own, whatever follows it (only an intro can be someone else's).
+  "Write a short bio for the customer portal: [Name], [Age], [City].",
+]) check(`(19th review, pin) asks for age or sets a limit: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+// Guards: what each narrowed reading must still drop or keep. The reply's own words, the hiring side and a question that
+// asks to apply still make the quote the applicant's, whatever manner the label names; a customer's own message after "to
+// apply for" a benefit, a loan application or a comment on the business's post, after "her message" or "Then reply", in a
+// practice set up for candidates or before a case's note on what the candidate must do, is still hers.
+for (const line of [
+  'Reply to the welcome message with your intro: "Hi, I\'m ___, ___ years old."', 'Reply to this chat with your details: "Hi, I\'m ___, ___ years old, from ___."',
+  'Reply to the recruiter\'s message with empathy: "Hi, I\'m ___, ___ years old, and I love helping customers."',
+  'Reply to this question: "I\'m 24 years old. Can I still apply for the night shift role?"',
+  "Write your opening line for the caller: Hi, I'm ___, ___ years old, from ___.",
+  'Answer this question: "I\'m 45 years old. Am I too old for this job?"',
+]) check(`(19th review, guard) …and still drops: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+for (const line of [
+  'To apply for Medicare, reply to this email: "I\'m 64 years old and want to know when my plan starts."',
+  'A member asks about her loan application. Reply to this chat: "I\'m 70 years old and my loan application is late."',
+  'Reply to the comment on our Facebook post: "I\'m 70 years old and my order never came."',
+  'A member wants the senior discount. Reply to this chat: "I\'m 66 years old and I\'d like to apply for the senior discount."',
+  'Reply to her message: "I\'m 72 years old and I can\'t log in to my patient portal."', 'Then reply to this chat: "I\'m 70 years old and my prescription refill is late again."',
+  'Reply to this chat: "I\'m 64 years old and want to know when my Medicare plan starts." The candidate must explain the enrollment period.',
+  'Candidates practice this chat. Reply to this chat: "I\'m 70 years old and my prescription refill is late again."',
+  'Step 3 of your application: a practice chat. Reply to this chat: "I\'m 70 years old and my prescription refill is late again."',
+  'Reply to this message about her cancer screening: "I\'m 52 years old and I need to rebook my screening."',
+  'Reply to this chat about the loan application: "I\'m 70 years old and my loan application is late."',
+  'Reply to this chat: "I\'m 66 years old and interested in your Medicare Advantage plan. Can you call me?"',
+  'Reply to this message: "I\'m 70 years old, so the late fee should not apply."',
+]) check(`(19th review, guard) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+// Known, and left (the nineteenth review): each is read as shown for the reason given, so the next review need not report it.
+for (const [line, drops, why] of [
+  ['Reply to Ana\'s email: "Hi, I\'m ___, ___ years old, from ___."', false, "a message replied to is the customer's unless the label names the hiring side or the reply's own words, the case is put to someone applying, or the message is the business's own (\"our email\", \"from us\"); \"Ana\" is a customer as often, and the same template that asks to apply (\"…and I would like to apply.\") drops"],
+  ['Reply to the onboarding email: "Hi, I\'m ___, ___ years old, from ___."', false, "an onboarding email is an app's or a bank's to its customer as often as a hire's; only a job post, a screening, a shortlist and the business's own message were read as a step of the hiring"],
+  ['Reply to the text from our team: "Hi, I\'m ___, ___ years old, from ___."', false, "only \"our email\" right after \"reply to\" and \"from us\" are read as the business's own message; \"from our team\" names a desk's own team as often (\"Reply to this email from our support team:\")"],
+  ['Interested? Reply to this post: "Hi, I\'m ___, ___ years old, from ___."', false, "\"Interested?\" and \"this post\" are a desk's social post as often; a job post is read only as one"],
+  ['Reply to this email: "Hi, I\'m [Name], [Age] years old. Thanks for considering my application."', false, "\"my application\" is a benefit's or a loan's caller's as often; only applying for the role, the job or the position, or a bare \"I'd like to apply\" in a message naming no plan or benefit, is the quote's own ask to apply"],
+  ['Ask: "To confirm your health premium under the HMO we give employees, how many dependents do you have?"', false, "a hire's HMO is the company's, the employer's, the staff's, the team's, \"our HMO\" on its own or one \"as a new hire\" (the eighteenth review: employees standing alone read a customer's own \"discount for employees of partner companies\")"],
+  ['Ask: "How many members would you like to enroll each week in this role? Are you married?"', false, "\"would you like to enroll\" is a desk's count, as the eighteenth round read it; the job is not read after it"],
+  ['Reply to this question: "I\'m 70 years old and my prescription refill is late again."', true, "a question with no chat, message or email named is an interview's or a job post's as often ('Answer this question: \"I\'m 45 years old. Am I too old for this job?\"'), as the eighteenth round read it; the chat's own question is the customer's (\"Answer the question in this chat:\", \"Reply to this chat and answer her questions:\")"],
+  ['Say: "Hi, this is Ana from patient support. I am calling about a support role you applied to. How old are you?"', false, "a role is the job's only as \"the … role\", \"a role with us\", \"a role here\" or \"open roles\" (a game's role reads the same otherwise: the eighteenth review)"],
+]) check(`(19th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, A.asksAgeOrStatus(line) === drops);
 
 console.log("\nThe three job writers\n");
 const flow = read("supabase/functions/generate-flow/index.ts");
