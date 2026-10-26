@@ -599,7 +599,10 @@ const AT_OUR_LODGING = /\b(at|in) (our|the) ([\w-]+ )?(hotel|resort|inn|hostel|m
 // experience supporting US hotels" and "No experience needed! … our US hotel partners" are an account's.)
 // (The twenty-eighth: never after "no experience", and the hotels must start inside the 45 characters: "a great experience on
 // every call while helping travelers with reservations at US hotels" is an account's.)
-const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|(?<!\bwith (our |the )?)partner hotels?|(?<!(?<!\b(guest|customer|no)\s+)\bexperience\b(?=[^.;\n]{0,45}\b(us|u\.s\.|uk)(-based)? hotel)[^.;\n]{0,45}\b((in|at|from|with|of)\s+|working\s+for\s+)([\w-]+\s+){0,3})\b(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
+// (The twenty-ninth: nor after "zero" or "without", nor "experience (is) not…", with up to two words between, "No prior
+// experience needed!", "Experience not required!"; and a labelled "Experience:" line keeps its reach to the hotels however
+// far they come, "Experience: 1-2 years at a hotel front desk, ideally in US hotels" is the applicant's past.)
+const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|(?<!\bwith (our |the )?)partner hotels?|(?<!(?<!\b(guest|customer)\s+|\b(no|zero|without)\s+([\w-]+\s+){0,2})\bexperience\b(?!:?\s+(is\s+)?not\b)(?=:|[^.;\n]{0,45}\b(us|u\.s\.|uk)(-based)? hotel)[^.;\n]{0,45}\b((in|at|from|with|of)\s+|working\s+for\s+)([\w-]+\s+){0,3})\b(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
 // Where the agent sits or when they work says nothing about whose front desk
 // it is: "office hours", "work in our office in Ortigas" (the ninth review).
 const OFFICE_NOT_VENUE = /\b(work|working|report|reporting|based|stationed|sit|sitting)\s+(in|at|from|out of)\s+(our|the|an?)\s+([\w']+\s+)?office\b|\boffice[- ](hours|based|setup|set-up|schedule|days?)\b|\b(in|home|back)[- ]office\b/g;
@@ -1220,9 +1223,13 @@ function remoteSetupLine(work: string): boolean {
   // label is never the hiring's second setup: "Hiring process:\n✅ Onsite (Makati)\n✅ Setup: Permanent WFH" is remote.)
   // (The twenty-eighth: a short unmarked line after a blank line, "PRODUCTION", "JOB DETAILS", ends the list above it like a
   // heading without its colon, so the job's own "✅ Setup: Onsite" after it is the job's.)
+  // (The twenty-ninth: never a separator that names the training or the interview, "Nesting", "Interview day". It only ends
+  // the list: the lines after it are read as the job's only up to the next marked line, so a "✅ Schedule" before "✅ Setup:
+  // Onsite" there still leaves the setup under the training heading, unlike a real "Job details:" heading.)
   const mark = (line: string) => /^[ \t]*([^\p{L}\p{N}\s])/u.exec(line)?.[1] ?? "";
   let last = "";
-  const before = lines.map((line, i) => { const was = last; if (/:\s*$/.test(line)) last = ":"; else if (mark(line)) last = mark(line); else if (afterBlank[i] && /^[^.,;!?]{1,40}$/.test(line.trim()) && line.trim().split(/\s+/).length <= 4) last = ""; return was; });
+  const sep = lines.map((line, i) => afterBlank[i] && !mark(line) && /^[^.,;:!?]{1,40}$/.test(line.trim()) && line.trim().split(/\s+/).length <= 4 && !SEPARATE_HEADING.test(line));
+  const before = lines.map((line, i) => { const was = last; if (/:\s*$/.test(line)) last = ":"; else if (mark(line)) last = mark(line); else if (sep[i]) last = ""; return was; });
   const listed = (i: number) => /^[ \t]*[-•*]/.test(lines[i]) || (mark(lines[i]) !== "" && (before[i] === ":" || before[i] === mark(lines[i])));
   const under = lines.map((line, i) => (/:\s*$/.test(line) ? (heading = line) : (/^[^a-z0-9]*((work|job) )?(setup|set-up|arrangement)\s*[:\-–]\s*[a-z0-9]/.test(line) && !listed(i)) || /^[^a-z0-9]*(work|job) (setup|set-up|arrangement|location|mode)\s*[:\-–]\s*[a-z0-9]/.test(line) ? "" : heading));
   // (The twenty-second: a remote line under the hiring's own heading is the hiring's too, so "Hiring setup:\n✅ Onsite\n✅

@@ -316,7 +316,9 @@ seconds on 90 KB). In this order:
    "at", "from", "with", "of" or "working for" comes before the hotels;
    the twenty-seventh: "years of experience supporting US hotels" is a
    business's own; the twenty-eighth: never after "no experience", and the
-   hotels must start within the 45 characters); chat or
+   hotels must start within the 45 characters; the twenty-ninth: nor after
+   "zero" or "without" or before "not required", and a labelled
+   "Experience:" line reaches the hotels however far they come); chat or
    email words count as a greeting "by phone" only within four words
    with no "and" between; only an interview's, training's or
    onboarding's own few words beside "in person" excuse it), their
@@ -638,7 +640,11 @@ the same things:
    nearest marked line since the heading, and a remote line with its own
    "Setup:" label is never the hiring's second setup; the twenty-eighth: a
    short unmarked line after a blank line, "PRODUCTION", "JOB DETAILS",
-   ends the list above it like a heading without its colon);
+   ends the list above it, though it is not a heading: a "✅ Schedule"
+   line after it, before "✅ Setup: Onsite", still leaves that setup under
+   the training, where a real "Job details:" heading would not (the
+   twenty-ninth review); never one that names the training or the
+   interview, "Nesting");
    the words are
    any of hiring, recruitment, application or selection with any of
    process, setup, mode, venue, site, location or steps), keeps its on-site line

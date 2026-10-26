@@ -574,6 +574,13 @@ const CS = [
   // window, so a call's "great experience … at US hotels" further on is an account's.
   ["Guest Services Agent", "Deliver a great experience on every call while helping travelers with reservations at US hotels. Process check-ins and check-outs, cancellations and refunds."],
   ["Guest Services Agent", "No experience needed! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  // The twenty-ninth (M2): every usual lead that says no experience is needed ("No prior experience needed!", "Experience not
+  // required!", "Zero experience? No problem!") is no applicant's past.
+  ["Guest Services Agent", "No prior experience needed! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  ["Guest Services Agent", "No work experience required! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  ["Guest Services Agent", "Experience not required! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  ["Guest Services Agent", "No hotel experience needed! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  ["Guest Services Agent", "Zero experience? No problem! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -1081,6 +1088,10 @@ const NOT_CS = [
   ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments. At least 1 year experience as a front desk agent in US hotels.", "general"],
   ["Guest Service Agent", "Handle check-ins and check-outs, answer phone calls and process payments. Experience of working in UK hotels is a plus.", "general"],
   ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments. Hotel experience, preferably in UK hotels.", "general"],
+  // The twenty-ninth (M1): a labelled "Experience:" line keeps its reach to the hotels however far they come, so a desk whose
+  // qualification names US hotels late in the line stays a desk.
+  ["Guest Service Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nQualifications:\n- Experience: 1-2 years at a hotel front desk, ideally in US hotels.", "general"],
+  ["Front Desk Officer", "Handle check-ins and check-outs, answer phone calls and process payments.\nExperience: at least 1 year as a front desk agent in luxury US hotels.", "admin"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));

@@ -480,6 +480,13 @@ for (const [text, code] of [
   for (const work of ["Answer customer chats.\nTraining:\n✅ 2 weeks paid training\n✅ WFH\n\nPRODUCTION\n✅ Setup: Onsite (Makati)","Answer customer chats.\nTraining:\n✅ WFH\n\nJOB DETAILS\n✅ Setup: Onsite (Ortigas)\n✅ Schedule: Night shift"]) check(`"${work.replace(/\n/g, " / ")}" is built on site (the twenty-eighth)`, mode(work) === "onsite", mode(work));
   for (const work of ["We are hiring Chat Support Representatives for a US e-commerce account!\n\nTraining:\n✅ ₱600 daily training allowance\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH\n✅ Schedule: Night shift","Answer customer chats.\nHiring process:\n✅ Onsite (Makati)\n\n✅ Setup: Permanent WFH"]) check(`"${work.replace(/\n/g, " / ").slice(0, 120)}" is still built remote (the twenty-eighth)`, mode(work) === "remote", mode(work));
 }
+// The twenty-ninth Phase 4 review: a separator naming the training or the interview ("Nesting") is no separator (LOW 2), and
+// the separator's own limits hold (LOW 1): a short unmarked line ends a list only after a blank line, and a long sentence
+// after a blank line does not; in all three the training's "✅ Setup: Onsite" stays the training's.
+{
+  const mode = (work) => M.briefFromForm({ role: "Chat Support Representative", location: "Pasig City", type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
+  for (const work of ["Answer customer chats.\nTraining:\n\nNesting\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH","Answer customer chats.\nTraining:\n✅ Paid training\nIn Ortigas\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH","Answer customer chats.\nTraining:\n✅ Paid training\n\nYou will train with our team leads for two weeks in our Ortigas office\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH"]) check(`"${work.replace(/\n/g, " / ").slice(0, 110)}" is built remote (the twenty-ninth)`, mode(work) === "remote", mode(work));
+}
 // Publish saves is_remote as the brief's work mode (src/lib/jobFromFlow.ts). That is the fifteenth's rule exactly, which also
 // read the post when the place or Type said remote, only while these two hold: every place or Type that says remote makes the
 // brief remote or hybrid, and no employment type reads as a place (the sixteenth review).
