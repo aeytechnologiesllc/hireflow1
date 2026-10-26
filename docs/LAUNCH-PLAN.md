@@ -987,8 +987,14 @@ reached function deployed):
   one LOW-MEDIUM (the rules that decide when an ID is deleted are tested
   only against old definitions: nine weakenings pass everything) and one
   LOW (an ID photo whose link was never saved is not deleted on time);
-  nothing found on the live rules; **its fixer is running**
-  (`p5r13_fix_brief.md`).
+  nothing found on the live rules; fixed by d003e785
+  (`id_paper_sent_again_is_queued` live 20261026161233; document-cleanup
+  and requested-document-url deployed first, as the order needs): the
+  rules held against their latest definitions (K1–K9 each fail a check),
+  only a request's own folder is signed or deleted, a paper sent again
+  queues its earlier copy. Left for after the security fixer's picks: an
+  ID photo on a still-open request whose link save and the dialog's own
+  removal both failed has no timer yet.
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1021,8 +1027,10 @@ reached function deployed):
   customer service), each with a validated fix; fixed by 7022b369.
   **Round 20** (`p4r20_report.md`) found two HIGH and three MEDIUM
   regressions of round 19's narrowings, with a validated four-line patch,
-  taken as it is in 10ed2430 (each case a check both ways). **Round 21 is
-  running** (`p4r21_brief.md`).
+  taken as it is in 10ed2430 (each case a check both ways). **Round 21**
+  (`p4r21_report.md`) found two HIGH and two MEDIUM regressions of round
+  20 and one old gap, with a validated four-hunk patch, taken as it is in
+  88f9dd9c. **Round 22 is running** (`p4r22_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1034,8 +1042,8 @@ reached function deployed):
   (`p6r16_report.md`) found two MEDIUM (customer lines still dropped when
   the customer is named in the sentence before the quote; and, never
   caught by any round, the Philippine self-introduction template "My name
-  is ___, ___ years old") and four smaller; **its fixer is running**
-  (`age16_fix_brief.md`).
+  is ___, ___ years old") and four smaller; fixed by 57925031 (six
+  functions deployed). **Round 17 is running** (`p6r17_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).

@@ -455,6 +455,7 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025590000_file_queue_in_turn.sql` | `20261026060935` | `file_queue_in_turn` |
 | `20261025600000_file_queue_whole_turns.sql` | `20261026130943` | `file_queue_whole_turns` |
 | `20261025610000_id_papers_leave_on_time.sql` | `20261026141250` | `id_papers_leave_on_time` |
+| `20261025640000_id_paper_sent_again_is_queued.sql` | `20261026161233` | `id_paper_sent_again_is_queued` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.
