@@ -43,6 +43,8 @@ eq("a letter they signed is your turn", f.docStatus(doc("d2", { candidateSignedA
 eq("signed by both is done", f.docStatus(doc("d3", { status: "Signed", candidateSignedAt: "x" }), NOW), "done");
 eq("declined is closed", f.docStatus(doc("d4", { status: "Declined" }), NOW), "closed");
 eq("withdrawn is closed", f.docStatus(doc("d5", { status: "Withdrawn", isVoided: true }), NOW), "closed");
+// The ninth product review: the list maps a letter past its date and never signed to "Expired".
+eq("an expired letter is closed", f.docStatus(doc("d5e", { status: "Expired" }), NOW), "closed");
 eq("expired unsigned is closed", f.docStatus(doc("d6", { expiresAt: "2026-10-09T23:59:59Z" }), NOW), "closed");
 eq("…but signed by them before it expired is still your turn", f.docStatus(doc("d7", { expiresAt: "2026-10-09T23:59:59Z", candidateSignedAt: "2026-10-09T10:00:00Z" }), NOW), "yours");
 eq("a request nobody answered waits on them", f.requestStatus({ status: "pending" }), "theirs");

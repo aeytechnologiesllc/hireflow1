@@ -475,8 +475,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       documentCode: getDocumentCode(),
       documentName: document.name,
       documentType: document.document_type,
-      status: document.status,
+      // The record's own words, as the Status cell reads them: a voided,
+      // withdrawn or expired one is still stored as pending (the ninth
+      // product review: the Audit PDF printed "Status: PENDING").
+      status: recordStatusLabel(document),
       completedAt: document.signed_at,
+      closedUnfinished: recordClosedUnfinished(recordState(document)),
       v1Hash: document.v1_hash,
       v2Hash: document.v2_hash,
       v3Hash: document.v3_hash,
@@ -495,8 +499,12 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
       documentCode: getDocumentCode(),
       documentName: document.name,
       documentType: document.document_type,
-      status: document.status,
+      // The record's own words, as the Status cell reads them: a voided,
+      // withdrawn or expired one is still stored as pending (the ninth
+      // product review: the Audit PDF printed "Status: PENDING").
+      status: recordStatusLabel(document),
       completedAt: document.signed_at,
+      closedUnfinished: recordClosedUnfinished(recordState(document)),
       v1Hash: document.v1_hash,
       v2Hash: document.v2_hash,
       v3Hash: document.v3_hash,
@@ -1111,6 +1119,14 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                         <div>
                           <p className="font-semibold text-foreground">{statusMeta.bannerTitle}</p>
                           <p className="text-xs text-muted-foreground">{statusMeta.bannerSubtitle}</p>
+                          {/* Who declined and why, as the team's letter sheet says it
+                              (the ninth product review: a declined PDF's reason was
+                              shown nowhere but the bell). */}
+                          {document.status === "declined" && document.decline_reason && (
+                            <p className="mt-1 text-xs text-foreground" data-viewer-decline-reason>
+                              Reason given: &ldquo;{document.decline_reason}&rdquo;
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="hidden sm:block text-right text-xs text-muted-foreground">

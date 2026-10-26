@@ -71,6 +71,7 @@ const CHIPS: Record<DocStatus, { label: string; bg: string; fg: string }> = {
   Declined: { label: "Declined", bg: "var(--crit-bg)", fg: "var(--crit)" },
   Withdrawn: { label: "Withdrawn", bg: "var(--surface-2)", fg: "var(--ink-3)" },
   Voided: { label: "Voided", bg: "var(--crit-bg)", fg: "var(--crit)" },
+  Expired: { label: "Expired", bg: "var(--surface-2)", fg: "var(--ink-3)" },
 };
 
 /** Ready means nobody is waiting on it — it is signed, or it is on file. */
@@ -193,7 +194,10 @@ function DocRowItem({
   // Created said the same thing as the "2 days ago" on the line below the
   // title, so only the date you could still miss earns a tile.
   const meta: Array<{ v: string; l: string }> = [];
-  if (row.expires) meta.push({ v: shortDate(row.expires), l: "Expires" });
+  // The date is the applicant's: shown only while they may still sign by it
+  // (the ninth product review: it stayed on rows the team could countersign,
+  // and after the countersign, as if it blocked the team's signature).
+  if (row.expires && row.status === "Pending" && !row.candidateSignedAt) meta.push({ v: shortDate(row.expires), l: "Expires" });
 
   return (
     <div
@@ -246,12 +250,15 @@ function DocRowItem({
       </span>
 
       <div className="flex shrink-0 gap-[7px] max-[620px]:w-full max-[620px]:justify-end">
-        {row.status === "Pending" || row.status === "Signed" || row.status === "Withdrawn" || row.status === "Voided" ? (
+        {row.status === "Pending" || row.status === "Signed" || row.status === "Withdrawn" || row.status === "Voided" || row.status === "Declined" || row.status === "Expired" ? (
           // A real signing lifecycle exists for this row — open the same
           // countersign-capable viewer the candidate side uses, instead of
           // just the raw file with no way to act on it. Withdrawn/Voided
           // rows open read-only, with an honest note instead of the sign/
           // countersign panel (SignedDocumentViewer gates that on is_voided).
+          // Declined and expired ones too (the ninth product review: a
+          // declined letter opened as a tab of raw JSON, and its reason was
+          // shown nowhere on this page).
           <button
             type="button"
             className={`ck-btn !py-2 !text-[12.5px] ${primary ? "ck-btn-primary" : "ck-btn-outline"}`}

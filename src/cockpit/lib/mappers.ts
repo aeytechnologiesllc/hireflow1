@@ -602,10 +602,15 @@ export function mapInterviewItem(interview: InterviewWithDetails): InterviewItem
  *  before the raw status or a cancelled document would keep reading as
  *  "Pending" everywhere the cockpit shows it. Withdrawn = cancelled before
  *  the candidate signed; Voided = cancelled after, before countersigning. */
-function mapDocStatus(status: string, isVoided: boolean, candidateSignedAt: string | null): DocStatus {
+function mapDocStatus(status: string, isVoided: boolean, candidateSignedAt: string | null, expiresAt: string | null = null, now: number = Date.now()): DocStatus {
   if (isVoided) return candidateSignedAt ? "Voided" : "Withdrawn";
   if (status === "signed") return "Signed";
   if (status === "declined") return "Declined";
+  // Past its date and never signed: nobody can sign it any more, so it is not
+  // "Waiting", and nobody is waited on (the ninth product review: the list
+  // said WAITING, offered Withdraw and counted it in "still waiting on N").
+  // Signed in time, it is the team's to countersign whatever the date.
+  if (status === "pending" && !candidateSignedAt && expiresAt && new Date(expiresAt).getTime() <= now) return "Expired";
   if (status === "pending") return "Pending";
   return "Submitted";
 }
@@ -622,7 +627,7 @@ export function mapDocumentRow(doc: DocumentWithApplication): DocRow {
     candidate,
     avatar: doc.applications?.candidate_id ?? doc.id,
     role: job?.title ?? "Role",
-    status: mapDocStatus(doc.status, isVoided, doc.candidate_signed_at),
+    status: mapDocStatus(doc.status, isVoided, doc.candidate_signed_at, doc.expires_at ?? null),
     statusNote: isVoided
       ? doc.candidate_signed_at
         ? "Voided"

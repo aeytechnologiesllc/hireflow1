@@ -71,7 +71,7 @@ const when = (value: string | null | undefined): number | null => {
 
 /** Where a letter or file stands. */
 export function docStatus(row: DocRow, now: number = Date.now()): Exclude<FilterStatus, "all"> {
-  if (row.isVoided || row.status === "Declined" || row.status === "Withdrawn" || row.status === "Voided") return "closed";
+  if (row.isVoided || row.status === "Declined" || row.status === "Withdrawn" || row.status === "Voided" || row.status === "Expired") return "closed";
   if (row.status === "Signed" || row.status === "Submitted") return "done";
   if (row.candidateSignedAt) return "yours";
   const expires = when(row.expiresAt);

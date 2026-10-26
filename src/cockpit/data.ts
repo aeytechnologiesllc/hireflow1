@@ -156,7 +156,7 @@ export interface ChatMessage {
   time: string;
 }
 
-export type DocStatus = "Pending" | "Submitted" | "Signed" | "Declined" | "Withdrawn" | "Voided";
+export type DocStatus = "Pending" | "Submitted" | "Signed" | "Declined" | "Withdrawn" | "Voided" | "Expired";
 export interface DocRow {
   id: string;
   title: string;

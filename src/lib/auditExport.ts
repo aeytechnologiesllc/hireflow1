@@ -30,6 +30,8 @@ export interface AuditExportData {
   documentType: string | null;
   status: string;
   completedAt: string | null;
+  /** Closed without being finished (voided, withdrawn, declined, expired): it will never complete. */
+  closedUnfinished?: boolean;
   v1Hash: string | null;
   v2Hash: string | null;
   v3Hash: string | null;
@@ -228,7 +230,7 @@ export function generateAuditTrailPDF(data: AuditExportData): jsPDF {
   pdf.text(`Type: ${data.documentType || 'Not specified'}`, pageWidth / 2, y);
   
   y += 5;
-  pdf.text(`Completed: ${data.completedAt ? utcStamp(data.completedAt) : 'Pending'}`, margin + 5, y);
+  pdf.text(`Completed: ${data.completedAt ? utcStamp(data.completedAt) : data.closedUnfinished ? 'Not completed' : 'Pending'}`, margin + 5, y);
   
   y += 15;
 
