@@ -595,7 +595,9 @@ const AT_OUR_LODGING = /\b(at|in) (our|the) ([\w-]+ )?(hotel|resort|inn|hostel|m
 // experience for US hotels" is a hotel account's.)
 // (The twenty-sixth: back to the twenty-fourth's window after "experience", at 45 characters, never after "guest" or
 // "customer experience": "experience as a front desk agent in US hotels" is the applicant's past too.)
-const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|(?<!\bwith (our |the )?)partner hotels?|(?<!(?<!\b(guest|customer)\s+)\bexperience\b[^.;\n]{0,45})\b(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
+// (The twenty-seventh: and only with "in/at/from/with/of" or "working for" before the hotels inside it: "10 years of
+// experience supporting US hotels" and "No experience needed! … our US hotel partners" are an account's.)
+const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|(?<!\bwith (our |the )?)partner hotels?|(?<!(?<!\b(guest|customer)\s+)\bexperience\b[^.;\n]{0,45}\b((in|at|from|with|of)\s+|working\s+for\s+)([\w-]+\s+){0,3})\b(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
 // Where the agent sits or when they work says nothing about whose front desk
 // it is: "office hours", "work in our office in Ortigas" (the ninth review).
 const OFFICE_NOT_VENUE = /\b(work|working|report|reporting|based|stationed|sit|sitting)\s+(in|at|from|out of)\s+(our|the|an?)\s+([\w']+\s+)?office\b|\boffice[- ](hours|based|setup|set-up|schedule|days?)\b|\b(in|home|back)[- ]office\b/g;
@@ -1208,14 +1210,19 @@ function remoteSetupLine(work: string): boolean {
   // (The twenty-sixth: "bulleted" is what makes a line part of the list there: -, • or *, or the same mark as the line before
   // it (or first under the heading), since Philippine posts bullet with ✅, 👉, ▪️ or ➤: "Training:\n✅ Setup: Onsite" is the
   // training's.)
-  const mark = (line: string) => (/^[^a-z0-9]*/.exec(line)?.[0] ?? "").replace(/\s+/g, "");
-  const listed = (i: number) => /^[ \t]*[-•*]/.test(lines[i]) || (mark(lines[i]) !== "" && i > 0 && (/:\s*$/.test(lines[i - 1]) || mark(lines[i - 1]) === mark(lines[i])));
+  // (The twenty-seventh: a line's mark is its first symbol only, "✅ ₱600 daily allowance" is a ✅ line, and it is compared with
+  // the nearest marked line since the heading, not the sentence piece before it; and a remote line with its own "Setup:"
+  // label is never the hiring's second setup: "Hiring process:\n✅ Onsite (Makati)\n✅ Setup: Permanent WFH" is remote.)
+  const mark = (line: string) => /^[ \t]*([^\p{L}\p{N}\s])/u.exec(line)?.[1] ?? "";
+  let last = "";
+  const before = lines.map((line) => { const was = last; if (/:\s*$/.test(line)) last = ":"; else if (mark(line)) last = mark(line); return was; });
+  const listed = (i: number) => /^[ \t]*[-•*]/.test(lines[i]) || (mark(lines[i]) !== "" && (before[i] === ":" || before[i] === mark(lines[i])));
   const under = lines.map((line, i) => (/:\s*$/.test(line) ? (heading = line) : (/^[^a-z0-9]*((work|job) )?(setup|set-up|arrangement)\s*[:\-–]\s*[a-z0-9]/.test(line) && !listed(i)) || /^[^a-z0-9]*(work|job) (setup|set-up|arrangement|location|mode)\s*[:\-–]\s*[a-z0-9]/.test(line) ? "" : heading));
   // (The twenty-second: a remote line under the hiring's own heading is the hiring's too, so "Hiring setup:\n✅ Onsite\n✅
   // WFH" lists two setups, as it did before the twenty-first set its on-site line aside.)
   const onSite = lines.map((line) => ONLY_ON_SITE_LINE.test(line));
   const onSiteUnder = new Set(under.filter((_, j) => onSite[j]));
-  const listsTwo = (i: number) => HIRING_HEADING.test(under[i]) && onSiteUnder.has(under[i]);
+  const listsTwo = (i: number) => HIRING_HEADING.test(under[i]) && onSiteUnder.has(under[i]) && !/^[^a-z0-9]*((work|job) )?(setup|set-up|arrangement)\s*[:\-–]\s*[a-z0-9]/.test(lines[i]);
   return lines.some((line, i) => ONLY_REMOTE_LINE.test(line) && !listsTwo(i)) && !lines.some((_, i) => onSite[i] && !SEPARATE_HEADING.test(under[i]));
 }
 

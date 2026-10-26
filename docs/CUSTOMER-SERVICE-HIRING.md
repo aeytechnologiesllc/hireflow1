@@ -312,7 +312,10 @@ seconds on 90 KB). In this order:
    "experience in/with/at" or "experience working for" is the applicant's
    past, a "guest experience for US hotels" is an account's (the
    twenty-sixth: any wording within 45 characters of "experience" is the
-   past, "experience as a front desk agent in US hotels" too); chat or
+   past, "experience as a front desk agent in US hotels" too, when "in",
+   "at", "from", "with", "of" or "working for" comes before the hotels;
+   the twenty-seventh: "years of experience supporting US hotels" is a
+   business's own); chat or
    email words count as a greeting "by phone" only within four words
    with no "and" between; only an interview's, training's or
    onboarding's own few words beside "in person" excuse it), their
@@ -629,7 +632,10 @@ the same things:
    "Setup:" line belongs to no heading too, a bulleted "- Setup:" stays
    its section's; the twenty-sixth: bulleted means part of the list
    there, -, • or *, or the same mark as the line before it or first under
-   the heading, so "✅ Setup: Onsite" under "Training:" is the training's);
+   the heading, so "✅ Setup: Onsite" under "Training:" is the training's;
+   the twenty-seventh: the mark is a line's first symbol, compared with the
+   nearest marked line since the heading, and a remote line with its own
+   "Setup:" label is never the hiring's second setup);
    the words are
    any of hiring, recruitment, application or selection with any of
    process, setup, mode, venue, site, location or steps), keeps its on-site line
