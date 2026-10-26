@@ -971,8 +971,13 @@ reached function deployed):
   ranks the whole queue, so about 700,000 notes, a day of 1,000 free
   accounts, push the pick past the API's 8-second limit and the queue never
   empties again; round 11's extra sort lowered that size) and one LOW;
-  **its fixer is running** (`r12_security_fix_brief.md`: a run's cost
-  independent of the queue's size, with a timing check).
+  fixed by 50bd8dce (turn tables kept by triggers, picks read by index:
+  8–23 ms at 2,000,000 notes where the old pick was cancelled at 8 s; the
+  papers' two picks the same; ID photos whose link never saved are swept;
+  `file_queue_pick_by_index` 20261026201021 and `id_papers_pick_by_index`
+  20261026201053 applied from their files; a rolled-back live write probe
+  and the next hourly run both answered right). **Round 13 is running**
+  (`sec13_brief.md`).
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -994,7 +999,9 @@ reached function deployed):
   only a request's own folder is signed or deleted, a paper sent again
   queues its earlier copy. Left for after the security fixer's picks: an
   ID photo on a still-open request whose link save and the dialog's own
-  removal both failed has no timer yet.
+  removal both failed has no timer yet (done in the security round 12
+  fix: `document_requests_sweep_strays`). **Round 14 is running**
+  (`p5r14_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1043,8 +1050,10 @@ reached function deployed):
   (`p4r25_report.md` to `p4r27_report.md`) each found one to three HIGH
   in the last round's narrowings, each fixed by the reviewer's validated
   patch (83a6a2d3, 1bc78236, a0d57f2f; every fixed case a check both
-  ways, earlier probes unchanged). **Round 28 is running**
-  (`p4r28_brief.md`).
+  ways, earlier probes unchanged). **Round 28** (`p4r28_report.md`) was
+  the first to find no HIGH: three MEDIUM, two fixed by its patch in
+  b8431433, one left (a conflict between rounds). **Round 29 is running**
+  (`p4r29_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1065,8 +1074,10 @@ reached function deployed):
   evidence; six functions deployed). **Round 18** (`p6r18_report.md`) was
   the first to find no MEDIUM regression: its MEDIUM (a customer's own age
   in a replied-to message with no customer word) is old, its regressions
-  LOW–MEDIUM; fixed by 8edc67fc (six functions deployed). **Round 19 is
-  running** (`p6r19_brief.md`).
+  LOW–MEDIUM; fixed by 8edc67fc (six functions deployed). **Round 19**
+  (`p6r19_report.md`) again found no MEDIUM regression (its MEDIUM is the
+  rest of the old one; one LOW–MEDIUM regression); **its fixer is running**
+  (`age19_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
