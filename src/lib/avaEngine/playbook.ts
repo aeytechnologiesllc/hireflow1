@@ -519,6 +519,12 @@ function titleParts(title: string): { text: string; business: boolean }[] {
   return parts;
 }
 
+// A seller's or merchant's support line with a VA in a part of its own is the VA's operations job, as the no-dash
+// form is since the thirty-second review: "Virtual Assistant - Seller Support / Manage our Amazon Seller Central account",
+// "Seller Support - VA / Manage our Amazon and Shopify store listings" were customer service whatever the work (the
+// thirty-third review, M2; only the VA, so a coordinator's or staff's dash forms read as before).
+const PLATFORM_LINE = /\b(seller|merchant|rider|driver|courier|subscriber|passenger) (supports?|care)\b/;
+const PLATFORM_OPS_HEAD = /\b(va|virtual assistants?)\b/;
 function headPhrase(title: string, work = ""): string {
   const parts = titleParts(title);
   const roles = parts.filter((p) => !p.business);
@@ -534,6 +540,7 @@ function headPhrase(title: string, work = ""): string {
   const lineOwns = (p: Part) =>
     line >= 0 &&
     p !== roles[line] &&
+    !(PLATFORM_LINE.test(roles[line].text) && PLATFORM_OPS_HEAD.test(p.text)) &&
     (LINE_PEOPLE.test(p.text) ||
       (afterLine(p) && (LINE_WORK_PEOPLE.test(p.text) || (DESK_LINE.test(roles[line].text) && DESK_PEOPLE.test(p.text)))) ||
       lineServes(p.text, work, roles[line].text));
@@ -875,13 +882,17 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
   // (The seventeenth: and a front desk whose words take check-ins and check-outs, which only a lodging's does in person:
   // "Front Desk Associate / Handle check-ins and check-outs, process payments and update bookings on our reservation
   // platform". A clinic's patient check-ins stay the clinic's, clinicWork.)
-  const checkIns = DESK_CHECK_INS.test(work);
+  // (The thirty-third, M3: and the verb, the commonest US wording, which names no hotel: "Front Desk Agent - Hampton Inn /
+  // Check guests in and out, answer phone calls, make reservations", "Front Desk Associate / Check in guests, assign rooms".)
+  const checkIns = DESK_CHECK_INS.test(work) || /\bcheck(s|ing)?\s+((our|the|arriving|incoming|hotel)\s+)?guests\s+(in|out)\b|\bcheck(s|ing)?[- ]in\s+((our|the|arriving|incoming|hotel)\s+)?guests\b/.test(work);
   const lodgingDesk = GUEST_DESK_TITLE.test(title) || (/\bfront (desk|office)\b/.test(title) && (/\bguests?\b/.test(work) || checkIns));
   // (The seventeenth: a lodging desk's check-ins are the door too, as "at the front desk" is, so a phone word does not take
   // it off the floor: "Guest Relations Officer / Welcome guests, handle check-ins and check-outs and coordinate with
   // housekeeping. Answer phone inquiries", "Guest Service Agent - Pension House / Handle check-ins and check-outs and answer
   // the phone".)
-  const hostCheckIns = checkIns && !REMOTE_HOST.test(work);
+  // (The thirty-third, M4: an abbreviation's period ends no experience line, and "exp." is experience: "Experience: at
+  // least 1 yr. in US hotels", "Must have work exp. in US hotels" are the applicant's past, not a hotel account.)
+  const hostCheckIns = checkIns && !REMOTE_HOST.test(work.replace(/\bexp\b\.?/g, "experience").replace(/\b(yrs?|mos?|min|approx)\./g, "$1"));
   // (The twenty-second: a lodging desk that greets or welcomes guests, works in the lobby or in person is at the door too,
   // check-ins or none: "Guest Service Agent / Welcome guests, answer phone calls and process payments" was customer service
   // in every round.)
@@ -915,8 +926,9 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
   // (A tier or level 1 analyst with support work is the desk's: "Tier 1 Analyst / answer customer tickets"; the ninth review.)
   if (PROFESSIONAL_HEAD.test(noun)) return DESK_ANALYST.test(head) || (/\b(support|l[123]|level [123]|tier [123])\b/.test(head) && CS_WORK.test(work));
   if (CS_TITLE.test(head)) return true;
-  // "Virtual Assistant - Customer Service": the assistant is the support part's.
-  if (/\b(virtual assistant|va)s?$/.test(head) && titleParts(title).some((p) => !p.business && p.text !== head && CS_TITLE.test(p.text.replace(/\b(bpo|call cent(er|re)|contact cent(er|re))\b/g, " ")))) return true;
+  // "Virtual Assistant - Customer Service": the assistant is the support part's. (Never a seller's or merchant's support
+  // line, which is the VA's operations job: PLATFORM_LINE, the thirty-third review.)
+  if (/\b(virtual assistant|va)s?$/.test(head) && titleParts(title).some((p) => !p.business && p.text !== head && CS_TITLE.test(p.text.replace(/\b(bpo|call cent(er|re)|contact cent(er|re)|(seller|merchant|rider|driver|courier|subscriber|passenger) (supports?|care))\b/g, " ")))) return true;
   // A BPO account named by its channel: "Healthcare Account - Voice", "Non-Voice Account".
   if (/\baccount\b/.test(head) && /\b(non[- ]?\s?voice|voice)\b/.test(title)) return true;
   // A reservations or booking agent is the hotel, airline or appointments kind
@@ -954,8 +966,11 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
 /** The families other than customer service, from the words (detectFamily). */
 function otherFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employmentType">): Family {
   const s = `${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase();
-  if (/clean|janitor|housekeep|custodi|maid|porter/.test(s)) return "cleaner";
-  if (/develop|engineer|programmer|coder|software|frontend|front-end|back-?end|full-?stack|web dev|data scientist/.test(s))
+  // (The thirty-third review, M7: a word, never part of one, so a dental office's "cleanings" and a coder's "clean claims"
+  // are no cleaning job and an encoder is no developer: "Treatment Coordinator / Schedule cleanings and present treatment
+  // plans", "Data Encoder / Encode customer orders"; nor a medical or billing coder.)
+  if (/(?<!\b(teeth|tooth|dental)\s)\bclean(s|ed|ers?|ing|-?ups?)?\b(?!\s+claims?\b)|janitor|housekeep|custodi|maid|porter/.test(s)) return "cleaner";
+  if (/develop|engineer|programmer|(?<!\b(medical|billing|clinical|certified|inpatient|outpatient)\s)\bcoders?\b|software|frontend|front-end|back-?end|full-?stack|web dev|data scientist/.test(s))
     return "developer";
   if (/admin|secretar|reception|assistant|office|clerk|book-?keep|schedul|coordinat|data entry/.test(s)) return "admin";
   if (/manager|cashier|finance|account|teller|retail|server|barista|caf[eé]|waiter|waitress|host|sales|store|bank|restaurant|bartender/.test(s))

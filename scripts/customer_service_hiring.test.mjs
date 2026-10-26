@@ -1115,10 +1115,39 @@ const NOT_CS = [
   ["Merchant Support Technician", "Install, repair and replace POS terminals at merchant locations.", "general"],
   ["Seller Support VA", "Manage our Amazon and Shopify store listings, update inventory and run PPC campaigns.", "cash"],
   ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nExperience: Not lesser than 1 year in US hotels.", "general"],
+  // The thirty-third (M2): a seller's support line with a VA in a part of its own is the VA's operations job, as the
+  // no-dash form is.
+  ["Virtual Assistant - Seller Support", "Manage our Amazon Seller Central account: create listings, track inventory and prepare FBA shipments.", "admin"],
+  ["Amazon VA (Seller Support)", "Create listings, monitor account health, reconcile FBA reimbursements and open cases with Seller Support.", "cash"],
+  ["Seller Support - VA", "Manage our Amazon and Shopify store listings, update inventory and run PPC campaigns.", "cash"],
+  // (M3) A desk that checks guests in and out is a lodging's door, though its words name no hotel; (M4) an abbreviation's
+  // period ends no experience line, and "exp." is experience.
+  ["Front Desk Agent - Hampton Inn", "Check guests in and out, answer phone calls, make reservations and respond to guest requests.", "general"],
+  ["Front Desk Agent", "Check guests in and out, collect payments and answer the phones.", "general"],
+  ["Front Desk Associate", "Check in guests, assign rooms, answer phones and process payments.", "general"],
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nExperience: at least 1 yr. in US hotels", "general"],
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nMust have work exp. in US hotels", "general"],
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nExperience: Min. 1 year in US hotels", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is not customer service (${want})`, got !== "customer_service", got);
+}
+// The thirty-third Phase 4 review (M7): the other families read words, never parts of them. "Data Encoder" was a
+// developer ("What's the core stack?"), a dental office's cleanings and a coder's clean claims a cleaning job ("Will they
+// have keys or access to private spaces?"); a coder, a cleaner, "cleans" and a cleanup crew still are.
+for (const [title, work, want] of [
+  ["Data Encoder", "Encode customer orders and delivery details into our system.", "general"],
+  ["Treatment Coordinator", "Schedule cleanings and present treatment plans to patients.", "admin"],
+  ["Medical Coder", "Assign ICD-10 and CPT codes to patient charts and submit clean claims.", "general"],
+  ["Certified Medical Coder (Remote)", "Review provider documentation and code outpatient visits. CPC required.", "general"],
+  ["Junior Coder", "Write Python scripts for our data team.", "developer"],
+  ["House cleaner", "Clean homes for our clients", "cleaner"],
+  ["Room Attendant", "Cleans guest rooms and restocks supplies.", "cleaner"],
+  ["Post-Construction Cleanup Crew", "Remove debris and sweep floors at job sites.", "cleaner"],
+]) {
+  const got = M.detectFamily(brief(title, work));
+  check(`"${title} — ${work}" is ${want}`, got === want, got);
 }
 // The tenth Phase 4 review: a huge pasted line (the plans over and over, a long run of spaces or tabs) is read in linear time;
 // round 9's benefits filter took 4.4 seconds on 90 KB of plans.
@@ -1527,6 +1556,20 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Technical Support Engineer", "Troubleshoot API issues by email and Slack. Join the on-call customer support rotation.", "email"],
     ["Customer Service Representative", "Answer customer chats and emails. Previous phone customer service experience is a plus.", "chat"],
     ["Chat Support Agent", "Help our mobile phone customers with billing, load and SIM concerns.", "chat"],
+    // The thirty-third (M1): "on calling customers" is the agent's own calls, only "on-call" is not; (M5) customers'
+    // inquiries on Viber or an FB page are chats, never the team's Viber; (M6) a hotline listed with written channels is
+    // the phone beside them.
+    ["Customer Service Representative", "Reply to customer emails about orders and refunds. Your main focus will be on calling customers to confirm their orders.", "mixed"],
+    ["Customer Support Agent", "Answer chats and emails from customers. Most of your day is spent on calling customers back about their refunds.", "mixed"],
+    ["CSR", "Entertain customer inquiries via Viber and accept orders.", "chat"],
+    ["CSR", "Reply to customer inquiries on our FB page.", "chat"],
+    ["Customer Service Agent", "Handle customer concerns via Viber and phone.", "mixed"],
+    ["Customer Service Agent", "Handle customer concerns via phone and Viber.", "mixed"],
+    ["Customer Service Representative", "Accommodate customer inquiries through Viber and phone calls.", "mixed"],
+    ["Customer Service Representative", "Answer customer calls. Endorse concerns to the technical team via Viber.", "phone"],
+    ["Hotline Officer", "Attend to customer concerns through the hotline, email and chat.", "mixed"],
+    ["Hotline Agent", "Handle customer concerns through our hotline and email.", "mixed"],
+    ["Hotline Agent", "Answer customer calls on our hotline.", "phone"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
