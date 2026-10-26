@@ -34,9 +34,11 @@
  * three rounds and this one, and the same 212 items, against the eleventh,
  * twelfth and thirteenth rounds, in the fourteenth; 195,549 from the trees at
  * the last three rounds and this one, and the same 212 items, against the
- * twelfth, thirteenth and fourteenth rounds, in the fifteenth) to see what
- * the new rules drop that the old ones kept; the seventh to fifteenth
- * reviews' fixes drop none of them.
+ * twelfth, thirteenth and fourteenth rounds, in the fifteenth; 198,980 from
+ * the trees at the last three rounds, this one and the main working tree, and
+ * the same 212 items, against the thirteenth, fourteenth and fifteenth rounds,
+ * in the sixteenth) to see what the new rules drop that the old ones kept;
+ * the seventh to sixteenth reviews' fixes drop none of them.
  *
  * Run with: node scripts/age_wording.test.mjs
  */
@@ -1107,10 +1109,198 @@ for (const [line, drops, why] of [
   ['Say: "Can you verify you are over 21 so I can unlock the wine club order?"', true, "a \"confirm\" or a \"verify\" with no customer word is a caller's check only for what only a customer has (a filing status, a senior's, a student's or a member's discount, a premium, a fare, ranked play); an order is also an applicant's work (\"verify you can process 50 orders\"), so it was not added (the fifteenth review's finding 1)"],
   ['Say: "Thanks for applying for the clinical trial! Patients must be 18 to 65. Are you over 18?"', true, "\"thanks for applying\" for what the benefit list cannot name is read as applying for a job, and a question beyond a date of birth put to someone applying is never a customer's; SNAP was added (one word, no false drop), a trial was not (\"Thanks for applying for the trial shift\" is a job's)"],
   ['Say: "Our members are important to us. Are you 65 or older?"', true, "the business's own clientele described (\"Our callers are mostly parents\") is set aside whatever the description, unless the sentence states a rule (a number, a need, a discount, \"can\", \"get\", \"eligible\"…), so a quote whose only customer is \"Our members are…\" is read as the job's"],
-  ['Ask: "Are you good with customers? How old are you?"', false, "\"good with customers\", \"patient with callers\", a customer in a hypothetical (\"if a customer yelled at you\") and \"member services\" are the applicant's, but read as a customer as the twelfth and thirteenth rounds read them; the fourteenth dropped them only by counting no customer word inside a quote at all, and each would need its own shape"],
+  ['Ask: "Are you patient with callers? How old are you?"', false, "\"patient with callers\", a customer in a hypothetical (\"if a customer yelled at you\") and \"member services\" are the applicant's, but read as a customer as the twelfth and thirteenth rounds read them; the fourteenth dropped them only by counting no customer word inside a quote at all, and each would need its own shape (\"good with customers\" has one since the sixteenth review, which drops it)"],
   ["Script: Thank you for holding, this is Ana from HR. About your position on the night roster: for security, may I have your date of birth?", true, "on an HR hold the job words are read as hiring wherever they are (the fourteenth round), except leave or a loan applied for and a job title; \"your position\", \"your role\" and \"your job code\" are as often a job applied for, so they were not excused (the fifteenth review's finding 3)"],
   ["Script: Hi, I'm Ana, a student recruiter at Bright BPO. To verify your identity, may I have your date of birth?", false, "a student recruiter is a college's admissions as often as an employer's HR (the fourteenth round's exclusion), so only \"clinical\" was taken out of it (the fifteenth review's finding 5)"],
 ]) check(`(15th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, A.asksAgeOrStatus(line) === drops);
+
+// The sixteenth Phase 6 review: the fifteenth round's desk check was fixed for its report's exact wordings only, so a
+// practice case that names its customer in an earlier sentence ("A caller wants to rent a car. Say: …") and the ordinary
+// wordings of a customer's own discount, fare, premium or filing status were still dropped, and with them five of six
+// practice cases whole (a regression against the thirteenth and twelfth rounds); a desk's "How many members do you have on
+// your plan?" and "Thanks for contacting customer support!" read as the job's. A self-introduction template's blanks and
+// placeholders asked an age every round kept ("My name is ___, ___ years old"), and a customer word inside a first-person
+// sample, HR's description of the business or an interview question made a quote put to an applicant a customer's. Three
+// narrowings each caught the other side (a "Loan Officer" applied for, the agent who must "state it back to the caller", a
+// study's clinical recruiter), and the desk topics named a hire's own pay. A sentence before the quote that names the case's
+// one customer counts again, the desk topics take their ordinary wordings, and each other rule was narrowed where it came
+// from; every check in this list but the pins below fails on the fifteenth round's module.
+console.log("\nThe sixteenth review's cases\n");
+for (const line of [
+  // Finding 1: a customer's own discount, fare, premium, filing status or eligibility in its ordinary wordings, renting, gems;
+  'Say: "To verify your senior citizen discount, are you 60 or older?"', 'Say: "To verify the senior discount, are you 60 or older?"', 'Say: "To verify your PWD or senior discount, are you 60 or older?"',
+  'Say: "To confirm your youth fare, are you under 25?"', 'Say: "To confirm your student fare, are you under 25?"', 'Say: "To confirm your insurance premium, how old are you?"',
+  'Ask: "Can you confirm your tax filing status? Are you married or single?"', 'Say: "To confirm you can rent the car, are you 21 or older?"', 'Say: "To verify your Medicare eligibility, are you 65 or older?"',
+  'Say: "To confirm you can buy gems, are you 18 or older?"',
+  // …a practice case's one customer named in an earlier sentence, whatever the quote asks;
+  'A caller wants to rent a car. Say: "To confirm you can rent the car, are you 21 or older?"',
+  'Car rental booking. A caller wants to book a car. Say: "Drivers under 25 pay a young driver fee. How old are you?" Then quote the price.',
+  'Medicare enrollment. A caller asks about Medicare. Say: "To confirm your eligibility, are you 65 or older?" Then explain the enrollment window.',
+  'Tax intake. A client calls about her refund. Ask: "Are you married or single?" Then explain the refund.', 'A patient calls to book a visit. Say: "Are you over 18?" Then book it.',
+  'When a customer calls, say: "Are you 18 or older?"', 'Wine order. A customer orders wine. Say: "Can you verify you are 21 or older before I place the order?" Then confirm delivery.',
+  'Interview role-play: the patient calls to move an appointment. Say: "Are you over 18?"', 'A guest calls to book a room. Then ask: "Are you 21 or older?"',
+  'Candidates role-play this call. A caller asks about Medicare. Say: "Are you 65 or older?"',
+  'Car rental booking. A caller wants to book a car. Say: "May I have your date of birth?" If they ask about jobs, transfer them to HR.',
+  'Car rental booking. A caller wants to book a car. Script: Hi there. Ask, "Are you 21 or older?"',
+  // …a desk's own count of a plan's members, and a desk greeting its caller by the service's own name;
+  'Ask: "How many members do you have on your plan? Are you married?"', 'Ask: "How many members do you want to add to your plan? Do you have any dependents?"',
+  'Reply: "Thanks for contacting customer support! Are you 18 or older?"', 'Reply: "Thanks for contacting Bright Games customer support! Are you 18 or older?"',
+  'Reply: "Thanks for reaching out to player support! Are you 18 or older?"', 'Say: "Welcome to member support! Are you 65 or older?"',
+  'Say: "Thank you for contacting the patient care line. Are you over 18?"', 'Say: "Hi, this is Ana from customer care. Are you 18 or older?"',
+  'Say: "Thanks for contacting the customer support team! Are you 18 or older?"',
+  // Finding 4: a job whose title starts with leave or loan is no leave or loan; the agent's own handling of the answer; a
+  // study's clinical recruiter.
+  'Say: "Hi, I\'m Ana, the clinical recruiter for the Bright Research diabetes study. May I have your date of birth for your file?"',
+  "Script: Hi, I'm Ana, a clinical recruiter for the Bright Research study. To verify your identity, may I have your date of birth?",
+  "Script: Thank you for calling Bright Clinic. For security, may I have your date of birth? The candidate must state it back to the caller.",
+  "Script: Thank you for calling Bright Clinic. For security, may I have your date of birth? The candidate must enter it in the patient chart before sharing results.",
+  "Script: Thank you for calling Bright Clinic. For security, may I have your date of birth? The candidate must give their reply within 30 seconds.",
+  "Script: Thank you for calling Bright Clinic. For security, may I have your date of birth? The candidate must answer within 2 minutes.",
+  "Script: Thank you for calling Bright Clinic. For security, may I have your date of birth? The candidate must share their screen during the role-play.",
+]) check(`(16th review) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+for (const line of [
+  // Finding 2: a self-introduction template's blank or placeholder for an age or a civil status.
+  'Record a short video. Say: "Hi, my name is ___, I am ___ years old."', 'Record a short video. Start with: "Hi, my name is ___, I am ___ years old, from ___."',
+  'Introduce yourself: "Hi, I\'m [name], [age] years old, from [city]."', "Introduce yourself in this format: My name is [Name], I am [Age] years old, and I am from [City].",
+  'In your video, say: "My name is ___, my age is ___, and I live in ___."', 'Template: "I am [Name], [Age], [Civil status], from [City]."',
+  'Begin with "My name is ___ and I am ___ years old."', "Self-introduction: Good day! My name is ___, ___ years old, from ___.",
+  "Self-introduction script: Good day! My name is [Name], [Age] years old, residing in [City].", "Say: Good day! My name is ___, I am ___ years old.",
+  'Write a short bio: "[Name], [Age], [City], [Years of experience]".', "Complete this sentence: I am ___ years old and I have worked in customer service for ___ years.",
+  "Complete: My age: ___ | My city: ___", "Your profile: [Name], [Age], [Civil Status], [Location]", 'Write a short intro: "I\'m ___ (age ___), a ___ from ___."',
+  // Finding 3: a first-person sample introduction, HR describing the business, an interview question, whatever customer they name;
+  'Record a short video. Say: "Hi, my name is ___, I am ___ years old, and I love helping customers."', 'Opening line: "Hi! I\'m ___, ___ years old, and I love helping customers."',
+  'Say: "Hi, I am Ana, 24 years old, married with two kids, and I love serving customers."', 'Example answer: "I\'m Ana, 24 years old, and I love helping customers."',
+  'Video intro. Say: "Good day! I am Ana Reyes, 24 years old, single, from Cebu City, and I love helping customers."',
+  'Record a 60-second video. Say: "Hi, I\'m Ana. I\'m 24 years old and I enjoy talking to customers."',
+  'Say: "Hi, I\'m Ana from HR at Bright Clinic, where we care for patients. May I have your date of birth for your file?"',
+  'Say: "Hi, this is Ana from Bright Clinic\'s HR team. We look after 2,000 patients. May I have your date of birth for your file?"',
+  'Say: "Hi, I\'m Ana, a recruiter at Bright Health. Our agents support members across the US. May I have your date of birth?"',
+  'Say: "Thanks for applying to Bright Health! Our team supports members every day. May I have your date of birth for your file?"',
+  'Say: "Thanks for applying for the night shift role! You would be the first voice our customers hear. May I have your date of birth?"',
+  'Say: "Welcome to your phone screen! This job is all about patients. May I have your date of birth for your file?"',
+  'Say: "Thanks for your interest in joining our team. We serve customers in 20 countries. May I have your date of birth?"',
+  'Say: "Why do you want to work with customers? How old are you?"', 'Opening line: "Why do you want to work with patients? And are you married?"',
+  'Ask: "Are you comfortable speaking with customers on the phone? How old are you?"', 'Ask: "Do you have experience with customers? How old are you?"',
+  'Opening message: "Hi! Tell me about a time you went above and beyond for a customer. Also, how old are you?"', 'Ask: "Tell me about a time a customer was unhappy with you. Are you married?"',
+  'Ask: "Are you good with customers? How old are you?"', 'In your video, say: "My name is ___, my age is ___, and I enjoy helping customers."',
+  'Video intro. Say: "Hi, I\'m 24, my civil status is ___, and I love helping customers."',
+  // Finding 4: a job whose title starts with leave or loan, applied for on an HR hold;
+  "Script: Thank you for holding, this is Ana from HR. You applied for Loan Officer last week. For security, may I have your date of birth?",
+  "Script: Thank you for holding, this is Ana from HR. You applied for Leave Administrator. For security, may I have your date of birth?",
+  // Finding 5: a hire's own pay or payroll.
+  'Ask: "To confirm your premium pay for night shifts, how old are you?"', 'Ask: "To confirm your filing status for payroll, are you married or single?"',
+  'Say: "Welcome aboard! To confirm your filing status for your W-4, are you married or single?"', 'Ask: "Can you confirm your filing status on your W-4? Are you married?"',
+  'Ask: "To confirm your fare allowance, how old are you?"', 'Ask: "To confirm your student discount as a new hire, how old are you?"',
+]) check(`(16th review) asks for age or sets a limit: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+// …and in the real paths: generate-flow's simulation filter (:252) keeps each of the review's six practice cases whole,
+// ai-generate-workflow's configWithoutAgeAsks (:607) keeps each one's step prompt, and a self-introduction template is dropped
+// from a video or portfolio step's prompt (ai-generate-workflow :607) and from generate-flow's voice questions (:253).
+const reviewCases = [
+  { title: "Car rental booking", prompt: 'A caller wants to book a car for the weekend. Say: "To confirm you can rent the car, are you 21 or older?" Then explain the deposit.' },
+  { title: "Medicare enrollment", prompt: 'A caller asks when she can join. Say: "To confirm your eligibility, are you 65 or older?" Then explain the enrollment window.' },
+  { title: "Senior discount", prompt: 'A customer asks for the senior citizen discount on her order. Say: "To verify your senior citizen discount, are you 60 or older?" Then apply it.' },
+  { title: "Youth fare", prompt: 'A passenger wants the cheaper ticket. Say: "To confirm your youth fare, are you under 25?" Then book it.' },
+  { title: "Tax intake", prompt: 'A client asks why her refund changed. Ask: "Can you confirm your tax filing status? Are you married or single?" Then explain the change.' },
+  { title: "HMO dependents", prompt: 'A member wants to add her baby. Ask: "How many members do you have on your plan? Do you have any other dependents?" Then add the baby.' },
+];
+check("(16th review) the review's six practice cases are kept whole, and their step prompts kept", A.withoutAgeAsks(reviewCases, (s) => `${s.title}. ${s.prompt}`).length === 6 && reviewCases.every((s) => !A.asksAgeOrStatus(s.prompt)));
+const introPrompts = [
+  "Introduce yourself in this format: My name is [Name], I am [Age] years old, and I am from [City].", 'Record a 60-second video. Say: "Good day! My name is ___, ___ years old, from ___."',
+  'Record a 60-second video. Say: "Hi, I am Ana, 24 years old, married with two kids, and I love serving customers." Then tell us about your last job.',
+  "Self-introduction: Good day! My name is [Name], [Age] years old, [Civil status], residing in [City].",
+];
+check("(16th review) …and a self-introduction template is dropped from a step's prompt and from the voice questions", introPrompts.every((p) => A.asksAgeOrStatus(p)) && A.withoutAgeAsks([...introPrompts, "Tell us about your last job."]).length === 1);
+// …and a practice case's customer named in an earlier sentence, over every speech label and customer ask (the fifteenth
+// review's grid): every one a customer's.
+const caseOpenings = ["A caller wants to book a car. ", "Tax intake. A client calls about her refund. ", "A patient calls to move an appointment. ", "Interview role-play: the patient calls to move an appointment. ",
+  "A member wants to add her baby. ", "Gem purchase. A player wants to buy gems. ", "A passenger asks about a cheaper ticket. ", "Hotel booking. A guest calls to book a room. "];
+{
+  const lines = caseOpenings.flatMap((opening) => quoteGrid([""]).map((line) => `${opening}${line}`));
+  const dropped = lines.filter((line) => A.asksAgeOrStatus(line));
+  check(`(16th review) a quote after a sentence naming the case's one customer is the customer's (${lines.length} lines)`, lines.length === caseOpenings.length * 63 && dropped.length === 0, dropped.slice(0, 3).join(" | "));
+}
+// Guards: what each narrowed or widened reading must still drop or keep. The reviewer's trial's 16 applicant lines; a sentence
+// before the quote that names the job's customers, the clientele, an applicant cue or the work, or a quote that names the
+// job or is followed by an interview; a desk's count is never the applicant's count; a greeting to a team, an interview or
+// a role; HR's description of the business never outweighs a listener addressed as a member; a first-person age is never an
+// agent's question.
+for (const line of [
+  'Ask: "To confirm your eligibility for the role, are you 18 or older?"', 'Ask: "To confirm your eligibility, are you 18 or older?"', 'Ask: "To confirm your shift premium, how old are you?"',
+  'Ask: "To confirm the shift premium, how old are you?"', 'Ask: "To confirm your night differential, are you married?"', 'Ask: "To confirm your employee discount, how old are you?"',
+  'Ask: "To confirm the employee discount, are you married?"', 'Ask: "To confirm your benefits eligibility, are you married?"', 'Ask: "To confirm your HMO premium, are you married?"',
+  'Ask: "To confirm you can work nights, are you married?"', 'Ask: "To confirm you can rent a room near the office, how old are you?"', 'Ask: "To confirm you can start Monday, how old are you?"',
+  'Opening message: "Thanks for applying! To confirm your shift premium, how old are you?"', 'Say: "Thanks for applying! To verify your senior citizen discount, are you 60 or older?"',
+  'Ask: "Can you confirm your civil status? Are you married or single?"', 'Ask: "Can you confirm your tax status for payroll? Are you married or single?"',
+  'Phone screen. You will talk to customers all day. Ask: "Are you married?"', 'Our callers are mostly parents. Ask: "How old are you?"', 'You will help customers with refunds. Ask: "How old are you?"',
+  'Video intro. Customers love a friendly voice. Say: "How old are you?"', 'Car rental booking. A caller wants to book a car. Say: "How old are you?" Then begin the interview.',
+  'Car rental booking. A caller wants to book a car. Say: "How old are you?" The candidate must provide it for our HR records.',
+  'A caller wants to rent a car. Say: "Have you handled angry customers? How old are you?"', 'Answer the customer calls. Ask: "How old are you?"',
+  'Our callers are mostly parents. Say: "May I have your date of birth?"', 'Thanks for applying! A caller may test you. Say: "How old are you?"', 'HR phone screen. A caller wants a car. Say: "Are you married?"',
+  'Every customer loves a friendly voice. Ask: "How old are you?"', 'Handle the customers in the queue first. Ask: "How old are you?"',
+  'Video intro. Customer after customer will hear you. Say: "How old are you?"', 'Interview question. Tell me about a time a customer yelled at you. Then ask: "How old are you?"',
+  'Ask: "How many customers do you handle a day? Are you married?"', 'Ask: "How many callers can you handle an hour? How old are you?"',
+  'Ask: "How many patients did you see a day at your last job? How old are you?"', 'Ask: "How many customers did you have per day? Are you married?"',
+  'Say: "Welcome to the customer support team! Are you married?"', 'Say: "Welcome to your Customer Support interview! How old are you?"',
+  'Say: "Hi, this is Ana from customer care about the Customer Care Specialist role. How old are you?"',
+  'Say: "Thanks for applying! As a new member of our support team, may I have your date of birth?"',
+  'Video intro. Say: "Hi, I\'m Ana, 24 years old, from Cebu. I have two years of experience helping customers."',
+  'Say: "Welcome to your customer support onboarding! How old are you?"',
+]) check(`(16th review, guard) …and still drops: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+for (const line of [
+  // A customer's note with an age, a placeholder or a blank; a customer's own words in the first person.
+  "Patient intake note: Maria, 70 years old, wants a callback.", "Confirm the caller's name and [DOB] before sharing results.", "Patient intake note: [Name], [Age], reason for visit: [Reason].",
+  "I spoke with [Name], [Age], about her bill.", "Fill in the triage note: Patient is ___ years old, female, chest pain.", "Reply template: Hi [Name], your order [Order ID] ships today.",
+  "Please confirm your details: [Name], [Age], [Plan].", "The ticket says the account is ___ days old.", 'A caller says: "I\'m 70 years old and confused by the app." How would you help?',
+  // An agent's own line to a customer, with a template's blank for the agent's name, the business's members' age, a listener
+  // welcomed as a member, an agent a customer is sent to, a relative, a caller's own experience.
+  'Say: "I love helping members find the right plan. Are you 65 or older?"', 'Say: "Hi, my name is ___, and I\'ll help you with your plan as a member. Are you 65 or older?"',
+  'Say: "Thank you for calling Bright Health, my name is [Agent Name], how may I help you? Are you 65 or older?"',
+  'Say: "Hi, I\'m Ana, and our members 65 years old and over get a discount. Are you 65 or older?"',
+  'Say: "Thanks for applying to Bright Credit Union! We\'re glad to have you as a new member. May I have your date of birth?"',
+  'Ask: "Would you like to speak with a member advocate? Are you 65 or older?"', 'Ask: "Do you want to help a family member enroll? Are you 65 or older?"',
+  'Ask: "How was your experience with our member line? Are you 65 or older?"', 'Ask: "Do you want to add a member to your plan? Are you married?"',
+  'Ask: "Can you describe the situation with your member card? Are you 65 or older?"', 'Ask: "Are you comfortable with a family member joining the call? Are you over 18?"',
+  'Ask: "Are you comfortable speaking with a member advocate? Are you 65 or older?"', 'Reply to the player: "I\'m 25 and I run the tournaments. Are you 18 or older?"',
+  // A leave or a loan applied for, and a study's clinical recruiter, as the fifteenth round read them.
+  "Script: Thank you for holding, this is Ana from HR. You applied for a salary loan last week. For security, may I have your date of birth?",
+  'Say: "Hi, I\'m Ana, a clinical trial recruiter for the Bright Research diabetes study. May I have your date of birth for your file?"',
+]) check(`(16th review, guard) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+{
+  const lines = ["Phone screen. You will talk to customers all day. ", "Our callers are mostly parents. ", "You will help customers with refunds. ", "Video intro. Customers love a friendly voice. ",
+    "Thanks for applying! A caller may test you. ", "HR phone screen. A caller wants a car. ", "Answer the customer calls. "].flatMap((opening) => quoteGrid([""]).map((line) => `${opening}${line}`));
+  const kept = lines.filter((line) => !A.asksAgeOrStatus(line));
+  check(`(16th review, guard) …and a sentence before the quote that names the job's customers or applying makes no quote a customer's (${lines.length} lines)`, lines.length === 441 && kept.length === 0, kept.slice(0, 3).join(" | "));
+}
+// Pins: the fifteenth round's own word lists, each of which a one-word narrowing could lose with no check failing (the
+// sixteenth review's finding 6: a discount for the young, the military or a loyalty card, "you may play ranked", a service's
+// reply, greeting and opener, the desk check's "that", "his", "her" and "their" leave, payroll and pre-employment forms,
+// "tell us", the digit of a clientele's rule, "difficult", "irate" and "demanding", the "ever" and "experience" openers,
+// calming, managing and assisting). They pass on the fifteenth round's module too.
+for (const line of [
+  'Say: "To verify your youth discount, are you under 25?"', 'Say: "To verify your military discount, are you 65 or older?"', 'Say: "To confirm your loyalty discount, how old are you?"',
+  'Say: "To confirm you may play ranked, are you 18 or older?"', 'Customer service reply: "Hi! Are you 18 or older?"', 'Customer care greeting: "Hi there! Are you 65 or older?"',
+  'Member support opener: "Hello! Are you 65 or older?"', 'Say: "Can you verify that your senior discount is active? Are you 60 or older?"',
+  "Script: Thank you for holding, this is Ana from HR. I see your husband applied for his paternity leave through us. For security, may I have your date of birth?",
+  "Script: Thank you for holding, this is Ana from HR. I see Maria applied for her maternity leave and you are her manager. For security, may I have your date of birth?",
+  "Script: Thank you for holding, this is Ana from HR. You and your team applied for their parental leave together. For security, may I have your date of birth?",
+  'Say: "Our members are mostly over 65. Are you 65 or older?"',
+]) check(`(16th review, pin) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+for (const line of [
+  "Payroll form. Fill in their HMO plan:\nHousehold size and number of dependents:", "Pre-employment form. Enter their HMO plan:\nHousehold size and number of dependents:",
+  "Script: To verify your identity, may I have your date of birth? The applicant must tell us that before the screening.",
+  'Ask: "Irate callers are common here. How old are you?"', 'Ask: "Difficult patients are part of the job. Are you married?"', 'Ask: "Demanding customers call all day. How old are you?"',
+  'Ask: "Ever helped a customer with a refund? How old are you?"', 'Ask: "Any experience helping patients? Are you married?"', 'Ask: "Can you calm callers down? How old are you?"',
+  'Ask: "Do you manage customers well? Are you married?"', 'Ask: "Have you assisted patients before? Are you married?"',
+]) check(`(16th review, pin) asks for age or sets a limit: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+// Known, and left (the sixteenth review): each is read as shown for the reason given, so the next review need not report it.
+for (const [line, drops, why] of [
+  ['Ask: "How would you explain a delay to a customer? Are you married?"', false, "a question about how the applicant would treat a customer (\"How would you…\", \"What would you say to a customer who…\", \"How do you keep a customer happy?\") is read as a customer's: a desk asks its own caller \"How would you like…\" and \"What would you…\" too, so only an interview's own shapes were set aside (\"Tell me about a time…\", \"Why do you want to work with…\", \"comfortable speaking with…\", \"experience with…\", \"good with…\")"],
+  ['Say: "To confirm your eligibility for the senior rate, are you 65 or older?"', true, "\"your eligibility\" alone, and a purchase (\"…so I can complete the purchase\"), are a hire's as often (\"your eligibility for the role\", \"…so I can process the order\"), so standing alone they were not added; in a practice case that names its customer in an earlier sentence they are the customer's (the review's finding 1)"],
+  ['Reply: "Thanks for reaching out to Bright Games! Are you 18 or older?"', true, "a chat greeting is a caller's check when it names the service's customer (\"Thanks for contacting customer support!\"); one naming only the business (\"Thanks for reaching out to Bright Games\", \"Thanks for messaging Bright Games support\") is HR's reply to an applicant as often, and every round dropped it"],
+  ['Car rental booking. A caller wants to book a car. Say: "To confirm you can work nights, are you married?"', false, "a practice case's customer named in an earlier sentence makes its quote hers unless the quote speaks of the job (NOT_THE_LISTENER), is followed by words naming applicants or is put to someone applying; a hire's topic inside such a case (\"you can work nights\", \"your filing status for payroll\") was not read, since a case's customer works nights and files a W-4 too"],
+  ['Ask: "To verify your member discount as a new employee, how old are you?"', false, "a customer word inside the quote counts as the fifteenth round restored it, and \"member\" is one, so the desk check's \"as a new employee\" (which drops \"your student discount as a new hire\") does not reach it; the job named after a customer word would need its own shape"],
+  ['Record a 60-second video. Say: "Hi, I\'m Ana, I\'m 24, and I\'ve worked with patients for two years."', false, "a sample introduction that gives a bare number (\"I'm 24\", \"Ana, 24, from Cebu\") asks nothing and sets no limit, and every round kept it; its blank (\"I'm ___ years old\", \"(age ___)\") and \"24 years old\" are dropped"],
+]) check(`(16th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, A.asksAgeOrStatus(line) === drops);
 
 console.log("\nThe three job writers\n");
 const flow = read("supabase/functions/generate-flow/index.ts");
