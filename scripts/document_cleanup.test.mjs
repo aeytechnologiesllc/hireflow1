@@ -52,7 +52,13 @@
  *   - a pick the database stops at its time limit is told as such, with who
  *     to look for, never only "it tries again every hour" (the twelfth
  *     security review: ranking the whole queue, the pick timed out on every
- *     run from about 700,000 notes on).
+ *     run from about 700,000 notes on);
+ *   - the look for ID photos an open request never linked is its own call
+ *     (document_requests_sweep_strays, 20261025660000), with the ID kinds
+ *     and the 7-day cutoff: when it times out the due IDs and the deleted
+ *     requests' files still go, and the alert names the look, the bucket it
+ *     reads and its mark, never the due pick (the thirteenth security
+ *     review: inside the due pick, it stopped every due ID).
  *
  * Run with: node scripts/document_cleanup.test.mjs
  */
@@ -121,9 +127,12 @@ function freshWorld() {
     // document_cleanup_served: when the ID-paper picks last took each business ('due' or 'deleted').
     docServed: new Map(),
     dueArgs: [],
+    sweepArgs: [],
     // An error a pick answers with instead of its rows, by function name.
     rpcError: {},
-    // The ID requests with no link the due pick has looked at (document_requests_swept).
+    // What a function answers instead of its own answer (an answer of null: storage could not be read).
+    rpcAnswer: {},
+    // The ID requests with no link the sweep has looked at (document_requests_swept).
     swept: new Set(),
   };
 }
@@ -135,10 +144,8 @@ function freshWorld() {
  * for before p_sent_before; each business's longest-due paper first,
  * businesses in turn (by when they were last taken or it became due,
  * whichever is later), then the businesses with the fewest due first; 200 a
- * run. It records whom it took. And, as 20261025630000 adds, before it picks
- * it looks once at each ID request with no link asked for before
- * p_sent_before and queues each file in its own folder in
- * document_file_trash, naming the business (document_requests_sweep_strays).
+ * run. It records whom it took. (Since 20261025660000 it no longer looks for
+ * unlinked photos first: sweepStrays below is its own call.)
  */
 function duePick(args) {
   world.dueArgs.push(args);
@@ -147,15 +154,6 @@ function duePick(args) {
   const sent = Date.parse(args?.p_sent_before);
   const kinds = Array.isArray(args?.p_kinds) ? args.p_kinds : [];
   const at = (v) => (v == null ? NaN : Date.parse(v));
-  for (const r of world.tables.document_requests) {
-    if (r.file_url != null || !["government_id", "nbi_clearance", "proof_of_address"].includes(r.document_type) || !kinds.includes(r.document_type) || !(at(r.created_at) <= sent) || world.swept.has(r.id)) continue;
-    world.swept.add(r.id);
-    for (const name of [...world.storage["requested-documents"]].filter((p) => p.startsWith(`${r.candidate_id}/${r.id}/`)).sort()) {
-      if (!world.tables.document_file_trash.some((t) => t.request_id === r.id && t.file_url === name)) {
-        world.tables.document_file_trash.push({ id: `stray-${world.tables.document_file_trash.length + 1}`, candidate_id: r.candidate_id, request_id: r.id, file_url: name, employer_id: r.employer_id, attempts: 0, last_tried_at: null, queued_at: new Date(now).toISOString() });
-      }
-    }
-  }
   const rows = world.tables.document_requests.filter((r) =>
     r.file_url != null && kinds.includes(r.document_type) &&
     ((r.team_opened_at != null && at(r.team_opened_at) <= opened) ||
@@ -178,6 +176,32 @@ function duePick(args) {
     .slice(0, 200);
   for (const x of picked) world.docServed.set(`due:${x.who}`, now);
   return picked.map(({ r }) => ({ id: r.id, candidate_id: r.candidate_id, file_url: r.file_url, status: r.status }));
+}
+
+/**
+ * document_requests_sweep_strays as 20261025630000 and 20261025660000 make
+ * it, document-cleanup's own call: it looks once at each ID request with no
+ * link asked for before p_sent_before and queues each file in its own folder
+ * in document_file_trash, naming the business. It answers how many it queued.
+ */
+function sweepStrays(args) {
+  world.sweepArgs.push(args);
+  const now = Date.now();
+  const sent = Date.parse(args?.p_sent_before);
+  const kinds = Array.isArray(args?.p_kinds) ? args.p_kinds : [];
+  const at = (v) => (v == null ? NaN : Date.parse(v));
+  let queued = 0;
+  for (const r of world.tables.document_requests) {
+    if (r.file_url != null || !["government_id", "nbi_clearance", "proof_of_address"].includes(r.document_type) || !kinds.includes(r.document_type) || !(at(r.created_at) <= sent) || world.swept.has(r.id)) continue;
+    world.swept.add(r.id);
+    for (const name of [...world.storage["requested-documents"]].filter((p) => p.startsWith(`${r.candidate_id}/${r.id}/`)).sort()) {
+      if (!world.tables.document_file_trash.some((t) => t.request_id === r.id && t.file_url === name)) {
+        world.tables.document_file_trash.push({ id: `stray-${world.tables.document_file_trash.length + 1}`, candidate_id: r.candidate_id, request_id: r.id, file_url: name, employer_id: r.employer_id, attempts: 0, last_tried_at: null, queued_at: new Date(now).toISOString() });
+        queued += 1;
+      }
+    }
+  }
+  return queued;
 }
 
 /**
@@ -314,7 +338,9 @@ function client() {
   return {
     rpc: async (fn, args) => {
       if (world.rpcError[fn]) return { data: null, error: world.rpcError[fn] };
+      if (fn in world.rpcAnswer) return { data: world.rpcAnswer[fn], error: null };
       if (fn === "document_requests_due_pick") return { data: duePick(args), error: null };
+      if (fn === "document_requests_sweep_strays") return { data: sweepStrays(args), error: null };
       if (fn === "document_file_trash_fair_pick") return { data: trashPick(), error: null };
       if (fn === "document_cleanup_secret_matches") return { data: args.p_given === SECRET, error: null };
       if (fn === "claim_daily_alert") {
@@ -741,9 +767,10 @@ console.log("\nAn ID photo an open request never linked (asked of the twelfth se
 {
   // The upload went up, saving its link failed and so did the dialog's own
   // removal: the request is open with no link and its folder holds the
-  // photo. Seven days after it was asked for, the due pick queues that file
-  // (20261025630000) and the same run deletes it alone: the request stays
-  // open, with no link, and nothing counts as a failure.
+  // photo. Seven days after it was asked for, the run's look queues that file
+  // (20261025630000; its own call since 20261025660000) and the same run
+  // deletes it alone: the request stays open, with no link, and nothing
+  // counts as a failure.
   const BIZ = id(61);
   const STRAY = id(62);
   const EMPTY = id(63);
@@ -759,15 +786,19 @@ console.log("\nAn ID photo an open request never linked (asked of the twelfth se
   check("an ID request with no link, asked for 8 days ago, whose folder holds a photo: the photo is deleted in that run", r.status === 200 && !world.storage["requested-documents"].has(strayFile) && world.tables.document_file_trash.length === 0, show({ body: r.body, left: world.tables.document_file_trash }));
   check("…the request stays open, with no link, and nothing counts as a failure", world.tables.document_requests.find((q) => q.id === STRAY)?.file_url === null && r.body?.failed === 0 && r.body?.orphansFailed === 0 && told("ID papers were not deleted on time") === 0, show(r.body));
   check("…one asked for 6 days ago keeps its photo for now, and one with nothing in its folder costs nothing", world.storage["requested-documents"].has(youngFile) && r.body?.orphans === 1, show(r.body));
+  check("…the look is its own call, with the ID kinds and the 7-day cutoff, and the run says how many it queued",
+    world.sweepArgs.length === 1 && JSON.stringify(world.sweepArgs[0]?.p_kinds) === JSON.stringify(["government_id", "nbi_clearance", "proof_of_address"]) &&
+      Math.abs(Date.parse(world.sweepArgs[0]?.p_sent_before) - (Date.now() - 7 * 86_400_000)) < 60_000 && r.body?.strays === 1,
+    show({ args: world.sweepArgs, strays: r.body?.strays }));
   // Both ways: by the time the run comes, the applicant has linked that very
   // file after all; it is their paper now, deleted on its own clock.
   reset((w) => {
     w.tables.document_requests.push(ask(STRAY, 8));
     w.storage["requested-documents"].add(strayFile);
   });
-  await duePick({ p_kinds: ["government_id", "nbi_clearance", "proof_of_address"], p_opened_before: hoursAgo(24), p_sent_before: hoursAgo(24 * 7) });
+  sweepStrays({ p_kinds: ["government_id", "nbi_clearance", "proof_of_address"], p_sent_before: hoursAgo(24 * 7) });
   Object.assign(world.tables.document_requests.find((q) => q.id === STRAY), { file_url: strayFile, status: "submitted", submitted_at: new Date().toISOString() });
-  world.dueArgs.length = 0;
+  world.sweepArgs.length = 0;
   const relinked = await runIt();
   check("…and a photo the request links by the time of the run is kept (its note goes)", relinked.status === 200 && world.storage["requested-documents"].has(strayFile) && world.tables.document_file_trash.length === 0, show(relinked.body));
 }
@@ -815,6 +846,36 @@ console.log("\nA pick the database stops at its time limit (the twelfth security
     /took longer than the database allows and was stopped/.test(trashCard?.message ?? "") && /count document_file_trash's rows by employer_id\.$/.test(trashCard?.message ?? "") &&
       /took longer than the database allows and was stopped/.test(dueCard?.message ?? "") && /no ID is deleted until it is read in time/.test(dueCard?.message ?? "") && /count document_requests' rows that still have a file, by employer_id\.$/.test(dueCard?.message ?? ""),
     show({ trash: trashCard?.message, due: dueCard?.message }));
+
+  // The look for unlinked photos timed out (the thirteenth security review:
+  // run inside the due pick, it was cancelled with it, every run, and the
+  // alert sent the admins to the due turns). Its own call now: the due ID
+  // and a deleted request's file still go, the run answers as a failed read,
+  // and the alert names the look, the bucket it reads and its mark.
+  const GONE = id(802);
+  reset((w) => {
+    w.rpcError.document_requests_sweep_strays = TIMEOUT;
+    w.tables.document_requests.push({ id: DUE, candidate_id: ANA, employer_id: id(21), document_type: "government_id", file_url: `${ANA}/${DUE}/1.jpg`, status: "submitted", team_opened_at: hoursAgo(25), submitted_at: hoursAgo(30), created_at: hoursAgo(40) });
+    w.tables.document_file_trash.push({ id: "t1", candidate_id: ANA, employer_id: id(21), request_id: GONE, file_url: `${ANA}/${GONE}/1.jpg`, attempts: 0, last_tried_at: null, queued_at: hoursAgo(2) });
+    for (const p of [`${ANA}/${DUE}/1.jpg`, `${ANA}/${GONE}/1.jpg`]) w.storage["requested-documents"].add(p);
+  });
+  const slowLook = await runIt();
+  const lookCard = world.tables.notifications.find((n) => n.title === "Unlinked ID photos are not being looked for");
+  check("the look for unlinked photos timed out: the due ID and the deleted request's file still go, and the run answers as a failed read",
+    slowLook.status === 500 && slowLook.body?.error === "read_failed" && !world.storage["requested-documents"].has(`${ANA}/${DUE}/1.jpg`) && !world.storage["requested-documents"].has(`${ANA}/${GONE}/1.jpg`) && slowLook.body?.deleted === 1 && slowLook.body?.orphans === 1,
+    show(slowLook));
+  check("…and the admins are told it is the look that timed out, what it reads and why trying again repeats it, never that the ID papers are not being deleted",
+    told("Unlinked ID photos are not being looked for") === 1 && told("ID papers are not being deleted") === 0 &&
+      /document_requests_sweep_strays\) took longer than the database allows and was stopped/.test(lookCard?.message ?? "") && /document_requests_swept/.test(lookCard?.message ?? "") &&
+      /requested-documents/.test(lookCard?.message ?? "") && /The ID papers that are due are deleted all the same\.$/.test(lookCard?.message ?? ""),
+    lookCard?.message);
+  reset((w) => {
+    w.rpcAnswer.document_requests_sweep_strays = null;
+    w.tables.document_requests.push({ id: DUE, candidate_id: ANA, employer_id: id(21), document_type: "government_id", file_url: `${ANA}/${DUE}/1.jpg`, status: "submitted", team_opened_at: hoursAgo(25), submitted_at: hoursAgo(30), created_at: hoursAgo(40) });
+    w.storage["requested-documents"].add(`${ANA}/${DUE}/1.jpg`);
+  });
+  const blindLook = await runIt();
+  check("…a look that could not read storage (it answers nothing) is logged and costs nothing else: the due ID goes, no alert", blindLook.status === 200 && !world.storage["requested-documents"].has(`${ANA}/${DUE}/1.jpg`) && world.tables.notifications.length === 0 && blindLook.body?.strays === 0, show(blindLook));
 }
 
 globalThis.fetch = realFetch;

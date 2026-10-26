@@ -333,12 +333,13 @@ these either; each has a guard or a test that CI runs:
   kinds with a file, when the first is due by document-cleanup's 24 hours and
   7 days) are kept the same way; the due pick counts each business's due
   papers up to 201 for its "fewest due first" (two businesses each holding
-  more compare as equal) and takes only the three ID kinds. Before it picks,
-  the due pick also queues, once, the files in the folder of an ID request
-  with no link seven days after it was asked for (the thirteenth Phase 5
-  review's finding 2; `document_requests_sweep_strays`, 5,000 requests a run
-  from the mark in `document_requests_swept`, into `document_file_trash`, where
-  document-cleanup deletes that file alone). document-cleanup's alert for a
+  more compare as equal) and takes only the three ID kinds. Each run also
+  queues, once, the files in the folder of an ID request with no link seven
+  days after it was asked for (the thirteenth Phase 5 review's finding 2;
+  `document_requests_sweep_strays`, 5,000 requests a run from the mark in
+  `document_requests_swept`, into `document_file_trash`, where document-cleanup
+  deletes that file alone; inside the due pick until the thirteenth security
+  review, below). document-cleanup's alert for a
   read that times out says so and how to find who fills the queue. The turns
   are kept only by those triggers: a write with triggers off (replica mode)
   must be followed by rebuilding them as the migrations' backfill does.
@@ -358,6 +359,48 @@ these either; each has a guard or a test that CI runs:
   200 of its folders). Guards `file-queue-fair-and-bounded`,
   `id-papers-leave-on-time`; launch_locks_behaviour sections 15 (E), 18 and
   21, `scripts/document_cleanup.test.mjs`.
+- (The thirteenth security review, `20261025650000`, `20261025660000`.) The
+  queues' turns are taken at commit, in one order, and a deadlock never
+  leaves a removal's files out of the queue. Taken by each statement trigger
+  for its own statement, a deleted job's applications took them in no order,
+  the pick's record (an INSERT … ON CONFLICT DO UPDATE) took its two halves one
+  after the other, and a deadlock between them was caught by
+  `applications_queue_voice_recordings`' EXCEPTION WHEN OTHERS: the delete went
+  with nothing queued and the recording, video and work samples stayed for
+  good (the review's leak repro; under its bench 30 to 75% of cleanup runs and
+  1 to 3% of writers deadlocked). The statement triggers now only note each
+  change in `private.queue_turn_changes` (`private.queue_turns_changed`) and
+  mark the transaction in `private.queue_turn_commits`, whose constraint
+  trigger `queue_turn_commits_apply` (DEFERRABLE INITIALLY DEFERRED) runs
+  `public.queue_turns_apply()` once at commit: the removal queue's turns, then
+  the deleted requests', then the due papers', each made or taken in one
+  ordered INSERT … ON CONFLICT DO UPDATE (`private.*_turns_apply`). No grants on
+  either table or helper, the service role's neither. Inside the writing
+  transaction the turns are as they were; every other session sees them change
+  with the queue. The queueing triggers (both blocks of
+  `applications_queue_voice_recordings`, `documents_queue_files`) and the
+  stray sweep re-raise a deadlock, serialization failure or lock timeout
+  (40P01, 40001, 55P03): the delete fails, nothing is lost, it is tried again;
+  anything else is still logged and the delete goes. The bench afterwards: no
+  deadlock on a turn (only the bench's own writers deleting the same notes as
+  the cleanup, in another order, which production has not: only
+  document-cleanup removes notes), and none in the leak repro, either order.
+  And the stray sweep (`document_requests_sweep_strays`) is document-cleanup's
+  own call, never the due pick's: inside it, its `LIKE` of the request's own
+  columns read the whole `requested-documents` bucket for every request (300
+  requests, 14 s against 200,000 objects), the API's 8 seconds cancelled the
+  due pick on every run, and no ID was deleted for anyone. It reads each
+  folder as a range of names by storage's `idx_objects_bucket_id_name`
+  (`bucket_id, name COLLATE "C"`), a hundred requests at a time, until 5,000
+  are looked at, 1,000 files queued or two seconds spent (5 to 37 ms up to
+  1,000,000 objects), and a failure is told as its own (`cleanup:read-strays`,
+  "Unlinked ID photos are not being looked for", naming the bucket and the
+  mark; the review's LOW 3). A browser's request gets the database's id and
+  `created_at` (`document_requests_guard_insert`; LOW 2). Guards
+  `file-queue-fair-and-bounded`, `applicant-data-can-be-removed`,
+  `applications-stay-on-their-job`, `id-papers-leave-on-time`,
+  `id-papers-own-request-folder`; launch_locks_behaviour sections 19, 21 and
+  23, `scripts/document_cleanup.test.mjs`.
 - The way to reach the company is **Contact us** (an applicant's own Help
   thread at `/contact`, `20261025200000_help_for_applicants.sql`; `/help` is
   staff-only on the staff host) or Help (a hiring team); Messages reach the

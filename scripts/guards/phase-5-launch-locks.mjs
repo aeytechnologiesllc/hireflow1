@@ -58,6 +58,16 @@ import { grantsToBrowser, latestDefinition, migrationTexts, triggerProblems } fr
 const inPublic = (name) => `(?:"?public"?\\s*\\.\\s*)?"?${name}"?`;
 
 /**
+ * How a queueing trigger's exception block starts (the thirteenth security
+ * review): a deadlock, a serialization failure or a lock timeout re-raised,
+ * so the delete fails with nothing lost and is tried again; anything else
+ * caught. Caught, a deadlock let the delete go with nothing queued, and the
+ * files stayed in storage for good. As a regular expression, comments and
+ * spaces as the guards read a body.
+ */
+const RERAISE = "exception when deadlock_detected or serialization_failure or lock_not_available then raise; when others then";
+
+/**
  * What keeps a statement trigger from keeping a queue's turns (the twelfth
  * security review): its latest CREATE on public.<table> must be AFTER <event>
  * … FOR EACH STATEMENT EXECUTE FUNCTION public.<fn>(), with its transition
@@ -134,25 +144,113 @@ export async function indexProblems(ctx, names) {
  * only read it (its writers are the queue's own triggers); no later grant to
  * a browser role, write grant to the service role, policy or switch-off.
  */
-export async function turnsTableProblems(ctx, { table, made, readable = true }) {
+export async function turnsTableProblems(ctx, { table, made, readable = true, schema = "public" }) {
   const detail = [];
   const texts = await migrationTexts(ctx);
   const all = texts.map((t) => t.sql).join("\n").replace(/\s+/g, " ");
-  if (!all.includes(made)) detail.push(`supabase/migrations: public.${table} is not made as written (${made.slice(0, 90)}…)`);
-  if (!all.includes(`alter table public.${table} enable row level security;`) || !all.includes(`revoke all on table public.${table} from public, anon, authenticated, service_role;`) || (readable && !all.includes(`grant select on table public.${table} to service_role;`))) {
-    detail.push(`supabase/migrations: public.${table} must have row-level security on, nothing for public, anon or authenticated, and ${readable ? "only select" : "nothing"} for the service role`);
+  // A table in another schema is named with it; one in public, with or without.
+  const named = schema === "public" ? inPublic(table) : `"?${schema}"?\\s*\\.\\s*"?${table}"?`;
+  if (!all.includes(made)) detail.push(`supabase/migrations: ${schema}.${table} is not made as written (${made.slice(0, 90)}…)`);
+  if (!all.includes(`alter table ${schema}.${table} enable row level security;`) || !all.includes(`revoke all on table ${schema}.${table} from public, anon, authenticated, service_role;`) || (readable && !all.includes(`grant select on table ${schema}.${table} to service_role;`))) {
+    detail.push(`supabase/migrations: ${schema}.${table} must have row-level security on, nothing for public, anon or authenticated, and ${readable ? "only select" : "nothing"} for the service role`);
   }
   // Grants from the migration that makes it on (an earlier one cannot reach it).
   const from = texts.findIndex((t) => t.sql.replace(/\s+/g, " ").includes(made));
   for (const { rel, sql } of texts.slice(Math.max(0, from))) {
     const flat = sql.replace(/\s+/g, " ");
     for (const m of flat.matchAll(/\bgrant\s+([^;]*?)\s+on\s+(?:table\s+)?([^;]*?)\s+to\s+([^;]*);/gi)) {
-      const named = new RegExp(`(?:^|[\\s,])${inPublic(table)}(?:$|[\\s,])`, "i").test(m[2]) || /^all\s+tables\s+in\s+schema\s+[^;]*\bpublic\b/i.test(m[2]);
-      if (!named) continue;
-      if (/(?:^|[\s,"])(anon|authenticated|public)(?:$|[\s,"])/i.test(m[3])) detail.push(`${rel}: public.${table} granted to a browser role`);
-      else if (/\bservice_role\b/i.test(m[3]) && (!readable || !/^select$/i.test(m[1].trim()))) detail.push(`${rel}: public.${table} ${readable ? "made writable by" : "granted to"} the service role (only the server's own functions ${readable ? "write" : "touch"} it)`);
+      const isIt = new RegExp(`(?:^|[\\s,])${named}(?:$|[\\s,])`, "i").test(m[2]) || new RegExp(`^all\\s+tables\\s+in\\s+schema\\s+[^;]*\\b${schema}\\b`, "i").test(m[2]);
+      if (!isIt) continue;
+      if (/(?:^|[\s,"])(anon|authenticated|public)(?:$|[\s,"])/i.test(m[3])) detail.push(`${rel}: ${schema}.${table} granted to a browser role`);
+      else if (/\bservice_role\b/i.test(m[3]) && (!readable || !/^select$/i.test(m[1].trim()))) detail.push(`${rel}: ${schema}.${table} ${readable ? "made writable by" : "granted to"} the service role (only the server's own functions ${readable ? "write" : "touch"} it)`);
     }
-    if (new RegExp(`\\b${table}\\b[^;]*\\b(?:disable|no force) row level security\\b|\\bcreate policy\\b[^;]*\\bon\\s+${inPublic(table)}\\b`, "i").test(flat)) detail.push(`${rel}: public.${table} opened (row-level security off, or a policy)`);
+    if (new RegExp(`\\b${table}\\b[^;]*\\b(?:disable|no force) row level security\\b|\\bcreate policy\\b[^;]*\\bon\\s+${named}\\b`, "i").test(flat)) detail.push(`${rel}: ${schema}.${table} opened (row-level security off, or a policy)`);
+  }
+  return detail;
+}
+
+/**
+ * The queues' turns are taken at commit, in one order (the thirteenth
+ * security review, finding 2 and LOW 1): taken by each statement trigger for
+ * its own statement, a transaction of many statements (a deleted job's
+ * applications) took them in no order, the pick's record took its two halves
+ * one after the other, and a deadlock with the pick, caught by the queueing
+ * trigger, left an application's files out of the queue for good. The
+ * statement triggers note each change in private.queue_turn_changes and mark
+ * the transaction in private.queue_turn_commits, whose constraint trigger,
+ * DEFERRABLE INITIALLY DEFERRED, runs public.queue_turns_apply once at
+ * commit: the removal queue's turns, then the deleted requests', then the due
+ * papers', each made or taken in one ordered pass. Both tables and the
+ * helpers are the database's own: nobody (the service role included) reads,
+ * writes or calls them.
+ */
+export async function turnsAtCommitProblems(ctx) {
+  const detail = [];
+  const texts = await migrationTexts(ctx);
+  const all = texts.map((t) => t.sql).join("\n").replace(/\s+/g, " ");
+  detail.push(...(await turnsTableProblems(ctx, {
+    table: "queue_turn_changes",
+    schema: "private",
+    readable: false,
+    made: "create table if not exists private.queue_turn_changes ( txid bigint not null, queue text not null check (queue in ('removal', 'deleted', 'due')), exact boolean not null default false, person text not null, d integer not null default 0, f integer not null default 0 );",
+  })));
+  detail.push(...(await turnsTableProblems(ctx, { table: "queue_turn_commits", schema: "private", readable: false, made: "create table if not exists private.queue_turn_commits ( txid bigint primary key );" })));
+  if (!all.includes("create index if not exists queue_turn_changes_txid on private.queue_turn_changes (txid);") || /\bdrop index (?:concurrently )?(?:if exists )?[^;]*\bqueue_turn_changes_txid\b/i.test(all)) {
+    detail.push("supabase/migrations: private.queue_turn_changes must be indexed by its transaction (queue_turn_changes_txid), so a commit reads only its own changes");
+  }
+  // The constraint trigger: its latest CREATE is AFTER INSERT on
+  // private.queue_turn_commits, deferred to commit, for each row, and nothing
+  // later drops it, switches it off or makes it run at once.
+  let made = null;
+  let after = [];
+  texts.forEach(({ rel, sql }) => {
+    const flat = sql.replace(/\s+/g, " ");
+    for (const m of flat.matchAll(/\bcreate\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+"?queue_turn_commits_apply"?\s[^;]*;/gi)) {
+      made = { rel, text: m[0] };
+      after = [];
+    }
+    if (made) {
+      for (const m of flat.matchAll(/\bdrop\s+trigger\s+(?:if\s+exists\s+)?"?queue_turn_commits_apply"?[^;]*;|\b(?:disable|enable\s+(?:replica|always))\s+trigger\s+(?:"?queue_turn_commits_apply"?|all|user)\b|\balter\s+(?:constraint|trigger)\s+"?queue_turn_commits_apply"?[^;]*;|\bdrop\s+(?:function|routine)\s+[^;]*\bqueue_turns_apply\b[^;]*\bcascade\b/gi)) {
+        if (rel !== made.rel || flat.indexOf(m[0]) > flat.indexOf(made.text)) after.push(`${rel}: ${m[0].slice(0, 80)}`);
+      }
+    }
+  });
+  if (!made || !/^create constraint trigger queue_turn_commits_apply after insert on private\.queue_turn_commits deferrable initially deferred for each row execute function public\.queue_turns_apply\(\);$/i.test(made.text)) {
+    detail.push(`${made?.rel ?? "supabase/migrations"}: queue_turn_commits_apply must be a constraint trigger AFTER INSERT ON private.queue_turn_commits, DEFERRABLE INITIALLY DEFERRED, FOR EACH ROW, running public.queue_turns_apply() (the turns are taken at commit, in one order)`);
+  }
+  for (const a of after) detail.push(`${a}: queue_turn_commits_apply is dropped, switched off or changed after it was made`);
+  const apply = await latestDefinition(ctx, "queue_turns_apply");
+  const applyBody = (apply?.body ?? "").replace(/\s+/g, " ");
+  const steps = [
+    "delete from private.queue_turn_commits where txid = new.txid;",
+    "from private.queue_turn_changes x where x.txid = new.txid and x.queue = 'removal' group by 1, 2) c; if v_exact is not null then perform private.storage_file_trash_turns_apply(v_exact, v_person, v_delta); end if;",
+    "from private.queue_turn_changes x where x.txid = new.txid and x.queue = 'deleted' group by 1) c; if v_person is not null then perform private.document_file_trash_turns_apply(v_person, v_delta, v_failed); end if;",
+    "from private.queue_turn_changes x where x.txid = new.txid and x.queue = 'due' group by 1) c; if v_person is not null then perform private.document_requests_due_turns_apply(v_person, v_delta); end if;",
+    "delete from private.queue_turn_changes where txid = new.txid; return null;",
+  ];
+  let at = -1;
+  const inOrder = steps.every((step) => {
+    const i = applyBody.indexOf(step, at + 1);
+    at = i;
+    return i >= 0;
+  });
+  if (!apply?.securityDefiner || !inOrder) detail.push(`${apply?.alteredIn ?? apply?.rel ?? "supabase/migrations"}: public.queue_turns_apply must run with its own rights and bring the transaction's turns up to date in one order (the removal queue's, then the deleted requests', then the due papers'), then drop its notes`);
+  for (const rel of await grantsToBrowser(ctx, "queue_turns_apply")) detail.push(`${rel}: queue_turns_apply granted to a browser role`);
+  const changed = await latestDefinition(ctx, String.raw`"?private"?\s*\.\s*"?queue_turns_changed`);
+  const changedBody = (changed?.body ?? "").replace(/\s+/g, " ");
+  if (!changedBody.includes("insert into private.queue_turn_changes (txid, queue, exact, person, d, f) select txid_current(), p_queue, coalesce(k.exact, false), k.person, coalesce(k.d, 0), coalesce(k.f, 0) from unnest(p_exact, p_person, p_delta, p_failed) as k (exact, person, d, f); insert into private.queue_turn_commits (txid) values (txid_current()) on conflict (txid) do nothing;")) {
+    detail.push(`${changed?.rel ?? "supabase/migrations"}: private.queue_turns_changed must note every change under its transaction's id and mark the transaction for its commit`);
+  }
+  // Nobody calls the helpers by hand: revoked where they are made, and never
+  // granted after (nor the private schema opened).
+  for (const [fn, args] of [["queue_turns_changed", "text, boolean\\[\\], text\\[\\], integer\\[\\], integer\\[\\]"], ["storage_file_trash_turns_apply", "boolean\\[\\], text\\[\\], integer\\[\\]"], ["document_file_trash_turns_apply", "text\\[\\], integer\\[\\], integer\\[\\]"], ["document_requests_due_turns_apply", "text\\[\\], integer\\[\\]"]]) {
+    if (!new RegExp(`revoke all on function private\\.${fn}\\(${args}\\) from public, anon, authenticated, service_role;`, "i").test(all)) detail.push(`supabase/migrations: private.${fn} must be revoked from public, anon, authenticated and the service role`);
+  }
+  for (const { rel, sql } of texts) {
+    const flat = sql.replace(/\s+/g, " ");
+    if (/\bgrant\s+[^;]*\bon\s+(?:function\s+|routine\s+)?[^;]*\bprivate\.(?:queue_turns_changed|storage_file_trash_turns_apply|document_file_trash_turns_apply|document_requests_due_turns_apply)\b[^;]*\bto\b/i.test(flat) || /\bgrant\s+[^;]*\bon\s+all\s+(?:functions|routines|tables)\s+in\s+schema\s+[^;]*\bprivate\b[^;]*\bto\s+[^;]*\b(?:anon|authenticated|public|service_role)\b/i.test(flat) || /\bgrant\s+usage\s+on\s+schema\s+[^;]*\bprivate\b[^;]*\bto\s+[^;]*\b(?:anon|authenticated|public)\b/i.test(flat)) {
+      detail.push(`${rel}: the turns' notes or their helpers are granted to someone (only the database's own triggers use them)`);
+    }
   }
   return detail;
 }
@@ -442,8 +540,8 @@ export default [
       const tuples = [["voice-interview-recordings", "old\\.id::text", "''"], ["videos", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"], ["portfolios", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"]].map(([bucket, folder, prefix]) => `\\('${bucket}', ${folder}, ${prefix}\\)`);
       // Each row names its applicant (candidate_id), for document-cleanup's
       // fair pick (the eighth security review).
-      if (!new RegExp(`^\\s*declare [^$]*? begin begin insert into public\\.storage_file_trash \\(bucket, folder, starts_with, application_id, candidate_id\\) select t\\.bucket, t\\.folder, t\\.starts_with, old\\.id, old\\.candidate_id from \\(values ${tuples.join(", ")} \\) as t \\(bucket, folder, starts_with\\) where t\\.folder is not null and coalesce\\(private\\.storage_holds\\(t\\.bucket, t\\.folder \\|\\| '/' \\|\\| t\\.starts_with\\), true\\); exception when others then raise log [^;]*; end; `, "i").test(queue)) {
-        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the recordings, videos and portfolios folders of a deleted application where storage holds a file (or cannot say), first thing, each naming its applicant, as written`);
+      if (!new RegExp(`^\\s*declare [^$]*? begin begin insert into public\\.storage_file_trash \\(bucket, folder, starts_with, application_id, candidate_id\\) select t\\.bucket, t\\.folder, t\\.starts_with, old\\.id, old\\.candidate_id from \\(values ${tuples.join(", ")} \\) as t \\(bucket, folder, starts_with\\) where t\\.folder is not null and coalesce\\(private\\.storage_holds\\(t\\.bucket, t\\.folder \\|\\| '/' \\|\\| t\\.starts_with\\), true\\); ${RERAISE} raise log [^;]*; end; `, "i").test(queue)) {
+        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the recordings, videos and portfolios folders of a deleted application where storage holds a file (or cannot say), first thing, each naming its applicant, as written, and fail the delete on a deadlock, a serialization failure or a lock timeout (anything else logged)`);
       }
       // …and the files sent with its form (the eleventh review, finding 4), at
       // most 40 a deleted application and 200 a day for one applicant (the
@@ -451,8 +549,8 @@ export default [
       // each only where storage holds a file of exactly that name (the ninth
       // security review: checked as a prefix, "<uid>/." was there because
       // "<uid>/.x" was).
-      if (!/continue when not coalesce\(private\.storage_holds\('resumes', v_path, p_exact => true\), true\); exit when not coalesce\(\(public\.check_rate_limit\('file-queue-paths', old\.candidate_id::text, 200, 86400\) ->> 'allowed'\)::boolean, true\); insert into public\.storage_file_trash \(bucket, path, application_id, candidate_id\) values \('resumes', v_path, old\.id, old\.candidate_id\); end loop;/.test(queue) || !/ return old; end;?\s*$/.test(queue)) {
-        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the resume and the form's files a deleted application lists, at most 200 a day for one applicant (check_rate_limit 'file-queue-paths', 200, 86400)`);
+      if (!/continue when not coalesce\(private\.storage_holds\('resumes', v_path, p_exact => true\), true\); exit when not coalesce\(\(public\.check_rate_limit\('file-queue-paths', old\.candidate_id::text, 200, 86400\) ->> 'allowed'\)::boolean, true\); insert into public\.storage_file_trash \(bucket, path, application_id, candidate_id\) values \('resumes', v_path, old\.id, old\.candidate_id\); end loop;/.test(queue) || !new RegExp(` end loop; end if; ${RERAISE} raise log [^;]*; end; return old; end;?\\s*$`).test(queue)) {
+        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the resume and the form's files a deleted application lists, at most 200 a day for one applicant (check_rate_limit 'file-queue-paths', 200, 86400), and fail the delete on a deadlock, a serialization failure or a lock timeout there too`);
       }
       if (!/foreach v_path in array v_paths\[1:40\] loop/.test(queue)) detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue at most 40 files a deleted application (v_paths[1:40])`);
       // A plain path as isPlainObjectPath reads one, which document-cleanup
@@ -614,13 +712,26 @@ export default [
       ]) {
         for (const event of events) detail.push(...(await turnTriggerProblems({ read, walk }, { name: `${table === "storage_file_trash" ? "storage_file_trash_turns" : "storage_file_trash_served"}_${event.toLowerCase()}`, table, event, fn })));
       }
-      if (!sync?.securityDefiner || !syncBody.includes("exit when v_held = cardinality(v_exact);") || !syncBody.includes("for update of s) held;") || !syncBody.includes("select case when t.attempts > 0 then coalesce(t.last_tried_at, t.queued_at) + least(t.attempts, 24) * interval '1 hour' + interval '30 minutes' else t.queued_at end as due_at from public.storage_file_trash t where (t.path is not null)::int = k.exact::int and coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) = k.person order by t.attempts, t.queued_at, t.id limit 1 ) f on true left join public.storage_file_trash_served v on v.exact = k.exact and v.person = k.person where s.exact = k.exact and s.person = k.person;") || !syncBody.includes("where s.exact = k.exact and s.person = k.person and s.first_due is null;")) {
-        detail.push(`${sync?.rel ?? "supabase/migrations"}: storage_file_trash_turns_sync must run with its own rights, lock every turn it touches before it reads them again, read each person's first note, and when it is due, as the pick numbers and backs it off (the turns' rank and the pick must agree: a run's people are chosen by one and ranked by the other), copy their record, and drop a turn whose person holds nothing`);
+      // The queue's statement triggers note each change for the
+      // transaction's commit, and there every turn it touched is brought up
+      // to date at once, in one order (the thirteenth security review: taken
+      // statement by statement, a deleted job's applications took them in no
+      // order, and a deadlock with the pick left an application's files out
+      // of the queue). The work done for each turn is the trigger's own as
+      // 20261025620000 made it, moved to private.storage_file_trash_turns_apply.
+      if (!sync?.securityDefiner || !syncBody.includes("perform private.queue_turns_changed('removal', v_exact, v_person, v_delta, null); return null;")) {
+        detail.push(`${sync?.alteredIn ?? sync?.rel ?? "supabase/migrations"}: storage_file_trash_turns_sync must run with its own rights and note every statement's change to the turns for the transaction's commit (private.queue_turns_changed)`);
+      }
+      const apply = await latestDefinition({ read, walk }, String.raw`"?private"?\s*\.\s*"?storage_file_trash_turns_apply`);
+      const applyBody = (apply?.body ?? "").replace(/\s+/g, " ");
+      if (!applyBody.includes("insert into public.storage_file_trash_turns as s (exact, person) select k.exact, k.person from unnest(v_exact, v_person) as k (exact, person) order by k.exact, k.person on conflict (exact, person) do update set waiting = s.waiting;") || !applyBody.includes("select case when t.attempts > 0 then coalesce(t.last_tried_at, t.queued_at) + least(t.attempts, 24) * interval '1 hour' + interval '30 minutes' else t.queued_at end as due_at from public.storage_file_trash t where (t.path is not null)::int = k.exact::int and coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) = k.person order by t.attempts, t.queued_at, t.id limit 1 ) f on true left join public.storage_file_trash_served v on v.exact = k.exact and v.person = k.person where s.exact = k.exact and s.person = k.person;") || !applyBody.includes("set waiting = s.waiting + k.d, first_due = f.due_at, served_at = v.served_at") || !applyBody.includes("where s.exact = k.exact and s.person = k.person and s.first_due is null;")) {
+        detail.push(`${apply?.rel ?? "supabase/migrations"}: private.storage_file_trash_turns_apply must make or take every turn it touches in one pass, in order, before it reads them again, count each person's notes in and out, read their first note, and when it is due, as the pick numbers and backs it off (the turns' rank and the pick must agree: a run's people are chosen by one and ranked by the other), copy their record, and drop a turn whose person holds nothing`);
       }
       const servedSync = await latestDefinition({ read, walk }, "storage_file_trash_served_sync");
-      if (!servedSync?.securityDefiner || !(servedSync.body ?? "").replace(/\s+/g, " ").includes("set served_at = v.served_at from unnest(v_exact, v_person) as k (exact, person) left join public.storage_file_trash_served v on v.exact = k.exact and v.person = k.person")) {
-        detail.push(`${servedSync?.rel ?? "supabase/migrations"}: storage_file_trash_served_sync must copy each written record into its person's turn, with its own rights`);
+      if (!servedSync?.securityDefiner || !(servedSync.body ?? "").replace(/\s+/g, " ").includes("perform private.queue_turns_changed('removal', v_exact, v_person, null, null);")) {
+        detail.push(`${servedSync?.rel ?? "supabase/migrations"}: storage_file_trash_served_sync must note each written record's person for the transaction's commit, where their turn copies it, with its own rights`);
       }
+      detail.push(...(await turnsAtCommitProblems({ read, walk })));
       // document-cleanup: the queue read only through the pick, both kinds;
       // exact paths in bulk; a refused batch tried one path at a time, with a
       // stop when storage itself refuses.
@@ -665,8 +776,8 @@ export default [
       const docs = await latestDefinition({ read, walk }, "documents_queue_files");
       const docsBody = (docs?.body ?? "").replace(/\s+/g, " ");
       if (!docs?.securityDefiner) detail.push(`${docs?.alteredIn ?? docs?.rel ?? "supabase/migrations"}: documents_queue_files must run with its own rights (a business's delete cannot write storage_file_trash)`);
-      if (!/^\s*begin begin if old\.id is not null and coalesce\(private\.storage_holds\('documents', 'documents\/' \|\| old\.id::text \|\| '\/'\), true\) then insert into public\.storage_file_trash \(bucket, folder, starts_with, application_id, candidate_id\) values \('documents', 'documents\/' \|\| old\.id::text, '', old\.application_id, old\.recipient_id\); end if; exception when others then raise log [^;]*; end; return old; end;?\s*$/i.test(docsBody)) {
-        detail.push(`${docs?.rel ?? "supabase/migrations"}: documents_queue_files must queue documents/<id>/ of every deleted document where storage holds a file (or cannot say), in its own exception block, as written`);
+      if (!/^\s*begin begin if old\.id is not null and coalesce\(private\.storage_holds\('documents', 'documents\/' \|\| old\.id::text \|\| '\/'\), true\) then insert into public\.storage_file_trash \(bucket, folder, starts_with, application_id, candidate_id\) values \('documents', 'documents\/' \|\| old\.id::text, '', old\.application_id, old\.recipient_id\); end if; exception when deadlock_detected or serialization_failure or lock_not_available then raise; when others then raise log [^;]*; end; return old; end;?\s*$/i.test(docsBody)) {
+        detail.push(`${docs?.rel ?? "supabase/migrations"}: documents_queue_files must queue documents/<id>/ of every deleted document where storage holds a file (or cannot say), in its own exception block, as written, failing the delete on a deadlock, a serialization failure or a lock timeout (anything else logged)`);
       }
       return detail.length ? { ok: false, detail } : { ok: true };
     },

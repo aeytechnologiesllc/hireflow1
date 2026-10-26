@@ -58,7 +58,10 @@ export default [
       const insert = await latestDefinition(ctx, "document_requests_guard_insert");
       const ins = flat(insert?.body);
       if (!insert?.securityDefiner) detail.push(`${insert?.rel ?? "supabase/migrations"}: document_requests_guard_insert must run with its own rights`);
-      for (const line of ["NEW.candidate_id := applicant;", "NEW.employer_id := owner;", "NEW.status := 'pending';", "NEW.file_url := NULL;", "NEW.file_name := NULL;", "NEW.submitted_at := NULL;", "NEW.file_deleted_at := NULL;", "NEW.team_opened_at := NULL;"]) {
+      // …and its id and when it was asked for are the database's (the
+      // thirteenth security review, LOW 2: a business dated its own request
+      // seven days back, and the stray sweep looked at it at once).
+      for (const line of ["NEW.candidate_id := applicant;", "NEW.employer_id := owner;", "NEW.status := 'pending';", "NEW.file_url := NULL;", "NEW.file_name := NULL;", "NEW.submitted_at := NULL;", "NEW.file_deleted_at := NULL;", "NEW.team_opened_at := NULL;", "NEW.id := gen_random_uuid();", "NEW.created_at := now();"]) {
         if (!ins.includes(line)) detail.push(`${insert?.rel ?? "supabase/migrations"}: document_requests_guard_insert must set ${line.replace(/;$/, "")} on every new request`);
       }
       return { ok: detail.length === 0, detail };

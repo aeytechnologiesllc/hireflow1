@@ -19,8 +19,11 @@
 // business's flood holds up only its own papers (the twelfth Phase 5 review),
 // and the admins are told once a day when either backs up. A file an
 // applicant sent again (or took away) on a request still open is queued
-// there too and goes in the next run, that file alone (the thirteenth). Only
-// ever a file in the request's own folder, <applicant>/<request>/.
+// there too and goes in the next run, that file alone (the thirteenth), and so
+// is a photo an open request never linked, seven days after it was asked for,
+// by a look of its own that nothing else waits for (the thirteenth security
+// review: run inside the due pick, a look past the API's timeout stopped every
+// due ID). Only ever a file in the request's own folder, <applicant>/<request>/.
 //
 // It also empties the files queued for removal (storage_file_trash): those
 // "Delete their information" could not delete at the time (remove-applicant),
@@ -166,6 +169,22 @@ Deno.serve(async (req) => {
     await admin.from("document_request_events").insert({ request_id: request.id, user_id: null, action: "deleted" });
     counts.deleted += 1;
   }
+
+  // An ID photo an open request never linked (its link save and the upload
+  // dialog's removal both failed): seven days after the request was asked
+  // for, the database queues each file in its own folder in
+  // document_file_trash (document_requests_sweep_strays), and the read below
+  // takes it in the business's turn. Its own call (20261025660000, the
+  // thirteenth security review): inside the due pick, a sweep that passed
+  // the API's 8 seconds stopped every due ID from going, every run. It reads
+  // each request's folder by storage's index and stops after two seconds, a
+  // failure is told on its own, and nothing else waits for it.
+  const { data: strays, error: sweepError } = await admin.rpc("document_requests_sweep_strays", {
+    p_kinds: DELETED_KINDS,
+    p_sent_before: sentBefore,
+  });
+  if (sweepError) console.error("[document-cleanup] could not look for ID photos never linked:", sweepError.message);
+  else if (strays === null) console.error("[document-cleanup] could not look for ID photos never linked: storage could not be read (the same requests are looked at next run)");
 
   // Files whose request is gone (its job, application or business was
   // deleted): the database noted them (document_file_trash, 20261011195000);
@@ -457,6 +476,15 @@ Deno.serve(async (req) => {
       ? `document-cleanup's read of the ID-paper requests took longer than the database allows and was stopped (${String(error.message ?? error).slice(0, 160)}): no ID is deleted until it is read in time, and trying again every hour does not help while so many papers wait. The read takes only a run's worth of businesses (document_requests_due_pick, by document_requests_due_turns), so check that table and its triggers are there. To see who holds the papers, count document_requests' rows that still have a file, by employer_id.`
       : `document-cleanup could not read the ID-paper requests (${String(error.message ?? error).slice(0, 160)}): no ID is deleted until it can. It tries again every hour.`);
   }
+  // The look for unlinked ID photos, told as itself (the thirteenth security
+  // review, LOW 3: when it ran inside the due pick, its timeout was told as
+  // the due pick's and sent the admins to the due turns). The due papers and
+  // the queues went all the same.
+  if (sweepError) {
+    await tell("read-strays", "Unlinked ID photos are not being looked for", timedOut(sweepError)
+      ? `document-cleanup's look for ID photos an open request never linked (document_requests_sweep_strays) took longer than the database allows and was stopped (${String(sweepError.message).slice(0, 160)}): none is queued until it runs in time, and since its place (document_requests_swept) moves only when it finishes, each run looks at the same requests again. It reads each request's folder of the requested-documents bucket by storage's index on storage.objects (bucket_id, name COLLATE "C"), so check that index is there; to see what it reads, count the requested-documents bucket's objects in storage.objects and the ID requests with no link (document_requests with no file_url) by employer_id. The ID papers that are due are deleted all the same.`
+      : `document-cleanup could not look for ID photos an open request never linked (document_requests_sweep_strays) (${String(sweepError.message).slice(0, 160)}). The ID papers that are due are deleted all the same, and it tries again every hour.`);
+  }
   if (trashError) {
     await tell("read-trash", "Files of deleted requests are not being deleted", timedOut(trashError)
       ? `document-cleanup's read of the files of deleted requests took longer than the database allows and was stopped (${String(trashError.message).slice(0, 160)}): none is deleted until it is read in time, and trying again every hour does not help while the queue is this big. The read takes only a run's worth of businesses (document_file_trash_fair_pick, by document_file_trash_turns), so check that table and its triggers are there. To see who fills it, count document_file_trash's rows by employer_id.`
@@ -485,7 +513,8 @@ Deno.serve(async (req) => {
       ? `document-cleanup's read of the files queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash) took longer than the database allows and was stopped (${String(leftoverError.message).slice(0, 160)}): nothing in that queue is deleted until it is read in time, and trying again every hour does not help while the queue is this big. The read takes only a run's worth of people (storage_file_trash_fair_pick, by storage_file_trash_turns), so check that table and its triggers are there. To see who fills the queue, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each.`
       : `document-cleanup could not read the files queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash) (${String(leftoverError.message).slice(0, 160)}). It tries again every hour.`);
   }
-  const unread = [error, trashError, openError, leftoverError].filter(Boolean);
+  const unread = [error, sweepError, trashError, openError, leftoverError].filter(Boolean);
+  const straysQueued = typeof strays === "number" ? strays : 0;
   if (counts.failed > 0 || orphansFailed > 0) {
     const parts = [
       counts.failed > 0 ? `${counts.failed} ID file${counts.failed === 1 ? "" : "s"} past 24 hours` : "",
@@ -500,6 +529,6 @@ Deno.serve(async (req) => {
   if (leftoversWaiting !== null && (backedUp || waitedTooLong)) {
     await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes up to ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} folders and ${PATH_NOTES_PER_RUN.toLocaleString("en-US")} files an hour, people in turn: all of a person's files at once when they are no more than one withdrawal's worth (${TURN_FOLDERS} folders, ${TURN_PATHS} files), else one a turn, and up to that many in each later turn while they hold no more than two withdrawals' worth (${2 * TURN_FOLDERS} folders, ${2 * TURN_PATHS} files). So a real withdrawal goes in one run, after about an hour for every ${Math.floor((FOLDER_NOTES_PER_RUN - TURN_FOLDERS + 1) / TURN_FOLDERS)} people with files queued before it; a Delete Account with two applications goes in three turns, and a larger removal gives one file a turn until it is down to that, each turn behind everyone who queued in the meantime. To see who fills it, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each.`);
   }
-  if (unread.length > 0) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting }, 500);
-  return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting });
+  if (unread.length > 0) return json({ error: "read_failed", ...counts, strays: straysQueued, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting }, 500);
+  return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, strays: straysQueued, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting });
 });

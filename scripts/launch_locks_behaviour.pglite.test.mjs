@@ -144,7 +144,11 @@
  *      was asked for, each request looked at once, 5,000 a run, only the ID
  *      kinds, never while storage cannot be read (the thirteenth Phase 5
  *      review's finding 2, asked of the twelfth security round;
- *      20261025630000).
+ *      20261025630000). The look is document-cleanup's own call, never the
+ *      due pick's, and at ten times the bucket it takes less than twice as
+ *      long (the thirteenth security review, finding 1: a LIKE of the row's
+ *      own columns read the whole bucket for every request, and past the
+ *      API's timeout no due ID was deleted; 20261025660000).
  *  22. Contact counts as it was made, whatever the business deletes since
  *      (the fourteenth Phase 5 review, finding 1, in the shape of its probe
  *      p2; 20261025670000): messages deleted through the API, requests
@@ -155,6 +159,15 @@
  *      nobody else makes a business look in touch; no API role touches the
  *      record; a person's own Delete Account takes their rows; the migration
  *      fills it from the rows there.
+ *  23. The queues' turns are taken at commit, in one order: a transaction
+ *      that queues many people's files touches no turn until it commits, a
+ *      part that rolls back changes none, and only the database's own
+ *      triggers may note or apply a change; a deadlock, a serialization
+ *      failure or a lock timeout while a deleted application's (or
+ *      document's) files are queued fails the delete, which goes, all of it
+ *      queued, when tried again; any other error is logged and the delete
+ *      goes (the thirteenth security review, finding 2 and LOW 1;
+ *      20261025650000).
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -241,6 +254,12 @@ const STAND_IN = `
     owner uuid, owner_id text, metadata jsonb, user_metadata jsonb, version text,
     path_tokens text[] generated always as (string_to_array(name, '/')) stored,
     created_at timestamptz default now(), updated_at timestamptz default now(), last_accessed_at timestamptz default now());
+  -- Storage's own indexes on storage.objects, as live has them (pg_indexes,
+  -- 2026-10-26; the unique ones need columns this stand-in has not):
+  -- document_requests_sweep_strays reads a request's folder by the first.
+  create index idx_objects_bucket_id_name on storage.objects (bucket_id, name collate "C");
+  create index idx_objects_bucket_id_name_lower on storage.objects (bucket_id, lower(name) collate "C");
+  create index name_prefix_search on storage.objects (name text_pattern_ops);
   alter table storage.objects enable row level security;
   alter table storage.buckets enable row level security;
   create function storage.foldername(name text) returns text[] language sql immutable as $$
@@ -2223,8 +2242,11 @@ console.log("\n19. Who may move an ID paper's clock, and which file a request ma
 
   // (d) A new request starts empty and unopened, for its application's
   // applicant, filed under the job's owner (document_requests_guard_insert).
-  const forged = await as(user(BIZ), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, status, file_url, file_name, answer_text, submitted_at, team_opened_at, file_deleted_at, reviewed_at, reviewed_by, rejection_reason, candidate_viewed_at)
-    values ($1, $2, $3, 'government_id', 'approved', $4, 'ID.jpg', '123', now() - interval '8 days', now() - interval '25 hours', now(), now(), $5, 'No', now()) returning id`, [appBiz, STRANGER, OTHER, third, BIZ]);
+  // Its id and when it was asked for too (the thirteenth security review,
+  // LOW 2: dated seven days back, the stray sweep looked at it at once).
+  const CHOSEN_ID = P13(99);
+  const forged = await as(user(BIZ), `insert into public.document_requests (id, created_at, application_id, employer_id, candidate_id, document_type, status, file_url, file_name, answer_text, submitted_at, team_opened_at, file_deleted_at, reviewed_at, reviewed_by, rejection_reason, candidate_viewed_at)
+    values ($6, now() - interval '7 days' - interval '1 minute', $1, $2, $3, 'government_id', 'approved', $4, 'ID.jpg', '123', now() - interval '8 days', now() - interval '25 hours', now(), now(), $5, 'No', now()) returning id`, [appBiz, STRANGER, OTHER, third, BIZ, CHOSEN_ID]);
   const born = forged.ok ? await paperRow(forged.rows[0].id) : null;
   check("(set-up) the hiring side's request with every field filled in goes in", !!born, show(forged));
   for (const [what, ok] of [
@@ -2234,6 +2256,8 @@ console.log("\n19. Who may move an ID paper's clock, and which file a request ma
     ["waiting for the applicant", born?.status === "pending"],
     ["for the application's own applicant, never another (it named another applicant of the business's)", born?.candidate_id === A],
     ["filed under the job's owner (it named another business)", born?.employer_id === BIZ],
+    ["asked for now, not when the business said (it dated it seven days back)", born && Date.now() - new Date(born.created_at).getTime() < 3_600_000],
+    ["with an id of the database's, not the one the business chose", born && born.id !== CHOSEN_ID],
   ]) check(`a new request starts ${what}`, ok, show(born));
   if (born) await as(SERVICE, `delete from public.document_requests where id = $1`, [born.id]);
 
@@ -2329,12 +2353,23 @@ console.log("\n21. An ID photo an open request never linked goes seven days afte
   // The thirteenth Phase 5 review (finding 2) left one: an applicant's ID
   // photo went up, saving its link failed and so did the upload dialog's own
   // removal, and the request stayed open: nothing on a timer found the file,
-  // since the due pick takes a request by its link. Before it picks, the due
-  // pick now looks at ID requests with no link asked for seven days ago, each
-  // once, at most 5,000 a run, and queues the files in each one's own folder
-  // in document_file_trash (20261025630000): document-cleanup deletes that
-  // file alone in the business's turn.
+  // since the due pick takes a request by its link. Each run now looks at ID
+  // requests with no link asked for seven days ago, each once, at most 5,000
+  // a run, and queues the files in each one's own folder in
+  // document_file_trash (20261025630000): document-cleanup deletes that file
+  // alone in the business's turn. Since 20261025660000 the look
+  // (document_requests_sweep_strays) is document-cleanup's own call, not part
+  // of the due pick (the thirteenth security review: inside it, a look past
+  // the API's timeout stopped every due ID), and it reads each request's
+  // folder by storage's index, so it costs a run's worth however big the
+  // bucket grows.
   const R21 = (n) => `9d210000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  /** One run's look, as document-cleanup makes it (the 7-day cutoff unless another is given). */
+  const sweep = async (cutoff = "now() - interval '7 days'") => {
+    const r = await as(SERVICE, `select public.document_requests_sweep_strays(${ID_KINDS}, ${cutoff}) as queued`);
+    if (!r.ok) throw new Error(`the sweep: ${r.error}`);
+    return r.rows[0].queued;
+  };
   const SWEPT = (await one(`select to_regclass('public.document_requests_swept') is not null as there`)).there;
   if (SWEPT) await db.query(`update public.document_requests_swept set created_at = '-infinity', id = '00000000-0000-0000-0000-000000000000'`);
   await db.query(`delete from public.document_file_trash`);
@@ -2362,6 +2397,8 @@ console.log("\n21. An ID photo an open request never linked goes seven days afte
   if (!linked.ok) throw new Error(`setup: the link: ${linked.error}`);
   const notesFor = async (request) => (await db.query(`select file_url, employer_id from public.document_file_trash where request_id = $1`, [request])).rows;
   const picked = await duePapers();
+  check("the due pick itself looks for no unlinked photo: the look is its own call, so a slow or failed look never stops a due ID (the thirteenth security review)", (await notesFor(strayOld)).length === 0, show(await notesFor(strayOld)));
+  await sweep();
   check("an ID request with no link, asked for 8 days ago, whose folder holds a photo: the photo is queued for deletion, naming the business that asked", SWEPT && JSON.stringify(await notesFor(strayOld)) === JSON.stringify([{ file_url: strayFile, employer_id: BIZ }]), show(await notesFor(strayOld)));
   check("…an ID request with no link whose folder holds nothing: nothing queued", (await notesFor(emptyOld)).length === 0);
   check("…one asked for 6 days ago: not yet", (await notesFor(strayYoung)).length === 0);
@@ -2370,10 +2407,10 @@ console.log("\n21. An ID photo an open request never linked goes seven days afte
   const trashRun = await as(SERVICE, `select request_id, file_url from public.document_file_trash_fair_pick()`);
   check("…and document_file_trash_fair_pick takes the photo in the business's turn", trashRun.ok && trashRun.rows.some((n) => n.request_id === strayOld && n.file_url === strayFile), show(trashRun.rows?.length));
   await db.query(`delete from public.document_file_trash where request_id = $1`, [strayOld]);
-  await duePapers();
+  await sweep();
   check("each request is looked at once: the next run does not queue it again", (await notesFor(strayOld)).length === 0);
-  const dayOn = await as(SERVICE, `select id from public.document_requests_due_pick(${ID_KINDS}, now() - interval '24 hours', now() - interval '5 days')`);
-  check("…and the one asked for 6 days ago is queued once its seven days are up (here: the cutoff two days on)", dayOn.ok && JSON.stringify((await notesFor(strayYoung)).map((n) => n.file_url)) === JSON.stringify([youngFile]), show(await notesFor(strayYoung)));
+  const dayOn = await sweep("now() - interval '5 days'");
+  check("…and the one asked for 6 days ago is queued once its seven days are up (here: the cutoff two days on)", dayOn === 1 && JSON.stringify((await notesFor(strayYoung)).map((n) => n.file_url)) === JSON.stringify([youngFile]), show(await notesFor(strayYoung)));
   // Storage cannot be read: nothing is queued and the mark stays, so the
   // request is looked at again; the due papers are picked all the same.
   await db.query(`delete from public.document_file_trash`);
@@ -2383,14 +2420,16 @@ console.log("\n21. An ID photo an open request never linked goes seven days afte
   if (SWEPT) await db.query(`update public.document_requests_swept set created_at = '-infinity', id = '00000000-0000-0000-0000-000000000000'`);
   await db.exec(`alter table storage.objects rename to objects_away`);
   let blind;
+  let blindLook;
   try {
     blind = await as(SERVICE, `select id from public.document_requests_due_pick(${ID_KINDS}, now() - interval '24 hours', now() - interval '7 days')`);
+    blindLook = await as(SERVICE, `select public.document_requests_sweep_strays(${ID_KINDS}, now() - interval '7 days') as queued`);
   } finally {
     await db.exec(`alter table storage.objects_away rename to objects`);
   }
   const markAfterBlind = SWEPT ? await one(`select created_at = '-infinity' as unmoved from public.document_requests_swept`) : null;
-  check("when storage cannot be read, the due pick still answers, nothing is queued, and the mark does not move", blind.ok && (await notesFor(later)).length === 0 && markAfterBlind?.unmoved === true, show({ blind: blind.error, mark: markAfterBlind }));
-  await duePapers();
+  check("when storage cannot be read, the due pick still answers, the look answers that it could not (nothing queued), and the mark does not move", blind.ok && blindLook.ok && blindLook.rows[0].queued === 0 && (await notesFor(later)).length === 0 && markAfterBlind?.unmoved === true, show({ blind: blind.error, look: blindLook.rows ?? blindLook.error, mark: markAfterBlind }));
+  await sweep();
   check("…so the next run queues it", JSON.stringify((await notesFor(later)).map((n) => n.file_url)) === JSON.stringify([laterFile]), show(await notesFor(later)));
   // 6,000 ID requests with no link and nothing in their folders, asked for
   // before a real one whose photo is there: 5,000 a run, so it is queued in
@@ -2405,10 +2444,106 @@ console.log("\n21. An ID photo an open request never linked goes seven days afte
   if (SWEPT) await db.query(`update public.document_requests_swept set created_at = '-infinity', id = '00000000-0000-0000-0000-000000000000'`);
   const runsTill = [];
   for (let run = 1; run <= 3 && (await notesFor(real)).length === 0; run += 1) {
-    await duePapers();
+    await sweep();
     runsTill.push(run);
   }
   check("6,000 such requests with nothing in their folders asked for before a real one: its photo is queued in the second run (5,000 looked at a run)", (await notesFor(real)).length === 1 && runsTill.at(-1) === 2, show(runsTill));
+
+  // What a look costs as the bucket grows ten times over (the thirteenth
+  // security review, finding 1: with the folder read as a LIKE of the row's
+  // own columns, every request read the whole bucket, 300 of them took 14 s
+  // against 200,000 objects on a local PostgreSQL, and past the API's 8
+  // seconds no due ID was deleted for anyone). 200 ID requests with no link,
+  // three of whose folders hold a photo, against 10,000 objects in other
+  // folders of requested-documents, then 100,000: a look takes less than
+  // twice as long, give or take 30 ms, and finds the same three. Each look
+  // the fastest of five, in a transaction rolled back, the mark reset.
+  await as(SERVICE, `delete from public.document_requests where application_id = $1`, [strayApp]);
+  await db.query(`delete from public.document_file_trash`);
+  const timed = await as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, created_at)
+    select $1, $2, $3, 'government_id', now() - interval '30 days' + g * interval '1 second' from generate_series(1, 200) g returning id`, [strayApp, BIZ, STRAY]);
+  if (!timed.ok) throw new Error(`setup: the timed requests: ${timed.error}`);
+  const timedFiles = timed.rows.filter((_, i) => i % 70 === 5).map((r) => `${STRAY}/${r.id}/1729000000000.jpg`);
+  for (const f of timedFiles) await putFile("requested-documents", f);
+  const lookMs = async () => {
+    const ms = [];
+    let found = null;
+    for (let i = 0; i < 5; i += 1) {
+      await db.query("begin");
+      try {
+        if (SWEPT) await db.query(`update public.document_requests_swept set created_at = '-infinity', id = '00000000-0000-0000-0000-000000000000'`);
+        await db.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true), set_config('role', 'service_role', true)`);
+        const t = performance.now();
+        found = (await db.query(`select public.document_requests_sweep_strays(${ID_KINDS}, now() - interval '7 days') as queued`)).rows[0].queued;
+        ms.push(performance.now() - t);
+      } finally {
+        await db.query("rollback");
+      }
+    }
+    return { ms: Math.min(...ms), found };
+  };
+  const fillBucket = (n) => db.query(`insert into storage.objects (bucket_id, name) select 'requested-documents', gen_random_uuid()::text || '/' || gen_random_uuid()::text || '/1.jpg' from generate_series(1, $1::int)`, [n]);
+  await fillBucket(10000);
+  const smallLook = await lookMs();
+  await fillBucket(90000);
+  const bigLook = await lookMs();
+  check(`a look at 200 requests against ten times the bucket (10,000 objects, then 100,000) takes less than twice as long (${Math.round(smallLook.ms)} ms, then ${Math.round(bigLook.ms)} ms), and finds the same ${timedFiles.length} photos`,
+    bigLook.ms < 2 * smallLook.ms + 30 && smallLook.found === timedFiles.length && bigLook.found === timedFiles.length, show({ smallLook, bigLook }));
+  await db.query(`delete from storage.objects where bucket_id = 'requested-documents' and name not like $1`, [`${STRAY}/%`]);
+
+  // A run queues about 1,000 files at most, a hundred requests' worth past
+  // it, and the rest go the next run: 150 requests with ten photos each in
+  // their folders, 1,000 then 500 (one account's uploads cannot make a run
+  // queue hundreds of thousands, past the API's timeout, and the mark moves
+  // only over the requests a run finished).
+  await as(SERVICE, `delete from public.document_requests where application_id = $1`, [strayApp]);
+  await db.query(`delete from public.document_file_trash`);
+  await db.query(`delete from storage.objects where bucket_id = 'requested-documents' and name like $1`, [`${STRAY}/%`]);
+  const crowded = await as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, created_at)
+    select $1, $2, $3, 'government_id', now() - interval '30 days' + g * interval '1 second' from generate_series(1, 150) g returning id`, [strayApp, BIZ, STRAY]);
+  if (!crowded.ok) throw new Error(`setup: the crowded requests: ${crowded.error}`);
+  await db.query(`insert into storage.objects (bucket_id, name) select 'requested-documents', $1::text || '/' || r::text || '/' || k || '.jpg' from unnest($2::uuid[]) r, generate_series(1, 10) k`, [STRAY, crowded.rows.map((r) => r.id)]);
+  if (SWEPT) await db.query(`update public.document_requests_swept set created_at = '-infinity', id = '00000000-0000-0000-0000-000000000000'`);
+  const crowdedRuns = [await sweep(), await sweep(), await sweep()];
+  check("a run queues about 1,000 files at most, a hundred requests' worth past it, the rest the next run (150 requests with ten photos each: 1,000, then 500)", JSON.stringify(crowdedRuns) === JSON.stringify([1000, 500, 0]), show(crowdedRuns));
+
+  // A deadlock (or a serialization failure, or a lock timeout) while the look
+  // queues fails the look, with nothing queued and the mark where it was,
+  // never a quiet "storage could not be read"; anything else answers that,
+  // as before. A stand-in trigger on the queue raises it, as the review's
+  // bench made one.
+  await db.query(`delete from public.document_file_trash`);
+  await db.exec(`
+    create function public.zz_trash_fails() returns trigger language plpgsql as $f$
+    begin
+      if coalesce(current_setting('hf.trash_fails', true), '') <> '' then
+        raise exception 'stand-in: the queue''s insert failed' using errcode = current_setting('hf.trash_fails', true);
+      end if;
+      return new;
+    end $f$;
+    create trigger zz_trash_fails before insert on public.document_file_trash for each row execute function public.zz_trash_fails();`);
+  const lookFailing = async (code) => {
+    try {
+      const rows = await db.transaction(async (tx) => {
+        await tx.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true), set_config('hf.trash_fails', $1, true)`, [code]);
+        return (await tx.query(`select public.document_requests_sweep_strays(${ID_KINDS}, now() - interval '7 days') as queued`)).rows;
+      });
+      return { ok: true, queued: rows[0].queued };
+    } catch (e) {
+      return { ok: false, code: e.code };
+    }
+  };
+  const lookOutcomes = [];
+  for (const code of ["40P01", "40001", "55P03", "XX000"]) {
+    if (SWEPT) await db.query(`update public.document_requests_swept set created_at = '-infinity', id = '00000000-0000-0000-0000-000000000000'`);
+    const outcome = await lookFailing(code);
+    const mark = SWEPT ? await one(`select created_at = '-infinity' as unmoved from public.document_requests_swept`) : null;
+    lookOutcomes.push({ want: code, ...outcome, unmoved: mark?.unmoved, queued: (await one(`select count(*)::int as n from public.document_file_trash`)).n });
+  }
+  await db.exec(`drop trigger zz_trash_fails on public.document_file_trash; drop function public.zz_trash_fails();`);
+  check("a deadlock, a serialization failure or a lock timeout while the look queues fails it, nothing queued and the mark where it was; any other error answers that storage could not be read, as before",
+    lookOutcomes.slice(0, 3).every((o) => !o.ok && o.code === o.want && o.unmoved && o.queued === 0) && lookOutcomes[3].ok && lookOutcomes[3].queued === 0 && lookOutcomes[3].unmoved,
+    show(lookOutcomes));
   const sweepTries = [
     await as(user(STRAY), `select public.document_requests_sweep_strays(${ID_KINDS}, now())`),
     await as(user(STRAY), `select * from public.document_requests_swept`),
@@ -2609,6 +2744,163 @@ console.log("\n22. Contact counts as it was made, whatever the business deletes 
     show({ fill, filled }),
   );
   check("…and contact deleted before it ran is not made up ((a)'s deleted messages, (b)'s cancelled requests)", (await kinds(A.b, A.people[0].u)) === "applied" && filled.b === "applied", show({ a: await kinds(A.b, A.people[0].u), b: filled.b }));
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n23. The queues' turns are taken at commit, in one order, and a deadlock never leaves a removal's files out\n");
+{
+  // The thirteenth security review (finding 2 and LOW 1), in the shape of its
+  // proof (p7s13/pg/dl_*.sql): a deleted job's two applications, deleted one
+  // statement after another while a run's pick wrote its record, deadlocked
+  // on the turns the queue's statement triggers locked statement by
+  // statement, and the loser was the queueing insert inside
+  // applications_queue_voice_recordings, whose EXCEPTION WHEN OTHERS caught
+  // it: the delete went, nothing was queued, and the recording, video and
+  // work samples stayed in storage for good. Since 20261025650000 the
+  // statement triggers only note what changed, and the turns are brought up
+  // to date once, at commit, all in one order; and the queueing triggers
+  // re-raise a deadlock, a serialization failure or a lock timeout, so the
+  // delete fails with nothing lost and is tried again. (PGlite has one
+  // connection: the deadlock itself is the review's bench, on PostgreSQL 16;
+  // here, what makes it impossible, and what a deadlock does now.)
+  const CHANGES = (await one(`select to_regclass('private.queue_turn_changes') is not null and to_regclass('private.queue_turn_commits') is not null as there`)).there;
+  const pending = async (tx = db) => (CHANGES ? (await tx.query(`select (select count(*)::int from private.queue_turn_changes) + (select count(*)::int from private.queue_turn_commits) as n`)).rows[0].n : null);
+  /** Turns of the removal queue that differ from the queue counted afresh. */
+  const removalDrift = async () => (await one(`
+    with s as (
+      select (t.path is not null) as exact, coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) as person, count(*)::int as waiting,
+             (array_agg(case when t.attempts > 0 then coalesce(t.last_tried_at, t.queued_at) + least(t.attempts, 24) * interval '1 hour' + interval '30 minutes' else t.queued_at end order by t.attempts, t.queued_at, t.id))[1] as first_due
+        from public.storage_file_trash t group by 1, 2
+    ), sv as (select s.*, v.served_at from s left join public.storage_file_trash_served v on v.exact = s.exact and v.person = s.person)
+    select (select count(*)::int from ((select * from sv except select exact, person, waiting, first_due, served_at from public.storage_file_trash_turns)
+                                       union all (select exact, person, waiting, first_due, served_at from public.storage_file_trash_turns except select * from sv)) x) as n`)).n;
+  await db.exec(`delete from public.storage_file_trash; delete from public.storage_file_trash_served;`);
+  const [J1, J2, J3] = [id("f", 1), id("f", 2), id("f", 3)];
+  const queueThree = (tx, person, prefix) => tx.query(`insert into public.storage_file_trash (bucket, folder, starts_with, candidate_id)
+    select b, $1::text, $2::text, $1::uuid from unnest(array['videos', 'portfolios', 'voice-interview-recordings']) b`, [person, prefix]);
+  // (a) A deleted job's shape: three applicants' folders queued one statement
+  // after another, the people in no order, and a run's record written, in
+  // one transaction.
+  let mid = null;
+  await db.transaction(async (tx) => {
+    for (const p of [J3, J1, J2]) await queueThree(tx, p, "j-");
+    await tx.query(`insert into public.storage_file_trash_served (exact, person, served_at) values (false, $1, now() - interval '1 hour')`, [J2]);
+    mid = { turns: (await tx.query(`select count(*)::int as n from public.storage_file_trash_turns where person = any ($1::text[])`, [[J1, J2, J3]])).rows[0].n, noted: await pending(tx) };
+  });
+  check("a transaction that queues three applicants' files one statement after another, the people in no order, touches no turn while it works (so it holds none out of order)", mid.turns === 0 && mid.noted > 0, show(mid));
+  check("…and when it commits, every turn it touched is the queue as it stands, the record copied, and its notes are gone", (await removalDrift()) === 0 && (await one(`select count(*)::int as n from public.storage_file_trash_turns where person = any ($1::text[])`, [[J1, J2, J3]])).n === 3 && (await pending()) === 0, show({ drift: await removalDrift(), pending: await pending() }));
+  // (b) A part of a transaction that rolls back, and a transaction that does.
+  await db.transaction(async (tx) => {
+    await queueThree(tx, J1, "k-");
+    await tx.query(`savepoint part`);
+    await queueThree(tx, J1, "gone-");
+    await tx.query(`rollback to savepoint part`);
+  });
+  const j1 = await one(`select waiting from public.storage_file_trash_turns where exact = false and person = $1`, [J1]);
+  check("a part of a transaction that rolls back changes no turn: only the notes that stayed are counted", (await removalDrift()) === 0 && j1?.waiting === 6 && (await pending()) === 0, show({ j1, drift: await removalDrift() }));
+  await db.transaction(async (tx) => {
+    await queueThree(tx, J2, "never-");
+    await tx.rollback();
+  }).catch(() => {});
+  check("…and a transaction that rolls back leaves no turn changed and no note of a change", (await removalDrift()) === 0 && (await pending()) === 0);
+  // (c) The papers' turns the same way: a request with an ID on file and a
+  // deleted request's note, in one transaction.
+  const B22 = id("f", 11);
+  await makeUser(id("f", 12), "candidate");
+  const app22 = await apply(id("f", 12), JOB);
+  await db.transaction(async (tx) => {
+    await tx.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true)`);
+    await tx.query(`insert into public.document_requests (application_id, employer_id, candidate_id, document_type, status, file_url, submitted_at) values ($1, $2, $3::uuid, 'government_id', 'submitted', $3::text || '/x/1.jpg', now() - interval '8 days')`, [app22, B22, id("f", 12)]);
+    await tx.query(`insert into public.document_file_trash (candidate_id, request_id, employer_id) values ($1, gen_random_uuid(), $2)`, [id("f", 12), B22]);
+    mid = { due: (await tx.query(`select count(*)::int as n from public.document_requests_due_turns where person = $1`, [B22])).rows[0].n, deleted: (await tx.query(`select count(*)::int as n from public.document_file_trash_turns where person = $1`, [B22])).rows[0].n };
+  });
+  const papersAfter = { due: (await one(`select on_file from public.document_requests_due_turns where person = $1`, [B22]))?.on_file, deleted: (await one(`select waiting from public.document_file_trash_turns where person = $1`, [B22]))?.waiting };
+  check("the papers' turns too: untouched while the transaction works, up to date when it commits", mid.due === 0 && mid.deleted === 0 && papersAfter.due === 1 && papersAfter.deleted === 1 && (await pending()) === 0, show({ mid, papersAfter }));
+  await as(SERVICE, `delete from public.document_requests where application_id = $1`, [app22]);
+  await db.query(`delete from public.document_file_trash where employer_id = $1`, [B22]);
+  // (d) The notes of changes are the database's own.
+  const noted = CHANGES ? await Promise.all([
+    as(user(ANA), `select * from private.queue_turn_changes`),
+    as(SERVICE, `select * from private.queue_turn_changes`),
+    as(SERVICE, `insert into private.queue_turn_commits (txid) values (1)`),
+    as(user(ANA), `select private.queue_turns_changed('removal', array[false], array['someone'], array[-100], null)`),
+    as(SERVICE, `select private.storage_file_trash_turns_apply(array[false], array['someone'], array[-100])`),
+    as(SERVICE, `select private.document_requests_due_turns_apply(array['someone'], array[-100])`),
+    as(ANON, `select private.document_file_trash_turns_apply(array['someone'], array[-100], array[0])`),
+  ]) : [];
+  check("no browser, nor the server, may read or write the notes of changes or bring a turn up to date by hand", CHANGES && noted.every((r) => !r.ok), show(noted.map((r) => r.ok || r.error)));
+
+  // (e) A deadlock while the queue's insert runs. A stand-in trigger on the
+  // queue fails that insert with the error a deadlock (or a serialization
+  // failure, or a lock timeout) raises, as the review's bench made it.
+  await db.exec(`
+    create function public.zz_queue_fails() returns trigger language plpgsql as $f$
+    begin
+      if coalesce(current_setting('hf.queue_fails', true), '') <> ''
+         and (case coalesce(current_setting('hf.queue_fails_on', true), '') when 'paths' then new.path is not null when 'folders' then new.path is null else true end) then
+        raise exception 'stand-in: the queue''s insert failed' using errcode = current_setting('hf.queue_fails', true);
+      end if;
+      return new;
+    end $f$;
+    create trigger zz_queue_fails before insert on public.storage_file_trash for each row execute function public.zz_queue_fails();`);
+  const deleteFailing = async (sql, param, code, on = "") => {
+    try {
+      await db.transaction(async (tx) => {
+        await tx.query(`select set_config('request.jwt.claims', '{"role":"service_role"}', true), set_config('hf.queue_fails', $1, true), set_config('hf.queue_fails_on', $2, true)`, [code, on]);
+        await tx.query(sql, [param]);
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, code: e.code, error: e.message };
+    }
+  };
+  const results = [];
+  // The folders' insert alone fails in the first three (the form's file is
+  // queued as before, so only the folders' block can fail the delete), the
+  // form's file's alone in the fourth.
+  for (const [n, code, on] of [[21, "40P01", "folders"], [22, "40001", "folders"], [23, "55P03", "folders"], [24, "40P01", "paths"]]) {
+    const who = id("f", n);
+    await makeUser(who, "candidate");
+    const app = await apply(who, JOB);
+    await putStepFiles(app, who);
+    const resume = `${who}/resume-${n}.pdf`;
+    await putFile("resumes", resume);
+    await as(SERVICE, `update public.applications set resume_url = $2 where id = $1`, [app, resume]);
+    const first = await deleteFailing(`delete from public.applications where id = $1`, app, code, on);
+    const stillThere = (await one(`select count(*)::int as n from public.applications where id = $1`, [app])).n === 1;
+    const queuedThen = (await queued(app)).length + (await queuedPaths(app)).length;
+    const again = await deleteFailing(`delete from public.applications where id = $1`, app, "", "");
+    results.push({ code, on, first, stillThere, queuedThen, again: again.ok, folders: queuesAll(await queued(app), app, who), paths: await queuedPaths(app) });
+  }
+  check("a deadlock, a serialization failure or a lock timeout in the queueing of a deleted application's folders fails the delete: the application stays, nothing is half-queued (a deadlock used to be caught, and the delete went with nothing queued)",
+    results.slice(0, 3).every((r) => !r.first.ok && r.first.code === r.code && r.stillThere && r.queuedThen === 0), show(results.slice(0, 3).map((r) => ({ code: r.code, first: r.first, stillThere: r.stillThere, queuedThen: r.queuedThen }))));
+  check("…and so does one in the queueing of the files sent with its form",
+    !results[3].first.ok && results[3].first.code === "40P01" && results[3].stillThere && results[3].queuedThen === 0, show(results[3]));
+  check("…and the delete tried again goes, with its three folders and its form's file queued",
+    results.every((r) => r.again && r.folders && r.paths.length === 1), show(results.map((r) => ({ again: r.again, folders: r.folders, paths: r.paths }))));
+  // Anything else is logged and the delete still goes, as before (a removal
+  // is never refused for its files' note).
+  const OTHER22 = id("f", 25);
+  await makeUser(OTHER22, "candidate");
+  const otherApp = await apply(OTHER22, JOB);
+  await putStepFiles(otherApp, OTHER22);
+  const otherError = await deleteFailing(`delete from public.applications where id = $1`, otherApp, "XX000", "");
+  check("…any other error is logged and the delete still goes (a removal is never refused for its files' note)", otherError.ok && (await one(`select count(*)::int as n from public.applications where id = $1`, [otherApp])).n === 0, show(otherError));
+  // A deleted document's kept copies, the same.
+  const DOC22 = id("f", 31);
+  const HOLDER22 = id("f", 32);
+  await makeUser(HOLDER22, "candidate");
+  const holderApp = await apply(HOLDER22, JOB);
+  await db.query(`insert into public.documents (id, application_id, name, file_url, sender_id, recipient_id, status) values ($1, $2, 'Offer', 'data:text/plain;base64,eA==', $3, $4, 'pending')`, [DOC22, holderApp, BIZ, HOLDER22]);
+  await putFile("documents", `documents/${DOC22}/original-v1.pdf`);
+  const docFirst = await deleteFailing(`delete from public.documents where id = $1`, DOC22, "40P01", "");
+  const docStays = (await one(`select count(*)::int as n from public.documents where id = $1`, [DOC22])).n === 1;
+  const docAgain = await deleteFailing(`delete from public.documents where id = $1`, DOC22, "", "");
+  const docRows = (await db.query(`select folder from public.storage_file_trash where bucket = 'documents' and folder = $1`, [`documents/${DOC22}`])).rows;
+  check("a deadlock in the queueing of a deleted document's kept copies fails the delete too, and the delete tried again queues documents/<id>/", !docFirst.ok && docFirst.code === "40P01" && docStays && docAgain.ok && docRows.length === 1, show({ docFirst, docStays, docAgain, docRows }));
+  await db.exec(`drop trigger zz_queue_fails on public.storage_file_trash; drop function public.zz_queue_fails();`);
+  check("…and through all of it the removal queue's turns are the queue as it stands", (await removalDrift()) === 0 && (await pending()) === 0, show(await removalDrift()));
+  await db.exec(`delete from public.storage_file_trash; delete from public.storage_file_trash_served;`);
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
