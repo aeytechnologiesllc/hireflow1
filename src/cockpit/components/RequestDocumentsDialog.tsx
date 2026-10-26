@@ -23,7 +23,10 @@ import { requestLocks, useBusinessStanding } from "@/hooks/useBusinessStanding";
  */
 
 const INPUT = "ck-input w-full px-3 py-2 !text-[16px] md:!text-[14px]";
-const STAGE_WORDS: Record<string, string> = { hired: "Hired", offered: "Offer out", interview: "Interviewed", reviewing: "In review" };
+// The stage as the applicant list names it: "Interview", not "Interviewed",
+// which it said right after a move to Interview, before any was booked (the
+// twentieth product review).
+const STAGE_WORDS: Record<string, string> = { hired: "Hired", offered: "Offer out", interview: "Interview", reviewing: "In review" };
 /** Documents are usually asked for once someone is offered or hired; earlier stages can be searched. */
 const REQUEST_STAGES = ["offered", "hired", "interview", "reviewing"] as const;
 

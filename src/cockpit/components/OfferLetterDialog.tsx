@@ -57,8 +57,9 @@ import {
  */
 
 // "Hired": a new letter can go to someone already hired, after one expired
-// or was declined (the eleventh product review).
-const STAGE_WORDS: Record<string, string> = { interview: "Interviewed", offered: "Offer already out", reviewing: "In review", hired: "Hired" };
+// or was declined (the eleventh product review). "Interview" as the applicant
+// list says it, not "Interviewed" before any was held (the twentieth).
+const STAGE_WORDS: Record<string, string> = { interview: "Interview", offered: "Offer already out", reviewing: "In review", hired: "Hired" };
 
 /** What stays the same for everyone hired into a job, kept on this device per job as a convenience only. */
 interface Remembered {
