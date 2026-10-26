@@ -30,9 +30,11 @@
  * the 66 pack items, against the ninth, tenth and eleventh rounds, in the
  * twelfth; 194,917 from the tree at each of the last three rounds and this
  * one, and 212 pack and question-bank items, against the tenth, eleventh
- * and twelfth rounds, in the thirteenth) to see what the new rules drop that
- * the old ones kept; the seventh to thirteenth reviews' fixes drop none of
- * them.
+ * and twelfth rounds, in the thirteenth; 195,234 from the trees at the last
+ * three rounds and this one, and the same 212 items, against the eleventh,
+ * twelfth and thirteenth rounds, in the fourteenth) to see what the new
+ * rules drop that the old ones kept; the seventh to fourteenth reviews'
+ * fixes drop none of them.
  *
  * Run with: node scripts/age_wording.test.mjs
  */
@@ -832,6 +834,128 @@ for (const [line, drops, why] of [
   ["Say: Thanks for calling Bright Clinic, I'm Ana, a recruiter. For security, may I have your date of birth?", false, "a call the listener made is their own (\"Thank you for calling, this is Ana from HR\"; the twelfth review), whoever answers it"],
   ["18-25 year old players, bilingual preferred.", false, "a customer named right after the age, with what they prefer after a comma, is theirs (the twelfth review), a range of ages too (\"For 65-70 year old patients, a phone call is preferred\"); players are the owner's own customers, and only gamers are a game support team's hires (\"18-22 year old gamers, bilingual preferred\" goes)"],
 ]) check(`(13th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, A.asksAgeOrStatus(line) === drops);
+
+// The fourteenth Phase 6 review: the thirteenth round's HR desk read a job only right after "returning your call about the …",
+// so an HR hold, or a callback "regarding" a job or naming it in the next sentence, was the desk's own caller (a regression
+// against both earlier rounds), and a job's title with an "&" or three words after a benefit word read as the benefit. A quote
+// that named a customer word was the customer's whatever it asked, and in customer-service hiring the job's title names one
+// (every round). A practice case naming its customer by name lost her intake, "team players" read as customers, and a loan
+// applicant or a case's note on what the candidate must do read as the applicant (each against one earlier round). Each was
+// narrowed where it came from; every check in this list fails on the thirteenth round's module.
+console.log("\nThe fourteenth review's cases\n");
+for (const line of [
+  // Finding 1: an HR hold or callback about a job, the job named anywhere before the ask; a longer job title with an "&".
+  'Say: "Thank you for holding, this is Ana from HR. I see you applied for our Coverage Specialist role. May I have your date of birth for your file?"',
+  'Say: "Thank you for holding, this is Ana from HR returning your call about your application. May I have your date of birth for your file?"',
+  'Say: "Hi Maria, this is Ana from HR returning your call regarding the Coverage Specialist position. May I have your date of birth for your file?"',
+  'Say: "Hi Maria, this is Ana from HR returning your call on the Coverage Specialist job. May I have your date of birth for your file?"',
+  'Say: "Hi Maria, this is Ana from HR returning your call. It\'s about the Coverage Specialist role you applied for. May I have your date of birth for your file?"',
+  "Script: Hi Maria, this is Ana from HR returning your call regarding the Coverage Specialist position. To verify your identity, may I have your date of birth?",
+  "Script: Thank you for holding, this is Ana from HR. About the Patient Coordinator opening you applied for: may I have your date of birth for your file?",
+  "Script: Hi, this is Ana from HR. Thanks for holding about the Coverage Specialist post. For security, may I have your date of birth?",
+  "Script: Hi, this is Ana from HR about the Coverage Specialist role. Thank you for holding. For security, may I have your date of birth?",
+  'Say: "Thank you for holding, this is Ana from HR. I see you applied with us last week. May I have your date of birth for your file?"',
+  'Say: "Thanks for holding, this is Ana from HR. I hear you\'re applying with us. May I have your date of birth for your file?"',
+  'Say: "Thanks for applying for our Rewards & Loyalty Specialist position. May I have your date of birth for your file?"', 'Say: "Thanks for applying for our Medicare Advantage Sales Agent role. May I have your date of birth for your file?"',
+  'Say: "Thanks for applying for our Medicare Advantage Customer Service Representative role. May I have your date of birth for your file?"',
+  // Finding 2: a quote whose only customer is the job's title or the applicant's experience, put to someone applying or asking
+  // more than a date of birth; "Welcome to your chat interview".
+  'Opening message: "Thanks for applying for the Customer Service Representative role! To start, how old are you?"', 'Say: "Thanks for applying for the Customer Service Representative role. Are you married?"',
+  'Greeting: "Hi! Thanks for your interest in our Patient Care Coordinator role. Are you married or single?"', 'Opening line: "Welcome to your chat interview for the Customer Support role. What is your date of birth?"',
+  'Ask: "Have you handled angry customers before? And how old are you?"', 'Recruiter script: "Thanks for applying! Can you confirm your age and civil status?"', 'Recruiter script: "Can you confirm your age?"',
+  'Say: "Thanks for applying for the Patient Coordinator role. May I have your date of birth?"', 'Say: "Thanks for applying for the Customer Service role! For security, how old are you?"',
+  'Say: "Are you the customer service rep we spoke to? How old are you?"', 'Opening message for the Customer Support role: "Thanks for applying! How old are you?"',
+  'Ask: "Are you a patient person? How old are you?"',
+  // …and the same inside a script's line.
+  'Script: Greet them warmly. Ask, "Have you worked with patients before? How old are you?"', 'Say: Welcome! Then ask, "How many customers do you handle a day? Are you married?"',
+  'Opening: Hi! Then ask, "Do you have kids? Our callers are mostly parents."', 'Phone screen: Hi! Then ask, "Have you served customers before, and how old are you?"',
+  // Finding 4: the team, the staff or the crew in the one-word slot before a customer word; "Ideal candidates:".
+  "21-30 y/o team players, bilingual preferred.", "• 21-30 y/o staff members, bilingual preferred", "21-30 yo team members, bilingual preferred.",
+  "Requirements: 21 to 30 yo team players, BPO experience preferred.", "We'd love a 25-year-old team player, Tagalog preferred.", "18-25 yo crew members, Tagalog preferred.",
+  "Ideal candidates: 18-25 year old players, bilingual preferred.", "Ideal applicants: 18-25 year old players, bilingual preferred.",
+]) check(`(14th review) asks for age or sets a limit: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+for (const line of [
+  // Finding 3: a customer's intake label in a practice case that names her by name, or as a mother, a homeowner or a woman.
+  "Tax refund chat. Maria Santos asks why her refund went down this year. Complete her intake:\n- Name:\n- Filing status and number of dependents:\n- Last year's refund:\nThen explain what changed.",
+  "Child tax credit call. A mother of two asks why her credit changed. Complete her intake:\n- Filing status and number of dependents:\n- Last year's credit:\nThen explain what changed.",
+  "Subsidy renewal. A homeowner renews her housing subsidy. Fill in:\nHousehold size and number of dependents:\nMonthly household income:\nThen tell her the new amount.",
+  "Benefits renewal. Mr. Reyes renews his SNAP benefits. Fill in:\nHousehold size and number of dependents:\nMonthly household income:",
+  "A woman calls about her tax return. Fill in:\nNumber of dependents on the tax filing:\nFiling status:",
+  "Tax refund chat. Maria Santos asks about her refund. Fill in:\n- Filing status and number of dependents:",
+  "Child tax credit call. A mother of two asks why her credit changed. Fill in:\n- Filing status and number of dependents:",
+  // Finding 5: a loan's, a scholarship's or a visa's applicant or interview, and "the candidate must…" after the ask.
+  "Lab results call. A patient calls for her results. Script: Thank you for calling Bright Clinic. For security, may I have your date of birth? The candidate must not share results until the identity check passes.",
+  "Script: Thank you for calling Bright Clinic. For security, may I have your date of birth? The candidate should not share results until the identity check passes.",
+  "Script: Welcome to your visa interview. For security, may I have your date of birth?",
+  "Say: Thank you for calling the visa appointment line. For security, may I have your date of birth? Then confirm the date of their visa interview.",
+  "Say: Thank you for calling Bright Bank. For security, may I have your date of birth? Then walk the loan applicant through the next step.",
+  'Ask: "May I have your date of birth to find your file?" when a loan applicant calls.', 'Say: "May I have your date of birth to update your records?" to each scholarship applicant.',
+  // One who recruits customers is not HR's recruiter.
+  "Script: Hi, this is Ana, a study recruiter at Bright Research. To verify your identity, may I have your date of birth?",
+]) check(`(14th review) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+// …and in the real paths: generate-flow (:252) and ai-generate-workflow (:616) drop a practice case whole, generate-flow's
+// requirements (:242) drop an item, textWithoutAgeAsks keeps a job post's other sentences, and ai-generate-workflow's
+// configWithoutAgeAsks (:607) deletes a step's prompt that asksAgeOrStatus flags.
+check("(14th review) practice cases that name their customer by name, or note what the candidate must do, are kept whole", A.withoutAgeAsks([
+  { title: "Tax refund chat", prompt: "Maria Santos asks why her refund went down this year. Complete her intake:\n- Name:\n- Filing status and number of dependents:\n- Last year's refund:\nThen explain what changed." },
+  { title: "Subsidy renewal", prompt: "A homeowner renews her housing subsidy. Fill in:\nHousehold size and number of dependents:\nMonthly household income:\nThen tell her the new amount." },
+  { title: "Lab results call", prompt: "A patient calls for her results. Script: Thank you for calling Bright Clinic. For security, may I have your date of birth? The candidate must not share results until the identity check passes." },
+], (s) => `${s.title}. ${s.prompt}`).length === 3);
+check("(14th review) …a job's requirements and post lose an age preference for its team players", JSON.stringify(A.withoutAgeAsks(["Excellent written English.", "21-30 y/o team players, bilingual preferred.", "At least 6 months of BPO experience."])) === JSON.stringify(["Excellent written English.", "At least 6 months of BPO experience."]) && A.textWithoutAgeAsks("Flexible part-time hours. 21-30 y/o team members, bilingual preferred. Paid training.") === "Flexible part-time hours. Paid training.");
+check("(14th review) …and a step's prompt with an HR hold about a job, or a chat interview opening that asks the applicant's age, is flagged", A.asksAgeOrStatus('Phone screen.\nSay: "Thank you for holding, this is Ana from HR. I see you applied for our Coverage Specialist role. May I have your date of birth for your file?"\nThen ask about their shift availability.') && A.asksAgeOrStatus('Chat interview.\nOpening message: "Thanks for applying for the Customer Service Representative role! To start, how old are you?"\nThen ask about their experience with upset customers.'));
+// Guards: what each narrowed rule must still keep or drop, including the side effects the fourteenth review named for its
+// trial of finding 2 (a desk's "thanks for applying" for a product, a clinical study's "patient recruiter") and an agent's own
+// introduction.
+for (const line of [
+  // An HR desk's own hold or callback with no job named; a rewards program with an "&".
+  'Say: "Thank you for holding, this is Ana from HR returning your call about your leave request. May I have your date of birth for your file?"',
+  "Script: Thanks for holding, this is Ana from Human Resources. To verify your identity, may I have your date of birth?",
+  'Say: "Thanks for applying for our Rewards & Loyalty program. May I have your date of birth to find your file?"',
+  // A date of birth alone, with a check, a "confirm" or no applying; a customer named outside the quote; a caller's check; a
+  // listener called a customer; the job's own "customer service" in a label with a caller's check.
+  'Say: "Hi, I\'m Ana, your Patient Coordinator. May I have your date of birth?"', 'Say: "Thanks for applying for the program. For security, may I have your date of birth?"',
+  'Say: "Thanks for applying for SNAP. Can you confirm your date of birth?"', 'Say: "Thanks for applying for a checking account with Bright Bank. To verify your identity, may I have your date of birth?"',
+  'Say: "Hi, I\'m Ana, a patient recruiter with Bright Research. To confirm I have the right person, may I have your date of birth?"',
+  'Say: "Hi, I\'m Ana, a patient recruiter with Bright Research. May I have your date of birth to find your file?"',
+  'Greet the caller and say, "Thanks for applying for SNAP. Are you 65 or older?"', 'Say: "Thanks for calling Medicare Help. Are you 65 or older?"',
+  'Ask: "Are you the policyholder? Are you over 65?"', 'Ask the member, "Do you have dependents on your policy?"',
+  'Customer service script: "Thanks for calling Bright Medicare. Are you 65 or older?"',
+  // …and inside a script's line, the check on the script's own line.
+  'Script: Thank you for calling Medicare Help. Ask, "Are you a member? Are you 65 or older?"', 'Script: Hi there. Ask, "Are you the patient? Are you over 18?"',
+  'Say: Hi! Then ask, "Hi, I\'m Ana, your Patient Coordinator. May I have your date of birth?"',
+  // The applying words read in the quote (not its label, not after its ask), its check on the whole sentence, a benefit's few
+  // title words.
+  'During the phone screen role-play, say: "Thanks for calling Medicare Help. Are you 65 or older?"',
+  'Say: "Hi, I\'m Ana, your Patient Coordinator. May I have your date of birth? For a phone screen, press 2."',
+  'For security, say: "Thanks for applying for SNAP. May I have your date of birth?"',
+  "Script: Thanks for applying for the home loan with us so you can move closer to your job. For security, may I have your date of birth?",
+  // A customer's own preference right after the age; a visa interview inside a quote.
+  "A 70 y/o member, Tagalog preferred, asks about her claim.", 'Say: "Thank you for calling the embassy. For security, may I have your date of birth before your visa interview?"',
+]) check(`(14th review, guard) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+for (const line of [
+  // HR's recruiter; an employer's form that names "their" own details; applicant words after the ask that are not "the
+  // candidate must…"; any other interview; a callback about a job application; a bare "thanks for applying".
+  'Say: "Hi, I\'m Ana, a senior recruiter at Bright Clinic. May I have your date of birth for your file?"',
+  "Payroll setup. Update their tax details:\nFiling status and number of dependents:\nTax ID:", "New hire form. Complete their onboarding:\nHousehold size and number of dependents:",
+  "Benefits form. Fill in your plan details:\nHousehold size and number of dependents:",
+  "Script: For security, may I have your date of birth? The candidates must bring their resumes.", "Script: For security, may I have your date of birth? Each candidate must bring a valid ID.",
+  "Script: For security, may I have your date of birth? Then ask the candidate to describe a refund.",
+  "Say: Thank you for calling. For security, may I have your date of birth? Then begin the job interview.", 'Say: "Welcome to your video interview. May I have your date of birth?"',
+  "Script: Hi Maria, this is Ana from HR returning your call about your job application. For security, may I have your date of birth?",
+  'Recruiter script: "Thanks for applying! How old are you?"', 'Opening message: "Thanks for applying! To start, how old are you?"',
+]) check(`(14th review, guard) …and still drops: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+// Known, and left (the fourteenth review): each is read as shown for the reason given, so the next review need not report it.
+for (const [line, drops, why] of [
+  ['Say: "Thanks for applying! For security, what is your date of birth?"', false, "a quote that asks only a date of birth with a caller's check (security, identity, an account, \"thanks for calling\"), a \"confirm\" or a \"verify\" is an identity check whatever else it says, as every earlier round read it: \"thanks for applying\" is a desk's for products the benefit list cannot name (\"…for SNAP\", \"…for a checking account\", \"…for the clinical trial\"); only a customer word inside the quote no longer outweighs applying"],
+  ['Phone screen script: "Hi, thanks for your interest in the job. For security, may I have your date of birth?"', false, "the same; a quote's applying words are read in the quote, not its label, since a label also names the exercise (\"Interview role-play: the patient calls…\"; the twelfth review)"],
+  ['Say: "Thanks for applying to Bright Clinic! Can you confirm your date of birth?"', false, "the same, for \"confirm\" (\"Thanks for applying for SNAP. Can you confirm your date of birth?\" is a desk's)"],
+  ['Say: "Hi, I\'m Ana, your Patient Coordinator. How old are you?"', true, "a quote that asks more than a date of birth is a customer's only when the customer is named outside it or with a caller's check, since a customer word inside it is as often the job's title; an agent's own title reads the same (a date of birth alone stays: \"…your Patient Coordinator. May I have your date of birth?\")"],
+  ['Say: "Thanks for applying for a checking account with Bright Bank. Are you 65 or older?"', true, "a question beyond a date of birth is a customer's with a check only when nothing says the listener applies for a job, and an account is also a BPO's client (\"Thanks for applying for our healthcare account\"), so it is not on the benefit list"],
+  ["Script: Thanks for applying for the program. For security, may I have your date of birth?", true, "after a script's colon, unquoted, \"thanks for applying\" for anything off the benefit list is read to the end of the line, as the eleventh to thirteenth rounds read it (the thirteenth review's LOW 2); the quoted form with a check is an identity check"],
+  ["Script: Hi, this is Ana from the front desk. For security, may I have your date of birth? The candidate plays the front desk.", true, "after the ask only \"the candidate must, should, needs to…\" is the agent a case describes; other verbs are read as the tenth round read them, since \"Then the candidate answers…\" may be about the listener"],
+  ["Script: Hi, this is Ana from Bright College's recruitment office. For security, may I have your date of birth?", true, "a business's own recruitment team or office is HR's in the thirteenth round's possessive form (\"Bright Clinic's HR team\"), so a college's or a study's reads the same (the fourteenth review's finding 6, left)"],
+  ["Explain that your SNAP allotment depends on the number of children in your household.", true, "a desk's explanation needs the money or eligibility it explains (DESK_TOPIC); an allotment, a stipend or an amount is not among them, since \"…affect the amount of overtime you can work?\" is the applicant's (the fourteenth review's finding 7, left)"],
+]) check(`(14th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, A.asksAgeOrStatus(line) === drops);
 
 console.log("\nThe three job writers\n");
 const flow = read("supabase/functions/generate-flow/index.ts");
