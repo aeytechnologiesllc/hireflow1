@@ -1,6 +1,6 @@
 /**
  * No age, birth date or marital status in what the job writers produce
- * (2026-10-25; the second to sixteenth Phase 6 reviews).
+ * (2026-10-25; the second to seventeenth Phase 6 reviews).
  *
  * Every application already starts with HireFlow's own "Are you 18 or
  * older?" (src/lib/ageCheck.ts), and RA 10911 Section 5(a) makes it unlawful
@@ -84,7 +84,11 @@
  * senior citizen discount", "your youth fare", "you can rent the car"), a
  * desk's "How many members do you have on your plan?", its greeting by name
  * ("Thanks for contacting customer support!"), a study's clinical recruiter
- * and the agent who must "state it back to the caller". The same words put to
+ * and the agent who must "state it back to the caller", and since the
+ * seventeenth a customer's own first-person age in the message the agent
+ * answers ('Reply to this chat: "I'm 70 years old and can't log in to my
+ * account."') and a customer's profile, record or own line with a placeholder
+ * ("Patient profile: [Name], [Age]"). The same words put to
  * the applicant go ('Ask the candidate: "How old are you?"', "Number of
  * dependents:", 'Ask:
  * "Are you married? Just for our records."', and since the tenth an unquoted
@@ -109,7 +113,13 @@
  * care for patients") and an interview's own questions ("Why do you want to
  * work with customers?") whatever customer they name, a job whose title
  * starts with "Loan" or "Leave" on an HR hold, and a hire's own pay or
- * payroll ("your filing status for payroll")), and so does an
+ * payroll ("your filing status for payroll"); since the seventeenth an
+ * interview's, a screening call's or a video's question after a sentence that
+ * mentions a customer ('In up to 75 seconds, describe how you would welcome a
+ * customer. Then answer: "What is your age and civil status?"'), a hiring
+ * team greeting by its service's name before it talks of the job, "How many
+ * customers did you…" whatever the verb, and a hire's HMO premium or BIR
+ * filing), and so does an
  * age in a hiring sentence however it is attached ("We want a 25-year-old
  * go-getter", "We hire students aged 18-24", "Retirees aged 55-70 wanted",
  * "Hiring 21-35 year old Patient Access Representatives"; the tenth; "With full benefits, we're
@@ -196,8 +206,15 @@ const ALWAYS = re([
   // "I'm ___ (age ___)", "my age is ___"; the sixteenth review: only a form label's blank was read, and this is the usual
   // Philippine BPO introduction). Only where the sentence introduces its writer (in the first person, "yourself", a bio or a
   // profile): a customer's note stays ("Patient intake note: [Name], [Age], reason for visit", "I spoke with [Name], [Age],
-  // about her bill", "Maria, 70 years old", "the caller's name and [DOB]").
-  String.raw`^(?=.*\b(i am|i['’]m|my|myself|yourself|your\s+(profile|bio|intro|introduction)|bio|profile|self[\s-]?intro\w*|introduce)\b).*((_{2,}|…|\[[^\]\n]{0,20}\]|\{[^}\n]{0,20}\})\s*(years?|yrs?)[\s-]*old\b|\[\s*(your\s+)?(age|edad|civil status|marital status)\s*\]|\{\s*(your\s+)?(age|civil status|marital status)\s*\}|\(\s*(age|civil status|marital status)\s*:?\s*(_{2,}|…)\s*\))|\bmy\s+(age|birth ?date|date of birth|birthday|civil status|marital status)\s*(is|:)\s*(_{2,}|…|\[|\{)`,
+  // about her bill", "Maria, 70 years old", "the caller's name and [DOB]"). The seventeenth review: "my", "profile", "bio" and
+  // "introduce" anywhere also read a customer's record ("Patient profile: [Name], [Age]", "Player profile: …", "your profile
+  // shows you are [Age]", "My caller: [Name], [Age]", "Introduce yourself, then note the caller's name, [Age]…"), and a
+  // customer's own line gives her name and age too ("Customer: My name is [Name], I'm [Age] years old, and…"), so only the
+  // writer introducing themself counts, as in every case the sixteenth round read: "I am", "I'm" or "my name", a
+  // self-introduction, a bio or an intro of their own ("Write a short bio:"), "Your profile:" as the label, or "introduce
+  // yourself" or "about yourself" before the template ("Introduce yourself in this format:"), never in a customer's line; and
+  // "my age is ___" or "my civil status: ___", never "my date of birth is [DOB]", which a caller says to be checked.
+  String.raw`^(?!.*\b(customers?|callers?|patients?|members?|guests?|players?|clients?|users?|account holders?|policyholders?|passengers?|tenants?)(['’]s?)?(\s+(lines?|messages?|repl(y|ies)|scripts?|parts?)\s*[:,]|\s+(says|said|writes|wrote|asks|asked|replies|replied)\b|\s*:))(?:(?=\s*[-•*]?\s*(your|my)\s+(profile|bio|intro|introduction)\s*:|.*(\b(i am|i['’]m|my name)\b|\bself[\s-]?intro\w*|\b(your|my|a|short|brief|quick|video)\s+(bio|intro|introduction)\b|\b(introduce|describe|about)\s+(yourself|myself)\s*(:|,?\s*(in this (format|way)|using|with|like this|as follows)\b))).*((_{2,}|…|\[[^\]\n]{0,20}\]|\{[^}\n]{0,20}\})\s*(years?|yrs?)[\s-]*old\b|\[\s*(your\s+)?(age|edad|civil status|marital status)\s*\]|\{\s*(your\s+)?(age|civil status|marital status)\s*\}|\(\s*(age|civil status|marital status)\s*:?\s*(_{2,}|…)\s*\))|.*\bmy\s+(age|civil status|marital status)\s*(is|:)\s*(_{2,}|…|\[|\{))`,
   // A question to the applicant, or a request to tell.
   String.raw`\bhow old (are you|are u|r u|will you be|you are|you'?ll be)\b`,
   // "Your birthday" is asked for only in a question ("What's your birthday?"); "We celebrate your birthday"
@@ -546,11 +563,23 @@ const NAMES_A_CUSTOMER = new RegExp(String.raw`\b(${CUSTOMER_PEOPLE}|parents?|gu
 //     support!", "Thank you for contacting the patient care line.", "Hi, this is Ana from customer care."), whose customer word
 //     SERVICE_WORK took as it took the script label's, never a job, an interview or a team welcoming a hire ("Welcome to the
 //     customer support team", "Welcome to your Customer Support interview").
+// The seventeenth review:
+//   - a hire's own plan and tax are not the topic either ("your insurance premium for the company HMO", "your health premium
+//     under our HMO", "your tax filing status with BIR" or "for your payslip", "the discount for staff"), nor a topic checked
+//     after welcoming a hire ("Welcome to the team! To confirm your tax filing status, …");
+//   - the job, the interview or a job application named anywhere in the rest of the quote makes the greeting HR's ('"Hi, this
+//     is Ana from customer care. Do you have a minute to talk about the job? How old are you?"', "…patient support! Before we
+//     start the interview, …", "…We read your application."): only the greeting's own sentence was read, and the usual phone
+//     screen names the job in the next one. Never a loan's or a card's application ("your application for the card").
 const DISCOUNT_FOR = String.raw`senior(\s+citizens?)?|student|member|youth|military|loyalty|pwd|child|veterans?`;
-const ONLY_A_CUSTOMERS = String.raw`(your|the)\s+(((${DISCOUNT_FOR})(\s+or\s+(${DISCOUNT_FOR}))?\s+)?discount|((insurance|monthly|annual|yearly|policy|plan|health|life|medicare)\s+)?premium|((youth|student|senior|child|reduced|discounted|concession)\s+)?fare|(tax\s+)?filing status|(medicare|medicaid)\s+eligibility)\b(?!\s+(pay|allowance|differential)\b|\s+(for|on|in)\s+((your|the|our)\s+)?(payroll|w-?4|employment)\b|\s+as\s+(an?|our)\s+(new\s+)?(employee|hire|staff|team member)\b)|you\s+(can|may|are able to)\s+(play\s+ranked|rent\s+(the|a|this|your)\s+(car|vehicle)|buy\s+(the\s+)?(gems|coins|credits))`;
-const NOT_A_DESK = String.raw`(?![^.?!]*\b(interviews?|screens?|screening|roles?|jobs?|positions?|openings?|vacanc(y|ies)|posts?|training|hiring|recruit\w*|applications?|assessments?)\b)`;
+const ONLY_A_CUSTOMERS = String.raw`(your|the)\s+(((${DISCOUNT_FOR})(\s+or\s+(${DISCOUNT_FOR}))?\s+)?discount|((insurance|monthly|annual|yearly|policy|plan|health|life|medicare)\s+)?premium|((youth|student|senior|child|reduced|discounted|concession)\s+)?fare|(tax\s+)?filing status|(medicare|medicaid)\s+eligibility)\b(?!\s+(pay|allowance|differential)\b|\s+(for|on|in|under|with|through|via)\s+((your|the|our|a)\s+)?((company|employer|staff|employee|group|corporate)\s+)?(payroll|payslips?|pay\s?slips?|w-?4|employment|hmo|bir|withholding|staff|employees?)\b|\s+as\s+(an?|our)\s+(new\s+)?(employee|hire|staff|team member)\b)|you\s+(can|may|are able to)\s+(play\s+ranked|rent\s+(the|a|this|your)\s+(car|vehicle)|buy\s+(the\s+)?(gems|coins|credits))`;
+// The welcome and the rest of the quote are each read for at most a quote's 400 characters, the welcome only where a
+// "confirm" or a "verify" starts, so a long frame stays fast.
+const WELCOMES_A_HIRE = String.raw`(?=confirm|verif)(?<!\bwelcome\s+to\s+(the|our)\s+([\w'’&-]+\s+){0,2}?team\b[^"“”]{0,400})`;
+const JOB_TALK = String.raw`interviews?|jobs?|roles?|vacanc(y|ies)|hiring|recruit\w*|(?<!\b(${APPLIED_PREFIX})\s+)applications?\b(?!\s+for\s+((an?|the|your|our|this)\s+)?([\w-]+\s+){0,2}?(${APPLIED_FOR})\b)`;
+const NOT_A_DESK = String.raw`(?![^.?!]*\b(interviews?|screens?|screening|roles?|jobs?|positions?|openings?|vacanc(y|ies)|posts?|training|hiring|recruit\w*|applications?|assessments?)\b|[^"“”]{0,400}?\b(${JOB_TALK}))`;
 const SERVICE_GREETING = String.raw`\b(((thanks|thank you) for (contacting|reaching out to|messaging|writing to|chatting with|calling)|(this is|i['’]?m|i am)\s+[\w'’-]+\s+(from|with|at))\s+((the|our)\s+)?([\w'’&-]+\s+){0,2}?(customer|client|patient|member|user|caller|guest|player)\s+(service|support|care|success|relations|help)\b${NOT_A_DESK}|welcome to\s+((the|our)\s+)?(?!your\b)([\w'’&-]+\s+){0,2}?(customer|client|patient|member|user|caller|guest|player)\s+(service|support|care|success|relations|help)\b(?![\s-]+teams?\b)${NOT_A_DESK})`;
-const A_CHECK = new RegExp(String.raw`\b(${CHECK})\b|\b(customer|client|patient|member|caller|guest|player)\s+(service|support|care)\s+(scripts?|repl(y|ies)|greetings?|openers?)\b|\b(confirm\w*|verif\w*)\s+(that\s+)?(${ONLY_A_CUSTOMERS})\b|${SERVICE_GREETING}`, "i");
+const A_CHECK = new RegExp(String.raw`\b(${CHECK})\b|\b(customer|client|patient|member|caller|guest|player)\s+(service|support|care)\s+(scripts?|repl(y|ies)|greetings?|openers?)\b|${WELCOMES_A_HIRE}\b(confirm\w*|verif\w*)\s+(that\s+)?(${ONLY_A_CUSTOMERS})\b|${SERVICE_GREETING}`, "i");
 const CUSTOMERS_OWN_FILE = /\b(your (files?|records?)|polic(y|ies) (records?|files?|numbers?))\b/i;
 // The listener is an applicant: the words TO_APPLICANTS reads, "thanks for applying" (never for a card or a loan: "Thanks for
 // applying for the Bright Card!"), "your interest in the role", a phone screen, a recruiter, HR. Never "your application"
@@ -586,8 +615,9 @@ const APPLYING = new RegExp(String.raw`${THANKS_FOR_APPLYING}|\binterest in (joi
 // recruiter", "…an enrollment recruiter at Bright College"), now that a customer word in a quote no longer outweighs applying.
 // The fifteenth: never a clinical recruiter, a hospital's own HR title ("Hi, I'm Ana, a clinical recruiter at Bright Hospital").
 // The sixteenth: unless the study is named after it, as a study's own recruiter ("the clinical recruiter for the Bright
-// Research diabetes study", "a clinical recruiter with Bright Research").
-const STUDY_RECRUITER = String.raw`clinical\s+recruiters?\s+(for|with|on|at|of)\s+((the|an?)\s+)?([\w'’-]+\s+){0,4}?(study|studies|trials?|research)\b`;
+// Research diabetes study"). The seventeenth: only a study or a trial named, as the sixteenth round's cases did, never a
+// "research" in the business's name ("a clinical recruiter at Bright Medical Research Center" is its HR).
+const STUDY_RECRUITER = String.raw`clinical\s+recruiters?\s+(for|with|on|at|of)\s+((the|an?)\s+)?([\w'’-]+\s+){0,4}?(study|studies|trials?)\b`;
 const RECRUITER_CALLS = new RegExp(String.raw`(?<![\d/][\s-]*)\b(hr|human resources|recruiters?|recruiting|recruitment)\s+(script|call|screen(ing)?|interview)s?\b(?![\s-]+(cent(er|re)s?|lines?|queues?|desks?)\b)|\b((this is|i['’]?m|i am)\s+([\w'-]+\s+){0,2}?|[\w'-]+\s+here\s+)(from|with|in)\s+(the\s+|([\w-]+\s+){0,2}?[\w-]+['’]s\s+)?(hr|human resources|recruiting|recruitment)\b(?!\s+(support|benefits?|help ?desk|helpline|lines?|portal|services?|hotline|desk)\b)|\b(this is|i['’]?m|i am)\s+(?!(sorry|afraid|not)\b)([\w'-]+,?\s+){0,2}?(an?|the|your)\s+((?!(${CUSTOMER_PEOPLE}|participants?|study|trial|research|enrol+ment|admissions?|students?|${STUDY_RECRUITER})\b)[\w-]+\s+)?recruiters?\b`, "i");
 // An HR desk's own caller: one who called in, and since the thirteenth review one it puts on hold or calls back, unless that
 // call is about a job or comes from recruiting ("Hi, this is Ana from recruiting returning your call"). The fourteenth: the
@@ -612,8 +642,9 @@ function applyingForAJob(text: string): boolean {
 // ("…may I have your date of birth? The candidate must provide it for our HR records", "The applicant must answer before we
 // continue the screening"). The sixteenth: what the agent does with the answer is still the agent's ("The candidate must state
 // it back to the caller", "…enter it in the patient chart", "…give their reply within 30 seconds", "…answer within 2
-// minutes"): "their", "his", "her" or "your" only before what was asked.
-const GIVES_THE_ANSWER = String.raw`\s+(provide|give|share|state|submit|send|enter|tell us)\s+((it|this|that)\b(?!\s+(back\s+)?(to|with)\s+((the|a|an|each|every|their)\s+)?([\w-]+\s+)?(${CUSTOMER_PEOPLE})\b|\s+(in|into|on)\s+((the|a|an|their)\s+)?([\w-]+\s+)?(charts?|systems?|records?|notes?|forms?|accounts?|crm|tickets?)\b)|(their|his|her|your)\s+(own\s+)?(date of birth|birth ?date|birthday|dob|d\.o\.b|age|details|information|info)\b)|\s+answer\b(?!\s+(the|a|an|their|his|her|each|any|every|all|within)\b)`;
+// minutes"): "their", "his", "her" or "your" only before what was asked. The seventeenth: never the hiring's own form or
+// system ("The applicant must enter it on the application form").
+const GIVES_THE_ANSWER = String.raw`\s+(provide|give|share|state|submit|send|enter|tell us)\s+((it|this|that)\b(?!\s+(back\s+)?(to|with)\s+((the|a|an|each|every|their)\s+)?([\w-]+\s+)?(${CUSTOMER_PEOPLE})\b|\s+(in|into|on)\s+((the|a|an|their)\s+)?((?!(applications?|applicants?|candidates?|hiring|jobs?|employment|hr|onboarding|recruit\w*)\b)[\w-]+\s+)?(charts?|systems?|records?|notes?|forms?|accounts?|crm|tickets?)\b)|(their|his|her|your)\s+(own\s+)?(date of birth|birth ?date|birthday|dob|d\.o\.b|age|details|information|info)\b)|\s+answer\b(?!\s+(the|a|an|their|his|her|each|any|every|all|within)\b)`;
 const SPOKEN_TO_AN_APPLICANT = new RegExp(String.raw`${TO_APPLICANTS.source}(?!(?<=\bthe\s+(candidate|applicant))\s+(must|should|shall|needs? to|has to|is to|may not|cannot|can['’]?t)\b(?!${GIVES_THE_ANSWER}))|${THANKS_FOR_APPLYING}`, "i");
 const BIRTH_DATE = /\b(date of birth|birth ?date|birthday|dob|d\.o\.b\.?)(?=\W|$)/gi;
 // What an identity check never asks, named or listed ("your date of birth and civil status" is read for its date of birth).
@@ -637,8 +668,9 @@ function asksOnlyBirthDate(speech: string): boolean {
 const SERVICE_WORK = /\b(customer|client|patient|member|user|caller|guest|player)\s+(service|support|care|success|experience|chats?|calls?|emails?|tickets?|complaints?|questions?|accounts?|issues?|quer(y|ies)|orders?|data|records?|inquir(y|ies)|requests?|satisfaction|feedback|needs|relations|portal|information|details|concerns|interactions?|facing)\b/gi;
 // …never a customer doing something, opening a clause outside the quote ("A client calls about her refund. Ask: …", "When a
 // customer calls, say: …", "A customer orders wine."; the sixteenth review: SERVICE_WORK read the verb as the work), as
-// against the work itself ("Answer the customer calls").
-const A_CUSTOMER_DOES = /((?:^|[.!?;:,(]|\b(?:when|if|once|after|before|while|until|as|whenever)\b)\s*)(an?|the|this|that|one|another|each|every)\s+(([\w'-]+\s+){0,2}?)(customer|client|patient|member|user|caller|guest|player)\s+(?=(calls|chats|emails|orders|requests|questions|needs)\b)/gi;
+// against the work itself ("Answer the customer calls"). The seventeenth review: never before or until one calls ('Before a
+// customer calls, ask: "Are you married?"' is asked of someone else).
+const A_CUSTOMER_DOES = /((?:^|[.!?;:,(]|\b(?:when|if|once|after|while|as|whenever)\b)\s*)(an?|the|this|that|one|another|each|every)\s+(([\w'-]+\s+){0,2}?)(customer|client|patient|member|user|caller|guest|player)\s+(?=(calls|chats|emails|orders|requests|questions|needs)\b)/gi;
 const outsideTheQuote = (text: string) => text.replace(A_CUSTOMER_DOES, "$1$2 $3$5 who ").replace(SERVICE_WORK, "service work");
 
 // What in a quote names the job or the applicant rather than the one spoken to (customersQuote; the fifteenth review). Each is
@@ -661,13 +693,21 @@ const NOT_THE_LISTENER = re([
   // nor what a caller is doing now ("Are you helping a family member with the account?"). The sixteenth review: an interview
   // question's own shapes too ("Why do you want to work with customers?", "Are you comfortable speaking with customers on the
   // phone?", "Do you have experience with customers?", "Tell me about a time you went above and beyond for a customer"), never
-  // a caller's own experience ("How was your experience with our member line?").
-  String.raw`(?<!\bare\s+)\b(you(['’]ve|['’]d|['’]ll)?|ever|experience)\s+((have|had|ever|already|previously|often|really|also|enjoy|like|love|want|wanted|to|been|be|will|would|can|could|must|should|get to)\s+){0,2}(handl(e|es|ed|ing)|work(s|ed|ing)?\s+with|serv(e|es|ed|ing)|help(s|ed|ing)?|deal(s|t|ing)?\s+with|support(s|ed|ing)?|assist(s|ed|ing)?|calm(s|ed|ing)?|manag(e|es|ed|ing)|talk(s|ed|ing)?\s+(to|with)|spok(e|en)\s+(to|with)|speak(s|ing)?\s+(to|with))\s+([\w-]+\s+){0,2}?(?<!\bfamily\s+)(${WHO})\b(?!\s+([\w&-]+\s+)?(${AGENT_TITLES})\b)`,
-  String.raw`\byou(['’]re| are)?\s+((really|also|very|always|quite)\s+)?(good|great|comfortable|confident|experienced|skilled)\s+((at|in)\s+)?((speaking|talking|working|dealing|chatting|interacting)\s+)?(with|to|around)\s+([\w-]+\s+){0,2}?(?<!\bfamily\s+)(${WHO})\b(?!\s+([\w&-]+\s+)?(${AGENT_TITLES})\b)|(?<!\byour\s+)\bexperience\s+(with|in|around)\s+([\w-]+\s+){0,2}?(?<!\bfamily\s+)(${WHO})\b(?!\s+([\w&-]+\s+)?(${AGENT_TITLES})\b)`,
-  String.raw`\b(tell (me|us)( more)? about|describe|share|recall|give (me|us) an example of)\s+(a|an|one)\s+((recent|specific|past|difficult|hard|tough|memorable)\s+)?(time|situation|moment|occasion|day|example)\b[^.?!]*`,
+  // a caller's own experience ("How was your experience with our member line?"). The seventeenth review: "want to" only
+  // before working with them, as the sixteenth round's "Why do you want to work with customers?" ('"Do you want to help a
+  // member of your household enroll?"' is a caller's), never "the experience with our member line" ("Sorry about…"), and "Tell
+  // me about a time…" only, as the sixteenth round's cases asked: a desk asks its own caller to describe, share or recall one
+  // too ("Can you describe a recent time you were overcharged as a member?", "Please share an example of a time our member
+  // line kept you waiting").
+  String.raw`(?<!\bare\s+)\b(you(['’]ve|['’]d|['’]ll)?|ever|experience)\s+((have|had|ever|already|previously|often|really|also|enjoy|like|love|been|be|will|would|can|could|must|should|get to)\s+|(want|wanted)\s+to\s+(?=work)){0,2}(handl(e|es|ed|ing)|work(s|ed|ing)?\s+with|serv(e|es|ed|ing)|help(s|ed|ing)?|deal(s|t|ing)?\s+with|support(s|ed|ing)?|assist(s|ed|ing)?|calm(s|ed|ing)?|manag(e|es|ed|ing)|talk(s|ed|ing)?\s+(to|with)|spok(e|en)\s+(to|with)|speak(s|ing)?\s+(to|with))\s+([\w-]+\s+){0,2}?(?<!\bfamily\s+)(${WHO})\b(?!\s+([\w&-]+\s+)?(${AGENT_TITLES})\b)`,
+  String.raw`\byou(['’]re| are)?\s+((really|also|very|always|quite)\s+)?(good|great|comfortable|confident|experienced|skilled)\s+((at|in)\s+)?((speaking|talking|working|dealing|chatting|interacting)\s+)?(with|to|around)\s+([\w-]+\s+){0,2}?(?<!\bfamily\s+)(${WHO})\b(?!\s+([\w&-]+\s+)?(${AGENT_TITLES})\b)|(?<!\b(your|the|this|that)\s+)\bexperience\s+(with|in|around)\s+([\w-]+\s+){0,2}?(?<!\bfamily\s+)(${WHO})\b(?!\s+([\w&-]+\s+)?(${AGENT_TITLES})\b)`,
+  String.raw`\btell (me|us)( more)? about\s+(a|an|one)\s+((recent|specific|past|difficult|hard|tough|memorable)\s+)?(time|situation|moment|occasion|day|example)\b[^.?!]*`,
   // "How many callers can you handle an hour?"; never a desk's own "How many members do you have on your plan?" (the sixteenth
-  // review): only the work counted.
-  String.raw`\bhow many\s+(${CUSTOMER_PEOPLE})\s+(do|did|can|could|will|would|have)\s+you\s+((usually|typically|normally|generally|currently|already|ever|actually)\s+)?(handle|handled|serve|served|support|supported|help|helped|assist|assisted|take|took|see|saw|talk|talked|speak|spoke|answer|answered|manage|managed|deal|dealt|chat|chatted|juggle|juggled|reach|reached|call|called|contact|contacted|close|closed|onboard|onboarded)\b|\bhow many\s+(${CUSTOMER_PEOPLE})\s+(do|did)\s+you\s+(have|get)\s+((per|a|an|each|every)\s+(day|hour|shift|week|month)|at\s+(your|the)\s+(last|current|previous|old)\s+(job|role|company|work))\b`,
+  // review). The seventeenth: the sixteenth round read only a list of verbs right after "you", so "How many customers do you
+  // think you can handle in a shift?", "…did you resolve per shift…" and "…did you check in per day?" read as a desk's; as the
+  // fifteenth round read it, any "how many customers did / can you…" is the work again, but for the desk's own count of who
+  // is on a plan, a policy, an account or in a household ("…do you have on your plan?", "…do you want to add to your plan?").
+  String.raw`\bhow many\s+(${CUSTOMER_PEOPLE})\s+(do|did|can|could|will|would|have)\s+you\b(?!\s+((currently|already|now|still)\s+)?(have|want to add|need to add|wish to add|plan to add|would like to add|like to add|want to cover|need to cover)\b[^.?!]*\b(plans?|polic(y|ies)|accounts?|households?|famil(y|ies)|coverage|memberships?)\b)`,
   String.raw`\b(${CUSTOMER_PEOPLE})\s+(that\s+|who\s+)?you(['’]ll|['’]d| will| would)?\s+((also|be|mostly|often)\s+){0,2}(serve|serving|help|helping|support|supporting|handle|handling|talk|talking|speak|speaking|work|working|assist|assisting|answer|answering|chat|chatting)\b`,
   // The job's title, with the job named or applied for ("the Customer Service Representative role", "your application for
   // Patient Coordinator"), and an agent's own title as the fourteenth round read it ("Hi, I'm Ana, your Patient Coordinator"),
@@ -678,7 +718,13 @@ const NOT_THE_LISTENER = re([
   String.raw`\bpatient\s+(person|people|listener|man|woman)\b|\b(team|staff|crew)\s+members?\b|\bmembers?\s+of\s+(the|our|this|a)\s+([\w-]+\s+){0,2}?team\b`,
 ], "gi");
 // The speaker's own age in the first person, as a self-introduction gives it ("Hi, I'm Ana, 24 years old", "I'm 24 and…",
-// "My name is ___, ___ years old", "I am [Age] years old", "my age is ___"; customersQuote).
+// "My name is ___, ___ years old", "I am [Age] years old", "my age is ___"; customersQuote). The seventeenth review: a customer
+// gives her age in the first person too, in the message the agent answers ('Reply to this chat: "I'm 70 years old and can't
+// log in to my account."', the owner's own 'Hi, I'm 15 years old and I bought gems with my mom's card…'), so it is never read
+// in a message replied to (ANSWERS_A_MESSAGE), after a sentence naming the case's customer, or where the speaker names her
+// own account, portal, policy, bill, card, order or booking (A_CUSTOMERS_OWN), which no self-introduction the sixteenth round
+// read did ("I have handled US accounts" is the work, never "my account").
+const A_CUSTOMERS_OWN = /\bmy\s+([\w'’-]+\s+){0,2}?(accounts?|portal|polic(y|ies)|bills?|billing|cards?|orders?|bookings?|reservations?|subscriptions?|memberships?|claims?|refunds?|payments?|charges?|appointments?|prescriptions?|deliver(y|ies)|packages?|statements?|balance|loans?|coverage|medicare|medicaid)\b/i;
 const OWN_AGE = new RegExp(String.raw`\b(i['’]?m|i am|my name is)\s+(([\w'’.-]+|\[[^\]\n]{0,20}\]|\{[^}\n]{0,20}\})(\s+[\w'’.-]+)?\s*,\s+)?((\d{2}|_{2,}|…|\[[^\]\n]{0,20}\]|\{[^}\n]{0,20}\})\s*((years?|yrs?)[\s-]*old|y\/o)\b|\d{2}\s*(,|\band\b|[.!?]|$))|\bmy\s+(age|birth ?date|date of birth|birthday)\s*(is|:)`, "i");
 // The work described to someone applying: what "we", the team, its agents or the job do for customers ("where we care for
 // patients", "Our agents support members across the US", "This job is all about patients", "You would be the first voice our
@@ -687,8 +733,22 @@ const THE_WORK = /\b(we|our\s+([\w-]+\s+)?(team|teams|agents|staff|nurses|people
 // The one customer a practice case is about, named in a sentence before the quote's ("A caller wants to book a car.", "Tax
 // intake. A client calls about her refund.", "Interview role-play: the patient calls to move an appointment."; customersQuote),
 // never the customers a job serves ("You will help customers with refunds", "Customers love a friendly voice", "Every
-// customer loves a friendly voice", "Our callers are mostly parents").
-const THE_CASES_CUSTOMER = new RegExp(String.raw`\b(an?|the|this|that|one|another)\s+([\w'’-]+\s+){0,2}?(${WHO})\b(?<!s)`, "i");
+// customer loves a friendly voice", "Our callers are mostly parents"). The seventeenth review: only as the one the case is
+// about, opening its sentence or a label's colon as every case the sixteenth round read did, never one the applicant would
+// welcome or calm ("In up to 75 seconds, describe how you would welcome a customer.", "The interviewer plays a customer
+// later."), and never "the client", which in a BPO's job is the account the agents work on ("Screening call for the Bright
+// Health account. The client wants mature agents.").
+const THE_CASES_CUSTOMER = new RegExp(String.raw`(^|[.!?;:])\s*(an?|the(?!\s+([\w'’-]+\s+){0,2}?clients?\b)|this|that|one|another)\s+([\w'’-]+\s+){0,2}?(${WHO})\b(?<!s)`, "i");
+// …and never after a sentence that names an interview, a candidate or an applicant, a screening call or the applicant's
+// video (the seventeenth review: "Interview question. A customer calls about a late refund. …", "Each applicant answers a
+// customer.", "Video introduction. Imagine a customer is watching."), unless those sentences set up a role-play, whose words
+// they are ("Interview role-play: the patient calls…", "Candidates role-play this call.").
+const NOT_A_PRACTICE_CASE = new RegExp(String.raw`${TO_APPLICANTS.source}|\bscreening\s+(calls?|interviews?)\b|\b(record|film|upload|submit|send)\s+((a|an|your|the|this)\s+)?([\w-]+\s+)?videos?\b|\bvideo\s+(intro\w*|questions?|prompts?|answers?|responses?|steps?|resumes?|pitch)\b|\bin\s+(your|the|this)\s+video\b`, "i");
+const ROLE_PLAY = /\brole[\s-]?play/i;
+const aPracticeCase = (earlier: string) => ROLE_PLAY.test(earlier) || !NOT_A_PRACTICE_CASE.test(earlier);
+// A label that answers someone's message: the quote is that message, never the speaker's own words ("Reply to: …", "Reply to
+// this chat: …", "Respond to this email: …", "Answer the chat: …"; OWN_AGE, the seventeenth review).
+const ANSWERS_A_MESSAGE = /\b(repl(y|ies|ying)|respond(s|ing)?|answer(s|ing)?)\s+(to\s*:|(to\s+)?((the|this|that|her|his|their|its|a|an|each|every|the following|following)\s+)?([\w'’-]+\s+){0,2}?(chats?|messages?|e-?mails?|tickets?|texts?|dms?|reviews?|comments?|posts?|complaints?|questions?|inquir(y|ies)|enquir(y|ies)|letters?|notes?|voicemails?|requests?|tweets?)\b)[^"“”‘’]{0,40}$/i;
 
 /**
  * Whether a quote that `names` a customer, by the words of its sentence before and after it, is put to that customer
@@ -722,16 +782,27 @@ const THE_CASES_CUSTOMER = new RegExp(String.raw`\b(an?|the|this|that|one|anothe
  *   - to someone applying, a date of birth alone is a customer's for a customer word only outside the work described
  *     (THE_WORK: '"Hi, I'm Ana from HR at Bright Clinic, where we care for patients. May I have your date of birth for your
  *     file?"', "We serve customers in 20 countries", "This job is all about patients").
+ * The seventeenth review: the sixteenth round's two readings each went past the cases that justified them, so each was
+ * narrowed back to those cases rather than given exceptions:
+ *   - a first-person age read before anything else made a customer's own message a self-introduction ('Reply to: "I'm 70
+ *     years old and can't log in to my account."', the owner's gaming case), and five practice cases were dropped whole: it
+ *     is read now only after the label, the case's customer and the speaker's own account, which none of the sixteenth
+ *     round's self-introductions had (ANSWERS_A_MESSAGE, `namedBefore`, A_CUSTOMERS_OWN);
+ *   - a customer named anywhere in an earlier sentence made every interview, screening call and video prompt that mentions
+ *     one a customer's ('In up to 75 seconds, describe how you would welcome a customer. Then answer: "What is your age and
+ *     civil status?"'): the case's customer now opens its sentence, as in each of the sixteenth round's cases, is never "the
+ *     client", and counts only where no sentence before the quote names an interview, a candidate or an applicant, a
+ *     screening call or the applicant's video, unless one sets up a role-play (THE_CASES_CUSTOMER, NOT_A_PRACTICE_CASE).
  */
 function customersQuote(names: RegExp, before: string, quote: string, after: string, frame = `${before}${quote}${after}`, earlier = ""): boolean {
   // Read only when needed (a line of many quotes stays fast).
   const serviceAside = (text: string) => text.replace(YOUR_RECORD, "the customer's record").replace(SERVICE_WORK, "service work");
   const setAside = (text: string) => serviceAside(text).replace(NOT_THE_LISTENER, "someone");
   let theCase: boolean | undefined;
-  const namedBefore = () => (theCase ??= earlier !== "" && THE_CASES_CUSTOMER.test(outsideTheQuote(earlier).replace(NOT_THE_LISTENER, "someone")) && !applyingForAJob(earlier) && !SPOKEN_TO_AN_APPLICANT.test(after) && serviceAside(quote).search(NOT_THE_LISTENER) < 0);
+  const namedBefore = () => (theCase ??= earlier !== "" && THE_CASES_CUSTOMER.test(outsideTheQuote(earlier).replace(NOT_THE_LISTENER, "someone")) && aPracticeCase(earlier) && !applyingForAJob(earlier) && !SPOKEN_TO_AN_APPLICANT.test(after) && serviceAside(quote).search(NOT_THE_LISTENER) < 0);
   if (!names.test(`${before}${quote}${after}`) && !namedBefore()) return false;
   if (NAMES_A_CUSTOMER.test(outsideTheQuote(`${before}${after}`))) return true;
-  if (OWN_AGE.test(quote)) return false;
+  if (OWN_AGE.test(quote) && !A_CUSTOMERS_OWN.test(quote) && !ANSWERS_A_MESSAGE.test(before) && !namedBefore()) return false;
   const checked = A_CHECK.test(frame);
   const applying = applyingForAJob(upToTheAsk(quote));
   if (asksOnlyBirthDate(quote)) return checked || !applying || /\b(confirm\w*|verif\w*)\b/i.test(frame) || NAMES_A_CUSTOMER.test(setAside(quote).replace(THE_WORK, "someone"));
