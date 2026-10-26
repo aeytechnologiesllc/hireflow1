@@ -945,6 +945,59 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-26 (small hours) — security, product and growth converging; the classifier and age filter still looping
+
+Same session (Opus 5.5), same way of working as the entry below. Every
+commit here is live: CI and Vercel green, migrations applied one at a time
+after the live body's md5 matched its source file, every reached function
+deployed and answering. Since 65134bfa:
+
+- **Security round 7** (a44a56d3): no regression, nothing MEDIUM or worse.
+  Its three rules no test proved are now in
+  `launch_locks_behaviour.pglite.test.mjs` (a clean insert, every form path
+  shape, the resume's own folder; all 10 plain-path weakenings caught), and
+  ai-analyze-portfolio holds its service-key downloads to the plain-path
+  rule. **Security round 8 is running** (`sec8_brief.md`).
+- **Product rounds 8–10** (e8e2b1af, a4b832a5, 49de2769): a letter the
+  applicant signed in time can be countersigned after its date; every time
+  on the signing record is true UTC; the audit trail's hash and status words
+  are honest; a declined document opens with its reason, an expired letter
+  reads Expired and is never "done" or asked to be signed at hire; a voided
+  signed PDF still opens what was signed; Signed PDF only when both signed.
+  Round 9 found no regression, round 10 one LOW. **Product round 11 is
+  running** (`product11_brief.md`, scoped to 49de2769's flows).
+- **Growth rounds 8–9** (2129371c, 5a008910): "already counted on the front
+  page" is now a fact carried page to page (`seen=1`), not guessed from the
+  referrer; checked live. **Round 10 found no regression of MEDIUM or
+  worse**; its two LOWs are written in docs/ANALYTICS.md as known limits
+  (d1e6c240). The reviewers' growth harness reached the live site through
+  redirects in every round from 6 to 10 (page loads only, nothing written);
+  `review-materials/HARNESS_NOTE.md` says what to change before any further
+  growth round.
+- **Phase 5 round 11** (5cca1c6a, e6a40987; migrations
+  `file_queue_only_what_is_there` 20261026005714 and
+  `applications_removed_only_through_delete_their_information`
+  20261026005721): the file queue holds only what storage has (an
+  applicant could flood it with start-and-withdraw loops), an account may
+  start 20 applications an hour, a business deletes an application only
+  through Delete their information, the team sign-up shows the agreement,
+  and every rule the reviewer found unproven is proved.
+- **Phase 4 rounds 14–16** (a9ba546e, 9e6df1ca, 1f5159c5, d1004efd) and
+  **Phase 6 rounds 10–11** (c90c0ca2, 8d3dc720): each round fixed the last
+  one's regressions, mostly from the reviewer's own validated patches, and
+  each review found a few new ones. Publish now saves `is_remote` as
+  exactly the builder's work mode. Earlier-probe failures for the classifier
+  fell 211 → 165 → 117 → 116 → 116 with no new ones; the age filter's
+  `known` list in its test records what each round chose to leave.
+  **Phase 4 round 17 and Phase 6 round 12 are running.**
+
+**For the owner:** these two loops may not reach a round that finds
+nothing, because every round's narrowing opens a new edge case in a
+regex classifier over free text. A stopping rule to consider: a phase
+closes when a round finds no regression of MEDIUM or worse on common
+input, and every LOW is fixed or written down as a known limit with its
+reason (the rule growth round 10 already met).
+
 ### 2026-10-25 (evening) — the loop picked up from the HANDOFF: round 6 fixed, round 7 under way
 
 A new session (Opus 5.5) picked up the HANDOFF entry below the same
