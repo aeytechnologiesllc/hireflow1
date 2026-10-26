@@ -447,6 +447,8 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025500000_plain_file_paths.sql` | `20261025224159` | `plain_file_paths` |
 | `20261025510000_growth_google_is_search.sql` | `20261025221613` | `growth_google_is_search` |
 | `20261025520000_growth_front_page_not_staff.sql` | `20261025221619` | `growth_front_page_not_staff` |
+| `20261025540000_file_queue_only_what_is_there.sql` | `20261026005714` | `file_queue_only_what_is_there` |
+| `20261025550000_applications_removed_only_through_delete_their_information.sql` | `20261026005721` | `applications_removed_only_through_delete_their_information` |
 
 The live copies carry a short header pointing at the repo file instead of
 the repo file's full comment block; the SQL statements are identical.
