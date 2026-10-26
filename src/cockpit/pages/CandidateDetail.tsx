@@ -1362,11 +1362,11 @@ function CandidateProfile({
         </div>
         {/* What has been asked of them and what came back, on a phone too: the
             "Document received" notification opens this page, which showed
-            nothing to review here (the sixteenth product review). Only once
-            something was asked: an empty card here pushed the name and score
-            off the first screen (the seventeenth), and the bar's "Request
-            documents" is the way to ask. */}
-        <ApplicantDocumentsPanel applicationId={c.id} firstName={first} show={false} onRequest={isTeamMember ? undefined : () => setRequestOpen(true)} />
+            nothing to review here (the sixteenth product review). Above the
+            score only while a paper waits for review: an empty or settled card
+            here pushed the name and score off the first screen (the
+            seventeenth and eighteenth); otherwise it sits below the score. */}
+        <ApplicantDocumentsPanel applicationId={c.id} firstName={first} show={false} place="waiting" onRequest={isTeamMember ? undefined : () => setRequestOpen(true)} />
         <div className="ck-card flex items-center gap-4 p-4">
           {/* No score yet → no arc. The ring must not draw a 0 as a verdict. */}
           <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={score.value ?? undefined} rich variant="signal" />
@@ -1413,6 +1413,11 @@ function CandidateProfile({
             </div>
           </div>
         </div>
+
+        {/* …and below it when nothing waits, from the interview on, with its way to
+            ask (the decision bar has "Request documents" only once an offer is
+            out: the eighteenth product review). */}
+        <ApplicantDocumentsPanel applicationId={c.id} firstName={first} show={isOffered || isHired || status === "interview"} place="settled" onRequest={isTeamMember ? undefined : () => setRequestOpen(true)} />
 
         {/* The guided next step after a move to Interview. */}
         {interviewMoment && (

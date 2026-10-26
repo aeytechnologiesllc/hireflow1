@@ -203,13 +203,20 @@ export function RequestRow({ request, person }: { request: ApplicantRequest; per
   );
 }
 
-export function ApplicantDocumentsPanel({ applicationId, firstName, show, onRequest }: { applicationId: string; firstName: string; show: boolean; onRequest?: () => void }) {
+/**
+ * `place`, for the phone layout's two spots: "waiting" draws the panel only
+ * while a paper waits for review (above the score, where the "Document
+ * received" bell lands); "settled" only when nothing does (below the score).
+ */
+export function ApplicantDocumentsPanel({ applicationId, firstName, show, onRequest, place }: { applicationId: string; firstName: string; show: boolean; onRequest?: () => void; place?: "waiting" | "settled" }) {
   const { data: requests = [], isLoading } = useApplicantRequests(applicationId);
   const { role, isTeamMember } = useAuth();
   const { data: teamPermissions } = useTeamMemberPermissions();
   const canReview = isTeamMember ? !!teamPermissions?.canSendDocuments : role === "employer";
   if (!show && requests.length === 0) return null;
   const waiting = requests.filter((r) => r.status === "submitted" || r.status === "reviewed").length;
+  if (place === "waiting" && waiting === 0) return null;
+  if (place === "settled" && waiting > 0) return null;
   return (
     <section aria-label="Documents" data-applicant-documents>
       {/* "To review" only for someone who may review them (the sixteenth product review). */}
