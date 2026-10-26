@@ -11,6 +11,8 @@ export interface AvaCreateDraft {
     start: string;
     work: string;
     openings: number;
+    /** Whether the business typed the Type itself (briefFromForm); an older draft has none. */
+    typeChosen?: boolean;
   };
   chipAnswers: Record<string, number>;
   rigor: Rigor;

@@ -465,6 +465,30 @@ const CS = [
   ["Front Desk Officer", "Assist walk-in clients at the front desk and answer calls and emails about their accounts."],
   ["Customer Service Representative", "Handle customer inquiries. We welcome walk-ins!"],
   ["CSR", "Assist customers with their account concerns. We also welcome walk-ins Monday to Friday."],
+  // The seventeenth Phase 4 review: a hotel's reservations agent with its banquet team or "for the resort", or under a title
+  // that names the hotel, is the venue's again; a cosmetic or plastic surgery practice or an IV therapy lounge that greets
+  // "guests" is a clinic's front desk. And the other side of each fix: opening the store app, a merchant's staff taking cash,
+  // a phone line's cash payments, a remote host's check-ins, an app's check-ins and a virtual front desk stay customer service.
+  ["Reservations Agent - Hotel", "Handle reservations and coordinate corporate events with the banquet team."],
+  ["Booking Agent", "Respond to booking requests for the resort and coordinate corporate events with the banquet team."],
+  ["Reservations Officer", "Answer calls and emails from guests, manage corporate events and the banquet calendar for the hotel."],
+  ["Reservations Agent", "Book rooms for guests, coordinate conferences with the banquet and sales teams."],
+  ["Reservations Agent", "Handle room reservations at our hotels and coordinate corporate events."],
+  ["Front Desk Receptionist", "Welcome guests at the front desk, answer phones and schedule consultations for our plastic surgery practice."],
+  ["Front Desk Receptionist", "Welcome guests at the front desk, answer phones and schedule appointments for our cosmetic surgery center."],
+  ["Front Desk Coordinator", "Greet guests at the front desk of our cosmetic surgery center, answer calls and book consultations."],
+  ["Front Desk Receptionist", "Welcome guests at the front desk, answer phones and schedule appointments for our IV therapy lounge."],
+  ["Front Desk Coordinator", "Greet guests at the front desk of our IV therapy lounge, answer calls and book consultations."],
+  ["Front Desk Coordinator", "Greet guests at the front desk of our plastic surgery practice, answer calls and book consultations."],
+  ["Customer Service Representative", "Help customers who cannot open the store app."],
+  ["Customer Support Agent", "Help restaurant owners train their staff to take cash and use our POS."],
+  ["Customer Service Representative", "Accept cash or card payments over the phone and process refunds."],
+  ["Customer Service Representative", "Answer inbound calls. Cash handling experience is a plus."],
+  ["Guest Services Agent", "Manage check-ins and check-outs for our vacation homes."],
+  ["Guest Services Agent", "Handle check-ins and check-outs for our Airbnb units and answer guest calls."],
+  ["Customer Support Specialist", "Help users of our hotel booking app with check-ins and check-outs, refunds and cancellations."],
+  ["Customer Support Specialist", "Help parents with daycare check-ins and check-outs in our app."],
+  ["Virtual Front Desk Agent", "Handle check-ins and check-outs for hotel guests by phone and chat."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -855,6 +879,40 @@ const NOT_CS = [
   ["Booking Agent", "Organize corporate events for our clients and handle room reservations with partner hotels.", "general"],
   ["Events Booking Coordinator", "Manage corporate events for our clients from start to finish; liaise with the venue's banquet team.", "admin"],
   ["Booking Coordinator", "Plan corporate events and conferences for our clients and negotiate with the hotel on room rates.", "admin"],
+  // The seventeenth: the other side of the sixteenth's narrowing. The agent's own cash and floor duties are the counter under a
+  // title with no store part (handling, counting or taking the cash, cash handling, the till, at the cash register, restocking
+  // merchandise or items); a lodging's check-ins and check-outs are its desk's whatever app or platform its bookings come from,
+  // under a lodging-desk title, a front desk's or "at our hotel"; a lodging desk's check-ins keep a phone word on the floor;
+  // and room reservations at "our partner hotels" are a planner's.
+  ["Customer Service Representative", "Handle cash, issue receipts and assist customers with returns and exchanges.", "cash"],
+  ["Customer Service Associate", "Assist customers with purchases, cash handling and returns. Restock merchandise as needed.", "cash"],
+  ["Customer Service Specialist", "Handle cash and card transactions accurately, process returns and exchanges, assist with price checks.", "cash"],
+  ["Customer Service Representative", "Process customer purchases at the cash register, answer product questions and keep displays organized.", "cash"],
+  ["Customer Service Assistant", "Work the tills, process refunds and help shoppers in the aisles.", "cash"],
+  ["Customer Service Associate", "Responsible for cash handling, opening and closing the store, and helping customers with purchases.", "cash"],
+  ["Customer Service Representative", "Take cash and card payments, process returns and help with fitting rooms.", "cash"],
+  ["Customer Service Associate", "Serve customers at the deli, slice meats and cheeses, handle cash.", "cash"],
+  ["Customer Service Clerk", "Process payments using the POS, count the cash drawer at end of shift, restock items.", "cash"],
+  ["Customer Service Assistant", "Assist customers, handle cash and restock products.", "cash"],
+  ["Front Desk Agent", "Handle guest check-ins and check-outs and manage reservations from Booking.com and Agoda.", "general"],
+  ["Guest Service Agent", "Handle check-ins and check-outs, and process bookings from Agoda and Booking.com.", "general"],
+  ["Guest Services Associate", "Handle check-ins and check-outs and respond to guest reviews on Booking.com.", "general"],
+  ["Guest Experience Associate", "Handle check-ins and check-outs at our boutique hotel; respond to reviews on booking platforms.", "general"],
+  ["Guest Service Agent", "Handle check-ins and check-outs, update reservations in the PMS app and assist guests with their concerns.", "general"],
+  ["Front Desk Associate", "Handle check-ins and check-outs and promote our loyalty app to guests.", "general"],
+  ["Guest Relations Officer", "Handle check-ins and check-outs and answer guest questions on our app.", "admin"],
+  ["Front Desk Associate", "Handle check-ins and check-outs, process payments and update bookings on our reservation platform.", "general"],
+  ["Front Desk Staff", "Manage check-ins and check-outs, accept reservations from walk-ins and online booking platforms.", "general"],
+  ["Customer Service Associate", "Handle check-ins and check-outs at our pension house and accept Agoda bookings.", "general"],
+  ["Front Desk Agent", "Handle guest check-ins and check-outs, manage reservations from Booking.com and Agoda, answer phone calls.", "general"],
+  ["Guest Service Agent", "Handle check-ins and check-outs, answer guest calls, and assist guests with our mobile app.", "general"],
+  ["Guest Relations Officer", "Welcome guests, handle check-ins and check-outs and coordinate with housekeeping. Answer phone inquiries.", "admin"],
+  ["Guest Service Agent - Pension House", "Handle check-ins and check-outs and answer the phone.", "general"],
+  ["Guest Services Associate", "Handle check-ins and check-outs at our motel and answer phone calls.", "general"],
+  ["Guest Service Agent", "Greet guests, handle check-ins and check-outs, and answer phones at our bed and breakfast.", "general"],
+  ["Guest Service Agent", "Handle guest check-ins and check-outs, answer phones, and process payments at our B&B.", "general"],
+  ["Front Desk Associate", "Handle check-ins and check-outs at our inn and answer the phone.", "general"],
+  ["Reservations Agent", "Handle room reservations at our partner hotels for corporate clients and coordinate corporate events.", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -1176,6 +1234,21 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Hotline Agent", "Answer inbound calls.", "phone"], ["Phone and Hotline Agent", "Reply to customer emails.", "mixed"],
     ["Customer Service Representative", "Answer our 24/7 customer service hotline.", "phone"],
     ["Customer Service Representative", "Man the 24/7 customer care hotline and reply to emails.", "mixed"],
+    // The seventeenth: a hotline title gives way only to the agent's own written replies, never to a written word that is a
+    // skill, a report, an update or a tool; the sixteenth's written hotlines above still are.
+    ["Hotline Officer", "Responsibilities:\n- Attend to customer inquiries, requests and complaints\n- Provide accurate information about products and services\n\nQualifications:\n- Good communication skills\n- Proficient in MS Office and email", "phone"],
+    ["Hotline Agent", "Assist customers with their concerns. Experience with email support is an advantage.", "phone"],
+    ["Hotline Agent", "Assist customers with their concerns. Must be willing to work on shifting schedules. Experience in chat support is a plus.", "phone"],
+    ["Hotline Representative", "Handle inbound customer concerns about billing and repairs. Prepare reports and email summaries to supervisors.", "phone"],
+    ["Customer Care Hotline Officer", "Attend to customer inquiries, complaints and requests. Coordinate with other departments via email.", "phone"],
+    ["Customer Hotline Representative", "Assist customers with orders, refunds and account concerns. Document every interaction in Zendesk.", "phone"],
+    ["Hotline Agent", "Answer inquiries about deliveries, schedule pickups and send updates to customers via SMS.", "phone"],
+    ["Hotline Agent", "Answer customer inquiries and send follow-up emails.", "phone"],
+    ["Hotline Agent (Bank)", "Assist cardholders with balance inquiries, lost cards and disputes. Send emails to cardholders when needed.", "phone"],
+    ["Hotline Agent - Healthcare", "Help members with claims and coverage questions. Escalate cases through email to the claims team.", "phone"],
+    ["Customer Service Hotline Agent", "Handle customer concerns on billing, service interruptions and repairs. Log every concern in the CRM and send a reference number by email or SMS.", "phone"],
+    ["Hotline Associate", "Handle inquiries, complaints and follow-ups; coordinate with branches through email and Viber.", "phone"],
+    ["Hotline Agent", "Answer customer emails and chats about orders.", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
 }
 
@@ -1469,6 +1542,13 @@ let aiFlow;
     "How would you de-escalate the frustration of a caller who has been on hold for an hour?",
     "How do you de-escalate the frustration of a customer on the phone?",
   ]) check(`a frustrating caller, or a caller's frustration, is the angry-caller question: ${JSON.stringify(prompt)}`, !callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
+  // The seventeenth: "frustrating callers" after without, avoid, never or not is the verb, as "frustrating customers" was, and
+  // leaves the angry-caller question in (the three above still take its place).
+  for (const prompt of [
+    "How do you keep calls short without frustrating callers?",
+    "What do you do to avoid frustrating callers with long holds on the phone?",
+    "How do you make sure you are never frustrating callers by putting them on hold?",
+  ]) check(`"frustrating callers" as a verb is not the angry-caller question: ${JSON.stringify(prompt)}`, callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ jobPost: { title: "Front desk", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [], voiceQuestions: ["Why us?", "How do you stay calm?", "What hours?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
   const worded = (await M.generateJobFlow({ brief: formFor("Medical or dental office", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;
@@ -1619,6 +1699,44 @@ let aiFlow;
         const connection = flow.phases.some((p) => p.kind === "equipment_check");
         const currencyOk = remote ? row.salary_currency !== "USD" || /\$/.test(pay) : country !== "PH" || row.salary_currency === "PHP";
         check(`the ${plan} plan builds and Publish saves ${remote ? "remote" : "on site"}: ${JSON.stringify(role)}, ${location}, "${work.replace(/\n/g, " / ").slice(0, 48)}…"${country ? ` (${country})` : ""}`, (b0.workMode === "remote") === remote && row.is_remote === remote && connection === remote && currencyOk && (!country || row.location_country_code === country), `${b0.workMode} saved=${row.is_remote} connection=${connection} ${row.location_country_code} ${row.salary_currency}`);
+      }
+    }
+    // The seventeenth: a title that says on site is built and saved on site whatever WFH it also mentions (it was remote with
+    // no currency and a connection check); an on-site Type the business chose decides over the title and the words, while the
+    // builder's untouched default still lets them decide; a setup line after an emoji bullet or a "Job Setup:" label is remote,
+    // a perk after one is not, and a post with two setups is on site; and a client's country is never the job's, so a
+    // Philippine city the place hints do not know, or a remote job at a US-based BPO, gets no country and no currency.
+    for (const [role, location, type, typeChosen, work, remote, pay, country] of [
+      ["CSR - Onsite (WFH after regularization)", "Makati City", "Full-time · On-site", undefined, "Answer inbound calls from customers about their accounts.", false, "25,000 - 30,000 per month", "PH"],
+      ["Customer Service Representative | Onsite | Possible WFH", "Mandaluyong City", "Full-time · On-site", undefined, "Answer customer calls and emails.", false, "22,000/month", null],
+      ["Onsite CSR | WFH after 3 months", "Quezon City", "On-site", undefined, "Answer inbound calls.", false, "20000 monthly", "PH"],
+      ["CSR - Onsite (WFH after regularization)", "Makati City", "Full-time · Not remote", undefined, "Answer inbound calls.", false, "25,000 per month", "PH"],
+      ["Work From Home Chat Support Agent", "Cebu City", "Full-time · On-site only", undefined, "Reply to customer chats.", false, "20,000/month", "PH"],
+      ["Work From Home Chat Support Agent", "Cebu City", "Full-time · On-site", true, "Reply to customer chats.", false, "20,000/month", "PH"],
+      ["Customer Service Representative", "Philippines", "Office-based", undefined, "Answer customer chats.\nWork setup: Permanent WFH", false, "20,000/month", "PH"],
+      ["Work From Home Chat Support Agent", "Cebu City", "Full-time · On-site", false, "Reply to customer chats.", true, "20,000/month", "PH"],
+      ["Work From Home Chat Support Agent", "Cebu City", "Part-time", undefined, "Reply to customer chats.", true, "20,000/month", "PH"],
+      ["Customer Service Representative", "Remote", "Part-time · On-site", true, "Answer customer chats.", true, "$15/hr", null],
+      ["Customer Service Representative", "Philippines", "Full-time · On-site", undefined, "Answer customer chats.\n✅ Permanent WFH", true, "20,000/month", "PH"],
+      ["Customer Service Representative", "Philippines", "Full-time · On-site", undefined, "Answer customer chats.\nJob Setup: Work From Home", true, "20,000/month", "PH"],
+      ["Customer Service Representative", "Makati", "Full-time · On-site", undefined, "Answer customer calls.\n\nWhat's in it for you?\n✅ HMO\n✅ WFH", false, "20,000/month", "PH"],
+      ["Customer Service Representative", "Taguig", "Full-time · On-site", undefined, "Answer customer calls.\nWe are hiring for two setups:\n- WFH\n- Onsite (Taguig)", false, "25,000/month", "PH"],
+      ["Customer Service Representative", "Mandaluyong (US-based BPO)", "Full-time · On-site", undefined, "Answer inbound calls from US customers.", false, "25,000 per month", "none"],
+      ["Customer Service Representative", "Eastwood, Libis (US-based BPO)", "Full-time · On-site", undefined, "Answer inbound calls.", false, "25,000 - 28,000 a month", "none"],
+      ["Customer Service Representative", "Remote - US-based BPO", "Full-time · Remote", true, "Answer inbound calls.", true, "25,000 per month", "none"],
+    ]) {
+      const b0 = M.briefFromForm({ role, location, type, typeChosen, pay, start: "ASAP", work });
+      const b = { ...b0, followUps: [{ questionId: M.JOB_KIND_ID, question: "", answer: M.JOB_KIND_CHIPS[0] }, { questionId: "cs-channel", question: "", answer: "Phone" }, { questionId: "cs-industry", question: "", answer: "Online store" }] };
+      for (const plan of ["template", "AI"]) {
+        globalThis.fetch = async () => new Response(JSON.stringify({ jobPost: { title: role, summary: work, responsibilities: ["Answer customers"], requirements: ["Clear speech"], niceToHaves: [] }, application: ["Hours?", "Why?", "Experience?"], quiz: [], simulation: [], voiceQuestions: ["Tell us about a hard customer.", "Why this job?", "How do you stay calm?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+        const flow = plan === "template" ? M.generateTemplateFlow({ brief: b, rigor: "standard" }).flow : (await M.generateJobFlow({ brief: b, rigor: "standard" })).flow;
+        globalThis.__fakeSupabase = fakeSupabase();
+        await M.createJobFromFlow(flow, b, { status: "published", voiceInterview: false });
+        const row = globalThis.__fakeSupabase.inserted[0] ?? {};
+        const connection = flow.phases.some((p) => p.kind === "equipment_check");
+        // (A remote job gets no currency from its place, so only an on-site one is checked for PHP.)
+        const placeOk = country === "none" ? !row.location_country_code && !row.salary_currency : (row.salary_currency !== "USD" || /\$/.test(pay)) && (country !== "PH" || (row.location_country_code === "PH" && (remote || row.salary_currency === "PHP")));
+        check(`the ${plan} plan builds and Publish saves ${remote ? "remote" : "on site"} (the seventeenth): ${JSON.stringify(role)}, ${location}, Type "${type}"${typeChosen === undefined ? "" : typeChosen ? " (typed)" : " (default)"}, "${work.replace(/\n/g, " / ").slice(0, 40)}…"${country ? ` (${country === "none" ? "no country, no currency" : country})` : ""}`, (b0.workMode === "remote") === remote && row.is_remote === remote && connection === remote && placeOk, `${b0.workMode} saved=${row.is_remote} connection=${connection} ${row.location_country_code} ${row.salary_currency}`);
       }
     }
     const noInterview = M.applyCustomerServicePack([{ id: "ph_app", kind: "application", order: 0, title: "App", candidateDescription: "", rationale: "", config: { kind: "application", questions: [] }, rubric: { criteria: [] }, weight: 0.1, scoringMode: "auto" }], formFor("Online store", "Phone", "Remote"));

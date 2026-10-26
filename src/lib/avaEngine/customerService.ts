@@ -259,7 +259,12 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // - Non-Voice / Handle customer concerns via email and chat" are written (the sixteenth review: the title's hotline, the
   // thirteenth's, led over them). "Hotline Agent / Answer calls on our 24/7 customer hotline", "Hotline Agent / Answer the
   // customer hotline and reply to emails" and a "Hotline Agent" with no words are still the phone.
-  const titlePhone = tPhone && !(tOnlyHotline && (chatIn || emailIn) && !phoneWork && !list);
+  // (The seventeenth: only the agent's own written replies, as all the sixteenth's were, by the verbs the chat and email
+  // tests below read. Any written word let the hotline go: "Proficient in MS Office and email", "Experience in chat support is a
+  // plus", "Prepare reports and email summaries to supervisors", "send updates to customers via SMS", "Document every
+  // interaction in Zendesk" were email or chat jobs.)
+  const writtenReply = /\b(answer|answering|reply|replying|respond|responding|handle|handling)\b( to)?[^.;\n]{0,25}\b(live chats?|chats?|e-?mails?|tickets?|messages|sms|texts|viber|whatsapp|messenger)\b/.test(positiveWork);
+  const titlePhone = tPhone && !(tOnlyHotline && writtenReply && !phoneWork && !list);
   const titleNames = tChat || tEmail || titlePhone || tWritten;
   const phoneOut = hardNoPhone || ((softNoPhone || elsewhere(PHONE).test(work)) && !phoneWork && !voiceAccount);
   const chatOut = noChat || (elsewhere(CHAT).test(work) && !/\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\bchats?\b/.test(work));
@@ -469,7 +474,9 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
       // (The sixteenth: frustrating callers are frustrating calls, "How do you handle frustrating callers?", and so is the
       // frustration of a caller, "How would you de-escalate the frustration of a caller who has been on hold for an hour?",
       // never the agent's, "the frustration you feel". "Frustrating customers" stays out: it is the verb as often as not.)
-      const OTHERS_TEMPER = /\b(frustrated|aggressive) (callers?|customers?|patients?)\b|\bfrustrating (calls?|callers?)\b|\b(callers?|customers?|patients?)(['’]s?)? frustration\b|\bde-?escalat\w*\s+((the|their|that)\s+)?frustration\b(?!\s+(you|i|we)\b)|\b(callers?|customers?|patients?|calls?|they|he|she)\b((?!\b(you|i|we)\b)[^.?!]){0,30}?\b(is|are|was|were|gets?|got|getting|becomes?|became|becoming|turns?|turned|seems?|sounds?)\s+((being|very|really|so|quite|increasingly|already|more and more|more)\s+){0,2}(frustrated|aggressive)\b/i;
+      // (The seventeenth: never the verb after without, avoid, never or not, as the fifteenth's "frustrating customers" was: "How do
+      // you keep calls short without frustrating callers?", "What do you do to avoid frustrating callers with long holds?".)
+      const OTHERS_TEMPER = /\b(frustrated|aggressive) (callers?|customers?|patients?)\b|(?<!\b(without|avoid|avoiding|never|not)\s)\bfrustrating (calls?|callers?)\b|\b(callers?|customers?|patients?)(['’]s?)? frustration\b|\bde-?escalat\w*\s+((the|their|that)\s+)?frustration\b(?!\s+(you|i|we)\b)|\b(callers?|customers?|patients?|calls?|they|he|she)\b((?!\b(you|i|we)\b)[^.?!]){0,30}?\b(is|are|was|were|gets?|got|getting|becomes?|became|becoming|turns?|turned|seems?|sounds?)\s+((being|very|really|so|quite|increasingly|already|more and more|more)\s+){0,2}(frustrated|aggressive)\b/i;
       const asksAngryCaller = (prompt: string) =>
         sentences(prompt).some((x) => onCall(x) && (OTHERS_TEMPER.test(x) || /\b(angry|upset|furious|irate|rude|abusive|difficult (callers?|customers?|patients?|calls?)|shout\w*|yell\w*|scream\w*|swear\w*|talk\w* over)\b/i.test(x)));
       // On hold is a person on hold ("put a caller on hold", "put patients on

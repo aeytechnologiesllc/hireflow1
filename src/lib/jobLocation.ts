@@ -93,14 +93,41 @@ const PH_PLACE_HINT = /\b(metro manila|manila|quezon city|makati|pasig|taguig|bg
  *  BPO)" and "Cebu City (US company)" are the Philippines, "Remote
  *  (US-based position)" and "Remote (US company)" the US. The kinds of
  *  account, client or customer, the hours, the market and the industries
- *  (CLIENT_COUNTRY) are always the client's. */
-const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:(?:-based)?\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|time(?:zone)?|hours|market|campaigns?)\b|(?:-based)?\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)/gi;
-const CLIENT_IF_ELSEWHERE = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:-based\s+(?!(?:applicants?|candidates?|employees?|teams?|staff|workers?|people|talent|hires?|residents?|citizens?|only|preferred|remote|professionals?|agents?|freelancers?|contractors?|individuals?|persons?)\b)[\w-]+|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:compan(?:y|ies)|brands?|business(?:es)?|startups?)\b)/gi;
+ *  (CLIENT_COUNTRY) are always the client's.
+ *  The seventeenth: when what was left named a real city the hints do not
+ *  know ("Mandaluyong (US-based BPO)", "Pasay City - US-based call center",
+ *  "Lapu-Lapu City (US-based BPO)"), the client's country came back from the
+ *  whole text, and Publish saved a Philippine job paid in dollars, the very
+ *  bug the sixteenth fixed for "Cebu City (US company)". So whatever is left
+ *  once the client's words go is the place, a place the hints know or not
+ *  ("Mandaluyong" has no country, so no currency is guessed), and the whole
+ *  text is read only when nothing but the setup is left. And "-based" before
+ *  a business (CLIENT_BASED: a BPO, company, firm, agency, startup, brand,
+ *  call centre, clinic, practice, office or store, the fourteenth's and
+ *  fifteenth's evidence) is the client's whatever is left, as the fifteenth
+ *  had it, so "Remote - US-based BPO" and "Work from home (US-based company)"
+ *  have no country either: the US is the business's, not the job's. Any
+ *  other word after "-based" is still the sixteenth's, the client's only when
+ *  a place is left, taken with the words after it ("Remote (US-based
+ *  staffers)", "Remote (US-based moms welcome)", "Remote - US-based support
+ *  role" are the US), and so is a bare company: "Remote (US company)" is the
+ *  US, "Las Pinas (US company)" has no country. */
+const COUNTRY_WORD = String.raw`(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)`;
+const CLIENT_COUNTRY = new RegExp(String.raw`\b${COUNTRY_WORD}(?:(?:-based)?\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|time(?:zone)?|hours|market|campaigns?)\b|(?:-based)?\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)`, "gi");
+// Words for the people after "-based", which say where they are: never a client's (the thirteenth to fifteenth).
+const PEOPLE = String.raw`applicants?|candidates?|employees?|teams?|staff|workers?|people|talent|hires?|residents?|citizens?|only|preferred|remote|professionals?|agents?|freelancers?|contractors?|individuals?|persons?`;
+const BUSINESS = String.raw`bpos?|compan(y|ies)|firms?|agenc(y|ies)|startups?|business(es)?|brands?|(call|contact) cent(er|re)s?|clinics?|practices?|offices?|stores?|shops?`;
+const CLIENT_BASED = new RegExp(String.raw`\b${COUNTRY_WORD}-based\s+(?:(?!(?:${PEOPLE})\b)[\w-]+\s+){0,2}?(?:${BUSINESS})\b`, "gi");
+const CLIENT_IF_ELSEWHERE = new RegExp(String.raw`\b${COUNTRY_WORD}(?:-based\s+(?!(?:${PEOPLE})\b)[\w-]+(?:\s+(?!(?:${PEOPLE})\b)[\w-]+){0,2}|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:compan(?:y|ies)|brands?|business(?:es)?|startups?)\b)`, "gi");
+// What names no place: how and where from the work is done, and who does it ("Remote", "Work from home", "applicants only").
+const NOT_A_PLACE = new RegExp(String.raw`\b(fully|permanent(ly)?|remote(ly)?|work(ing)?[-\s]?(from|at)[-\s]?home|wfh|home[-\s]?based|telecommut\w*|online|anywhere|worldwide|setup|set-up|positions?|roles?|jobs?|${PEOPLE})\b`, "gi");
 
 export function inferCountryCode(locationText?: string | null): string | null {
-  const kept = (locationText ?? "").trim().replace(CLIENT_COUNTRY, " ");
+  const kept = (locationText ?? "").trim().replace(CLIENT_COUNTRY, " ").replace(CLIENT_BASED, " ");
   const elsewhere = kept.replace(CLIENT_IF_ELSEWHERE, " ");
-  return countryOfText(elsewhere) ?? countryOfText(kept);
+  // (Anything left but the setup is the place, whether the hints know it or not; the seventeenth.)
+  const placeLeft = /[a-z]/i.test(elsewhere.replace(NOT_A_PLACE, " "));
+  return countryOfText(placeLeft ? elsewhere : kept);
 }
 function countryOfText(text: string): string | null {
   if (!text.trim()) return null;

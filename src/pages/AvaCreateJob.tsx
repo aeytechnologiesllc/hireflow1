@@ -50,6 +50,7 @@ import { DISPLAY, FOCUS_CSS, STEPS, useWide } from "@/components/ava/createFlow/
 import {
   PLAYBOOKS,
   RIGOR_OPTIONS,
+  DEFAULT_JOB_TYPE,
   briefFromForm,
   chipAnswersToBriefAnswers,
   clearDraft,
@@ -195,7 +196,10 @@ export default function AvaCreateJob() {
     saved?.briefFields ?? {
       role: "",
       location: "",
-      type: "Full-time · On-site",
+      type: DEFAULT_JOB_TYPE,
+      // The Type starts as the builder's default, which the title and What they do may overrule; once the business types in
+      // it, its own on-site decides (briefFromForm; the seventeenth Phase 4 review).
+      typeChosen: false,
       pay: "",
       start: "Within a few weeks",
       work: "",
@@ -592,12 +596,14 @@ export default function AvaCreateJob() {
               planVisible={planVisible}
               brief={briefFields}
               reviewCards={reviewCards}
-              onBriefPatch={(patch) => setBriefFields((b) => ({ ...b, ...patch }))}
+              // (The voice brief writes the Type, whose on-site is its default for a local role, never one the business
+              // typed: briefFromForm; the seventeenth Phase 4 review.)
+              onBriefPatch={(patch) => setBriefFields((b) => ({ ...b, ...patch, typeChosen: false }))}
               onComplete={(payload) => {
                 // Voice confirmed → skip Follow-ups + Rigor: map the brief, auto-pick the
                 // recommended rigor for the detected role family, and jump straight into the
                 // existing "Ava is building" step (which auto-runs generateJobFlow).
-                const merged = { ...briefFields, ...payload };
+                const merged = { ...briefFields, ...payload, typeChosen: false };
                 // Belt-and-suspenders: TalkToAva already refuses to call onComplete until the
                 // brief clears the same bar canContinueBrief holds the typed path to (role,
                 // location, pay, what they'll do) — never build a plan from here without it either.
@@ -663,7 +669,7 @@ export default function AvaCreateJob() {
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Type</label>
-                        <input value={briefFields.type} onChange={(e) => setBrief("type", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Full-time · On-site / Hybrid / Remote" />
+                        <input value={briefFields.type} onChange={(e) => { const type = e.target.value; setBriefFields((b) => ({ ...b, type, typeChosen: true })); }} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Full-time · On-site / Hybrid / Remote" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><DollarSign className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Pay</label>
