@@ -150,7 +150,12 @@ function countedFrom(opts) {
   const offFront = countedFrom({ search: "?utm_source=job_page&utm_medium=hiring_link&hiring_link=1", referrer: "https://hireflownow.com/team-lead", path: "/blog" });
   check("…the mark counts only on the front page, where every hiring link goes", offFront && offFront.utmSource === null, JSON.stringify(offFront));
   const counted = loadCounter({ search: "?utm_source=job_page&utm_medium=hiring_link&hiring_link=1", referrer: "https://hireflownow.com/team-lead", path: "/" });
-  check("…and is taken off the address once counted, the tags left (so a reload counts nothing again)", counted.replaced.length === 1 && counted.replaced[0].url === "/?utm_source=job_page&utm_medium=hiring_link" && counted.replaced[0].state?.key === "k", JSON.stringify(counted.replaced));
+  // The ninth growth review: on the front page the mark gives way to the fact
+  // it was counted (seen=1), so a reload or Back, from the same page with no
+  // mark, still passes it on through carry-source.js.
+  check("…and is taken off the address once counted, the tags left and the fact in its place (so a reload counts nothing again, and still knows)", counted.replaced.length === 1 && counted.replaced[0].url === "/?utm_source=job_page&utm_medium=hiring_link&seen=1" && counted.replaced[0].state?.key === "k", JSON.stringify(counted.replaced));
+  const offFrontReplaced = loadCounter({ search: "?utm_source=job_page&hiring_link=1", referrer: "https://hireflownow.com/team-lead", path: "/blog" }).replaced;
+  check("…off the front page the mark is only taken off (nothing was counted there)", offFrontReplaced.length === 1 && offFrontReplaced[0].url === "/blog?utm_source=job_page", JSON.stringify(offFrontReplaced));
   const reload = countedFrom({ search: "?utm_source=job_page&utm_medium=hiring_link", referrer: "https://hireflownow.com/team-lead", path: "/" });
   check("…a reload of that front page (same referrer, no mark) is not counted again", reload && reload.utmSource === null, JSON.stringify(reload));
   const youtube = countedFrom({ search: "?utm_source=youtube&utm_medium=video", referrer: "https://hireflownow.com/blog", path: "/" });
@@ -163,6 +168,46 @@ function countedFrom(opts) {
   // back: they were counted when the visitor first arrived.
   const backFromSignUp = countedFrom({ search: "?utm_source=youtube&utm_medium=video", referrer: "https://staff.hireflownow.com/", path: "/" });
   check("a visitor going back from the staff sign-up with their tags is not counted again", backFromSignUp && backFromSignUp.utmSource === null && backFromSignUp.referrerHost === "staff.hireflownow.com", JSON.stringify(backFromSignUp));
+}
+
+// The ninth growth review: the counter says whether this load's view counted
+// the visitor as arriving (window.__hfBeacon.counted), and the front page's
+// carry-source.js passes that on as seen=1. It never counts seen itself.
+function loadCounterWindow(opts) {
+  const bodies = [];
+  const sandbox = {
+    console,
+    fetch: (_url, init) => {
+      bodies.push(JSON.parse(init.body));
+      return Promise.resolve();
+    },
+    URL,
+    URLSearchParams,
+    navigator: { userAgent: "test-agent", doNotTrack: opts.dnt ?? null, globalPrivacyControl: false },
+    document: { referrer: opts.referrer, documentElement: { clientWidth: 1024 } },
+  };
+  const pagePath = opts.path ?? "/";
+  const host = opts.host ?? "hireflownow.com";
+  sandbox.window = {
+    innerWidth: 1024,
+    location: { pathname: pagePath, href: `https://${host}${pagePath}${opts.search ?? ""}`, search: opts.search ?? "", hostname: host },
+    history: { state: null, replaceState: () => {} },
+    doNotTrack: opts.dnt ?? null,
+  };
+  sandbox.window.self = sandbox.window;
+  sandbox.window.top = opts.iframe ? {} : sandbox.window;
+  vm.createContext(sandbox);
+  vm.runInContext(beaconSource, sandbox, { filename: "beacon.js" });
+  return { bodies, beacon: sandbox.window.__hfBeacon };
+}
+{
+  check("an arrival from outside: counted, and the counter says so", loadCounterWindow({ referrer: "https://www.youtube.com/", search: "?utm_source=youtube" }).beacon.counted === true && loadCounterWindow({ referrer: "" }).beacon.counted === true);
+  check("…a \"Post a job free\" landing on the front page from inside the site: counted, and says so", loadCounterWindow({ referrer: "https://hireflownow.com/open-jobs", search: "?utm_source=youtube&hiring_link=1" }).beacon.counted === true);
+  const moved = loadCounterWindow({ referrer: "https://hireflownow.com/blog", search: "?utm_source=youtube&seen=1" });
+  check("…a move inside the site is not, says so, and seen=1 is never counted as a visit", moved.beacon.counted === false && moved.bodies[0]?.utmSource === null && moved.bodies[0]?.referrerHost === "hireflownow.com", JSON.stringify(moved.bodies));
+  check("…from the staff sign-up: a move inside too", loadCounterWindow({ referrer: "https://staff.hireflownow.com/", search: "?utm_source=youtube" }).beacon.counted === false);
+  check("…Do Not Track: nothing sent and nothing said", (() => { const r = loadCounterWindow({ referrer: "https://www.youtube.com/", dnt: "1" }); return r.bodies.length === 0 && r.beacon.counted !== true; })());
+  check("…inside the landing iframe (no view of its own): nothing said", loadCounterWindow({ referrer: "https://www.youtube.com/", iframe: true }).beacon.counted !== true);
 }
 
 // The sixth growth review (a low): a move inside the app is the same visit

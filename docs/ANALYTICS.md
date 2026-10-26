@@ -126,7 +126,7 @@ and anyone going back from the sign-up page) are left out of the front page's
 sources, the page kinds and campaigns
 (`20261025520000_growth_front_page_not_staff.sql`).
 
-**How a visit is counted** (the growth reviews, rounds 3 to 6):
+**How a visit is counted** (the growth reviews, rounds 3 to 9):
 
 - A visit is counted with its tags, or the site that sent it, once: on the
   page it arrived on. A page opened from another of HireFlow's pages, and
@@ -141,13 +141,36 @@ sources, the page kinds and campaigns
 - "Hiring? Post a job free" is a new way in, counted when it lands on the
   front page whatever channel the visitor brought: its link carries a mark,
   `hiring_link=1`, that nothing carries on and the counter takes off the
-  address, and only a visitor's first hiring link has it: never one on a
-  page opened from the front page itself (the visitor was counted there, so
-  Open jobs' "Post a job free" after the front page is not a new visit, and
-  it takes back only the visitor's own tags, never its own source as a
-  campaign), nor one after their tags already name a hiring link. From a
-  guide, the staff sign-up or a new tab, the first one still counts.
-  Applicants' "Sign in" links on public pages carry the channel as Apply
+  address, and only a visitor's first hiring link has it. Never for a visitor
+  the front page has already counted, however many pages sit between (Guides,
+  a guide, a job opened in a new tab), nor after their tags already name a
+  hiring link; either way the link takes back only the visitor's own tags,
+  never its own source as a campaign.
+- "Already counted on the front page" is a fact carried from page to page,
+  `seen=1`, not a guess from the referrer, which names only the page just
+  before (the ninth growth review: front page → Guides → Open jobs counted a
+  YouTube visitor twice, and a campaign-tagged one on every loop). When the
+  front page's own view counted the visitor (beacon.js says so:
+  `window.__hfBeacon.counted`), `carry-source.js` puts `seen=1` on its links
+  to Guides and Open jobs; the guides pass it on, `withVisitorTags` passes it
+  to the app's links and drops the mark for it, and once a hiring link has
+  been counted the counter leaves `seen=1` in the front page's address in
+  place of the mark (so a reload or Back still knows). It is believed only on
+  a page reached from one of HireFlow's own (an address copied with it and
+  opened elsewhere is a new visitor), never goes on a sign-in or sign-up link
+  and is never kept by an account.
+- So a visitor's first hiring link still counts, for their own channel, when
+  the front page has not counted them: from a guide or Open jobs reached from
+  outside, a job opened in a new tab from there, or a front page they reached
+  from a guide. Two places keep the old guess, where it is still the best
+  word: a front page reached from the staff sign-up's "← hireflownow.com" is
+  taken as counted (the fact never goes to a sign-up page, and Admin → Growth
+  leaves that arrival out anyway), and a page opened straight from the front
+  page whose address carries nothing from it is too (its `carry-source.js`
+  did not run, or had nothing at all to say: a visitor with no channel who
+  reached the front page from inside, whose first page counted them as
+  "direct").
+- Applicants' "Sign in" links on public pages carry the channel as Apply
   does.
 - The short ways in (`hireflownow.com/youtube`…) match in any capitals in
   vercel.json (`shortWaySource`, `src/lib/shortWays.ts`).

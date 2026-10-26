@@ -18,6 +18,7 @@ import vm from "node:vm";
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const read = (rel) => readFileSync(path.join(ROOT, rel), "utf8");
 const src = await import(path.join(ROOT, "src/lib/signupSource.ts"));
+const H_LINK = await import(path.join(ROOT, "src/lib/hiringLink.ts"));
 
 let passed = 0;
 let failed = 0;
@@ -84,6 +85,69 @@ site = runCarrySite({ search: "?ref=www.quora.com", referrer: "https://hireflown
 check("…so on the next page Quora is still the source of the sign-up", site.staff[0] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=www.quora.com&utm_medium=referral&utm_campaign=a-guide&ref=www.quora.com", site.staff[0]);
 site = runCarrySite({ search: "?ref=staff.hireflownow.com", referrer: "", staff: ["https://staff.hireflownow.com/auth?mode=signup"], inside: [] });
 check("…never HireFlow's own host as a carried source", site.staff[0] === "https://staff.hireflownow.com/auth?mode=signup", site.staff[0]);
+
+// ---- the ninth growth review: the front page's count rides along -----------------
+// carry-source.js against a stand-in page whose querySelectorAll answers each
+// selector as a browser would (a[href="…"], a[href^="…"], a[href*="…"]), so
+// the sign-up links and the links onward through the site are told apart.
+function matches(selector, href) {
+  return selector.split(/,\s*/).some((one) => {
+    const m = /^a\[href(\^|\*)?="([^"]*)"\]$/.exec(one.trim());
+    if (!m) return false;
+    return m[1] === "^" ? href.startsWith(m[2]) : m[1] === "*" ? href.includes(m[2]) : href === m[2];
+  });
+}
+function runCarryPage({ path: pagePath = "/", search = "", referrer = "", beacon, hrefs }) {
+  const anchors = hrefs.map((raw) => ({ raw, href: new URL(raw, `https://hireflownow.com${pagePath}`).toString() }));
+  const sandbox = {
+    window: { location: { search, pathname: pagePath, hostname: "hireflownow.com", href: `https://hireflownow.com${pagePath}${search}` }, ...(beacon === undefined ? {} : { __hfBeacon: beacon }) },
+    navigator: { doNotTrack: null, globalPrivacyControl: false },
+    document: { referrer, querySelectorAll: (sel) => anchors.filter((a) => matches(sel, a.raw)) },
+    URL, URLSearchParams, Array, Object,
+  };
+  vm.runInNewContext(read("public/carry-source.js"), sandbox);
+  return Object.fromEntries(anchors.map((a) => [a.raw, a.href]));
+}
+// The front page's own links, as public/landing.html has them.
+const FRONT_LINKS = ["/blog", "/open-jobs", "https://staff.hireflownow.com/auth", "https://staff.hireflownow.com/auth?mode=signup", "/privacy", "#night"];
+{
+  const counted = runCarryPage({ search: "?utm_source=youtube&utm_medium=video", referrer: "", beacon: { counted: true }, hrefs: FRONT_LINKS });
+  check("the front page puts seen=1 on its links onward (Guides, Open jobs) when beacon.js counted its view", counted["/blog"] === "https://hireflownow.com/blog?utm_source=youtube&utm_medium=video&seen=1" && counted["/open-jobs"] === "https://hireflownow.com/open-jobs?utm_source=youtube&utm_medium=video&seen=1", JSON.stringify(counted));
+  check("…never on a sign-up or sign-in link: those get the three tags and ref only", counted["https://staff.hireflownow.com/auth?mode=signup"] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_medium=video" && !counted["https://staff.hireflownow.com/auth"].includes("seen") && JSON.stringify(src.signupSourceFrom(counted["https://staff.hireflownow.com/auth?mode=signup"])) === JSON.stringify({ utm_source: "youtube", utm_medium: "video" }), JSON.stringify(counted));
+  check("…nor on Privacy, Terms or the page's own anchors", counted["/privacy"] === "https://hireflownow.com/privacy" && counted["#night"] === "https://hireflownow.com/#night");
+  const direct = runCarryPage({ referrer: "", beacon: { counted: true }, hrefs: FRONT_LINKS });
+  check("…a direct visitor, with nothing else to carry, gets it too (typed hireflownow.com → Open jobs → Post a job free counted twice)", direct["/open-jobs"] === "https://hireflownow.com/open-jobs?seen=1" && direct["https://staff.hireflownow.com/auth?mode=signup"] === "https://staff.hireflownow.com/auth?mode=signup", JSON.stringify(direct));
+  const moved = runCarryPage({ search: "?ref=www.quora.com", referrer: "https://hireflownow.com/blog/a-guide", beacon: { counted: false }, hrefs: FRONT_LINKS });
+  check("…not when beacon.js did not count the view (reached from a guide): that visitor's first Post a job free still counts (Low 2)", moved["/open-jobs"] === "https://hireflownow.com/open-jobs?ref=www.quora.com", JSON.stringify(moved));
+  const again = runCarryPage({ search: "?utm_source=youtube&seen=1", referrer: "https://hireflownow.com/open-jobs?utm_source=youtube&seen=1", beacon: { counted: false }, hrefs: FRONT_LINKS });
+  check("…a visitor counted before and back by an unmarked link keeps it (P4: Open jobs → front page → Guides)", again["/blog"] === "https://hireflownow.com/blog?utm_source=youtube&seen=1", JSON.stringify(again));
+  const fromStaff = runCarryPage({ search: "?utm_source=youtube&utm_medium=video", referrer: "https://staff.hireflownow.com/", beacon: { counted: false }, hrefs: FRONT_LINKS });
+  check("…back from the staff sign-up's ← hireflownow.com (where the fact never goes): taken as counted, as Admin → Growth leaves that arrival out", fromStaff["/open-jobs"] === "https://hireflownow.com/open-jobs?utm_source=youtube&utm_medium=video&seen=1", JSON.stringify(fromStaff));
+  const blocked = runCarryPage({ search: "?utm_source=youtube", referrer: "https://www.youtube.com/", hrefs: FRONT_LINKS });
+  const blockedInside = runCarryPage({ search: "?ref=www.quora.com", referrer: "https://hireflownow.com/blog/a-guide", hrefs: FRONT_LINKS });
+  check("…beacon.js kept from loading (a blocker): the same test it would have made", blocked["/open-jobs"].endsWith("&seen=1") && !blockedInside["/open-jobs"].includes("seen"), `${blocked["/open-jobs"]} ${blockedInside["/open-jobs"]}`);
+  const noop = runCarryPage({ search: "?utm_source=youtube", referrer: "https://www.youtube.com/", beacon: { track() {} }, hrefs: FRONT_LINKS });
+  check("…beacon.js loaded but counting nothing (a developer's machine, test automation): nothing claimed", !noop["/open-jobs"].includes("seen"), noop["/open-jobs"]);
+}
+{
+  // A guide's own links, as scripts/build-blog.mjs writes them.
+  const GUIDE_LINKS = ["/", "/blog", "/open-jobs", "/blog/other-guide", "https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=a-guide"];
+  const passed = runCarryPage({ path: "/blog/a-guide", search: "?utm_source=youtube&utm_campaign=v1&seen=1", referrer: "https://hireflownow.com/blog?utm_source=youtube&utm_campaign=v1&seen=1", hrefs: GUIDE_LINKS });
+  check("a guide passes the front page's count on to the logo, Guides, Open jobs and the next guide (P1, P2, P3)", ["/", "/blog", "/open-jobs", "/blog/other-guide"].every((h) => passed[h].endsWith("&seen=1")) && !passed[GUIDE_LINKS[4]].includes("seen"), JSON.stringify(passed));
+  const copied = runCarryPage({ path: "/blog/a-guide", search: "?utm_source=youtube&seen=1", referrer: "https://www.facebook.com/", hrefs: GUIDE_LINKS });
+  check("…but not one it was sent from outside with (a copied address): a new visitor", !Object.values(copied).some((h) => h.includes("seen")), JSON.stringify(copied));
+  const own = runCarryPage({ path: "/blog/a-guide", search: "", referrer: "https://www.quora.com/", beacon: { counted: true }, hrefs: GUIDE_LINKS });
+  check("…and a guide's own count is not the front page's: a Quora reader's first Post a job free still counts (N11)", !Object.values(own).some((h) => h.includes("seen")), JSON.stringify(own));
+}
+{
+  // The whole of P3 by the two halves: the front page (carry-source.js) and Open jobs (withVisitorTags).
+  const front = runCarryPage({ search: "?utm_source=youtube&utm_campaign=v1", referrer: "https://www.youtube.com/", beacon: { counted: true }, hrefs: FRONT_LINKS });
+  const guides = runCarryPage({ path: "/blog", search: new URL(front["/blog"]).search, referrer: "https://hireflownow.com/?utm_source=youtube&utm_campaign=v1", hrefs: ["/open-jobs"] });
+  const hiring = H_LINK.withVisitorTags(H_LINK.hiringLink("open_jobs"), guides["/open-jobs"], front["/blog"]);
+  const back = runCarryPage({ search: new URL(hiring).search, referrer: guides["/open-jobs"], beacon: { counted: false }, hrefs: FRONT_LINKS });
+  check("front page → Guides → Open jobs → Post a job free: no second visit, and the sign-up says youtube · v1 (P3)", !hiring.includes("hiring_link=1") && back["https://staff.hireflownow.com/auth?mode=signup"] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_campaign=v1" && back["/blog"].endsWith("&seen=1"), `${hiring} → ${back["https://staff.hireflownow.com/auth?mode=signup"]}`);
+}
+check("signupSourceFrom never keeps the fact (only the four tags)", JSON.stringify(src.signupSourceFrom("https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&seen=1&hiring_link=1")) === JSON.stringify({ utm_source: "youtube" }) && src.signupSourceFrom("https://hireflownow.com/candidate/auth?redirect=%2Fc%2Fa%2Fb%3Fseen%3D1&seen=1") === null);
 
 // ---- the staff site counts only its sign-up page --------------------------------
 const beacon = read("public/beacon.js");

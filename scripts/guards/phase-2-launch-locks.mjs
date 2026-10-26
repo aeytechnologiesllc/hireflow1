@@ -274,31 +274,66 @@ export default [
       "src/lib/hiringLink.ts) that beacon.js counts and takes off the address, carry-source.js never " +
       "carries on, and withVisitorTags leaves off a visitor's second hiring link. Keyed on the medium, one " +
       "click read as four campaign visits and a Share Kit or Facebook visitor's never counted. A move " +
-      "inside the app is counted as one from HireFlow's own pages (own host, no tags), never \"direct\".",
+      "inside the app is counted as one from HireFlow's own pages (own host, no tags), never \"direct\". " +
+      "Whether the front page has already counted the visitor is a fact it passes on (seen=1: beacon.js " +
+      "says it counted the view, carry-source.js puts it on the links onward, never on a sign-up link, and " +
+      "withVisitorTags carries it and drops the mark for it), not a guess from the referrer, which names " +
+      "only the page just before: front page → Guides → Open jobs counted one YouTube visitor twice and a " +
+      "campaign-tagged one on every loop (the ninth growth review). A hiring link that is no way in takes " +
+      "back only the visitor's own tags, never its own source as a campaign.",
     run: async ({ read }) => {
       const detail = [];
       const lib = code((await read("src/lib/hiringLink.ts")) ?? "");
       const beacon = (await read("public/beacon.js")) ?? "";
       const carry = (await read("public/carry-source.js")) ?? "";
       const beaconCode = code(beacon);
+      const carryCode = code(carry);
       if (!/export const HIRING_LINK_MARK = "hiring_link";/.test(lib) || !/url\.searchParams\.set\(HIRING_LINK_MARK, "1"\);\s*return url\.toString\(\);/.test(lib)) {
         detail.push("src/lib/hiringLink.ts: hiringLink() no longer carries the mark hiring_link=1");
       }
-      if (!/const backFromFrontPage = hadMark && fromFrontPage\(referrer\);/.test(lib) || !/const marked = url\.searchParams\.get\(HIRING_LINK_MARK\) === "1" && !throughHiringLink && !backFromFrontPage;/.test(lib) || !/if \(marked\) url\.searchParams\.set\(HIRING_LINK_MARK, "1"\);/.test(lib)) {
-        detail.push("src/lib/hiringLink.ts: withVisitorTags must drop the mark for a visitor already through a hiring link, and on a page opened from the front page (the seventh and eighth growth reviews)");
+      if (!/export const SEEN_MARK = "seen";/.test(lib) || !/const seen = carried\.get\(SEEN_MARK\) === "1" && fromHireFlow\(referrer\);/.test(lib)) {
+        detail.push("src/lib/hiringLink.ts: withVisitorTags must read the front page's count (seen=1) from the address, believed only on a page reached from one of HireFlow's own (the ninth growth review)");
       }
-      if (!/if \(backFromFrontPage\) \{\s*for \(const key of \["utm_source", "utm_medium", "utm_campaign"\]\) url\.searchParams\.delete\(key\);/.test(lib) || !/from\.pathname === "\/"/.test(lib)) {
-        detail.push("src/lib/hiringLink.ts: a hiring link opened from the front page must take back only the visitor's own channel (never its own source as a campaign), and only the front page itself counts as that (the eighth growth review)");
+      if (!/const backFromFrontPage = hadMark && \(seen \|\| \(fromFrontPage\(referrer\) && tags\.length === 0 && !ref\)\);/.test(lib) || /const backFromFrontPage = hadMark && fromFrontPage\(referrer\);/.test(lib) || !/from\.pathname === "\/"/.test(lib)) {
+        detail.push("src/lib/hiringLink.ts: \"already counted\" is the carried fact (seen); the front page as referrer counts only when the address carries nothing from it (the ninth growth review: the referrer alone counted a visitor twice through Guides, and never one who reached the front page from a guide)");
       }
-      if (!/\} else if \(marked \|\| !hadMark\) \{\s*return base;/.test(lib)) {
+      if (!/const noWayIn = hadMark && \(backFromFrontPage \|\| throughHiringLink\);/.test(lib) || !/const marked = url\.searchParams\.get\(HIRING_LINK_MARK\) === "1" && !noWayIn;/.test(lib)) {
+        detail.push("src/lib/hiringLink.ts: withVisitorTags must drop the mark for a visitor already through a hiring link, and for one the front page has counted (the sixth to ninth growth reviews)");
+      }
+      if (!/if \(noWayIn\) \{\s*for \(const key of \["utm_source", "utm_medium", "utm_campaign"\]\) url\.searchParams\.delete\(key\);/.test(lib)) {
+        detail.push("src/lib/hiringLink.ts: a hiring link that is no way in must take back only the visitor's own channel, never its own source as a campaign (the eighth and ninth growth reviews)");
+      }
+      if (!/const keepSeen = seen && !\/\\\/auth\\\/\?\$\/\.test\(url\.pathname\);/.test(lib) || !/if \(marked\) url\.searchParams\.set\(HIRING_LINK_MARK, "1"\);\s*if \(keepSeen\) url\.searchParams\.set\(SEEN_MARK, "1"\);/.test(lib)) {
+        detail.push("src/lib/hiringLink.ts: the fact rides on to the app's links but never to a sign-in or sign-up page, and the mark only on a first hiring link");
+      }
+      if (!/\} else if \(!keepSeen && \(marked \|\| !hadMark\)\) \{\s*return base;/.test(lib)) {
         detail.push("src/lib/hiringLink.ts: with nothing to carry, withVisitorTags must still take off a mark it dropped (the seventh growth review)");
       }
       if (/utm_medium"\)\s*!==\s*"hiring_link"/.test(beaconCode)) detail.push("public/beacon.js: counts an arrival from inside the site by its medium again (carry-source.js puts it on every later link)");
-      if (!/var marked = params\.get\("hiring_link"\) === "1";/.test(beaconCode) || !/if \(fromInside && !\(marked && window\.location\.pathname === "\/"\)\)/.test(beaconCode)) {
+      if (!/var marked = params\.get\("hiring_link"\) === "1";/.test(beaconCode) || !/if \(fromInside && !\(marked && window\.location\.pathname === "\/"\)\) \{\s*return \{ source: null, medium: null, campaign: null, arrival: false \};/.test(beaconCode)) {
         detail.push("public/beacon.js: an arrival from inside the site must count only with the hiring-link mark, on the front page");
       }
-      if (!/bare\.searchParams\.delete\("hiring_link"\);\s*window\.history\.replaceState\(/.test(beaconCode)) detail.push("public/beacon.js: must take the mark off the address once counted (a reload counted again)");
-      if (/hiring_link/.test(code(carry))) detail.push("public/carry-source.js: must never carry the hiring-link mark on");
+      if (/params\.get\("seen"\)/.test(beaconCode)) detail.push("public/beacon.js: must never count by seen=1 (it is a fact for the links, not a visit)");
+      if (!/bare\.searchParams\.delete\("hiring_link"\);\s*if \(marked && window\.location\.pathname === "\/"\) bare\.searchParams\.set\("seen", "1"\);\s*window\.history\.replaceState\(/.test(beaconCode)) {
+        detail.push("public/beacon.js: must take the mark off the address once counted (a reload counted again), and on the front page leave seen=1 in its place (a reload or Back must still know; the ninth growth review)");
+      }
+      const countedAt = beaconCode.indexOf("window.__hfBeacon.counted = sessionUtm.arrival === true;");
+      if (countedAt < 0 || countedAt < beaconCode.indexOf("window.self !== window.top")) {
+        detail.push("public/beacon.js: must say whether the view it sent on load counted the visitor (window.__hfBeacon.counted), and only for a view it sent");
+      }
+      if (/hiring_link/.test(carryCode)) detail.push("public/carry-source.js: must never carry the hiring-link mark on");
+      if (!/var counted = window\.__hfBeacon \? window\.__hfBeacon\.counted === true : !fromInside;/.test(carryCode) || !/var seen = \(params\.get\("seen"\) === "1" && fromInside\) \|\| \(front && \(counted \|\| ref === "staff\.hireflownow\.com"\)\);/.test(carryCode) || !/var front = window\.location\.pathname === "\/";/.test(carryCode)) {
+        detail.push("public/carry-source.js: the front page must pass on beacon.js's count, and a page must pass on seen=1 only when it came from one of HireFlow's own pages (the ninth growth review)");
+      }
+      const staffLoop = carryCode.slice(carryCode.indexOf("var links ="), carryCode.indexOf("var inside ="));
+      if (!staffLoop || /seen/.test(staffLoop) || !/if \(seen\) url\.searchParams\.set\("seen", "1"\);/.test(carryCode.slice(carryCode.indexOf("var inside =")))) {
+        detail.push("public/carry-source.js: seen=1 goes on the links onward through the site only, never on a sign-up or sign-in link");
+      }
+      for (const [rel, text] of [["public/landing.html", (await read("public/landing.html")) ?? ""], ["scripts/build-blog.mjs", (await read("scripts/build-blog.mjs")) ?? ""]]) {
+        const b = text.indexOf('<script src="/beacon.js" defer></script>');
+        const c = text.indexOf('<script src="/carry-source.js" defer></script>');
+        if (b < 0 || c < 0 || b > c) detail.push(`${rel}: beacon.js must load before carry-source.js (which reads its count)`);
+      }
       if (!/utmSource: first \? sessionUtm\.source : null,/.test(beaconCode) || !/referrerHost: first \? initialReferrerHost : window\.location\.hostname \|\| null,/.test(beaconCode)) {
         detail.push("public/beacon.js: a later view in the app must name HireFlow's own host and carry no tags");
       }

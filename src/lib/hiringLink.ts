@@ -28,6 +28,25 @@ export const HIRING_LINK_WORDS = "Hiring? Post a job free";
  */
 export const HIRING_LINK_MARK = "hiring_link";
 
+/**
+ * The fact that the front page has already counted this visitor (seen=1),
+ * carried from page to page instead of guessed (the ninth growth review:
+ * three rounds read "already counted" off document.referrer, which names only
+ * the page just before, so front page → Guides → Open jobs counted the same
+ * YouTube visitor twice and a campaign-tagged one on every loop). The front
+ * page's public/carry-source.js puts it on its links to the guides and Open
+ * jobs when its own view counted the visitor; the guides pass it on, and so
+ * does withVisitorTags here, and beacon.js puts it in place of the
+ * hiring-link mark once it has counted a "Post a job free" landing (so a
+ * reload or Back still knows). It is not a tag and says nothing about who the
+ * visitor is: never added to a sign-in or sign-up link (carry-source.js puts
+ * only the three tags and ref on the staff ones), never kept by an account
+ * (signupSourceFrom reads only those four), never counted by beacon.js, and
+ * only believed on a page reached from another of HireFlow's own pages (an
+ * address copied with it and opened elsewhere is a new visitor).
+ */
+export const SEEN_MARK = "seen";
+
 export function hiringLink(source: HiringLinkSource): string {
   const url = new URL("https://hireflownow.com/");
   url.searchParams.set("utm_source", source);
@@ -49,6 +68,17 @@ function fromFrontPage(referrer: string | null | undefined): boolean {
   try {
     const from = new URL(referrer);
     return /^(www\.)?hireflownow\.com$/.test(from.hostname.toLowerCase()) && from.pathname === "/";
+  } catch {
+    return false;
+  }
+}
+
+/** A referring address on one of HireFlow's own hosts (the front page, a
+ *  guide, Open jobs, a job page, the staff site): beacon.js's "from inside". */
+function fromHireFlow(referrer: string | null | undefined): boolean {
+  if (!referrer) return false;
+  try {
+    return /(^|\.)hireflownow\.com$/.test(new URL(referrer).hostname.toLowerCase());
   } catch {
     return false;
   }
@@ -77,7 +107,9 @@ function outsideHost(referrer: string | null | undefined): string | null {
  *     source is kept as the campaign, so "job_page" still shows (the third
  *     and fourth growth reviews: Open jobs' "Post a job free" recorded a
  *     Quora visitor as open_jobs, and job pages' links overwrote the
- *     visitor's channel).
+ *     visitor's channel);
+ *   - the front page's count (seen=1, SEEN_MARK) rides on to every link but
+ *     a sign-in or sign-up one (the ninth growth review).
  */
 export function withVisitorTags(base: string, here: string, referrer?: string | null): string {
   let carried: URLSearchParams;
@@ -96,23 +128,43 @@ export function withVisitorTags(base: string, here: string, referrer?: string | 
   // counted then, so a second "Post a job free" (Open jobs' after a job
   // page's) is the same visit moving on (the sixth growth review: a hiring
   // link counts once, the first time).
-  // Nor on a page opened from the front page: the visitor was counted there,
-  // so "Post a job free" from Open jobs after it is the same visit going back
-  // (the seventh growth review: one YouTube visitor read as youtube 2, and one
-  // with a campaign tag, whose tags never name a hiring link, as one visit per
-  // click). Only the front page itself: a visitor who came to Open jobs from a
-  // guide, or a job opened in a new tab, was not counted there (the eighth
-  // growth review).
+  // Nor for a visitor the front page has already counted: "Post a job free"
+  // after it is the same visit going back (the seventh growth review: one
+  // YouTube visitor read as youtube 2, and one with a campaign tag, whose tags
+  // never name a hiring link, as one visit per click). That is a fact the
+  // front page passes on (seen=1, SEEN_MARK), not a guess from the referrer:
+  // the referrer names only the page just before, so front page → Guides →
+  // Open jobs, or a job opened in a new tab, counted the same visitor again,
+  // while a visitor who reached the front page from a guide was never counted
+  // there at all (the eighth and ninth growth reviews). The page before's own
+  // word is kept only where it still holds: a page opened from the front page
+  // whose address carries nothing from it (no tags, no ref, no seen), so its
+  // carry-source.js did not run (a quick tap before it loaded) or had nothing
+  // at all to say. When the address does carry the front page's tags without
+  // seen, carry-source.js ran there and said this visitor was not counted.
+  const seen = carried.get(SEEN_MARK) === "1" && fromHireFlow(referrer);
   const throughHiringLink = tags.some(([key, v]) => (key === "utm_medium" ? v === "hiring_link" : (HIRING_LINK_SOURCES as readonly string[]).includes(v as string)));
   const hadMark = url.searchParams.has(HIRING_LINK_MARK);
-  const backFromFrontPage = hadMark && fromFrontPage(referrer);
-  const marked = url.searchParams.get(HIRING_LINK_MARK) === "1" && !throughHiringLink && !backFromFrontPage;
+  const backFromFrontPage = hadMark && (seen || (fromFrontPage(referrer) && tags.length === 0 && !ref));
+  const noWayIn = hadMark && (backFromFrontPage || throughHiringLink);
+  const marked = url.searchParams.get(HIRING_LINK_MARK) === "1" && !noWayIn;
   url.searchParams.delete(HIRING_LINK_MARK);
-  // Going back that way it is no way in, so it takes back only the visitor's
-  // own channel, never the link's own source as a campaign: the sign-up must
-  // not credit "open_jobs" with a click nobody counted (the eighth growth
-  // review: "Business · open_jobs" with no open_jobs visit anywhere).
-  if (backFromFrontPage) {
+  url.searchParams.delete(SEEN_MARK);
+  // The fact rides on to the next page, never to a sign-in or sign-up page:
+  // no account keeps anything but the four tags.
+  const keepSeen = seen && !/\/auth\/?$/.test(url.pathname);
+  const finish = () => {
+    if (marked) url.searchParams.set(HIRING_LINK_MARK, "1");
+    if (keepSeen) url.searchParams.set(SEEN_MARK, "1");
+    return base.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
+  };
+  // A hiring link that is no way in takes back only the visitor's own
+  // channel, never the link's own source as a campaign: the sign-up must not
+  // credit "open_jobs" with a click nobody counted (the eighth growth review:
+  // "Business · open_jobs" with no open_jobs visit anywhere; the ninth: the
+  // same after a first hiring link, "open_jobs · job_page · businesses 1 new"
+  // next to no open_jobs visit).
+  if (noWayIn) {
     for (const key of ["utm_source", "utm_medium", "utm_campaign"]) url.searchParams.delete(key);
     if (tags.length > 0) {
       for (const [key, v] of tags) url.searchParams.set(key, v as string);
@@ -121,7 +173,7 @@ export function withVisitorTags(base: string, here: string, referrer?: string | 
       url.searchParams.set("utm_medium", "referral");
       url.searchParams.set("ref", ref);
     }
-    return base.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
+    return finish();
   }
   if (tags.length > 0) {
     const own = url.searchParams.get("utm_source");
@@ -140,9 +192,8 @@ export function withVisitorTags(base: string, here: string, referrer?: string | 
       url.searchParams.set("utm_medium", "referral");
     }
     url.searchParams.set("ref", ref);
-  } else if (marked || !hadMark) {
+  } else if (!keepSeen && (marked || !hadMark)) {
     return base;
   }
-  if (marked) url.searchParams.set(HIRING_LINK_MARK, "1");
-  return base.startsWith("/") ? `${url.pathname}${url.search}` : url.toString();
+  return finish();
 }

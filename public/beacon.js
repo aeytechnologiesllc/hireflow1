@@ -123,6 +123,11 @@
         try {
           var bare = new URL(window.location.href);
           bare.searchParams.delete("hiring_link");
+          // On the front page the mark gives way to the fact it was counted
+          // (seen=1, src/lib/hiringLink.ts): a reload, or Back to this page,
+          // comes from the same HireFlow page with no mark, and carry-source.js
+          // still passes the fact on (the ninth growth review).
+          if (marked && window.location.pathname === "/") bare.searchParams.set("seen", "1");
           window.history.replaceState(window.history.state, "", bare.pathname + bare.search + bare.hash);
         } catch (e) {
           // The address keeps it; counting is unchanged.
@@ -131,7 +136,7 @@
       var from = hostOf(document.referrer);
       var fromInside = !staffSite && from && (from === window.location.hostname || /(^|\.)hireflownow\.com$/.test(from));
       if (fromInside && !(marked && window.location.pathname === "/")) {
-        return { source: null, medium: null, campaign: null };
+        return { source: null, medium: null, campaign: null, arrival: false };
       }
       // The same tidy value carry-source.js puts on the sign-up link, so a
       // visit and the account it makes say the same source ("YouTube" and
@@ -144,9 +149,10 @@
         source: tidy(params.get("utm_source")),
         medium: tidy(params.get("utm_medium")),
         campaign: tidy(params.get("utm_campaign")),
+        arrival: true,
       };
     } catch (e) {
-      return { source: null, medium: null, campaign: null };
+      return { source: null, medium: null, campaign: null, arrival: false };
     }
   })();
 
@@ -210,4 +216,10 @@
 
   // Initial page load.
   track(window.location.pathname);
+  // Whether that view counted the visitor as arriving, with their own
+  // channel, rather than as a move inside the site. The front page's
+  // carry-source.js (loaded after this file) passes it on to its links as
+  // seen=1, so a "Post a job free" later in the visit is not counted again
+  // (the ninth growth review). In memory only, like everything here.
+  window.__hfBeacon.counted = sessionUtm.arrival === true;
 })();

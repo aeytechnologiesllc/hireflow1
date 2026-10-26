@@ -174,7 +174,12 @@ these either; each has a guard or a test that CI runs:
   carry a source too (Apply carries the job page's tags); a hiring link
   counts once, by its `hiring_link=1` mark, never by its medium; a move
   inside the site names HireFlow's own host and no tags; the short ways in
-  match any capitals; "google" is search only. Guards
+  match any capitals; "google" is search only. Since the ninth: "the front
+  page already counted this visitor" is a fact carried as `seen=1`
+  (beacon.js's `__hfBeacon.counted` → carry-source.js → the guides →
+  `withVisitorTags`), never guessed from the referrer, never on a sign-up
+  link; a hiring link that is no way in takes back only the visitor's own
+  tags. Guards
   `hiring-link-counts-once`, `accounts-carry-their-channel`,
   `growth-google-is-search`, `short-ways-any-capitals`.
 

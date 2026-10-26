@@ -13,6 +13,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, existsSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import vm from "node:vm";
 import * as B from "./build-blog.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -118,6 +119,30 @@ check("Article data: headline, dates, publisher, the page it is about", article?
 check("…and a breadcrumb back to Guides", ld["@graph"].some((n) => n["@type"] === "BreadcrumbList" && n.itemListElement?.[1]?.item === "https://hireflownow.com/blog"));
 check("the font loads without holding the first paint: from /blog-fonts.js, with a <noscript> stylesheet, and no stylesheet link outside it", page.includes('<script src="/blog-fonts.js" defer></script>') && /<noscript><link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com/.test(page) && !/(^|[^>])<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com/m.test(page.replace(/<noscript>[\s\S]*?<\/noscript>/g, "")));
 check("the page counter and the source carrier load; no inline script runs (CSP)", page.includes('<script src="/beacon.js" defer></script>') && page.includes('<script src="/carry-source.js" defer></script>') && !/<script(?![^>]*\bsrc=)(?![^>]*application\/ld\+json)[^>]*>/.test(page) && !/\son[a-z]+="/.test(page));
+// The ninth growth review: a guide passes on the front page's count (seen=1)
+// along its own links, so front page → Guides → a guide → Open jobs → "Post a
+// job free" is not a second visit. Run carry-source.js on the built page's
+// own links, answering each selector as a browser would.
+{
+  const hrefs = [...page.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, "&"));
+  const matches = (selector, href) =>
+    selector.split(/,\s*/).some((one) => {
+      const m = /^a\[href(\^|\*)?="([^"]*)"\]$/.exec(one.trim());
+      return !!m && (m[1] === "^" ? href.startsWith(m[2]) : m[1] === "*" ? href.includes(m[2]) : href === m[2]);
+    });
+  const anchors = hrefs.map((raw) => ({ raw, href: new URL(raw, `https://hireflownow.com/blog/${GOOD.slug}`).toString() }));
+  const search = "?utm_source=youtube&utm_campaign=v1&seen=1";
+  vm.runInNewContext(readFileSync(path.join(ROOT, "public/carry-source.js"), "utf8"), {
+    window: { location: { search, pathname: `/blog/${GOOD.slug}`, hostname: "hireflownow.com", href: `https://hireflownow.com/blog/${GOOD.slug}${search}` } },
+    navigator: { doNotTrack: null, globalPrivacyControl: false },
+    document: { referrer: "https://hireflownow.com/blog?utm_source=youtube&utm_campaign=v1&seen=1", querySelectorAll: (sel) => anchors.filter((a) => matches(sel, a.raw)) },
+    URL, URLSearchParams, Array, Object,
+  });
+  const onward = anchors.filter((a) => /^\/($|blog|open-jobs)/.test(a.raw));
+  const signups = anchors.filter((a) => a.raw.includes("staff.hireflownow.com"));
+  check("the guide's own links onward (the logo, Guides, Open jobs, the other guides) pass on the front page's count; its sign-up buttons never get it", onward.length >= 5 && onward.every((a) => a.href.endsWith("&seen=1")) && signups.length >= 2 && signups.every((a) => !a.href.includes("seen")) && anchors.filter((a) => /^\/(privacy|terms)$/.test(a.raw)).every((a) => !a.href.includes("seen")), JSON.stringify(anchors.map((a) => a.href)));
+  check("…and beacon.js loads before carry-source.js (which reads its count)", page.indexOf('<script src="/beacon.js" defer></script>') < page.indexOf('<script src="/carry-source.js" defer></script>'));
+}
 check("the closing button: Post your first job free, tagged with the post", page.includes(`href="https://staff.hireflownow.com/auth?mode=signup&amp;utm_source=blog&amp;utm_medium=article&amp;utm_campaign=${GOOD.slug}"`) || page.includes(`href="https://staff.hireflownow.com/auth?mode=signup&utm_source=blog&utm_medium=article&utm_campaign=${GOOD.slug}"`));
 check("…and it says Post your first job free", />Post your first job free</.test(page));
 check("the other guides are linked from each post", page.includes('href="/blog/an-older-guide"'));

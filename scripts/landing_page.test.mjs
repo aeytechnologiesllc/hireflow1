@@ -85,6 +85,29 @@ check("…and no sweepstakes, casino, payout or player wording anywhere on the p
 check("the story's test is an everyday one: an order six days late", /Her test: an order <em>six days late\.<\/em>/.test(page) && /Where is my order\?\?/.test(page) && /var REPLY = "I have your order from the 3rd open\./.test(page));
 // Every business's live jobs, not one business's careers page (2026-10-11).
 check("an applicant who lands here finds every open job, in the bar (on a phone too) and the footer", /<a class="plain" id="jobLink" href="\/open-jobs"><span class="long">Looking for a job\?<\/span><span class="short">Jobs<\/span><\/a>/.test(page) && /\.bar \.plain \.long, \.bar \.btn \.long \{ display: none; \} \.bar \.plain \.short, \.bar \.btn \.short \{ display: inline; \}/.test(page) && /<a href="\/open-jobs">Open jobs<\/a>/.test(page));
+// The ninth growth review: when its own view counted the visitor, the front
+// page passes that on (seen=1) along its links to Guides and Open jobs, so a
+// "Post a job free" further on is not a second visit. carry-source.js reads
+// beacon.js's count, so beacon.js loads first. Run on the page's own links.
+{
+  const hrefs = [...page.matchAll(/<a [^>]*href="([^"]+)"/g)].map((m) => m[1].replace(/&amp;/g, "&"));
+  const matches = (selector, href) =>
+    selector.split(/,\s*/).some((one) => {
+      const m = /^a\[href(\^|\*)?="([^"]*)"\]$/.exec(one.trim());
+      return !!m && (m[1] === "^" ? href.startsWith(m[2]) : m[1] === "*" ? href.includes(m[2]) : href === m[2]);
+    });
+  const anchors = hrefs.map((raw) => ({ raw, href: new URL(raw, "https://hireflownow.com/").toString() }));
+  const { default: vm } = await import("node:vm");
+  vm.runInNewContext(await read("public/carry-source.js"), {
+    window: { location: { search: "", pathname: "/", hostname: "hireflownow.com", href: "https://hireflownow.com/" }, __hfBeacon: { counted: true } },
+    navigator: { doNotTrack: null, globalPrivacyControl: false },
+    document: { referrer: "", querySelectorAll: (sel) => anchors.filter((a) => matches(sel, a.raw)) },
+    URL, URLSearchParams, Array, Object,
+  });
+  const onward = anchors.filter((a) => /^\/(blog|open-jobs)$/.test(a.raw));
+  check("the front page's links to Guides and Open jobs (bar and footer) carry its count on; the sign-up links, Privacy and Terms never", onward.length === 4 && onward.every((a) => a.href.endsWith("?seen=1")) && anchors.filter((a) => /staff\.hireflownow\.com|^\/(privacy|terms)$/.test(a.raw)).every((a) => !a.href.includes("seen")), JSON.stringify(anchors.map((a) => a.href)));
+  check("…and beacon.js loads before carry-source.js (which reads its count)", page.indexOf('<script src="/beacon.js" defer></script>') >= 0 && page.indexOf('<script src="/beacon.js" defer></script>') < page.indexOf('<script src="/carry-source.js" defer></script>'));
+}
 check("/open-jobs is a page of the applicants' site", /<Route path="\/open-jobs" element=\{<OpenJobs \/>\} \/>/.test(app) && /\/\^\\\/open-jobs\\\/\?\$\//.test(hosts));
 check("no near-black button slab on the light section", /\.end \.btn\.solid \{ background: #8A6420;/.test(page));
 check("…and one already signed in here is offered their applications", /localStorage\.getItem\("sb-yqklrkpptnhubsnijqze-auth-token"\)/.test(page) && /jobLink\.setAttribute\("href", "\/applications"\)/.test(page));
