@@ -1088,7 +1088,14 @@ reached function deployed):
   read as calls, "Seller Support Coordinator" as customer service, "not
   lesser than" missed), fixed by its combined narrowing patch in a177fcac
   (164 rows better, 5 worse: the reviewer's own "Phone customers…" rows).
-  **Round 33 review running** (`p4r33_brief.md`).
+  **Round 33** (`p4r33_report.md`), no HIGH: two MEDIUM regressions of round
+  32 ("on calling customers" no longer calls; a VA's dash-form seller
+  support still customer service) and five old MEDIUM gaps ("check guests
+  in and out", "1 yr."/"exp." in the US-hotel past, Viber, a hotline in a
+  list, "Data Encoder" as a developer); fixed by its combined patch with
+  three narrowings of its own side effects in f7acd66a (513 rows better, 32
+  worse, the reviewer's count; each narrowing pinned by a check that fails
+  on the raw patch). **Round 34 review running** (`p4r34_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
