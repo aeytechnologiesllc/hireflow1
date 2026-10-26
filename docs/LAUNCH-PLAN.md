@@ -960,27 +960,48 @@ reached function deployed):
   removal for good, and a document's files are found by its id only, with
   a test that fails on every weakening. **Round 10** (`sec10_report.md`)
   found one LOW-MEDIUM regression (a 200-account burst delays later
-  removals about 30 runs per hour of burst); **its fixer is running**
-  (`r10_security_fix_brief.md`, migration 20261025590000).
+  removals about 30 runs per hour of burst); fixed by dd06765e (people
+  take turns in the queue; `file_queue_in_turn` live 20261026060935,
+  document-cleanup deployed, its next hourly run answered `ok`). **Round
+  11** (`sec11_report.md`) found one LOW regression (a stream of new
+  accounts makes a withdrawal's later folders wait longer each time) with
+  a validated fix; **its fixer is running** (`r11_security_fix_brief.md`,
+  migration 20261025600000).
+- **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
+  and one throwaway applicant can flood the requested-papers removal queue,
+  `document_file_trash`, which is read with no fair order, so a real ID
+  outlives its 24 hours / 7 days), one LOW-MEDIUM (twelve weakenings no test
+  catches) and three wording LOWs; none a regression. **Its fixer is
+  running** (`p5r12_fix_brief.md`, migrations from 20261025610000).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
   is never shown a button that does nothing or told it is their turn; the
   team's own decline is never quoted as the applicant's; a phone shows an
   applicant's papers above the score only while one waits for review,
-  below it otherwise. Rounds 14–18 found only LOWs in the flows touched.
-  **Product round 19 is next** (`product19_brief.md`).
+  below it otherwise. Rounds 14–19 found only LOWs in the flows touched.
+  **Product round 20 found no regression and nothing MEDIUM or worse: the
+  product track is closed** (6fd0a5ec, plus 81ffeed7 for what it showed:
+  "Interview", not "Interviewed", in both dialogs, and a check that reads
+  the phone's own prompt). Known limits it listed, left on purpose: on a
+  375×667 phone the "Propose times" prompt lands behind the decision bar
+  after Move to Interview (as before round 18; "Set up interview" is the
+  bar's filled button); the empty papers card suggests an NBI clearance and
+  Wise or PayPal to every business, as the request list itself does (the
+  owner's Philippines-first list, 2026-10-10).
 - **Phase 4 round 17** (cc57adc3): the Type field decides over the title,
   a client's country is never the job's. **Round 18** (`p4r18_report.md`)
   found two HIGH regressions (a typed employment word made the default's
   "On-site" a choice; "check-in and check-out" as a call topic became a
   front desk) and validated patches; earlier probes 158 of 6,975 (the probe
   set grew), none newly failing. **Its fixer is running**
-  (`p4r18_fix_brief.md`).
+  (`p4r18_fix_brief.md`; the first attempt hung on a shell command
+  before changing anything and was restarted).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
-  callback excused a call about a job); **its fixer is running**
-  (`age14_fix_brief.md`).
+  callback excused a call about a job); fixed by 66fc652e (the six
+  functions that import the filter deployed). **Round 15 is running**
+  (`p6r15_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
