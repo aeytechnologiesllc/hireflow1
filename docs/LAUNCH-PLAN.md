@@ -1033,8 +1033,14 @@ reached function deployed):
   88f9dd9c. **Round 22** (`p4r22_report.md`) found four HIGH (hotel and
   travel accounts read as in-person desks through round 21's spellings,
   and the reverse; a WFH line under the hiring's heading), with a
-  validated patch, taken as it is in 223ccbf4. **Round 23 is running**
-  (`p4r23_brief.md`).
+  validated patch, taken as it is in 223ccbf4. **Rounds 23 and 24**
+  (`p4r23_report.md`, `p4r24_report.md`) each found three HIGH in the
+  last round's narrowings (a WFH setup after a training section built on
+  site; an in-person interview made a phone job a desk; front desks read
+  as customer service), each fixed by the reviewer's validated patch
+  (f6cbeef3, 0656e133; the second also made the setup check linear: 15,000
+  lines under one heading took 1.3 s on every keystroke). **Round 25 is
+  running** (`p4r25_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1051,7 +1057,9 @@ reached function deployed):
   regressions against all three earlier rounds (a customer's own message
   giving their age read as a self-introduction; one customer named before
   the quote excused an age question to the applicant) and smaller ones;
-  **its fixer is running** (`age17_fix_brief.md`).
+  fixed by a8032927 (round 16's readings reverted or narrowed to their own
+  evidence; six functions deployed). **Round 18 is running**
+  (`p6r18_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
