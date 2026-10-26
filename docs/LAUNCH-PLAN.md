@@ -982,8 +982,17 @@ reached function deployed):
   request, so a big bucket times the due pick out and stops all ID-paper
   deletion; and a deadlock on the new turn triggers during a delete is
   swallowed by the queueing trigger, leaking that application's media.
-  No turn drift in tens of thousands of concurrent statements. **Its fixer
-  is running** (`r13_security_fix_brief.md`).
+  No turn drift in tens of thousands of concurrent statements. Fixed by
+  96be06fe: the turn triggers only note changes, and one deferred trigger
+  applies them at commit in one order; the queueing triggers re-raise a
+  deadlock instead of swallowing it; the stray sweep reads a folder by index
+  in a call of its own (5,000 requests, 1,000 files, 2 s at most); a
+  business no longer sets a request's id or time. `queue_turns_at_commit`
+  live 20261026230626, document-cleanup deployed, `id_papers_sweep_by_folder`
+  live 20261026230701, every new body matching its file; a rolled-back live
+  write probe noted the change at the statement and made the turn at commit,
+  and the next hourly run answered `ok` (with its new `strays` count).
+  **Round 14 review running** (`sec14_brief.md`).
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
