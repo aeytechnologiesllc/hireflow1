@@ -180,6 +180,22 @@ sources, the page kinds and campaigns
   google.<tld>), Gmail and Gmail Go are "gmail", and every other Google app
   or site is its own package or host.
 
+**Known limits, kept on purpose** (the tenth growth review; each is rare,
+and fixing it would undo a rule that gets a commoner path right):
+- A visitor whose very first page was the business sign-up (a `/signup`
+  short link, or a guide's sign-up button) and who then goes back to the
+  front page and on through Guides is never counted on the front page:
+  `seen=1` never goes to a sign-up page, so an arrival back from the staff
+  host is taken as counted. That keeps the commoner front page → sign-up →
+  back → Guides → Open jobs visitor from counting twice. Their account
+  still keeps their channel.
+- On a slow phone, a tap on the front page's bar before carry-source.js has
+  run (both scripts are deferred) counts the visitor again at their first
+  hiring link, and their sign-up names that link instead of their channel.
+- Tapping "Post a job free", going Back and tapping again counts again; a
+  job page's in-app forward (the root link, other capitals, a one-role
+  /careers) records two job-page views.
+
 **Tag every link you post**, so each channel shows by name:
 
 | Where | Link |
