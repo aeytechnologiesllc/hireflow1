@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * PGlite proof for supabase/migrations/20261025170000_remove_applicant.sql,
- * its review fix 20261025180000_remove_applicant_review.sql, and
+ * its review fix 20261025180000_remove_applicant_review.sql, the latest
+ * definition of remove_applicant in any later migration (the twelfth Phase 5
+ * review: only 20261025220000's was tested), and
  * supabase/functions/remove-applicant/files.ts (docs/LAUNCH-PLAN.md,
  * Phase 5, task 3): a business removes an applicant's information.
  *
@@ -20,8 +22,9 @@
  * Run with: node scripts/remove_applicant.pglite.test.mjs
  */
 import { PGlite } from "@electric-sql/pglite";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { latestDefinition } from "./guards/phase-7-launch-locks.mjs";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..");
 const read = (rel) => readFileSync(path.join(ROOT, rel), "utf8");
@@ -108,6 +111,27 @@ await db.exec(`
 await db.exec(read("supabase/migrations/20261025170000_remove_applicant.sql"));
 await db.exec(read("supabase/migrations/20261025180000_remove_applicant_review.sql"));
 await db.exec(read("supabase/migrations/20261025220000_remove_applicant_help_review2.sql"));
+// …then the LATEST definition of remove_applicant in any migration, read as
+// the guards read one (latestDefinition: any case, any dollar-quote tag), so
+// a later file that redefines it is what is tested here (the twelfth Phase 5
+// review: this test ran only 20261025220000's, and four weakenings of a
+// later one passed it). A later body that needs more of the schema than the
+// stub above has fails here until the stub is extended.
+{
+  const ctx = {
+    read: async (rel) => readFileSync(path.join(ROOT, rel), "utf8"),
+    walk: async (rel, exts) => readdirSync(path.join(ROOT, rel)).filter((n) => exts.some((e) => n.endsWith(e))).map((n) => `${rel}/${n}`),
+  };
+  const latest = await latestDefinition(ctx, "remove_applicant");
+  check("the latest remove_applicant is found", !!latest?.statement, latest?.rel);
+  if (latest && latest.rel !== "supabase/migrations/20261025220000_remove_applicant_help_review2.sql") {
+    try {
+      await db.exec(latest.statement);
+    } catch (e) {
+      check(`the latest remove_applicant (${latest.rel}) applies on this test's schema (extend the stub)`, false, e.message);
+    }
+  }
+}
 
 const remove = async (application, actor, reason = null) =>
   (await db.query(`select public.remove_applicant($1, $2, $3) as r`, [application, actor, reason])).rows[0].r;

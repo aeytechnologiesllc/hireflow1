@@ -125,6 +125,23 @@ export function requestTitle(request: { document_type: string; custom_document_n
   return typed || requestKind(request.document_type).label;
 }
 
+/**
+ * How much a business may ask for (document_requests_limit,
+ * 20261025610000; the twelfth Phase 5 review: nothing limited it, and one
+ * business asked one throwaway applicant for 5,000 papers in one request).
+ * A real business asks for a handful when it hires.
+ */
+export const REQUESTS_PER_APPLICATION = 50;
+export const REQUESTS_PER_HOUR = 300;
+
+/** The database's refusal past either limit, in plain words for the request screen. Null for anything else. */
+export function requestLimitMessage(message: string | null | undefined): string | null {
+  const said = String(message ?? "");
+  if (/too_many_requests_on_application/.test(said)) return `This application already has ${REQUESTS_PER_APPLICATION} requests, the most one can have. Nothing went out.`;
+  if (/too_many_document_requests/.test(said)) return `Your team has sent ${REQUESTS_PER_HOUR} requests in the last hour. Nothing went out; please wait a little and try again.`;
+  return null;
+}
+
 export const ANSWER_MAX = 120;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;

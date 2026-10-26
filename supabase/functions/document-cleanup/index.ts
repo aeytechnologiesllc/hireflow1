@@ -13,7 +13,11 @@
 // Everything else in that request's own folder (an earlier photo that was
 // sent again) goes with it. The request keeps a note of when
 // (file_deleted_at), and the deletion is recorded in document_request_events.
-// Typed answers and other kinds of files are kept.
+// Typed answers and other kinds of files are kept. The papers that are due,
+// and the files of deleted requests (document_file_trash), are taken fairly:
+// each business's oldest first, businesses in turn, 200 a run, so one
+// business's flood holds up only its own papers (the twelfth Phase 5 review),
+// and the admins are told once a day when either backs up.
 //
 // It also empties the files queued for removal (storage_file_trash): those
 // "Delete their information" could not delete at the time (remove-applicant),
@@ -44,6 +48,13 @@ const DELETED_KINDS = ["government_id", "nbi_clearance", "proof_of_address"];
 /** ID_DELETE_HOURS_AFTER_OPENED and ID_DELETE_DAYS_UNOPENED in src/lib/documentRequests.ts. */
 const HOURS_AFTER_OPENED = 24;
 const DAYS_UNOPENED = 7;
+/**
+ * Due ID papers and notes of deleted requests taken each run (every hour):
+ * the numbers document_requests_due_pick and document_file_trash_fair_pick
+ * take (20261025610000).
+ */
+const DUE_PER_RUN = 200;
+const DELETED_NOTES_PER_RUN = 200;
 const BUCKET = "requested-documents";
 /** The buckets an applicant's removal may leave a file in (storage_file_trash's own check). */
 const REMOVAL_BUCKETS = new Set(["videos", "portfolios", "resumes", "voice-interview-recordings", "documents"]);
@@ -85,21 +96,21 @@ Deno.serve(async (req) => {
 
   const openedBefore = new Date(Date.now() - HOURS_AFTER_OPENED * 3_600_000).toISOString();
   const sentBefore = new Date(Date.now() - DAYS_UNOPENED * 86_400_000).toISOString();
-  const base = () =>
-    admin
-      .from("document_requests")
-      .select("id, candidate_id, file_url, status")
-      .in("document_type", DELETED_KINDS)
-      .not("file_url", "is", null)
-      .limit(200);
-  const [opened, unopened, neverMarkedSent] = await Promise.all([
-    base().lte("team_opened_at", openedBefore),
-    base().is("team_opened_at", null).lte("submitted_at", sentBefore),
-    // A file put there without being marked sent: counted from the request.
-    base().is("team_opened_at", null).is("submitted_at", null).lte("created_at", sentBefore),
-  ]);
-  const error = opened.error ?? unopened.error ?? neverMarkedSent.error;
-  const due = [...(opened.data ?? []), ...(unopened.data ?? []), ...(neverMarkedSent.data ?? [])];
+  // The ID papers that are due: opened by the hiring side before
+  // openedBefore, or never opened and sent before sentBefore, or never opened
+  // and never marked sent but asked for before sentBefore (a file put there
+  // without being marked sent: counted from the request). Taken fairly
+  // (document_requests_due_pick, 20261025610000): each business's
+  // longest-due paper first, businesses in turn, then the businesses with
+  // the fewest due first, 200 a run (the twelfth Phase 5 review: three reads
+  // of 200 with no order let one business's thousands of papers, due at the
+  // same time, keep a real ID past its 24 hours).
+  const { data: duePick, error } = await admin.rpc("document_requests_due_pick", {
+    p_kinds: DELETED_KINDS,
+    p_opened_before: openedBefore,
+    p_sent_before: sentBefore,
+  });
+  const due = (error ? [] : (duePick ?? [])) as { id: string; candidate_id: string; file_url: string | null; status: string }[];
   // A failed read skips this hour's ID papers, never the queues below (the
   // second Phase 5 review: it returned before them).
   if (error) console.error("[document-cleanup] could not read requests:", error.message);
@@ -135,12 +146,22 @@ Deno.serve(async (req) => {
 
   // Files whose request is gone (its job, application or business was
   // deleted): the database noted them (document_file_trash, 20261011195000);
-  // the file and its folder go now, then the note.
-  const { data: trash, error: trashError } = await admin.from("document_file_trash").select("id, candidate_id, request_id, file_url").limit(200);
+  // the file and its folder go now, then the note. Taken fairly
+  // (document_file_trash_fair_pick, 20261025610000): each business's oldest
+  // note first, businesses in turn (by when the pick last took them, which it
+  // records itself), then the businesses with the fewest waiting first, 200 a
+  // run; a note that failed waits out a back-off behind every note that is
+  // due. The twelfth Phase 5 review: read 200 a run with no order, one
+  // business's 5,000 requests on one throwaway applicant, withdrawn, kept a
+  // real ID removed through Delete their information in storage for 26 runs.
+  type TrashNote = { id: string; candidate_id: string; request_id: string; file_url: string | null; attempts: number | null };
+  const { data: trashPick, error: trashError } = await admin.rpc("document_file_trash_fair_pick");
   if (trashError) console.error("[document-cleanup] could not read the trash:", trashError.message);
+  const trash = (trashPick ?? []) as TrashNote[];
   let orphans = 0;
   let orphansFailed = 0;
-  for (const note of trash ?? []) {
+  const orphanTries = new Map<number, string[]>();
+  for (const note of trash) {
     const folder = `${note.candidate_id}/${note.request_id}`;
     const file = String(note.file_url ?? "");
     const own = file.startsWith(`${note.candidate_id}/`) && !file.includes("..") ? [file] : [];
@@ -151,11 +172,37 @@ Deno.serve(async (req) => {
       if (removeError) {
         orphansFailed += 1;
         console.error(`[document-cleanup] could not delete the file of deleted request ${note.request_id}:`, removeError.message);
+        const tries = Number(note.attempts ?? 0);
+        orphanTries.set(tries, [...(orphanTries.get(tries) ?? []), note.id]);
         continue;
       }
     }
     await admin.from("document_file_trash").delete().eq("id", note.id);
     orphans += 1;
+  }
+  // Each one that failed is tried again after a back-off: its tries go up by one.
+  const orphanTriedAt = new Date().toISOString();
+  for (const [tries, ids] of orphanTries) {
+    for (let i = 0; i < ids.length; i += IDS_PER_REQUEST) {
+      await admin.from("document_file_trash").update({ attempts: tries + 1, last_tried_at: orphanTriedAt }).in("id", ids.slice(i, i + IDS_PER_REQUEST));
+    }
+  }
+  // What is still waiting there, never tried, after this run: backed up when
+  // a whole run's worth is, or when one note has waited more than
+  // BACKLOG_HOURS (told to the admins below, once a day).
+  let orphansWaiting: number | null = null;
+  let orphansOldest: string | null = null;
+  if (!trashError) {
+    const [waitingCount, oldestNote] = await Promise.all([
+      admin.from("document_file_trash").select("id", { count: "exact", head: true }).eq("attempts", 0),
+      admin.from("document_file_trash").select("queued_at").eq("attempts", 0).order("queued_at", { ascending: true }).limit(1),
+    ]);
+    const countError = waitingCount.error ?? oldestNote.error;
+    if (countError) console.error("[document-cleanup] could not count the files of deleted requests still waiting:", countError.message);
+    else {
+      orphansWaiting = waitingCount.count ?? 0;
+      orphansOldest = typeof oldestNote.data?.[0]?.queued_at === "string" ? oldestNote.data[0].queued_at : null;
+    }
   }
   // Files an applicant's removal could not delete at the time
   // (remove-applicant; storage_file_trash, 20261025180000), a deleted
@@ -356,6 +403,18 @@ Deno.serve(async (req) => {
   }
   if (trashError) {
     await tell("read-trash", "Files of deleted requests are not being deleted", `document-cleanup could not read the files of deleted requests (${String(trashError.message).slice(0, 160)}). It tries again every hour.`);
+  }
+  // The ID papers' own backlogs, each on its own day's alert (the twelfth
+  // Phase 5 review: one business's flood of deleted requests held every real
+  // ID up for days, and nobody was told). The deleted requests' queue is
+  // backed up when a whole run's worth still waits, or a note has waited more
+  // than BACKLOG_HOURS; the due papers when a run took as many as it may.
+  const orphansWaitedTooLong = orphansOldest !== null && Date.now() - Date.parse(orphansOldest) > BACKLOG_HOURS * 3_600_000;
+  if (orphansWaiting !== null && (orphansWaiting >= DELETED_NOTES_PER_RUN || orphansWaitedTooLong)) {
+    await tell("deleted-requests-backlog", "Files of deleted requests are backing up", `${orphansWaiting} file${orphansWaiting === 1 ? " is" : "s are"} waiting to be deleted from requests that are gone (ID papers and other papers applicants sent, after a withdrawal, Delete their information, Delete Account or a deleted job; document_file_trash)${orphansOldest ? `, the oldest since ${orphansOldest.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes up to ${DELETED_NOTES_PER_RUN} an hour, each business's in turn, so one business's papers wait about an hour for every ${DELETED_NOTES_PER_RUN} businesses with papers ahead of them. To see who fills it, count document_file_trash's rows by employer_id.`);
+  }
+  if (!error && due.length >= DUE_PER_RUN) {
+    await tell("due-backlog", "ID papers are waiting past their time", `At least ${DUE_PER_RUN} ID papers were due for deletion this run (24 hours after the hiring side first opened them, or 7 days after they were sent). document-cleanup deletes up to ${DUE_PER_RUN} an hour, each business's in turn, and the rest wait for the next run. To see who holds them, count document_requests' rows that still have a file, by employer_id.`);
   }
   if (leftoverError) {
     await tell("read-leftovers", "Files queued for removal are not being deleted", `document-cleanup could not read the files queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash) (${String(leftoverError.message).slice(0, 160)}). It tries again every hour.`);

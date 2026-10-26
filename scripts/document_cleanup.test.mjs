@@ -34,7 +34,15 @@
  *     only its own note, and storage refusing everything costs three more
  *     calls, not a thousand; a path that is not plain is never removed, and
  *     its note goes rather than failing every hour (the ninth security
- *     review).
+ *     review);
+ *   - the ID papers that are due, and the papers of deleted requests, are
+ *     read through document_requests_due_pick and document_file_trash_fair_pick
+ *     (the stand-ins below answer as 20261025610000 does; the SQL is proved
+ *     in launch_locks_behaviour, section 16): which kinds go and after how
+ *     long (the twelfth Phase 5 review: dropping the kinds, the
+ *     never-marked-sent read or the 7-day read passed every test), one
+ *     business's 5,000 never keep a real ID out of the next run, a refused
+ *     note waits out a back-off, and both backlogs are told once a day.
  *
  * Run with: node scripts/document_cleanup.test.mjs
  */
@@ -98,7 +106,84 @@ function freshWorld() {
     claims: new Set(),
     // storage_file_trash_served: when the pick last took each person, by kind of note.
     served: new Map(),
+    // document_cleanup_served: when the ID-paper picks last took each business ('due' or 'deleted').
+    docServed: new Map(),
+    dueArgs: [],
   };
+}
+
+/**
+ * document_requests_due_pick as 20261025610000 makes it: a request of one of
+ * p_kinds with a file, opened before p_opened_before, or never opened and
+ * sent before p_sent_before, or never opened, never marked sent and asked
+ * for before p_sent_before; each business's longest-due paper first,
+ * businesses in turn (by when they were last taken or it became due,
+ * whichever is later), then the businesses with the fewest due first; 200 a
+ * run. It records whom it took.
+ */
+function duePick(args) {
+  world.dueArgs.push(args);
+  const now = Date.now();
+  const opened = Date.parse(args?.p_opened_before);
+  const sent = Date.parse(args?.p_sent_before);
+  const kinds = Array.isArray(args?.p_kinds) ? args.p_kinds : [];
+  const at = (v) => (v == null ? NaN : Date.parse(v));
+  const rows = world.tables.document_requests.filter((r) =>
+    r.file_url != null && kinds.includes(r.document_type) &&
+    ((r.team_opened_at != null && at(r.team_opened_at) <= opened) ||
+      (r.team_opened_at == null && r.submitted_at != null && at(r.submitted_at) <= sent) ||
+      (r.team_opened_at == null && r.submitted_at == null && at(r.created_at) <= sent)));
+  const dueAt = (r) => (r.team_opened_at != null ? at(r.team_opened_at) + (now - opened) : r.submitted_at != null ? at(r.submitted_at) + (now - sent) : at(r.created_at) + (now - sent));
+  const groups = new Map();
+  for (const r of rows) {
+    const who = r.employer_id ?? r.candidate_id;
+    groups.set(who, [...(groups.get(who) ?? []), r]);
+  }
+  const ranked = [];
+  for (const [who, list] of groups) {
+    list.sort((a, b) => dueAt(a) - dueAt(b) || order(a.id, b.id));
+    list.forEach((r, i) => ranked.push({ r, who, nth: i + 1, waiting: list.length, due: dueAt(r) }));
+  }
+  const turn = (x) => Math.max(world.docServed.get(`due:${x.who}`) ?? -Infinity, x.due);
+  const picked = ranked
+    .sort((a, b) => (a.nth > 1) - (b.nth > 1) || (a.nth === 1 ? turn(a) - turn(b) : 0) || a.waiting - b.waiting || a.nth - b.nth || a.due - b.due || order(a.r.id, b.r.id))
+    .slice(0, 200);
+  for (const x of picked) world.docServed.set(`due:${x.who}`, now);
+  return picked.map(({ r }) => ({ id: r.id, candidate_id: r.candidate_id, file_url: r.file_url, status: r.status }));
+}
+
+/**
+ * document_file_trash_fair_pick as 20261025610000 makes it: a note that
+ * failed waits behind every note that is due for an hour a try (up to a day)
+ * and half an hour more; each business's fewest-tries, oldest note first,
+ * businesses in turn; then the rest, the businesses with the fewest waiting
+ * first; 200 a run. A note without a business is its applicant's.
+ */
+function trashPick() {
+  const now = Date.now();
+  const queuedAt = (r) => Date.parse(r.queued_at ?? "2026-01-01T00:00:00Z");
+  const tries = (r) => Number(r.attempts ?? 0);
+  const due = (r) => (tries(r) > 0 ? Date.parse(r.last_tried_at ?? r.queued_at ?? "2026-01-01T00:00:00Z") + (Math.min(tries(r), 24) + 0.5) * 3_600_000 : queuedAt(r));
+  const groups = new Map();
+  for (const r of world.tables.document_file_trash) {
+    const who = r.employer_id ?? r.candidate_id;
+    groups.set(who, [...(groups.get(who) ?? []), r]);
+  }
+  const ranked = [];
+  for (const [who, list] of groups) {
+    list.sort((a, b) => tries(a) - tries(b) || queuedAt(a) - queuedAt(b) || order(a.id, b.id));
+    list.forEach((r, i) => ranked.push({ r, who, nth: i + 1, waiting: list.length, due: due(r) }));
+  }
+  const turn = (x) => Math.max(world.docServed.get(`deleted:${x.who}`) ?? -Infinity, x.due);
+  const picked = ranked
+    .sort((a, b) =>
+      (a.due > now) - (b.due > now) ||
+      (a.nth > 1) - (b.nth > 1) ||
+      (a.nth === 1 ? turn(a) - turn(b) : 0) ||
+      a.waiting - b.waiting || a.nth - b.nth || tries(a.r) - tries(b.r) || queuedAt(a.r) - queuedAt(b.r) || order(a.r.id, b.r.id))
+    .slice(0, 200);
+  for (const x of picked) world.docServed.set(`deleted:${x.who}`, now);
+  return picked.map((x) => ({ ...x.r }));
 }
 
 const order = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
@@ -195,6 +280,8 @@ function query(table) {
 function client() {
   return {
     rpc: async (fn, args) => {
+      if (fn === "document_requests_due_pick") return { data: duePick(args), error: null };
+      if (fn === "document_file_trash_fair_pick") return { data: trashPick(), error: null };
       if (fn === "document_cleanup_secret_matches") return { data: args.p_given === SECRET, error: null };
       if (fn === "claim_daily_alert") {
         const first = !world.claims.has(args.p_alert);
@@ -432,6 +519,121 @@ console.log("\nOne account's flood holds up only itself; exact paths go in bulk 
   // of every run.
   check("…and its note goes, never tried again every hour (counted as dropped, not removed or failed)", world.tables.storage_file_trash.length === 0 && notPlain.body?.leftoversDropped === 4 && notPlain.body?.leftoversRemoved === 0 && notPlain.body?.leftoversFailed === 0, show({ left: world.tables.storage_file_trash, body: notPlain.body }));
   check("…with no alert that files were left (nothing storage holds is named by it)", told("Files queued for removal are not all deleted") === 0);
+}
+
+console.log("\nWhich ID papers are due, and one business's flood of them (the twelfth Phase 5 review)\n");
+{
+  // The review's weakenings T1, T2 and T8 passed every test: the kinds read,
+  // the never-marked-sent read and the 7-day read were held only by regexes.
+  // Each request here is the real BIZ's unless it says otherwise.
+  const BIZ = id(21);
+  const req = (n, extra) => ({ id: id(700 + n), candidate_id: ANA, employer_id: BIZ, document_type: "government_id", file_url: `${ANA}/${id(700 + n)}/1.jpg`, status: "submitted", team_opened_at: null, submitted_at: null, created_at: hoursAgo(24 * 30), ...extra });
+  const cases = [
+    ["an ID opened 25 hours ago", req(1, { team_opened_at: hoursAgo(25), submitted_at: hoursAgo(30) }), true],
+    ["a paper named under \"Something else\" (a passport), opened 25 hours ago", req(2, { document_type: "custom", custom_document_name: "Passport", team_opened_at: hoursAgo(25), submitted_at: hoursAgo(30) }), false],
+    ["a TIN typed in, opened 25 hours ago", req(3, { document_type: "tin", team_opened_at: hoursAgo(25), submitted_at: hoursAgo(30) }), false],
+    ["an ID sent 8 days ago that nobody opened", req(4, { submitted_at: hoursAgo(24 * 8) }), true],
+    ["an ID sent 6 days ago that nobody opened", req(5, { submitted_at: hoursAgo(24 * 6) }), false],
+    ["an ID put there 8 days after it was asked for, never marked sent", req(6, { created_at: hoursAgo(24 * 8) }), true],
+    ["an ID asked for 6 days ago, put there and never marked sent", req(7, { created_at: hoursAgo(24 * 6) }), false],
+    ["an ID opened 23 hours ago", req(8, { team_opened_at: hoursAgo(23), submitted_at: hoursAgo(30) }), false],
+  ];
+  reset((w) => {
+    for (const [, r] of cases) {
+      w.tables.document_requests.push(r);
+      w.storage["requested-documents"].add(r.file_url);
+    }
+  });
+  const r = await runIt();
+  for (const [what, request, goes] of cases) {
+    const gone = !world.storage["requested-documents"].has(request.file_url);
+    check(`${what}: ${goes ? "deleted" : "kept"}`, r.status === 200 && gone === goes && (world.tables.document_requests.find((q) => q.id === request.id).file_url === null) === goes, show({ gone, body: r.body }));
+  }
+  const asked = world.dueArgs[0] ?? {};
+  check("…read through document_requests_due_pick with the three ID kinds and the 24-hour and 7-day cutoffs", JSON.stringify(asked.p_kinds) === JSON.stringify(["government_id", "nbi_clearance", "proof_of_address"]) && Math.abs(Date.now() - Date.parse(asked.p_opened_before) - 24 * 3_600_000) < 60_000 && Math.abs(Date.now() - Date.parse(asked.p_sent_before) - 7 * 86_400_000) < 60_000, show(asked));
+
+  // One business's 5,000 ID papers, all due before a real one (opened 26
+  // hours ago, the real one 25): read 200 at a time with no order, the real
+  // one waited for as many runs as the flood had papers to spare.
+  const FLOOD_BIZ = id(22);
+  const REAL = req(9, { team_opened_at: hoursAgo(25), submitted_at: hoursAgo(30) });
+  reset((w) => {
+    for (let n = 0; n < 5000; n += 1) {
+      const rid = id(100000 + n);
+      w.tables.document_requests.push({ id: rid, candidate_id: id(31), employer_id: FLOOD_BIZ, document_type: "government_id", file_url: `${id(31)}/${rid}/1.jpg`, status: "submitted", team_opened_at: hoursAgo(26), submitted_at: hoursAgo(30), created_at: hoursAgo(40) });
+      w.storage["requested-documents"].add(`${id(31)}/${rid}/1.jpg`);
+    }
+    w.tables.document_requests.push(REAL);
+    w.storage["requested-documents"].add(REAL.file_url);
+  });
+  const flood = await runIt();
+  check("a real ID due after one business's 5,000 is deleted in the next run", flood.status === 200 && !world.storage["requested-documents"].has(REAL.file_url), show(flood.body));
+  check("…in a run of 200", flood.body?.deleted === 200, show(flood.body));
+  const dueCard = world.tables.notifications.find((n) => n.title === "ID papers are waiting past their time");
+  check("…and a full run is told to the admins, saying who to look for", told("ID papers are waiting past their time") === 1 && /^At least 200 ID papers were due for deletion this run \(24 hours after the hiring side first opened them, or 7 days after they were sent\)\. document-cleanup deletes up to 200 an hour, each business's in turn, and the rest wait for the next run\. To see who holds them, count document_requests' rows that still have a file, by employer_id\.$/.test(dueCard?.message ?? ""), dueCard?.message);
+  await runIt();
+  check("…once a day (claim_daily_alert)", told("ID papers are waiting past their time") === 1 && world.claims.has("cleanup:due-backlog"));
+}
+
+console.log("\nThe papers of deleted requests, one business's flood (the twelfth Phase 5 review)\n");
+{
+  // The review's proof: one business asked one throwaway applicant for 5,000
+  // papers and the applicant withdrew; read 200 a run with no order, a real
+  // ID removed through Delete their information afterwards was first read in
+  // run 26.
+  const FLOOD_BIZ = id(41);
+  const REAL_BIZ = id(42);
+  const ATT = id(43);
+  const VICTIM = id(44);
+  const VICTIM_REQ = id(45);
+  const note = (n, h) => ({ id: `f${n}`, candidate_id: ATT, employer_id: FLOOD_BIZ, request_id: id(200000 + n), file_url: `${ATT}/${id(200000 + n)}/1.jpg`, attempts: 0, last_tried_at: null, queued_at: hoursAgo(h) });
+  const victimFile = `${VICTIM}/${VICTIM_REQ}/1729000000000.jpg`;
+  reset((w) => {
+    for (let n = 0; n < 5000; n += 1) {
+      w.tables.document_file_trash.push(note(n, 2 - n / 100000));
+      w.storage["requested-documents"].add(`${ATT}/${id(200000 + n)}/1.jpg`);
+    }
+    w.tables.document_file_trash.push({ id: "victim", candidate_id: VICTIM, employer_id: REAL_BIZ, request_id: VICTIM_REQ, file_url: victimFile, attempts: 0, last_tried_at: null, queued_at: hoursAgo(0.5) });
+    w.storage["requested-documents"].add(victimFile);
+  });
+  const r = await runIt();
+  check("a real ID removed after one business's 5,000 deleted requests goes in the next run", r.status === 200 && !world.storage["requested-documents"].has(victimFile) && !world.tables.document_file_trash.some((t) => t.id === "victim"), show(r.body));
+  check("…in a run of 200 (the flood's own 199 with it)", r.body?.orphans === 200 && world.tables.document_file_trash.length === 4801, show(r.body));
+  const card = world.tables.notifications.find((n) => n.title === "Files of deleted requests are backing up");
+  check(
+    "…and the backlog is told to the admins: how many, since when, how fast it clears, and how to see who fills it",
+    told("Files of deleted requests are backing up") === 1 &&
+      /^4801 files are waiting to be deleted from requests that are gone \(ID papers and other papers applicants sent, after a withdrawal, Delete their information, Delete Account or a deleted job; document_file_trash\), the oldest since \d{4}-\d\d-\d\d \d\d:\d\d UTC\. document-cleanup deletes up to 200 an hour, each business's in turn, so one business's papers wait about an hour for every 200 businesses with papers ahead of them\. To see who fills it, count document_file_trash's rows by employer_id\.$/.test(card?.message ?? ""),
+    card?.message,
+  );
+  await runIt();
+  check("…once a day (claim_daily_alert)", told("Files of deleted requests are backing up") === 1 && world.claims.has("cleanup:deleted-requests-backlog"));
+
+  // A note storage refuses waits out a back-off, so it never holds the front
+  // of the run, and is tried again after it.
+  reset((w) => {
+    w.tables.document_file_trash.push({ id: "busy", candidate_id: VICTIM, employer_id: REAL_BIZ, request_id: VICTIM_REQ, file_url: victimFile, attempts: 0, last_tried_at: null, queued_at: hoursAgo(1) });
+    w.storage["requested-documents"].add(victimFile);
+    w.refuseRemove.add(victimFile);
+  });
+  await runIt();
+  const busy = world.tables.document_file_trash.find((t) => t.id === "busy");
+  check("a note storage refuses keeps its place for later, its tries up by one", busy?.attempts === 1 && typeof busy?.last_tried_at === "string", show(busy));
+  world.refuseRemove.clear();
+  // A full run of other businesses' notes, queued after it.
+  for (let n = 0; n < 200; n += 1) {
+    world.tables.document_file_trash.push({ id: `o${n}`, candidate_id: id(9000 + n), employer_id: id(9500 + n), request_id: id(9800 + n), file_url: null, attempts: 0, last_tried_at: null, queued_at: hoursAgo(0.1) });
+  }
+  await runIt();
+  check("…and, until its back-off ends, waits behind every note that is due: a full run of others goes first", world.storage["requested-documents"].has(victimFile) && world.tables.document_file_trash.length === 1);
+  await runIt();
+  check("…then it is tried again, and goes", !world.storage["requested-documents"].has(victimFile) && world.tables.document_file_trash.length === 0);
+
+  reset((w) => {
+    for (let n = 0; n < 150; n += 1) w.tables.document_file_trash.push(note(n, 0.5));
+  });
+  await runIt();
+  check("a queue a run clears is no backlog", told("Files of deleted requests are backing up") === 0 && world.tables.document_file_trash.length === 0);
 }
 
 globalThis.fetch = realFetch;

@@ -310,6 +310,32 @@ these either; each has a guard or a test that CI runs:
   thread at `/contact`, `20261025200000_help_for_applicants.sql`; `/help` is
   staff-only on the staff host) or Help (a hiring team); Messages reach the
   hiring business, so the legal pages never send a privacy request there.
+- (The twelfth Phase 5 review, `20261025610000`.) ID papers leave on time
+  however one business floods the queues. A deleted request leaves a note in
+  `document_file_trash` only for a file storage holds, naming the business
+  that asked; an applicant links only their own upload for that request
+  (`<their id>/<request id>/<name>`, held by storage under exactly that
+  name); a business asks at most 50 papers of one application and 300 an
+  hour (`document_requests_limit`; the request screen says so plainly).
+  document-cleanup reads the deleted requests' files and the due ID papers
+  only through `document_file_trash_fair_pick` and
+  `document_requests_due_pick` (service role only): each business's oldest
+  first, businesses in turn (`document_cleanup_served`, pruned daily), 200 a
+  run, a refused note after a back-off; the admins are told once a day when
+  either backs up (`cleanup:deleted-requests-backlog`, `cleanup:due-backlog`).
+  By business, not applicant: every request is filed under the job's owner,
+  and applicant accounts cost nothing. One business's 5,000 requests on one
+  throwaway applicant had kept a real ID removed through Delete their
+  information for 26 runs; now it goes in the first run (within two after
+  300 businesses'). Delete Account's confirm says what stays (the signing
+  record, as proof; `src/content/deleteAccount.ts`), and delete-account no
+  longer tries to delete `document_audit_logs`. The Privacy Policy says until
+  when an application can be withdrawn and what to do after, and names every
+  automatic refusal. Guards `id-papers-leave-on-time`,
+  `delete-account-says-what-stays`; launch_locks_behaviour sections 16 and 17
+  (17: removal and withdrawal rules after every migration),
+  `scripts/document_cleanup.test.mjs`, `scripts/delete_account.test.mjs`;
+  remove_applicant.pglite tests the latest definition.
 - When a day's AI budget is reached, applicants are told to come back later
   today or tomorrow (`wait: "long"`, `aiUnavailableExtra`), never "a couple
   of minutes"; a refused step stays open (chat, interview, sales), and a

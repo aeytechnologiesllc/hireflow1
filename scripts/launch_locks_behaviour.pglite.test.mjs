@@ -95,6 +95,26 @@
  *      turn; a turn that would cross the run's 200 goes whole in the next;
  *      exact paths the same, six to a turn. The eleventh security review, in
  *      the shape of its proof; 20261025600000.
+ *  16. One business cannot keep other people's ID papers in storage (the
+ *      twelfth Phase 5 review, in the shape of its proof,
+ *      probes/trash_flood.mjs; 20261025610000): at most 50 requests on one
+ *      application and 300 an hour for a business; an applicant links only
+ *      their own upload for that request, so a deleted request queues only
+ *      what storage holds, naming the business that asked; after one
+ *      business's 5,000 or 20,000 deleted requests a real ID removed through
+ *      Delete their information goes in document-cleanup's first run
+ *      (document_file_trash_fair_pick), within two after 300 businesses'; a
+ *      note that failed waits out a back-off; the ID papers still open that
+ *      are due are taken the same way (document_requests_due_pick), only the
+ *      three ID kinds and only after 24 hours or 7 days; nothing of it is a
+ *      browser's.
+ *  17. What a removal or a withdrawal keeps and takes, after every
+ *      migration (the twelfth Phase 5 review, finding 2: these weakenings
+ *      passed every test): remove_applicant keeps the profile's resume and a
+ *      file another application lists, takes the block with this business
+ *      only; a paper named under "Something else" goes with its application;
+ *      an applicant withdraws only while nobody has decided and nothing is
+ *      signed.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -660,6 +680,9 @@ console.log("\n7. File paths an applicant stores are plain paths\n");
       const r = await write(`update public.document_requests set file_url = $2, status = 'submitted' where id = $1`, [req, value.replace("cv", `${req}/id`)]);
       check(`…the file sent is never a path with ${what}`, !r.ok && /request_file_not_yours/.test(r.error), show(r));
     }
+    // An upload storage holds (since the twelfth Phase 5 review a link with
+    // no upload behind it is refused: section 16).
+    await putFile("requested-documents", `${ANA}/${req}/id-1.jpg`);
     const sentOk = await write(`update public.document_requests set file_url = $2, file_name = 'NBI clearance.jpg', status = 'submitted' where id = $1`, [req, `${ANA}/${req}/id-1.jpg`]);
     check("…while an ordinary path in their own folder goes in", sentOk.ok, show(sentOk));
   }
@@ -1413,6 +1436,352 @@ console.log("\n15. Many accounts cannot keep a real removal out of the run\n");
     await as(user(ANA), `select id from public.storage_file_trash_fair_pick(false)`),
   ];
   check("…and no browser may read or write it, prune it or take a run (which writes it)", served && browserTries.every((r) => !r.ok), show(browserTries.map((r) => r.ok || r.error)));
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n16. One business cannot keep other people's ID papers in storage\n");
+{
+  // The twelfth Phase 5 review (finding 1), in the shape of its proof
+  // (probes/trash_flood.mjs): a business that confirmed its email and put a
+  // job live asked one throwaway applicant for 5,000 papers in one request;
+  // the applicant set file_url on all of them to a made-up path in their own
+  // folder (no upload) and withdrew. That one withdrawal left 5,000 notes in
+  // document_file_trash, which document-cleanup read 200 a run with no
+  // order, so a real ID removed through Delete their information afterwards
+  // was first read in run 26 (101 after 20,000), and the papers still open
+  // were read the same way. As Supabase's own storage does, objects are
+  // indexed by bucket and name here (bucketid_objname).
+  await db.exec(`create unique index if not exists objects_bucket_name on storage.objects (bucket_id, name)`);
+  await db.query(`delete from public.document_file_trash`);
+  const hour = () => Math.floor(Date.now() / 3_600_000);
+  const newBusiness = async (u, name) => {
+    await makeUser(u, "employer", { full_name: `${name} owner`, company_name: name });
+    await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [u]);
+    return (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Chat support agent', 'Answer customers by chat.', 'published') returning id`, [u])).id;
+  };
+  const askFor = (business, application, candidate, n, type = "custom") =>
+    as(user(business), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, custom_document_name)
+      select $1, $2, $3, $5, 'Paper ' || g from generate_series(1, $4::int) g returning id`, [application, business, candidate, n, type]);
+  const requestsOn = async (application) => (await one(`select count(*)::int n from public.document_requests where application_id = $1`, [application])).n;
+
+  // (a) The limits: 50 on one application, 300 an hour for a business.
+  const FLOODER = id("a", 1);
+  const FJOB = await newBusiness(FLOODER, "Flood Co");
+  const ATT = id("a", 2);
+  await makeUser(ATT, "candidate");
+  const attApp = await apply(ATT, FJOB);
+  const bulk = await askFor(FLOODER, attApp, ATT, 5000);
+  check("the review's 5,000 papers in one request are refused, and none goes in", !bulk.ok && /too_many_requests_on_application/.test(bulk.error) && (await requestsOn(attApp)) === 0, show(bulk));
+  const fiftyIn = hour();
+  const fifty = await askFor(FLOODER, attApp, ATT, 50);
+  check("…while 50 on one application go in", fifty.ok && fifty.rows.length === 50, show(fifty.error));
+  const more = await askFor(FLOODER, attApp, ATT, 1, "government_id");
+  check("…and the 51st is refused (too_many_requests_on_application, which the request screen says plainly)", !more.ok && /too_many_requests_on_application/.test(more.error) && (await requestsOn(attApp)) === 50, show(more));
+  // 300 an hour across the business's applications. The limit counts in
+  // clock hours: a run that crosses one is done again by a fresh business.
+  const hourlyLimit = async (biz, job, n0, startedIn = hour()) => {
+    let sent = 0;
+    let refused = "";
+    for (let k = 0; k < 7 && !refused; k += 1) {
+      const who = id("a", n0 + k);
+      await makeUser(who, "candidate");
+      const app = await apply(who, job);
+      const r = await askFor(biz, app, who, 50);
+      if (r.ok) sent += r.rows.length;
+      else refused = r.error;
+    }
+    return { sent, refused, sameHour: hour() === startedIn };
+  };
+  // FLOODER's first 50 count in its hour too: 50 + 250 = 300 (a fresh business: 300).
+  let limit = { ...(await hourlyLimit(FLOODER, FJOB, 10, fiftyIn)), expected: 250 };
+  if (!limit.sameHour) {
+    const AGAIN = id("a", 30);
+    limit = { ...(await hourlyLimit(AGAIN, await newBusiness(AGAIN, "Flood Again"), 31)), expected: 300 };
+  }
+  check("a business sends at most 300 requests an hour across its applications; the next is refused (too_many_document_requests)", limit.sameHour === false || (limit.sent === limit.expected && /too_many_document_requests/.test(limit.refused)), show(limit));
+  const server = await as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'custom') returning id`, [attApp, FLOODER, ATT]);
+  check("…the server's own inserts are not counted", server.ok, show(server));
+  await as(SERVICE, `delete from public.document_requests where id = $1`, [server.rows?.[0]?.id]);
+
+  // (b) The applicant's link: only their own upload for that request.
+  const [rid, rid2, ...rest] = fifty.rows.map((r) => r.id);
+  await putFile("requested-documents", `${ATT}/elsewhere.jpg`);
+  await putFile("requested-documents", `${ATT}/${rid2}/1729000000000.jpg`);
+  await putFile("requested-documents", `${ATT}/${rid}/sub/1729000000000.jpg`);
+  const setLink = (request, link) => as(user(ATT), `update public.document_requests set file_url = $2, file_name = 'x.jpg', status = 'submitted' where id = $1 returning id`, [request, link]);
+  for (const [what, link] of [
+    ["a made-up path in their own folder with no upload (the review's)", `${ATT}/x.jpg`],
+    ["a file of theirs outside the request's folder", `${ATT}/elsewhere.jpg`],
+    ["another request's upload", `${ATT}/${rid2}/1729000000000.jpg`],
+    ["a name in the request's folder that storage does not hold", `${ATT}/${rid}/1729000000001.jpg`],
+    ["a file in a folder inside it", `${ATT}/${rid}/sub/1729000000000.jpg`],
+    ["the folder itself", `${ATT}/${rid}/`],
+    ["a \".\" part", `${ATT}/${rid}/.`],
+  ]) {
+    const r = await setLink(rid, link);
+    check(`the applicant cannot link ${what}`, !r.ok && /request_file_not_yours/.test(r.error), show(r));
+  }
+  const patchAll = await as(user(ATT), `update public.document_requests set file_url = $2, file_name = 'x.jpg', status = 'submitted' where application_id = $1`, [attApp, `${ATT}/x.jpg`]);
+  check("…nor PATCH one made-up link onto every request of the application (the review's step 2)", !patchAll.ok && (await one(`select count(*)::int n from public.document_requests where application_id = $1 and file_url is not null`, [attApp])).n === 0, show(patchAll));
+  // Ten real uploads, each in its own request's folder.
+  const uploaded = [rid, ...rest.slice(0, 9)];
+  for (const r of uploaded) {
+    await putFile("requested-documents", `${ATT}/${r}/1729000000000.jpg`);
+    const ok = await setLink(r, `${ATT}/${r}/1729000000000.jpg`);
+    if (!ok.ok) throw new Error(`setup: a real upload could not be linked: ${ok.error}`);
+  }
+  check("…while their own upload for that request goes in", (await one(`select count(*)::int n from public.document_requests where application_id = $1 and file_url is not null`, [attApp])).n === 10);
+  const w = await as(user(ATT), `delete from public.applications where id = $1 returning id`, [attApp]);
+  const left = (await db.query(`select request_id, employer_id from public.document_file_trash where candidate_id = $1`, [ATT])).rows;
+  // …and the request whose folder holds an upload that was never linked (rid2 above).
+  check("the withdrawal queues only the papers storage holds: 11 of 50 (10 linked, one in its folder but never linked), each naming the business that asked", w.ok && left.length === 11 && left.every((t) => t.employer_id === FLOODER) && JSON.stringify(left.map((t) => t.request_id).sort()) === JSON.stringify([...uploaded, rid2].sort()), show({ w: w.error, left: left.length }));
+  await db.query(`delete from public.document_file_trash`);
+
+  // (c) The worst the limits still leave, as the trigger leaves it: one
+  // business's 5,000 (then 20,000) notes over many throwaway applicants,
+  // queued before a real ID that the team opens and then removes through
+  // Delete their information. document-cleanup's runs take the pick and
+  // delete what it gave.
+  let victimNo = 0;
+  const realIdRemoved = async () => {
+    victimNo += 1;
+    const VICTIM = id("b", victimNo);
+    await makeUser(VICTIM, "candidate");
+    const app = await apply(VICTIM, JOB);
+    const asked = await as(user(BIZ), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'government_id') returning id`, [app, BIZ, VICTIM]);
+    if (!asked.ok) throw new Error(`setup: BIZ could not ask for an ID: ${asked.error}`);
+    const request = asked.rows[0].id;
+    const file = `${VICTIM}/${request}/1729000000000.jpg`;
+    await putFile("requested-documents", file);
+    const sent = await as(user(VICTIM), `update public.document_requests set file_url = $2, file_name = 'ID.jpg', status = 'submitted' where id = $1`, [request, file]);
+    if (!sent.ok) throw new Error(`setup: the ID could not be sent: ${sent.error}`);
+    await as(SERVICE, `update public.document_requests set team_opened_at = now() - interval '1 hour' where id = $1`, [request]);
+    const removed = await as(SERVICE, `select public.remove_applicant($1, $2, 'They asked us to delete it') as r`, [app, BIZ]);
+    if (removed.rows?.[0]?.r?.ok !== true) throw new Error(`setup: remove_applicant: ${show(removed)}`);
+    return request;
+  };
+  const flood = (n, businesses = [FLOODER]) =>
+    as(SERVICE, `insert into public.document_file_trash (candidate_id, request_id, file_url, employer_id, queued_at)
+      select person, gen_random_uuid(), null, ($2::uuid[])[1 + (g % array_length($2::uuid[], 1))], now() - interval '1 hour' + g * interval '1 millisecond'
+        from generate_series(1, $1::int) g, lateral (select ('ac' || lpad((g % 400)::text, 6, '0') || '-0000-4000-8000-000000000000')::uuid as person) p`, [n, businesses]);
+  const runDeleted = async () => {
+    const r = await as(SERVICE, `select id, request_id from public.document_file_trash_fair_pick()`);
+    if (!r.ok) throw new Error(`the pick: ${r.error}`);
+    await db.query(`delete from public.document_file_trash where id = any($1::uuid[])`, [r.rows.map((n) => n.id)]);
+    return r.rows;
+  };
+  const runsUntil = async (request, most = 30) => {
+    for (let run = 1; run <= most; run += 1) {
+      if ((await runDeleted()).some((n) => n.request_id === request)) return run;
+    }
+    return -1;
+  };
+  for (const n of [5000, 20000]) {
+    await db.query(`delete from public.document_file_trash`);
+    const f = await flood(n);
+    if (!f.ok) throw new Error(`setup: the flood: ${f.error}`);
+    const request = await realIdRemoved();
+    const note = await one(`select employer_id from public.document_file_trash where request_id = $1`, [request]);
+    check(`a real ID removed through Delete their information is queued, naming its business (after ${n.toLocaleString("en-US")})`, note?.employer_id === BIZ, show(note));
+    const before = (await db.query(`select request_id from public.document_file_trash limit 200`)).rows;
+    check(`…the flood is big enough to matter: read as before (200, no order), the first run would not reach it`, !before.some((r) => r.request_id === request));
+    const runs = await runsUntil(request);
+    check(`…and with one business's ${n.toLocaleString("en-US")} notes ahead of it, it goes in document-cleanup's first run`, runs === 1, String(runs));
+  }
+  // Many businesses (each one a confirmed sign-up with a live job): 300 of
+  // them, 20,000 notes in all, queued before it. A business, not a person:
+  // throwaway applicant accounts cost nothing, a business confirms its email.
+  {
+    await db.query(`delete from public.document_file_trash`);
+    const many = Array.from({ length: 300 }, (_, i) => `ad${String(i).padStart(6, "0")}-0000-4000-8000-000000000000`);
+    const f = await flood(20000, many);
+    if (!f.ok) throw new Error(`setup: the flood of many: ${f.error}`);
+    const request = await realIdRemoved();
+    const runs = await runsUntil(request);
+    check("…and with 300 businesses' 20,000 notes ahead of it, within two runs (one for every 200 businesses ahead)", runs >= 1 && runs <= 2, String(runs));
+  }
+  // A note that failed waits out a back-off behind every note that is due,
+  // and is tried again after it.
+  {
+    await db.query(`delete from public.document_file_trash`);
+    await flood(600);
+    const failedOnce = await as(SERVICE, `insert into public.document_file_trash (candidate_id, request_id, employer_id, attempts, last_tried_at, queued_at) values ($1, gen_random_uuid(), $2, 1, now(), now() - interval '2 hours') returning request_id`, [ANA, BIZ]);
+    const firstRun = await runDeleted();
+    check("a note that failed a moment ago waits behind every note that is due", !firstRun.some((r) => r.request_id === failedOnce.rows[0].request_id) && firstRun.length === 200, show(firstRun.length));
+    await as(SERVICE, `update public.document_file_trash set last_tried_at = now() - interval '2 hours' where request_id = $1`, [failedOnce.rows[0].request_id]);
+    check("…and goes in the next run once its back-off is over", (await runDeleted()).some((r) => r.request_id === failedOnce.rows[0].request_id));
+  }
+
+  // (d) The ID papers still open that are due: one business's 20,000,
+  // opened 26 hours ago, and a real one opened 25 hours ago (the review's
+  // PLAUSIBLE item: three reads of 200 with no order).
+  const KINDS = `array['government_id', 'nbi_clearance', 'proof_of_address']`;
+  const pickDue = () => as(SERVICE, `select id, file_url from public.document_requests_due_pick(${KINDS}, now() - interval '24 hours', now() - interval '7 days')`);
+  const runDue = async () => {
+    const r = await pickDue();
+    if (!r.ok) throw new Error(`the due pick: ${r.error}`);
+    await as(SERVICE, `update public.document_requests set file_url = null, file_deleted_at = now() where id = any($1::uuid[])`, [r.rows.map((x) => x.id)]);
+    return r.rows;
+  };
+  const HOLDER = id("a", 50);
+  await makeUser(HOLDER, "candidate");
+  const holderApp = await apply(HOLDER, FJOB);
+  const dueFlood = (n, businesses) =>
+    as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, status, file_url, submitted_at, team_opened_at)
+      select $1, ($3::uuid[])[1 + (g % array_length($3::uuid[], 1))], $2::uuid, 'government_id', 'submitted', $2::uuid::text || '/' || gen_random_uuid() || '/1.jpg', now() - interval '30 hours', now() - interval '26 hours' + g * interval '1 millisecond'
+        from generate_series(1, $4::int) g`, [holderApp, HOLDER, businesses, n]);
+  let realNo = 0;
+  const realDueId = async () => {
+    realNo += 1;
+    const REAL = id("c", realNo);
+    await makeUser(REAL, "candidate");
+    const app = await apply(REAL, JOB);
+    const asked = await as(user(BIZ), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'government_id') returning id`, [app, BIZ, REAL]);
+    const request = asked.rows[0].id;
+    const file = `${REAL}/${request}/1729000000000.jpg`;
+    await putFile("requested-documents", file);
+    await as(user(REAL), `update public.document_requests set file_url = $2, file_name = 'ID.jpg', status = 'submitted' where id = $1`, [request, file]);
+    await as(SERVICE, `update public.document_requests set team_opened_at = now() - interval '25 hours' where id = $1`, [request]);
+    return request;
+  };
+  {
+    const f = await dueFlood(20000, [FLOODER]);
+    if (!f.ok) throw new Error(`setup: the due flood: ${f.error}`);
+    const request = await realDueId();
+    const before = (await as(SERVICE, `select id from public.document_requests where document_type = any(${KINDS}) and file_url is not null and team_opened_at <= now() - interval '24 hours' limit 200`)).rows;
+    check("one business holds 20,000 ID papers due before a real one: read as before (200, no order), the first run would not reach it", !before.some((r) => r.id === request));
+    const first = await runDue();
+    check("…and the real one is in document-cleanup's first run", first.some((r) => r.id === request) && first.length === 200, show(first.length));
+    await as(SERVICE, `update public.document_requests set file_url = null where application_id = $1`, [holderApp]);
+  }
+  {
+    const many = Array.from({ length: 300 }, (_, i) => `ae${String(i).padStart(6, "0")}-0000-4000-8000-000000000000`);
+    const f = await dueFlood(20000, many);
+    if (!f.ok) throw new Error(`setup: the due flood of many: ${f.error}`);
+    const request = await realDueId();
+    let runs = -1;
+    for (let run = 1; run <= 30 && runs < 0; run += 1) if ((await runDue()).some((r) => r.id === request)) runs = run;
+    check("…and with 300 businesses' 20,000 ahead of it, within two runs", runs >= 1 && runs <= 2, String(runs));
+    await as(SERVICE, `update public.document_requests set file_url = null where application_id = $1`, [holderApp]);
+  }
+  // Which papers are due (the review's weakenings T1, T2 and T8 passed every
+  // test: only regexes held the kinds and the 7-day reads).
+  {
+    const at = { app: holderApp, who: HOLDER };
+    const put = async (type, stamps) => {
+      const r = await as(SERVICE, `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, status, file_url, submitted_at, team_opened_at, created_at)
+        values ($1, $2, $3::uuid, $4, 'submitted', $3::uuid::text || '/' || gen_random_uuid() || '/1.jpg', $5, $6, coalesce($7, now())) returning id`, [at.app, FLOODER, at.who, type, stamps.sent ?? null, stamps.opened ?? null, stamps.asked ?? null]);
+      return r.rows[0].id;
+    };
+    const ago = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
+    const cases = [
+      ["an ID opened 25 hours ago", await put("government_id", { opened: ago(25), sent: ago(30) }), true],
+      ["an NBI clearance opened 25 hours ago", await put("nbi_clearance", { opened: ago(25), sent: ago(30) }), true],
+      ["a paper named under \"Something else\", opened 25 hours ago", await put("custom", { opened: ago(25), sent: ago(30) }), false],
+      ["an ID opened 23 hours ago", await put("government_id", { opened: ago(23), sent: ago(30) }), false],
+      ["an ID sent 8 days ago that nobody opened", await put("proof_of_address", { sent: ago(24 * 8) }), true],
+      ["an ID sent 6 days ago that nobody opened", await put("government_id", { sent: ago(24 * 6) }), false],
+      ["an ID put there, never marked sent, asked for 8 days ago", await put("government_id", { asked: ago(24 * 8) }), true],
+      ["an ID put there, never marked sent, asked for 6 days ago", await put("government_id", { asked: ago(24 * 6) }), false],
+    ];
+    const picked = new Set((await pickDue()).rows.map((r) => r.id));
+    for (const [what, request, due] of cases) check(`the due pick ${due ? "takes" : "leaves"} ${what}`, picked.has(request) === due);
+    const none = await as(SERVICE, `select count(*)::int n from public.document_requests_due_pick(null, now() - interval '24 hours', now() - interval '7 days')`);
+    check("…and takes nothing without its kinds", none.ok && none.rows[0].n === 0, show(none));
+  }
+
+  // (e) Only the server takes a run, and only it reads or writes whom each
+  // run took; a business's record goes only once it holds nothing.
+  const browserTries = [
+    await as(user(FLOODER), `select * from public.document_file_trash_fair_pick()`),
+    await as(user(FLOODER), `select * from public.document_requests_due_pick(${KINDS}, now(), now())`),
+    await as(user(FLOODER), `select * from public.document_cleanup_served`),
+    await as(ANON, `select * from public.document_cleanup_served`),
+    await as(user(FLOODER), `insert into public.document_cleanup_served (queue, person, served_at) values ('deleted', $1, now() + interval '1 year')`, [BIZ]),
+    await as(user(FLOODER), `select public.prune_document_cleanup_served()`),
+    await as(user(ATT), `select * from public.document_file_trash`),
+  ];
+  check("no browser may take a run, read or write whom each run took, or prune it", browserTries.every((r) => !r.ok || r.rows.length === 0), show(browserTries.map((r) => r.ok || r.error)));
+  await db.query(`delete from public.document_file_trash`);
+  await db.query(`update public.document_cleanup_served set served_at = now() - interval '2 days'`);
+  await as(SERVICE, `insert into public.document_file_trash (candidate_id, request_id, employer_id) values ($1, gen_random_uuid(), $2)`, [ANA, BIZ]);
+  await db.query(`select public.prune_document_cleanup_served()`);
+  const kept = (await db.query(`select queue, person from public.document_cleanup_served where person = $1`, [BIZ])).rows.map((r) => r.queue).sort();
+  check("the daily prune keeps a business's turn while it holds a note or a paper, and drops one that holds nothing", JSON.stringify(kept) === JSON.stringify(["deleted"]) && (await one(`select count(*)::int n from public.document_cleanup_served where person like 'ad%'`)).n === 0, show(kept));
+  await db.query(`delete from public.document_file_trash`);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n17. What a removal or a withdrawal keeps, and what it takes\n");
+{
+  // The twelfth Phase 5 review (finding 2): these weakenings passed every
+  // test, since remove_applicant.pglite.test.mjs ran only 20261025220000's
+  // definition, sections 2 and 11 checked only who and the log, and the
+  // applicant's delete policy was held only by tests that load chosen
+  // migrations. Every migration is applied here.
+  const FILES = await import("../supabase/functions/remove-applicant/files.ts");
+  const KEEPS = id("d", 1);
+  await makeUser(KEEPS, "candidate");
+  const PROFILE_CV = `${KEEPS}/1729000000000_profile.pdf`;
+  const SHARED = `${KEEPS}/1729000000001_q1.pdf`;
+  const OWN = `${KEEPS}/1729000000002_q2.pdf`;
+  for (const p of [PROFILE_CV, SHARED, OWN]) await putFile("resumes", p);
+  await db.query(`update public.profiles set resume_url = $2 where user_id = $1`, [KEEPS, PROFILE_CV]);
+  const here = await apply(KEEPS, JOB);
+  const elsewhere = await apply(KEEPS, JOB_P);
+  const listedHere = await as(user(KEEPS), `update public.applications set resume_url = $2, notes = $3 where id = $1`, [here, PROFILE_CV, JSON.stringify({ fileUploads: { q1: { url: SHARED, imageUrls: [], isResume: false }, q2: { url: OWN, imageUrls: [], isResume: false } } })]);
+  const listedThere = await as(user(KEEPS), `update public.applications set notes = $2 where id = $1`, [elsewhere, JSON.stringify({ fileUploads: { q1: { url: SHARED, imageUrls: [], isResume: false } } })]);
+  if (!listedHere.ok || !listedThere.ok) throw new Error(`setup: the form's files: ${show({ listedHere, listedThere })}`);
+  // Blocked by this business and by another.
+  for (const biz of [BIZ, PBIZ]) await db.query(`insert into public.blocked_applicants (employer_id, candidate_id, email, reason, blocked_by) values ($1, $2, $3, 'No-show twice', $1)`, [biz, KEEPS, emailOf(KEEPS)]);
+  const removed = await as(SERVICE, `select public.remove_applicant($1, $2, 'They asked us to delete it') as r`, [here, BIZ]);
+  const r = removed.rows?.[0]?.r ?? {};
+  check("Delete their information removes the application", r.ok === true && (await one(`select count(*)::int n from public.applications where id = $1`, [here])).n === 0, show(removed));
+  const goes = FILES.resumeFilesToRemove(KEEPS, r.resume_url, r.notes, r.other_refs);
+  check("…keeps their profile's resume, though this application used it (the review's S1)", String(r.other_refs).includes(PROFILE_CV) && !goes.includes(PROFILE_CV), show({ goes, refs: String(r.other_refs).slice(0, 200) }));
+  check("…keeps a file their application to another business still lists (S2)", String(r.other_refs).includes(SHARED) && !goes.includes(SHARED), show(goes));
+  check("…and deletes the file only this application used", JSON.stringify(goes) === JSON.stringify([OWN]), show(goes));
+  const blocks = (await db.query(`select employer_id from public.blocked_applicants where candidate_id = $1 order by employer_id`, [KEEPS])).rows.map((b) => b.employer_id);
+  check("…takes their block with this business, with no application of theirs left there (S4: the second Phase 5 review)", !blocks.includes(BIZ), show(blocks));
+  check("…and never their block with another business (S5)", blocks.includes(PBIZ), show(blocks));
+  // A block stays while another application of theirs is still with the business.
+  const TWICE = id("d", 2);
+  await makeUser(TWICE, "candidate");
+  const one1 = await apply(TWICE, JOB);
+  await apply(TWICE, JOB_NEW);
+  await db.query(`insert into public.blocked_applicants (employer_id, candidate_id, email, reason, blocked_by) values ($1, $2, $3, 'Rude on the call', $1)`, [BIZ, TWICE, emailOf(TWICE)]);
+  await as(SERVICE, `select public.remove_applicant($1, $2, null)`, [one1, BIZ]);
+  check("…a block stays while another application of theirs is with the business", (await one(`select count(*)::int n from public.blocked_applicants where candidate_id = $1 and employer_id = $2`, [TWICE, BIZ])).n === 1);
+
+  // A paper named under "Something else" goes with its application (S6: the
+  // Terms say it is kept until the application is deleted, not for good).
+  const NAMED = id("d", 3);
+  await makeUser(NAMED, "candidate");
+  const namedApp = await apply(NAMED, JOB);
+  const asked = await as(user(BIZ), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, custom_document_name) values ($1, $2, $3, 'custom', 'Diploma') returning id`, [namedApp, BIZ, NAMED]);
+  const namedFile = `${NAMED}/${asked.rows[0].id}/1729000000000.pdf`;
+  await putFile("requested-documents", namedFile);
+  await as(user(NAMED), `update public.document_requests set file_url = $2, file_name = 'Diploma.pdf', status = 'submitted' where id = $1`, [asked.rows[0].id, namedFile]);
+  await as(user(NAMED), `delete from public.applications where id = $1`, [namedApp]);
+  check("a paper named under \"Something else\" is queued for deletion with its application (S6)", (await one(`select count(*)::int n from public.document_file_trash where request_id = $1 and file_url = $2`, [asked.rows[0].id, namedFile])).n === 1);
+
+  // The applicant withdraws only while nobody has decided, and never once
+  // they signed something (20261011197000; S10, S11).
+  const withdraws = async (status, signed = false) => {
+    const who = id("d", 10 + (await one(`select count(*)::int n from auth.users where id::text like 'd0000000-%'`)).n);
+    await makeUser(who, "candidate");
+    const app = await apply(who, JOB_NEW);
+    await as(SERVICE, `update public.applications set status = $2 where id = $1`, [app, status]);
+    if (signed) {
+      const doc = await as(SERVICE, `insert into public.documents (application_id, name, file_url, status, candidate_signed_at, sender_id, recipient_id) values ($1, 'Offer letter', 'documents/x/original.pdf', 'signed', now(), $2, $3) returning id`, [app, BIZ, who]);
+      if (!doc.ok) throw new Error(`setup: the signed document: ${doc.error}`);
+    }
+    const d = await as(user(who), `delete from public.applications where id = $1 returning id`, [app]);
+    return d.ok && d.rows.length === 1 && (await one(`select count(*)::int n from public.applications where id = $1`, [app])).n === 0;
+  };
+  for (const status of ["in_progress", "pending", "reviewing"]) check(`an applicant may withdraw an application at "${status}"`, await withdraws(status));
+  for (const status of ["interview", "offered", "hired", "rejected"]) check(`…never one at "${status}": the interview, offer and decision are the business's record too (S11)`, !(await withdraws(status)));
+  check("…nor one with a document they signed, though nobody decided yet (S10)", !(await withdraws("reviewing", true)));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

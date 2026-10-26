@@ -15,11 +15,16 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// The record of each signing (document_audit_logs: who signed, when, from
+// which address, device and place) is not in this list: it is the proof of a
+// signature and stays, for everyone (prevent_audit_delete refuses any delete;
+// the Privacy Policy and the Delete Account confirm say so). Trying anyway
+// failed for everyone who had signed something and logged a "still hold
+// their data" error with every such deletion (the twelfth Phase 5 review).
 const deleteOperations = [
   { table: 'push_subscriptions', columns: ['user_id'] },
   { table: 'notifications', columns: ['user_id'] },
   { table: 'messages', columns: ['sender_id', 'receiver_id'] },
-  { table: 'document_audit_logs', columns: ['user_id'] },
   { table: 'blueprint_purchases', columns: ['user_id'] },
   { table: 'voice_credits', columns: ['user_id'] },
   { table: 'subscription_usage', columns: ['user_id'] },
@@ -381,8 +386,9 @@ serve(async (req) => {
     }
 
     // What a team member did for the business stays with it: documents they
-    // reviewed and the audit trail (already handed over above).
-    const keptForTheBusiness = new Set(teamOwner ? ['document_requests.reviewed_by', 'document_audit_logs.user_id'] : []);
+    // reviewed (their chats and sent documents were handed over above; the
+    // signing record stays for everyone).
+    const keptForTheBusiness = new Set(teamOwner ? ['document_requests.reviewed_by'] : []);
     for (const operation of deleteOperations) {
       for (const column of operation.columns) {
         if (keptForTheBusiness.has(`${operation.table}.${column}`)) continue;

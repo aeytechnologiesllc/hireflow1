@@ -10,7 +10,7 @@
 import { build } from "esbuild";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
-import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -18,8 +18,13 @@ const dir = mkdtempSync(resolve(tmpdir(), "legal-pages-"));
 const outfile = resolve(dir, "legal.mjs");
 await build({ entryPoints: [resolve(root, "src/content/legal.ts")], bundle: true, format: "esm", platform: "node", outfile, logLevel: "silent" });
 const { PRIVACY_POLICY, TERMS, LEGAL_UPDATED } = await import(pathToFileURL(outfile).href);
+// Delete Account's confirm (the twelfth Phase 5 review), held to the policy below.
+const confirmFile = resolve(dir, "deleteAccount.mjs");
+await build({ entryPoints: [resolve(root, "src/content/deleteAccount.ts")], bundle: true, format: "esm", platform: "node", outfile: confirmFile, logLevel: "silent" });
+const deleteAccount = await import(pathToFileURL(confirmFile).href);
 rmSync(dir, { recursive: true, force: true });
 const read = (path) => readFileSync(resolve(root, path), "utf8");
+const show = (v) => JSON.stringify(v);
 
 let passed = 0;
 let failed = 0;
@@ -121,6 +126,65 @@ check("…and so does the request screen, with a warning when the named paper is
   check("it says opening a requested file is recorded, which the function does", /we record who opened it and when/.test(privacy) && /action: "opened"/.test(read("supabase/functions/requested-document-url/index.ts")));
 }
 check("it tells people how to delete their account, by the button's own name", /open Settings and choose Delete Account/.test(privacy) && /Delete Account/.test(read("src/pages/Settings.tsx")));
+{
+  // The twelfth Phase 5 review (finding 3): Delete Account's confirm said
+  // "All your data ... will be permanently deleted", while the record of each
+  // signature stays (prevent_audit_delete refuses any delete; delete-account's
+  // own purge of it failed and logged an error every time), a few technical
+  // records stay, and a team member's chats and sent documents go to the
+  // business. The confirm's words are deleteAccountWords, held to the policy.
+  const settings = read("src/pages/Settings.tsx");
+  const fn = read("supabase/functions/delete-account/index.ts");
+  const ops = (fn.match(/const deleteOperations = \[([\s\S]*?)\] as const;/) ?? [])[1] ?? "";
+  const words = Object.fromEntries(["applicant", "business", "team"].map((who) => [who, deleteAccount.deleteAccountWords(who)]));
+  check(
+    "the policy says the signing record stays after Delete Account, as proof, and what it holds",
+    /The record of each document you signed \(your name, email address, the time, your IP address, browser, device and approximate place\) is kept as proof of the signature, even after you delete your account\./.test(privacy) && !/Signed documents and their records may also be kept/.test(privacy),
+  );
+  check(
+    "…and so does Delete Account's confirm, for every kind of account, with the technical records the policy lists",
+    Object.values(words).every((w) => w.kept[0] === "The record of each document you signed (your name, email address, the time, your IP address, browser, device and approximate place), kept as proof of the signature." && /a count of test attempts, block-list entries and error reports/.test(w.kept[1]) && /the Privacy Policy lists/.test(w.kept[1])) &&
+      /a count of your test attempts, a block-list entry if the account was blocked/.test(privacy) && /and error reports\./.test(privacy),
+    show(words),
+  );
+  check(
+    "…which is what delete-account does: it never deletes the signing record (and no longer tries)",
+    ops.length > 0 && !/document_audit_logs/.test(ops) && /prevent_audit_delete refuses any delete/.test(fn) && /BEFORE DELETE ON public\.document_audit_logs/.test(read("supabase/migrations/20251215015158_dff41abe-b1cf-4851-b3ff-0665a3e61c65.sql")),
+  );
+  check(
+    "a team member is told their chats and sent documents stay with the business, as the policy says and delete-account does",
+    /Your chats with applicants and the documents you sent them stay with the business, under its owner's name\./.test(words.team.deleted) && /On a hiring team, your chats with applicants and the documents you sent them stay with the business, under its owner's name\./.test(privacy) &&
+      /update\(\{ sender_id: teamOwner \}\)\.eq\('sender_id', user\.id\)/.test(fn) && /teamOwner \? \['documents', 'message-attachments'\] : \[\]/.test(fn),
+  );
+  check("a business is told its jobs and their applications go, as delete-account does", /your jobs and every application to them/.test(words.business.deleted) && /\{ table: 'jobs', columns: \['employer_id'\] \}/.test(ops));
+  check(
+    "…and Settings shows those words, by who is deleting, never \"All your data\"",
+    /import \{ deleteAccountWords \} from "@\/content\/deleteAccount";/.test(settings) && /deleteAccountWords\(isEmployer \? "business" : isTeamMember \|\| role === "team_member" \? "team" : "applicant"\)/.test(settings) && /\{deleteWords\.deleted\}/.test(settings) && /deleteWords\.kept\.map\(/.test(settings) && !/All your data/.test(settings),
+  );
+}
+{
+  // The twelfth Phase 5 review (finding 4): the policy said to withdraw to
+  // stop a job's emails, but withdrawal ends at "reviewing" (the live delete
+  // policy; Applications.tsx offers it only then).
+  const apps = read("src/pages/Applications.tsx");
+  check(
+    "it says until when an application can be withdrawn, and what someone at a later stage can do",
+    /Withdraw an application: open Applications\. You can withdraw until the hiring team invites you to an interview, offers you the job or turns you down, and while you have signed nothing for it\./.test(privacy) &&
+      /Once the hiring team has invited you to an interview, offered you the job or turned you down, it can no longer be withdrawn\. Then tell the hiring team in Messages that you are no longer interested, so that they can close your application or delete your information, or write to us from Contact us and we will pass it on\./.test(privacy),
+  );
+  check("…which is when Applications offers Withdraw (before the interview, the offer, the hire or a decline)", /const canWithdraw = \["in_progress", "pending", "reviewing"\]\.includes\(String\(application\.status \?\? ""\)\);/.test(apps));
+}
+{
+  // The twelfth Phase 5 review (finding 5): "the one automatic refusal" was
+  // the block list, while the database also refuses an under-18 answer and a
+  // re-application within 30 days of withdrawing.
+  const migrations = (name) => readdirSync(resolve(root, "supabase/migrations")).filter((f) => f.endsWith(".sql")).some((f) => read(`supabase/migrations/${f}`).includes(name));
+  check(
+    "it names every automatic refusal: the block list, the under-18 answer and the month after withdrawing, and the hourly wait",
+    /The site itself turns an application away in only three cases: the hiring team has blocked the account, the answer to "Are you 18 or older\?" is No, or the same account withdrew from that job less than a month before\. It also asks anyone who starts a great many applications in one hour to wait a little\./.test(privacy) && !/The one automatic refusal/.test(privacy),
+  );
+  check("…which are the database's own refusals", ["applications_refuse_blocked", "applications_refuse_under_18", "applications_refuse_recent_withdrawal", "too_many_applications"].every(migrations) && /interval '30 days'/.test(read("supabase/migrations/20261025350000_applicant_writes_round2.sql")));
+}
 check("it says a profile photo sits at a public address", /A photo you add is stored at a public web address/.test(privacy));
 check("it names the companies that handle the information", ["Supabase", "Vercel", "OpenAI", "Resend", "Google Fonts"].every((name) => privacy.includes(name)));
 // Notifications go through the browser's own push service (20261021220000_web_push.sql); OneSignal keys were never set.

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { notifyDocumentRequested } from "@/utils/emailNotifications";
-import { requestKind, requestTitle } from "@/lib/documentRequests";
+import { requestKind, requestLimitMessage, requestTitle } from "@/lib/documentRequests";
 
 /**
  * Asking an applicant for documents, and reading what came back
@@ -133,7 +133,9 @@ export async function insertRequestRows({
     due_date: dueDate,
   }));
   const { error } = await supabase.from("document_requests").insert(rows as never);
-  if (error) throw new Error("The request could not be sent. Nothing went out; try again.");
+  // Past the database's limits (50 on one application, 300 an hour for a
+  // team) the screen says so in plain words.
+  if (error) throw new Error(requestLimitMessage(error.message) ?? "The request could not be sent. Nothing went out; try again.");
 }
 
 /** Sends one or more requests to one applicant: the rows, a note in their bell, one email. */

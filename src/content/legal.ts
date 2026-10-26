@@ -43,7 +43,7 @@ export interface LegalDocument {
   sections: LegalSection[];
 }
 
-export const LEGAL_UPDATED = "October 25, 2026";
+export const LEGAL_UPDATED = "October 26, 2026";
 
 export const PRIVACY_POLICY: LegalDocument = {
   title: "Privacy Policy",
@@ -139,7 +139,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       body: [
         "AI software reads your test answers, your chat practice, your written interview, the work samples you upload and, if you upload one, your resume. It produces scores, a summary and notes for the hiring team. The person you chat with in the chat practice and the interviewer in the written interview are AI, not people.",
         "When you finish a step, the site may move you to the next step automatically.",
-        "No application is declined by software alone. A person on the hiring team makes that decision. The one automatic refusal is this: if the hiring team has blocked an account, that account cannot apply again.",
+        "No application is declined by software alone. A person on the hiring team makes that decision. The site itself turns an application away in only three cases: the hiring team has blocked the account, the answer to \"Are you 18 or older?\" is No, or the same account withdrew from that job less than a month before. It also asks anyone who starts a great many applications in one hour to wait a little.",
         "AI can be wrong. If you think a result is wrong, message the hiring team in your account, or write to us from Contact us.",
       ],
     },
@@ -181,8 +181,8 @@ export const PRIVACY_POLICY: LegalDocument = {
         "Most things are not deleted on a timer. We keep your account and your applications until you delete them or the hiring team removes them. If you ask us to delete an application, we pass your request to its hiring team, which can delete it, and we help you delete your account if you want that too.",
         "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 24 hours after someone on the hiring team first opens it, or 7 days after you send it if nobody opens it. Any other paper the team asks for by its own name is kept until the application or your account is deleted.",
         "In that time the hiring team may download a copy. A copy they keep is theirs to look after, under their own duties to protect it.",
-        "When you delete your account, your profile, your applications, your test records and your files are deleted with it.",
-        "A few technical records stay behind: a count of your test attempts, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), how many minutes a spoken interview used, and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account. Signed documents and their records may also be kept where both sides may still need them or the law requires it.",
+        "When you delete your account, your profile, your applications, your messages, your test records and your files are deleted with it. On a hiring team, your chats with applicants and the documents you sent them stay with the business, under its owner's name.",
+        "A few records stay behind. The record of each document you signed (your name, email address, the time, your IP address, browser, device and approximate place) is kept as proof of the signature, even after you delete your account. So are a count of your test attempts, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), how many minutes a spoken interview used, and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account.",
       ],
     },
     {
@@ -192,8 +192,8 @@ export const PRIVACY_POLICY: LegalDocument = {
         {
           list: [
             "See and change your details: open Profile in your account.",
-            "Emails: the emails about your applications come with applying. To stop them for one job, withdraw that application. On a hiring team, you can turn your own email alerts off in Settings.",
-            "Withdraw an application: open Applications.",
+            "Emails: the emails about your applications come with applying. To stop them for one job, withdraw that application. Once the hiring team has invited you to an interview, offered you the job or turned you down, it can no longer be withdrawn. Then tell the hiring team in Messages that you are no longer interested, so that they can close your application or delete your information, or write to us from Contact us and we will pass it on. On a hiring team, you can turn your own email alerts off in Settings.",
+            "Withdraw an application: open Applications. You can withdraw until the hiring team invites you to an interview, offers you the job or turns you down, and while you have signed nothing for it.",
             "Delete your account: open Settings and choose Delete Account.",
             "Ask for a copy of your information, for a correction, or to object to how it is used: write to us from Contact us in your account menu. We usually reply within a day.",
           ],

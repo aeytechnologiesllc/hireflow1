@@ -30,6 +30,7 @@ import { CareersPageCard } from "@/components/business/CareersPageCard";
 import { TipsSettingCard } from "@/cockpit/tips/TipsSettingCard";
 import { TwoStepSignIn } from "@/components/settings/TwoStepSignIn";
 import { usePlatformAdminAccount } from "@/hooks/usePlatformAdmin";
+import { deleteAccountWords } from "@/content/deleteAccount";
 
 export default function Settings() {
   const { user, role, loading, isTeamMember } = useAuth();
@@ -161,7 +162,11 @@ export default function Settings() {
     }
   };
 
-  // One dialog for both layouts (applicants and the hiring team).
+  // One dialog for both layouts (applicants and the hiring team). What goes
+  // and what stays, by who is deleting, as delete-account does it: a business
+  // (its jobs go too), a team member (their chats and sent documents go to the
+  // owner), an applicant.
+  const deleteWords = deleteAccountWords(isEmployer ? "business" : isTeamMember || role === "team_member" ? "team" : "applicant");
   const deleteAccountDialog = (
     <AlertDialog
       open={deleteOpen}
@@ -185,9 +190,19 @@ export default function Settings() {
             Delete Account
           </AlertDialogTitle>
           <AlertDialogDescription>
-            This action is permanent and cannot be undone. All your data, including your profile, applications, messages, and documents will be permanently deleted. You can register again with the same email afterwards.
+            This action is permanent and cannot be undone. {deleteWords.deleted} You can register again with the same email afterwards.
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {/* What stays, as the Privacy Policy says (the twelfth Phase 5 review:
+            this said everything was deleted). */}
+        <div className="space-y-1 text-sm text-muted-foreground">
+          <p>What stays:</p>
+          <ul className="list-disc space-y-1 pl-5">
+            {deleteWords.kept.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
         <div className="space-y-2">
           <Label htmlFor="delete-account-password">Your password</Label>
           <Input

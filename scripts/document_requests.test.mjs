@@ -52,6 +52,20 @@ eq("an unknown key reads as a document", lib.requestKind("whatever").label, "Doc
 eq("the team's own name wins", lib.requestTitle({ document_type: "custom", custom_document_name: "  House rules, signed " }), "House rules, signed");
 eq("…else the kind's", lib.requestTitle({ document_type: "nbi_clearance", custom_document_name: " " }), "NBI clearance");
 
+// --- how much a business may ask for (the twelfth Phase 5 review) --------------------
+{
+  // The database refuses past 50 requests on one application and 300 an
+  // hour for a team (document_requests_limit, 20261025610000); the request
+  // screen shows these words, not "could not be sent, try again".
+  const migration = read("supabase/migrations/20261025610000_id_papers_leave_on_time.sql");
+  eq("past 50 on one application, the screen says so", lib.requestLimitMessage(`too_many_requests_on_application`), "This application already has 50 requests, the most one can have. Nothing went out.");
+  eq("past 300 an hour, the screen says to wait", lib.requestLimitMessage(`new row for relation: too_many_document_requests`), "Your team has sent 300 requests in the last hour. Nothing went out; please wait a little and try again.");
+  eq("anything else is not a limit", lib.requestLimitMessage("permission denied for table document_requests"), null);
+  check("…the same numbers as the database's", new RegExp(`IF asked >= ${lib.REQUESTS_PER_APPLICATION} THEN\\s*RAISE EXCEPTION 'too_many_requests_on_application'`).test(migration) && new RegExp(`'document-requests', coalesce\\(business, NEW\\.application_id\\)::text, ${lib.REQUESTS_PER_HOUR}, 3600\\)`).test(migration));
+  const hook = read("src/cockpit/hooks/useApplicantRequests.ts");
+  check("…and the request screen's send shows them", /if \(error\) throw new Error\(requestLimitMessage\(error\.message\) \?\? "The request could not be sent\. Nothing went out; try again\."\);/.test(hook) && /toast\.error\("The request was not sent", \{ description: \(error as Error\)\.message \}\)/.test(read("src/cockpit/components/RequestDocumentsDialog.tsx")));
+}
+
 // --- typed answers ---------------------------------------------------------------
 eq("empty", lib.answerProblem("tin", "  "), "Type your answer first.");
 eq("a good TIN", lib.answerProblem("tin", "123-456-789-000"), null);
@@ -100,7 +114,12 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   eq("the cleanup function deletes the same kinds", listed.join(","), lib.ID_PAPER_KINDS.join(","));
   eq("…24 hours after the first opening", Number((cleanup.match(/const HOURS_AFTER_OPENED = (\d+);/) ?? [])[1]), lib.ID_DELETE_HOURS_AFTER_OPENED);
   eq("…or after the same days unopened", Number((cleanup.match(/const DAYS_UNOPENED = (\d+);/) ?? [])[1]), lib.ID_DELETE_DAYS_UNOPENED);
-  check("…reading the first opening, and when it was sent", /lte\("team_opened_at", openedBefore\)/.test(cleanup) && /is\("team_opened_at", null\)\.lte\("submitted_at", sentBefore\)/.test(cleanup));
+  // Since the twelfth Phase 5 review the due papers are read through
+  // document_requests_due_pick (fairly, by business); the function passes
+  // its own kinds and cutoffs, and the pick reads the first opening, when it
+  // was sent, and when it was asked for (the SQL is proved in
+  // launch_locks_behaviour, section 16).
+  check("…reading the first opening, and when it was sent", /admin\.rpc\("document_requests_due_pick", \{\s*p_kinds: DELETED_KINDS,\s*p_opened_before: openedBefore,\s*p_sent_before: sentBefore,\s*\}\)/.test(cleanup) && /const openedBefore = new Date\(Date\.now\(\) - HOURS_AFTER_OPENED \* 3_600_000\)\.toISOString\(\);/.test(cleanup) && /const sentBefore = new Date\(Date\.now\(\) - DAYS_UNOPENED \* 86_400_000\)\.toISOString\(\);/.test(cleanup));
   const hourly = read("supabase/migrations/20261011130000_id_papers_deleted_after_opening.sql");
   check("the admins are told when an ID file could not be deleted, not only when the requests could not be read (the fifth Phase 5 review)", /if \(counts\.failed > 0 \|\| orphansFailed > 0\)/.test(cleanup) && /ID file\$\{counts\.failed === 1/.test(cleanup));
   check("…under two titles, so a delete failure never hides a read failure, and files of deleted requests are named as such (the sixth)", /tell\("read-requests", "ID papers are not being deleted"/.test(cleanup) && /tell\("delete", "ID papers were not deleted on time"/.test(cleanup) && /of deleted requests/.test(cleanup));
