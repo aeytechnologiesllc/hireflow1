@@ -1,6 +1,6 @@
 /**
  * No age, birth date or marital status in what the job writers produce
- * (2026-10-25; the second to nineteenth Phase 6 reviews).
+ * (2026-10-25; the second to twentieth Phase 6 reviews).
  *
  * Every application already starts with HireFlow's own "Are you 18 or
  * older?" (src/lib/ageCheck.ts), and RA 10911 Section 5(a) makes it unlawful
@@ -104,7 +104,14 @@
  * ("Practice chat 1 — Customer: …", "Opening line from the caller: …"),
  * "Introduce yourself (first name only), then read back the patient's [Name],
  * [Age]…", "Please check your profile: …" and a desk's "Can you recall a time
- * the customer app charged you twice?". The same words put to
+ * the customer app charged you twice?", and since the twentieth that age
+ * after a manner word, the agent told to reply or a gerund ("Politely reply to
+ * this chat:", "The agent should reply…", "Responding to this chat:" with her
+ * own customer words), in a case set up as "Candidates see this chat", before
+ * a note on how candidates are scored or in a message "sent to our live
+ * chat", the caller who "opens the chat:", a desk's welcome "to our pharmacy
+ * team at Bright Clinic", its "How many guests do you want to add to your
+ * booking?" and "How many guests will be in your party?". The same words put to
  * the applicant go ('Ask the candidate: "How old are you?"', "Number of
  * dependents:", 'Ask:
  * "Are you married? Just for our records."', and since the tenth an unquoted
@@ -144,8 +151,11 @@
  * apply itself, the applicant's own reply in a reviewer's note ("Her reply to
  * the first message: …"), a hiring call's "a role with us" or "open roles", a
  * welcome to "our team at Bright Clinic!", a hire's HMO "as a new hire", the
- * agent's own planned enrollments and a template "before the caller begins"),
- * and so does an
+ * agent's own planned enrollments and a template "before the caller begins";
+ * since the twentieth a template replied "with a short self-introduction",
+ * "using this format" or "with the following", one under a "How to apply"
+ * heading on its own line, and the applicant quoted after "She wrote:"), and
+ * so does an
  * age in a hiring sentence however it is attached ("We want a 25-year-old
  * go-getter", "We hire students aged 18-24", "Retirees aged 55-70 wanted",
  * "Hiring 21-35 year old Patient Access Representatives"; the tenth; "With full benefits, we're
@@ -262,8 +272,11 @@ const ALWAYS = re([
   // its parentheses, never "(first name only), then read back the patient's [Name], [Age]…"; "opens" and "begins" only as
   // "opens with", never "before the caller begins:". A customer's label may follow a label of up to four words ("Practice chat
   // 1 — Customer:", "Role-play 2 (billing) — Caller:", "Chat simulation, round 1 — Member:"), and her line be one "from the
-  // caller" ("Opening line from the caller:").
-  String.raw`^(?!\s*[-•*]?\s*([\w'’()-]+(,?\s+[\w'’()-]+){0,3}\s*[:—–]\s*)?((the|a|an)\s+)?(${LINE_OWNERS})(['’]s?)?\s*(\([^)]*\)\s*)?[:—–]|.*\b(${LINE_OWNERS})(['’]s?)?(\s+(first|opening|own))?\s+(lines?|messages?|repl(y|ies)|scripts?|parts?|openers?|opening|persona)\s*[:,]|.*\b(lines?|messages?|openers?|opening(\s+lines?)?)\s+(from|by|of)\s+((the|a|an)\s+)?(${LINE_OWNERS})\s*[:,]|.*\b(${LINE_OWNERS})(['’]s?)?\s+((says|said|writes|wrote|asks|asked|replies|replied)\b|(opens|opened|begins|began)\s+with\b))(?:(?=\s*[-•*]?\s*(your|my)\s+(profile|bio|intro|introduction)\s*:|.*\b((send|submit|share|post|upload|attach|email)\s+(us\s+)?(your|my)|(reply|respond)\s+with\s+(your|my)|(candidate|applicant)(['’]?s)?)\s+(profile|bio|intro|introduction)\s*:|.*(\b(i am|i['’]m|my name)\b|\bself[\s-]?intro\w*|\b(your|my|video)\s+(bio|intro|introduction)\b|\b(record|film|write|post|upload|send)\s+((a|an|your)\s+)?((short|brief|quick|video)\s+)?(bio\b|(intro|introduction)\s*(:|\s+of\s+(yourself|myself)\b))|\b(introduce|describe|about)\s+(yourself|myself)\s*(:|\((?=[^)\n]*(\[|\{|_{2,}|…))|,?\s*(in this (format|way)|using|with|like this|as follows)\b))).*((_{2,}|…|\[[^\]\n]{0,20}\]|\{[^}\n]{0,20}\})\s*(years?|yrs?)[\s-]*old\b|\[\s*(your\s+)?(age|edad|civil status|marital status)\s*\]|\{\s*(your\s+)?(age|civil status|marital status)\s*\}|\(\s*(age|civil status|marital status)\s*:?\s*(_{2,}|…)\s*\))|.*\bmy\s+(age|civil status|marital status)\s*(is|:)\s*(_{2,}|…|\[|\{))`,
+  // caller" ("Opening line from the caller:"). The twentieth review: "opens with" alone left the customer's own line after
+  // "The caller opens the chat:", "The patient begins the call:" or "The member begins:" to be read as the writer's, so she
+  // may open or begin it at the colon too, unless the label says when the writer speaks, as the nineteenth round's cases did
+  // ("before the caller begins:", "for when a customer opens the chat:").
+  String.raw`^(?!\s*[-•*]?\s*([\w'’()-]+(,?\s+[\w'’()-]+){0,3}\s*[:—–]\s*)?((the|a|an)\s+)?(${LINE_OWNERS})(['’]s?)?\s*(\([^)]*\)\s*)?[:—–]|.*\b(${LINE_OWNERS})(['’]s?)?(\s+(first|opening|own))?\s+(lines?|messages?|repl(y|ies)|scripts?|parts?|openers?|opening|persona)\s*[:,]|.*\b(lines?|messages?|openers?|opening(\s+lines?)?)\s+(from|by|of)\s+((the|a|an)\s+)?(${LINE_OWNERS})\s*[:,]|.*\b(${LINE_OWNERS})(['’]s?)?\s+((says|said|writes|wrote|asks|asked|replies|replied)\b|(opens|opened|begins|began)\s+with\b)|.*(?<!\b(before|when|until|after|once|as|while|if|whenever)\s+((the|a|an|each|every)\s+)?)\b(${LINE_OWNERS})\s+(opens|opened|begins|began)(\s+(the|this|a|an|her|his|their)\s+(chat|call|conversation))?(\s+by\s+(saying|writing|asking))?\s*:)(?:(?=\s*[-•*]?\s*(your|my)\s+(profile|bio|intro|introduction)\s*:|.*\b((send|submit|share|post|upload|attach|email)\s+(us\s+)?(your|my)|(reply|respond)\s+with\s+(your|my)|(candidate|applicant)(['’]?s)?)\s+(profile|bio|intro|introduction)\s*:|.*(\b(i am|i['’]m|my name)\b|\bself[\s-]?intro\w*|\b(your|my|video)\s+(bio|intro|introduction)\b|\b(record|film|write|post|upload|send)\s+((a|an|your)\s+)?((short|brief|quick|video)\s+)?(bio\b|(intro|introduction)\s*(:|\s+of\s+(yourself|myself)\b))|\b(introduce|describe|about)\s+(yourself|myself)\s*(:|\((?=[^)\n]*(\[|\{|_{2,}|…))|,?\s*(in this (format|way)|using|with|like this|as follows)\b))).*((_{2,}|…|\[[^\]\n]{0,20}\]|\{[^}\n]{0,20}\})\s*(years?|yrs?)[\s-]*old\b|\[\s*(your\s+)?(age|edad|civil status|marital status)\s*\]|\{\s*(your\s+)?(age|civil status|marital status)\s*\}|\(\s*(age|civil status|marital status)\s*:?\s*(_{2,}|…)\s*\))|.*\bmy\s+(age|civil status|marital status)\s*(is|:)\s*(_{2,}|…|\[|\{))`,
   // A question to the applicant, or a request to tell.
   String.raw`\bhow old (are you|are u|r u|will you be|you are|you'?ll be)\b`,
   // "Your birthday" is asked for only in a question ("What's your birthday?"); "We celebrate your birthday"
@@ -635,12 +648,14 @@ const NAMES_A_CUSTOMER = new RegExp(String.raw`\b(${CUSTOMER_PEOPLE}|parents?|gu
 // review's: a welcome that goes on "at" the business or "and congratulations", or ends at a colon ("Welcome to our team at
 // Bright Clinic!", "Welcome to the team :)"), a plan "as a new hire" after its name ("your premium for the HMO as a new
 // hire"), and a role "with us", "here" or "open" ("Do you have a minute to talk about a role with us?", "We have open roles
-// on our team.").
+// on our team."). The twentieth review: the welcome's "at" and "and" read a desk's own greeting ("Welcome to our pharmacy team
+// at Bright Clinic!", "Welcome to the Bright Games team and thanks for reaching out!"), so each goes on only from "the team" or
+// "our team" itself, as in the nineteenth round's cases.
 const DISCOUNT_FOR = String.raw`senior(\s+citizens?)?|student|member|youth|military|loyalty|pwd|child|veterans?`;
 const ONLY_A_CUSTOMERS = String.raw`(your|the)\s+(((${DISCOUNT_FOR})(\s+or\s+(${DISCOUNT_FOR}))?\s+)?discount|((insurance|monthly|annual|yearly|policy|plan|health|life|medicare)\s+)?premium|((youth|student|senior|child|reduced|discounted|concession)\s+)?fare|(tax\s+)?filing status|(medicare|medicaid)\s+eligibility)\b(?!\s+(pay|allowance|differential)\b|\s+(for|on|in|under|with|through|via)\s+(((your|the|our|a)\s+)?(((company|employer|staff|employee|group|corporate)\s+)?(payroll|payslips?|pay\s?slips?|w-?4|employment|bir|staff)|(company|employer|staff|employee|group|corporate|team['’]s)\s+hmo)\b|our\s+hmo\b(?![\s-]*\w))|(\s+(for|on|in|under|with|through|via)\s+((the|your|our|a)\s+)?[\w'’-]+)?\s+as\s+(an?|our)\s+(new\s+)?(employee|hire|staff|team member)\b)|you\s+(can|may|are able to)\s+(play\s+ranked|rent\s+(the|a|this|your)\s+(car|vehicle)|buy\s+(the\s+)?(gems|coins|credits))`;
 // The welcome and the rest of the quote are each read for at most a quote's 400 characters, the welcome only where a
 // "confirm" or a "verify" starts, so a long frame stays fast.
-const WELCOMES_A_HIRE = String.raw`(?=confirm|verif)(?<!\bwelcome\s+to\s+(the|our)\s+([\w'’&-]+\s+){0,2}?team(\s*[!.,;:]|\s+(at|and)\b)[^"“”]{0,400})`;
+const WELCOMES_A_HIRE = String.raw`(?=confirm|verif)(?<!\bwelcome\s+to\s+(the|our)\s+(([\w'’&-]+\s+){0,2}?team\s*[!.,;:]|team\s+(at|and)\b)[^"“”]{0,400})`;
 // What one applies for that is no job (THANKS_FOR_APPLYING, JOB_TALK). The fifteenth review: SNAP too ('"Thanks for applying
 // for SNAP. For security, are you 60 or older?"').
 const APPLYING_FOR_A_BENEFIT = String.raw`${APPLIED_FOR}|medicare|medicaid|social security|snap|benefits?|plans?|coverage|insurance|assistance|discounts?|rewards?|loyalty`;
@@ -753,8 +768,9 @@ const NOT_THE_LISTENER = re([
   // The business's own clientele described ("Our callers are mostly parents", "Most of our callers are seniors", "Our clients
   // like to know"), never a customer addressed as one of them ("Are you one of our members?", "For our senior members, …",
   // "our patient program") or told a rule ("Our players under 18 need a parent's consent", "Our members get a discount at 65",
-  // "…are eligible at 65").
-  String.raw`\b(our|their|those|these|many|most|other)\s+([\w-]+\s+)?(${WHO})\s+(are|is|were|was|will|would|often|usually|mostly|generally|typically|always|tend|like|love|expect|want|prefer|value|come|live|speak|call|write|chat|ask)\b(?![^.?!]*(\d|\b(need|needs|must|can|may|get|gets|qualif\w*|eligib\w*|consent|discounts?|rates?|plans?|add|enrol\w*|join|apply)\b))[^.?!]*`,
+  // "…are eligible at 65"). The twentieth review: never inside "how many", a desk's own count ("How many guests will be in
+  // your party?", every round).
+  String.raw`\b(our|their|those|these|(?<!\bhow\s+)many|most|other)\s+([\w-]+\s+)?(${WHO})\s+(are|is|were|was|will|would|often|usually|mostly|generally|typically|always|tend|like|love|expect|want|prefer|value|come|live|speak|call|write|chat|ask)\b(?![^.?!]*(\d|\b(need|needs|must|can|may|get|gets|qualif\w*|eligib\w*|consent|discounts?|rates?|plans?|add|enrol\w*|join|apply)\b))[^.?!]*`,
   // The work described: "angry customers", "How many callers can you handle?", "the customers you will serve".
   String.raw`\b(angry|upset|difficult|irate|demanding)\s+([\w-]+\s+)?(${WHO})\b`,
   // The applicant's own experience, said of "you" ("Have you handled angry customers?", "a time you helped a customer", "Do
@@ -785,8 +801,13 @@ const NOT_THE_LISTENER = re([
   // party?", "How many passengers do you have on the booking?", "How many members do you want to enroll?"). The nineteenth
   // review: each only as those cases asked, who "do you want" or "would you like" to enroll and who is in or on the party or
   // the booking ("How many members do you plan to enroll in your first month?" and "How many guests did you have per shift
-  // at your last hotel booking desk?" are the work's).
-  String.raw`\bhow many\s+(${CUSTOMER_PEOPLE})\s+(do|did|can|could|will|would|have)\s+you\b(?!(?<=\b(do|would)\s+you)\s+((currently|already|now|still)\s+)?(want|like)\s+to\s+enrol\w*\b|\s+((currently|already|now|still)\s+)?((have|want to add|need to add|wish to add|plan to add|would like to add|like to add|want to cover|need to cover)\b[^.?!]*\b(plans?|polic(y|ies)|accounts?|households?|famil(y|ies)|coverage|memberships?)\b|have\b[^.?!]*\b(in|on)\s+(your|the|this)\s+(party|booking|reservation)\b))`,
+  // at your last hotel booking desk?" are the work's). The twentieth review: the desk adds to the booking and enrols on the plan
+  // too ("How many guests do you want to add to your booking?", "…do you need to add to the booking?", "How many members do you
+  // need to enroll on your plan?"), so adding to the party or the booking counts as having them in it, and enrolling on a plan
+  // as adding to it; and "how many" is never the business's clientele described ("How many guests will be in your party?",
+  // "How many passengers are traveling with you today?"; the clientele part below), so "how many … are you…" is read here
+  // instead ("How many customers are you able to handle in a shift?").
+  String.raw`\bhow many\s+(${CUSTOMER_PEOPLE})\s+(do|did|can|could|will|would|have|are)\s+you\b(?!(?<=\b(do|would)\s+you)\s+((currently|already|now|still)\s+)?(want|like)\s+to\s+enrol\w*\b|\s+((currently|already|now|still)\s+)?((have|want to add|need to add|wish to add|plan to add|would like to add|like to add|want to cover|need to cover|need to enrol\w*)\b[^.?!]*\b(plans?|polic(y|ies)|accounts?|households?|famil(y|ies)|coverage|memberships?)\b|(have|want to add|need to add|wish to add|would like to add|like to add)\b[^.?!]*\b(in|on|to)\s+(your|the|this)\s+(party|booking|reservation)\b))`,
   String.raw`\b(${CUSTOMER_PEOPLE})\s+(that\s+|who\s+)?you(['’]ll|['’]d| will| would)?\s+((also|be|mostly|often)\s+){0,2}(serve|serving|help|helping|support|supporting|handle|handling|talk|talking|speak|speaking|work|working|assist|assisting|answer|answering|chat|chatting)\b`,
   // The job's title, with the job named or applied for ("the Customer Service Representative role", "your application for
   // Patient Coordinator"), and an agent's own title as the fourteenth round read it ("Hi, I'm Ana, your Patient Coordinator"),
@@ -814,6 +835,10 @@ const NOT_THE_LISTENER = re([
 // handled…"), never one that was charged, locked or closed.
 const A_CUSTOMERS_OWN = /\bmy\s+(?!(previous|current|last)\s+accounts?\s+(was|is|were)\s+(?!(not|never|still|now|being|frozen|overdrawn|empty|wrong|negative|down|gone|missing|\w+ed)\b)|(?<=\bin\s+my\s+)(previous|current|last)\s+accounts?\b)([\w'’-]+\s+){0,2}?(accounts?|portal|polic(y|ies)|bills?|billing|cards?|orders?|bookings?|reservations?|subscriptions?|memberships?|claims?|refunds?|payments?|charges?|appointments?|prescriptions?|deliver(y|ies)|packages?|statements?|balance|loans?|coverage|medicare|medicaid)\b/i;
 const OWN_AGE = new RegExp(String.raw`\b(i['’]?m|i am|my name is)\s+(([\w'’.-]+|\[[^\]\n]{0,20}\]|\{[^}\n]{0,20}\})(\s+[\w'’.-]+)?\s*,\s+)?((\d{2}|_{2,}|…|\[[^\]\n]{0,20}\]|\{[^}\n]{0,20}\})\s*((years?|yrs?)[\s-]*old|y\/o)\b|\d{2}\s*(,|\band\b|[.!?]|$))|\bmy\s+(age|birth ?date|date of birth|birthday)\s*(is|:)`, "i");
+// …and that age given as a number, as a customer gives hers ("I'm 70 years old", "my date of birth is 04/12/1961"), never a
+// template's blank or placeholder ("I'm ___, ___ years old", "[Age]"), which no customer writes (customersQuote: the twentieth
+// review).
+const OWN_AGE_GIVEN = new RegExp(String.raw`\b(i['’]?m|i am|my name is)\s+(([\w'’.-]+|\[[^\]\n]{0,20}\]|\{[^}\n]{0,20}\})(\s+[\w'’.-]+)?\s*,\s+)?\d{2}\s*((years?|yrs?)[\s-]*old\b|y\/o\b|,|\band\b|[.!?]|$)|\bmy\s+(age|birth ?date|date of birth|birthday)\s*(is|:)\s*\d`, "i");
 // The work described to someone applying: what "we", the team, its agents or the job do for customers ("where we care for
 // patients", "Our agents support members across the US", "This job is all about patients", "You would be the first voice our
 // customers hear"; customersQuote), never a listener welcomed as one of them ("We're glad to have you as a new member").
@@ -839,9 +864,10 @@ const THE_CASES_CUSTOMER = new RegExp(String.raw`(^|[.!?;:)—–])\s*((next|the
 // video" and "in this video" read a telehealth visit ("In this video call, a patient asks to reschedule."), so only "in
 // your video" is the applicant's; and a practice is set up in other words than "role-play" ("Candidates practice this call.",
 // "Practice call for applicants.", "Applicants handle this chat.", "In this practice, the candidate is the agent.", "You are
-// the agent; the interviewer plays the caller."), never "Practice for the interview".
+// the agent; the interviewer plays the caller."), never "Practice for the interview". The twentieth review: "Candidates see
+// this chat.", "Applicants act as the agent." and "The candidate replies as the agent." set one up too.
 const NOT_A_PRACTICE_CASE = new RegExp(String.raw`${TO_APPLICANTS.source}|\bscreening\s+(calls?|interviews?)\b|\b(record|film|upload|submit|send)\s+((a|an|your|the|this)\s+)?([\w-]+\s+)?videos?\b|\bvideo\s+(intro\w*|questions?|prompts?|answers?|responses?|steps?|resumes?|pitch)\b|\bin\s+your\s+video\b`, "i");
-const ROLE_PLAY = /\brole[\s-]?play|\bpractice\s+(this\s+)?(calls?|chats?)\b|\b(handle|take|answer)s?\s+this\s+(call|chat)\b|\bis\s+the\s+agent\b|\bplays?\s+the\s+(caller|customer|client|patient|member|guest|player)\b/i;
+const ROLE_PLAY = /\brole[\s-]?play|\bpractice\s+(this\s+)?(calls?|chats?)\b|\b(handle|take|answer|see)s?\s+this\s+(call|chat)\b|\bis\s+the\s+agent\b|\b(acts?|repl(y|ies)|responds?|answers?)\s+as\s+the\s+agent\b|\bplays?\s+the\s+(caller|customer|client|patient|member|guest|player)\b/i;
 const aPracticeCase = (earlier: string) => ROLE_PLAY.test(earlier) || !NOT_A_PRACTICE_CASE.test(earlier);
 // A label that answers someone's message: the quote is that message, never the speaker's own words ("Reply to: …", "Reply to
 // this chat: …", "Respond to this email: …", "Answer the chat: …"; OWN_AGE, the seventeenth review). The nineteenth review:
@@ -850,10 +876,21 @@ const aPracticeCase = (earlier: string) => ROLE_PLAY.test(earlier) || !NOT_A_PRA
 // "Responding to the chat:"; the written interview's grader and the interview guide kept them), so only a label that tells
 // the reader to reply counts, as every one the seventeenth and eighteenth rounds read did: the verb opening its clause ("Reply
 // to this chat:", "With empathy, reply to this chat:", "Reply with empathy to this chat:", "Your task is to reply to this
-// chat:", "You will reply to this email:"), or a reply to write ("Write a reply to this message:").
+// chat:", "You will reply to this email:"), or a reply to write ("Write a reply to this message:"). The twentieth review: a
+// manner word before the verb and the agent told to reply are instructions too ("Politely reply to this chat:", "Please
+// briefly respond to this email:", "Your job is to calmly reply…", "The agent should reply to this chat:", "Agents must
+// respond to this email:", "Each agent replies to this chat:"), so one "-ly" word may stand before the verb (never an
+// adjective's: "Friendly reply to this chat:", "Her daily reply…"), and the agent, as "you" does, may be told it.
 const CHANNELS = String.raw`chats?|messages?|e-?mails?|tickets?|texts?|dms?|reviews?|comments?|posts?|complaints?|inquir(y|ies)|enquir(y|ies)|letters?|notes?|voicemails?|requests?|tweets?`;
 const MESSAGES = String.raw`${CHANNELS}|questions?`;
-const ANSWERS_A_MESSAGE = new RegExp(String.raw`(^\s*[-•*]?\s*|[.!?;:,—–(]\s*|\b(and|then|now|please|kindly|first|next|also|just|to)\s+|\byou(['’]ll|\s+(will|should|must|can|need\s+to|have\s+to|are\s+to))?\s+)(reply|respond|answer)\s+((with|using|in)\s+([\w'’,-]+\s+){1,4}?)?(to\s*:|(to\s+)?((the|this|that|her|his|their|its|a|an|each|every|the following|following)\s+)?([\w'’-]+\s+){0,2}?(${MESSAGES})\b)[^"“”‘’]{0,40}$|\b(write|send|draft|type|compose)\s+(a|an|your)\s+([\w-]+\s+)?(reply|response|answer)\s+to\s+((the|this|that|her|his|their|its|a|an|each|every|the following|following)\s+)?([\w'’-]+\s+){0,2}?(${MESSAGES})\b[^"“”‘’]{0,40}$`, "i");
+const MANNER = String.raw`((?!(only|early|friendly|timely|daily|weekly|monthly|yearly|hourly|lovely|elderly|likely|family|apply|supply|reply)\b)[a-z]+ly\s+)?`;
+const TO_A_MESSAGE = String.raw`\s+((with|using|in)\s+([\w'’,-]+\s+){1,4}?)?(to\s*:|(to\s+)?((the|this|that|her|his|their|its|a|an|each|every|the following|following)\s+)?([\w'’-]+\s+){0,2}?(${MESSAGES})\b)[^"“”‘’]{0,40}$`;
+const CLAUSE_START = String.raw`(^\s*[-•*]?\s*|[.!?;:,—–(]\s*)`;
+const ANSWERS_A_MESSAGE = new RegExp(String.raw`((${CLAUSE_START}|\b(and|then|now|please|kindly|first|next|also|just|to)\s+|\byou(['’]ll|\s+(will|should|must|can|need\s+to|have\s+to|are\s+to))?\s+)${MANNER}(reply|respond|answer)|\b((the|each|every|an?|our|your)\s+)?agents?\s+((will|should|must|can|needs?\s+to|ha(s|ve)\s+to|is\s+to|are\s+to)\s+)?${MANNER}(repl(y|ies)|responds?|answers?))${TO_A_MESSAGE}|\b(write|send|draft|type|compose)\s+(a|an|your)\s+([\w-]+\s+)?(reply|response|answer)\s+to\s+((the|this|that|her|his|their|its|a|an|each|every|the following|following)\s+)?([\w'’-]+\s+){0,2}?(${MESSAGES})\b[^"“”‘’]{0,40}$`, "i");
+// …and, for the seventeenth round's reading below (customersQuote: a customer's own message decides by its own words), a label
+// that opens its clause with the reply in any form, "Responding to this chat:" and "Task: replying to a chat:" too, as the
+// seventeenth round read it anywhere; never "Her reply to the practice chat:" (the nineteenth review).
+const A_REPLY_LABEL = new RegExp(String.raw`${ANSWERS_A_MESSAGE.source}|${CLAUSE_START}${MANNER}(replying|responding|answering)${TO_A_MESSAGE}`, "i");
 // …so the age in it is that customer's, as the speaker's own (the eighteenth review: the seventeenth round read the label
 // only to skip OWN_AGE, so 'Reply to this chat: "I'm 64 years old and want to know when my Medicare plan starts."' and the
 // owner's gaming case without its "My account shows the charge." still needed a customer or a check word), unless the
@@ -867,8 +904,12 @@ const ANSWERS_A_MESSAGE = new RegExp(String.raw`(^\s*[-•*]?\s*|[.!?;:,—–(]
 // dropped whole, the owner's gaming case among them: "with" and "using" count only before the writer's own intro, profile,
 // bio, details or answer, and a question only where no chat, message or email is named, as in the eighteenth round's case
 // ('Answer this question: "I'm 24 years old. Can I still apply?"', an interview's or a job post's as often; a question that
-// asks to apply is read in the quote too, ASKS_TO_APPLY below).
-const NOT_A_CUSTOMERS_MESSAGE = new RegExp(String.raw`(?<![\d/][\s-]*)\b(recruit\w*|hiring|hr|human resources)\b|\b(with|using)\s+(your|my)\s+(own\s+)?(intro|introduction|self[\s-]?intro\w*|profile|bio|details|answers?|repl(y|ies)|response)\b|^(?![^"“”‘’]*\b(${CHANNELS})\b)[^"“”‘’]*\bquestions?\b`, "i");
+// asks to apply is read in the quote too, ASKS_TO_APPLY below). The twentieth review: a template to reply with is named
+// without "your" too ("Reply to this email with a short self-introduction:", "…with a brief intro:", "…with the following:",
+// "…with these details:", "…using this format:", "…using the template below:", "…in this format:"), so an intro, a format, a
+// template, "the following" or the details after "with", "using" or "in" end the label as what to reply with, never where
+// the label goes on ("with the details of her refund:", "with a brief intro and an apology:").
+const NOT_A_CUSTOMERS_MESSAGE = new RegExp(String.raw`(?<![\d/][\s-]*)\b(recruit\w*|hiring|hr|human resources)\b|\b(with|using)\s+(your|my)\s+(own\s+)?(intro|introduction|self[\s-]?intro\w*|profile|bio|details|answers?|repl(y|ies)|response)\b|\b(with|using|in)\s+((a|an|the|this|that|these|those|your|my)\s+)?((own|short|brief|quick)\s+)?(intro|introduction|self[\s-]?intro\w*|format|template|following|details)(\s+(below|above))?(,?\s+(like this|as follows))?\s*[:—–-]?\s*$|^(?![^"“”‘’]*\b(${CHANNELS})\b)[^"“”‘’]*\bquestions?\b`, "i");
 // …and only in a practice case, never one put to someone applying (the nineteenth review: the eighteenth round read the
 // label alone, so an applicant's own self-introduction after "To apply, reply to this email:", "Step 2 of your
 // application.", "Reply to the screening email:", "Reply to the job post:" or "Reply to our email:", or before "Candidates
@@ -880,8 +921,15 @@ const NOT_A_CUSTOMERS_MESSAGE = new RegExp(String.raw`(?<![\d/][\s-]*)\b(recruit
 // of your application: a practice chat."); the sentence after it for words
 // naming applicants (SPOKEN_TO_AN_APPLICANT); and the quote for its own ask to apply (ASKS_TO_APPLY: "I'd like to apply for
 // the Chat Support role", "I'm interested in this position", "I would like to apply.", "Can I still apply?"; a bare
-// "apply" never in a message that names a plan, a benefit or a loan, nor "Can I apply the coupon?").
-const A_STEP_OF_APPLYING = new RegExp(String.raw`\b(how\s+)?to\s+apply\b(?!\s+(the|a|an|this|that|it|its|your|her|his|their|any)\b|\s+(for|to)\s+((an?|the|your|our|this)\s+)?([\w-]+\s+){0,2}?(${APPLYING_FOR_A_BENEFIT})\b)|\byour\s+(job\s+)?applications?\b(?!\s+for\s+((an?|the|your|our|this)\s+)?([\w-]+\s+){0,2}?(${APPLYING_FOR_A_BENEFIT})\b)|\bjob\s+(applications?|posts?|postings?|ads?|adverts?|listings?)\b|\bscreening\s+(e-?mails?|messages?|texts?|steps?|stages?|rounds?)\b|\bshortlist(ed|ing)?\b|\bto\s+our\s+([\w'’-]+\s+){0,2}?(${MESSAGES})\b|\bfrom\s+us\b`, "i");
+// "apply" never in a message that names a plan, a benefit or a loan, nor "Can I apply the coupon?"). The twentieth review:
+// "our" read a message sent to the business as its own ("Reply to this message sent to our live chat:"), so the business's
+// own message is one replied to as "our", as in each of the nineteenth round's cases ("Reply to our email:", "Respond to our
+// invitation email:").
+const A_STEP_OF_APPLYING = new RegExp(String.raw`\b(how\s+)?to\s+apply\b(?!\s+(the|a|an|this|that|it|its|your|her|his|their|any)\b|\s+(for|to)\s+((an?|the|your|our|this)\s+)?([\w-]+\s+){0,2}?(${APPLYING_FOR_A_BENEFIT})\b)|\byour\s+(job\s+)?applications?\b(?!\s+for\s+((an?|the|your|our|this)\s+)?([\w-]+\s+){0,2}?(${APPLYING_FOR_A_BENEFIT})\b)|\bjob\s+(applications?|posts?|postings?|ads?|adverts?|listings?)\b|\bscreening\s+(e-?mails?|messages?|texts?|steps?|stages?|rounds?)\b|\bshortlist(ed|ing)?\b|\b(repl(y|ies|ying)|respond(s|ing)?|answer(s|ing)?)\s+to\s+our\s+([\w'’-]+\s+){0,2}?(${MESSAGES})\b|\bfrom\s+us\b`, "i");
+// …and a note after the quote names applicants only to put it to them as the nineteenth round's case did, as the format they
+// use ("… Candidates must use this format."), never one on how they are scored or how long they have (the twentieth review:
+// "Candidates are scored on empathy and accuracy.", "Applicants have 5 minutes to reply.", "Each candidate types a reply.").
+const THEIR_FORMAT = /\b(use|follow|copy)\s+(this|that|the|our)\s+(format|template)\b/i;
 const TO_APPLY = String.raw`\b(i|can i|could i|may i)(['’]d|['’]m)?\s+((would|want|wish|hope|plan|am|still|also|now|really|like|love|to)\s+){0,4}appl(y|ying)\b`;
 const ASKS_TO_APPLY = new RegExp(String.raw`${TO_APPLY}(?=\s+(for|to)\s+((the|this|that|your|our|a|an)\s+)?([\w&'’-]+\s+){0,4}?(${JOB_WORDS})\b)|\binterest(ed)?\s+in\s+((the|this|that|your|our|a|an)\s+)?([\w&'’-]+\s+){0,4}?(${JOB_WORDS})\b`, "i");
 const ASKS_TO_APPLY_BARE = new RegExp(String.raw`${TO_APPLY}(?=\s*([.,!?;:)]|$))`, "i");
@@ -944,6 +992,20 @@ const asksToApply = (quote: string) => ASKS_TO_APPLY.test(quote) || (ASKS_TO_APP
  * case not put to someone applying before the quote, after it or in it ("To apply, reply to this email: …", "Step 2 of your
  * application.", "Reply to the job post: …", "… Candidates must use this format.", '"… and I would like to apply."';
  * A_STEP_OF_APPLYING, ASKS_TO_APPLY), as `namedBefore` reads the case's customer.
+ * The twentieth review: that round removed both ways the seventeenth and eighteenth rounds kept a customer's first-person age
+ * after a reply label (the seventeenth's skip of OWN_AGE, the eighteenth's return on the label alone), so whenever the early
+ * return did not fire the message was a self-introduction, even one naming her membership or her doctor ('Politely reply to
+ * this chat: "I'm 70 years old, a member since 2010, and my refill is late."', 'Candidates see this chat. Reply to this chat:
+ * …', '… Candidates are scored on empathy and accuracy.'), and generate-flow and ai-generate-workflow dropped six practice
+ * cases whole. The seventeenth round's skip is back, after a label that opens its clause (A_REPLY_LABEL), unless the label
+ * gives the message to the hiring side or the reply's own words (NOT_A_CUSTOMERS_MESSAGE): the message's own customer words
+ * decide, as they did then, for an age the message gives as a number, as every customer in those rounds' cases did
+ * (OWN_AGE_GIVEN), never a template's blank, as every applicant's in the nineteenth round's did ('To apply, reply to this
+ * email: "Hi, I'm ___, ___ years old, and I love helping customers."' stays hers). Each of the nineteenth round's readings
+ * that put the case to someone applying was narrowed back to its cases: a note after the quote only as the format to use
+ * (THEIR_FORMAT), the business's own message only as the one replied to ("Reply to our email:", never "sent to our live
+ * chat"); a manner word or the agent may come before the verb (ANSWERS_A_MESSAGE), and three more set-ups are a practice
+ * (ROLE_PLAY).
  */
 function customersQuote(names: RegExp, before: string, quote: string, after: string, frame = `${before}${quote}${after}`, earlier = ""): boolean {
   // Read only when needed (a line of many quotes stays fast).
@@ -952,11 +1014,11 @@ function customersQuote(names: RegExp, before: string, quote: string, after: str
   let theCase: boolean | undefined;
   const namedBefore = () => (theCase ??= earlier !== "" && THE_CASES_CUSTOMER.test(outsideTheQuote(earlier).replace(NOT_THE_LISTENER, "someone")) && aPracticeCase(earlier) && !applyingForAJob(earlier) && !SPOKEN_TO_AN_APPLICANT.test(after) && serviceAside(quote).search(NOT_THE_LISTENER) < 0);
   const ownAge = OWN_AGE.test(quote);
-  const toSomeoneApplying = () => !aPracticeCase(`${earlier} ${before}`) || applyingForAJob(`${earlier} ${before}`) || (A_STEP_OF_APPLYING.test(`${earlier} ${before}`) && !ROLE_PLAY.test(`${earlier} ${before}`)) || SPOKEN_TO_AN_APPLICANT.test(after) || asksToApply(quote);
+  const toSomeoneApplying = () => !aPracticeCase(`${earlier} ${before}`) || applyingForAJob(`${earlier} ${before}`) || (A_STEP_OF_APPLYING.test(`${earlier} ${before}`) && !ROLE_PLAY.test(`${earlier} ${before}`)) || (SPOKEN_TO_AN_APPLICANT.test(after) && THEIR_FORMAT.test(after)) || asksToApply(quote);
   if (ownAge && ANSWERS_A_MESSAGE.test(before) && !NOT_A_CUSTOMERS_MESSAGE.test(before) && !toSomeoneApplying()) return !applyingForAJob(upToTheAsk(quote));
   if (!names.test(`${before}${quote}${after}`) && !namedBefore()) return false;
   if (NAMES_A_CUSTOMER.test(outsideTheQuote(`${before}${after}`))) return true;
-  if (ownAge && !A_CUSTOMERS_OWN.test(quote) && !namedBefore()) return false;
+  if (ownAge && !A_CUSTOMERS_OWN.test(quote) && !(A_REPLY_LABEL.test(before) && !NOT_A_CUSTOMERS_MESSAGE.test(before) && OWN_AGE_GIVEN.test(quote)) && !namedBefore()) return false;
   const checked = A_CHECK.test(frame);
   const applying = applyingForAJob(upToTheAsk(quote));
   if (asksOnlyBirthDate(quote)) return checked || !applying || /\b(confirm\w*|verif\w*)\b/i.test(frame) || NAMES_A_CUSTOMER.test(setAside(quote).replace(THE_WORK, "someone"));
@@ -1165,6 +1227,11 @@ const ABOUT_APPLICANT = re([
   // seconds faster" or the form's own "they are 18 or older". The ninth: only an age that ends its clause or says "years"
   // ("He's 23 and eager"), never "She was 35 lines into the script" or "He was 20 short of the bar".
   String.raw`\b(candidate|applicant|she|he|they)(\s+(is|are|was|were)|['’](s|re))\s+((only|just|about|around|nearly|almost|over|under|barely|already|now|still)\s+)?${AGE}\b${UNITS}(?!\s*(or|and)\s+(older|over|above|up|younger|under|below)\b)(?=\s*([,;:!?)]|\.(?!\d)|$|(years?|yrs?|and|so|but|which|yet)\b))|\b(candidate|applicant|she|he|they),\s*${AGE}\s*,|\b(candidate|applicant)\s*\(\s*(age\s*)?${AGE}\s*\)|^\s*[-•*]?\s*(an?\s+)?${AGE}[\s-]*(years?|yrs?)[\s-]*old\b`,
+  // …and the same age in her own words, quoted after "she wrote" or "he said" (the twentieth review: 'She wrote: "I'm 19
+  // years old and this is my first job."' passed every round, "she" being someone else to an age said in the first person,
+  // while "The candidate wrote: …" and "In her words: …" went); never in a sentence that names a customer ("The caller
+  // wrote: …", NAMES_SOMEONE_ELSE).
+  String.raw`\b(she|he|they)\s+(wrote|said|says|writes|replied|answered|typed)\s*[:,]?\s*["“]\s*((hi|hello|good\s+(day|morning|afternoon|evening))[,!.]?\s*)?(i['’]?m|i\s+am)\s+((only|just|about|around|nearly|almost|already|now)\s+)?${AGE}\b${UNITS}(?!\s*(or|and)\s+(older|over|above|up|younger|under|below)\b)(?=\s*([,;:!?)"”]|\.(?!\d)|$|(years?|yrs?|and|so|but|which|yet)\b))`,
   // Family plans and status at the start of a remark (the eighth review): "Wants to start a family soon", "Wants kids soon",
   // "Expecting her first child", "Just became a mother", "As a mom, she understands patience", "Divorced, so flexible",
   // "Widowed; wants steady work", "Unmarried and flexible"; never "Wants kids' accounts handled", "Separated the two issues" or
@@ -1259,17 +1326,36 @@ export function withoutAgeAsks<T>(items: readonly T[] | null | undefined, textOf
   return Array.isArray(items) ? items.filter((item) => !asksAgeOrStatus(textOf(item))) : [];
 }
 
-function textWithout(text: unknown, drops: (text: unknown) => boolean): unknown {
+// A "How to apply" heading on a line of its own ("How to apply:", "HOW TO APPLY", "**How to apply**", "## How to apply"), and
+// any other heading, which ends what it is read for (textWithout).
+const HOW_TO_APPLY_HEADING = /^\s*(#+\s*)?[*_]*\s*how\s+to\s+apply\s*[*_]*\s*:?\s*[*_]*\s*$/i;
+const A_HEADING = /^\s*(#+\s*\S.*|[*_]{2}[^*_\n]+[*_]{2}\s*:?|[A-Z][A-Z0-9 '’&/,-]{2,60}:?|([\w'’&/-]+\s+){0,3}[\w'’&/-]+\s*:)\s*$/;
+
+function textWithout(text: unknown, drops: (text: unknown) => boolean, headed = false): unknown {
   if (Array.isArray(text)) return text.filter((item) => !drops(typeof item === "string" ? item : JSON.stringify(item)));
   if (typeof text !== "string") return text;
   const out: string[] = [];
+  // The twentieth review: the text is read one line at a time, so a "How to apply" heading on its own line never reached the
+  // template under it ('How to apply:\nReply to this email: "Hi, I'm [Name], [Age] years old, …"'; the app's own job post puts
+  // HOW TO APPLY on its own line, src/lib/jobPost.ts, and ai-generate-job-content reads its description this way). In a job
+  // writer's text (textWithoutAgeAsks) each line under one is read after it, to the next blank line or heading, as the
+  // nineteenth round read the heading on the same line ("How to apply: To apply, reply to this email: …").
+  let under = "";
   for (const line of text.split("\n")) {
-    if (!drops(line)) {
+    if (headed) {
+      if (HOW_TO_APPLY_HEADING.test(line)) {
+        under = "How to apply. ";
+        out.push(line);
+        continue;
+      }
+      if (!line.trim() || A_HEADING.test(line)) under = "";
+    }
+    if (!drops(`${under}${line}`)) {
       out.push(line);
       continue;
     }
     // Keep the line's other sentences ("Good English. Must be 21-35 years old. Two years in a call center.").
-    const kept = line.split(/(?<=[.!?;])\s+|\s+(?=[•·]\s)/).filter((sentence) => !drops(sentence)).join(" ");
+    const kept = line.split(/(?<=[.!?;])\s+|\s+(?=[•·]\s)/).filter((sentence) => !drops(`${under}${sentence}`)).join(" ");
     if (kept.trim()) out.push(kept);
   }
   return out.join("\n");
@@ -1277,7 +1363,7 @@ function textWithout(text: unknown, drops: (text: unknown) => boolean): unknown 
 
 /** A paragraph (or a "• one\n• two" list) without the sentences or lines that do; a list as a list. */
 export function textWithoutAgeAsks(text: unknown): unknown {
-  return textWithout(text, asksAgeOrStatus);
+  return textWithout(text, asksAgeOrStatus, true);
 }
 
 /** A reviewer's paragraph without the sentences that mark age, family or marital status (marksAgeOrFamily). */
