@@ -1362,8 +1362,11 @@ function CandidateProfile({
         </div>
         {/* What has been asked of them and what came back, on a phone too: the
             "Document received" notification opens this page, which showed
-            nothing to review here (the sixteenth product review). */}
-        <ApplicantDocumentsPanel applicationId={c.id} firstName={first} show={isOffered || isHired || status === "interview"} onRequest={isTeamMember ? undefined : () => setRequestOpen(true)} />
+            nothing to review here (the sixteenth product review). Only once
+            something was asked: an empty card here pushed the name and score
+            off the first screen (the seventeenth), and the bar's "Request
+            documents" is the way to ask. */}
+        <ApplicantDocumentsPanel applicationId={c.id} firstName={first} show={false} onRequest={isTeamMember ? undefined : () => setRequestOpen(true)} />
         <div className="ck-card flex items-center gap-4 p-4">
           {/* No score yet → no arc. The ring must not draw a 0 as a verdict. */}
           <CandidateMark who={c.avatar} initials={getInitials(c.name)} size={72} score={score.value ?? undefined} rich variant="signal" />

@@ -691,9 +691,13 @@ export default function CockpitDocuments() {
           </button>
         )}
       </div>
-      <div className="mt-1 text-[13px]" style={{ color: "var(--ink-3)" }} data-filter-result>
-        {resultLine(status, shownCount, filtersOn)}
-      </div>
+      {/* An empty list says so in its own card below (the seventeenth product
+          review: "Nothing here." sat on top of "Nothing needs you right now."). */}
+      {shownCount > 0 && (
+        <div className="mt-1 text-[13px]" style={{ color: "var(--ink-3)" }} data-filter-result>
+          {resultLine(status, shownCount, filtersOn)}
+        </div>
+      )}
     </div>
   );
 
