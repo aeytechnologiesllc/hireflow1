@@ -1083,7 +1083,12 @@ reached function deployed):
   31** (`p4r31_report.md`), no HIGH: one MEDIUM regression and two old
   MEDIUM gaps ("Call customers to confirm…" read as chat; "Merchant
   Support" not customer service) and three LOW regressions, all fixed by
-  its narrowing patches in b0d56e20. **Round 32 is next.**
+  its narrowing patches in b0d56e20. **Round 32** (`p4r32_report.md`), no
+  HIGH: three MEDIUM regressions of round 31 ("on-call customer support"
+  read as calls, "Seller Support Coordinator" as customer service, "not
+  lesser than" missed), fixed by its combined narrowing patch in a177fcac
+  (164 rows better, 5 worse: the reviewer's own "Phone customers…" rows).
+  **Round 33 review running** (`p4r33_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1109,8 +1114,14 @@ reached function deployed):
   rest of the old one; one LOW–MEDIUM regression); fixed by e3854798 (six
   functions deployed). **Round 20** (`p6r20_report.md`) found one MEDIUM
   regression against both (round 19 removed both paths that kept a
-  customer's own age after a reply label); **its fixer is running**
-  (`age20_fix_brief.md`).
+  customer's own age after a reply label); fixed by ba7c8a3b (round 17's
+  skip restored unless the label names the hiring side, round 19's readings
+  narrowed back to their cases; six functions deployed). **Round 21**
+  (`p6r21_report.md`) found one MEDIUM regression against both (round 20's
+  "are" in the work entry drops "How many passengers are you booking at
+  the senior rate? Are you 65 or older?" and whole practice cases with it)
+  and one LOW–MEDIUM ("…with a short intro, for example:" before a sample
+  intro); **its fixer is running** (`age21_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
