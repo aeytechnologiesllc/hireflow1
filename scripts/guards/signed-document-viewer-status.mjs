@@ -182,7 +182,9 @@ export default [
     run: async ({ read }) => {
       const sheet = await read("src/cockpit/components/TeamDocumentSheet.tsx");
       if (!sheet) return { ok: false, detail: ["src/cockpit/components/TeamDocumentSheet.tsx is missing"] };
-      const block = /\{\(state === "declined" \|\| state === "withdrawn" \|\| state === "voided" \|\| state === "expired"\) && \([\s\S]*?\n\s*\)\}/.exec(sheet)?.[0] ?? "";
+      // (For someone who may send documents: the thirteenth product review hid it from a teammate who may not,
+      // whom document_audit_log answers with nothing.)
+      const block = /\{\(state === "declined" \|\| state === "withdrawn" \|\| state === "voided" \|\| state === "expired"\) && canSend && \([\s\S]*?\n\s*\)\}/.exec(sheet)?.[0] ?? "";
       const ok = /onClick=\{\(\) => onShowRecord\(document\)\}/.test(block) && /Signing record/.test(block);
       return { ok, detail: ok ? [] : ["a closed letter (declined, withdrawn, voided, expired) must link its signing record (onShowRecord)"] };
     },

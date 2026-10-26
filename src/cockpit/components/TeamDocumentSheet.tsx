@@ -384,7 +384,20 @@ export function TeamDocumentSheet({
                 </div>
               )}
 
-              {state === "yours" && (
+              {/* Only someone who may send documents signs for the business, keeps the
+                  signed copy and reads the signing record (document-signing's
+                  resolveDocumentRole, document_audit_log): a teammate without "Send
+                  documents" was offered "Sign to finish", refused on pressing it, and
+                  links that opened an empty viewer (the thirteenth product review). */}
+              {!canSend && (state === "yours" || state === "done" || state === "declined" || state === "withdrawn" || state === "voided" || state === "expired") && (
+                <p className="mt-5 rounded-[12px] px-4 py-3 text-[13px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }} data-team-document-no-send>
+                  {state === "yours"
+                    ? "Someone on your team who may send documents signs this to finish it."
+                    : "Only someone on your team who may send documents can open the signed copy and the signing record."}
+                </p>
+              )}
+
+              {state === "yours" && canSend && (
                 <section className="mt-5 rounded-[14px] border px-4 py-4" style={{ borderColor: "var(--action)", background: "color-mix(in srgb, var(--action-soft) 55%, transparent)" }} data-team-document-sign>
                   <h3 className="text-[15px] font-semibold" style={{ color: "var(--hf-text)" }}>
                     Sign to finish
@@ -439,7 +452,7 @@ export function TeamDocumentSheet({
                 </section>
               )}
 
-              {state === "done" && (
+              {state === "done" && canSend && (
                 <div className="mt-5 flex flex-wrap items-center gap-3" data-team-document-done>
                   <button type="button" className="ck-btn ck-btn-primary !py-2 !text-[13px]" onClick={() => void download()} disabled={downloading}>
                     {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
@@ -456,7 +469,7 @@ export function TeamDocumentSheet({
                   and a copy of that record to save (the tenth product review:
                   the link was there only once both had signed, so a declined,
                   withdrawn, voided or expired letter had no way to it). */}
-              {(state === "declined" || state === "withdrawn" || state === "voided" || state === "expired") && (
+              {(state === "declined" || state === "withdrawn" || state === "voided" || state === "expired") && canSend && (
                 <div className="mt-5 flex justify-end" data-team-document-closed-record>
                   <button type="button" className="inline-flex items-center gap-1.5 text-[13px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onShowRecord(document)}>
                     <FileText className="h-4 w-4" aria-hidden />

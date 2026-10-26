@@ -98,7 +98,12 @@ eq("the status words; \"Closed\" names declined, withdrawn, voided and expired a
   const benOld = { id: "e2", status: "Expired", applicationId: "a-ben", type: "Offer Letter", created: "2026-10-01T00:00:00Z", createdAt: "2026-10-01T00:00:00Z" };
   const benNew = { id: "s2", status: "Signed", applicationId: "a-ben", type: "Offer Letter", created: "2026-10-05T00:00:00Z", createdAt: "2026-10-05T00:00:00Z" };
   const line = f.drawerCaption([ana, benOld, benNew], { canSend: true });
-  check("an expired letter beside a replaced one still asks for a new one", /send a new one if you still need it\.$/.test(line) && /replaced/.test(line), line);
+  check("an expired letter beside a replaced one still asks for a new one, for the one that expired", /send a new one for the one that expired if you still need it\.$/.test(line) && /replaced/.test(line), line);
+  // The thirteenth product review: the team's own decline (after the applicant signed) never "came back declined".
+  const teamDeclined = { id: "d9", status: "Declined", candidateSignedAt: "2026-10-20T00:00:00Z", type: "File" };
+  const line2 = f.drawerCaption([teamDeclined], { canSend: true });
+  check("the team's own decline is said as yours, never as one that came back", line2 === "1 you declined." , line2);
+  check("the Closed list names voided letters too", f.resultLine("closed", 2, false) === "2 declined, withdrawn, voided or expired", f.resultLine("closed", 2, false));
 }
 
 // The line beside the meter. The tenth product review: a letter past its date

@@ -183,7 +183,7 @@ function counted(n: number, one: string, many: string): string {
 }
 
 /** The fields of a row the drawer's line and the "replaced" rule read. */
-export type CaptionRow = Pick<DocRow, "status"> & Partial<Pick<DocRow, "id" | "type" | "applicationId" | "createdAt">>;
+export type CaptionRow = Pick<DocRow, "status"> & Partial<Pick<DocRow, "id" | "type" | "applicationId" | "createdAt" | "candidateSignedAt">>;
 
 /**
  * The later offer letter that replaced this one, or null. Only an offer
@@ -232,7 +232,10 @@ export function drawerCaption(rows: CaptionRow[], { canSend }: { canSend: boolea
   const count = (status: DocRow["status"]) => rows.filter((r) => r.status === status && !replaced.has(r)).length;
   const pending = count("Pending");
   if (pending > 0) return `I\u2019m still waiting on ${counted(pending, "signature", "signatures")}.`;
-  const declined = count("Declined");
+  // Declined after the applicant signed, it was the team's own decline on its
+  // turn: not something that "came back" (the thirteenth product review).
+  const declined = rows.filter((r) => r.status === "Declined" && !replaced.has(r) && !r.candidateSignedAt).length;
+  const youDeclined = rows.filter((r) => r.status === "Declined" && !replaced.has(r) && !!r.candidateSignedAt).length;
   if (declined > 0) return `${declined} came back declined — worth another look.`;
   if (rows.every(isReady)) return "Everything in here is done.";
   const expired = count("Expired");
@@ -243,6 +246,7 @@ export function drawerCaption(rows: CaptionRow[], { canSend }: { canSend: boolea
     replaced.size > 0 ? counted(replaced.size, "was replaced by a newer letter", "were replaced by newer letters") : null,
     withdrawn > 0 ? counted(withdrawn, "was withdrawn", "were withdrawn") : null,
     voided > 0 ? counted(voided, "was voided", "were voided") : null,
+    youDeclined > 0 ? `${youDeclined} you declined` : null,
   ].filter((p): p is string => p !== null);
   if (parts.length === 0) return `${counted(rows.filter((r) => !isReady(r)).length, "is", "are")} not finished.`;
   const line = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
@@ -251,10 +255,13 @@ export function drawerCaption(rows: CaptionRow[], { canSend }: { canSend: boolea
   // A replaced letter needs nothing, so it never stops the ask for the people
   // whose letter only expired (the twelfth product review: "1 expired … and 1
   // was replaced" dropped the ask Ana still needed).
-  const onlyExpiredNeedsAct = expired > 0 && withdrawn === 0 && voided === 0;
+  const onlyExpiredNeedsAct = expired > 0 && withdrawn === 0 && voided === 0 && youDeclined === 0;
   if (onlyExpiredNeedsAct && canSend) {
     const people = new Set(rows.filter((r) => r.status === "Expired" && !replaced.has(r)).map((r, i) => r.applicationId ?? r.id ?? `row ${i}`)).size;
-    return `${line} — ${people === 1 ? "send a new one if you still need it" : "send new ones if you still need them"}.`;
+    // Beside a replaced letter, say which one wants a new copy (the thirteenth
+    // product review: it read as if the replaced letter did).
+    const which = replaced.size > 0 ? (people === 1 ? " for the one that expired" : " for the ones that expired") : "";
+    return `${line} — ${people === 1 ? `send a new one${which} if you still need it` : `send new ones${which} if you still need them`}.`;
   }
   return `${line}.`;
 }
@@ -266,6 +273,6 @@ export function resultLine(status: FilterStatus, shown: number, filtered: boolea
   if (status === "yours") return n === 1 ? "1 thing needs you" : `${n} things need you`;
   if (status === "theirs") return `${n} waiting on them`;
   if (status === "done") return `${n} done`;
-  if (status === "closed") return `${n} declined, withdrawn or expired`;
+  if (status === "closed") return `${n} declined, withdrawn, voided or expired`;
   return filtered ? `${n} ${n === 1 ? "match" : "matches"}` : `${n} in all`;
 }
