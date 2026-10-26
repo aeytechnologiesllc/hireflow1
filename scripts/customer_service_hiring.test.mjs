@@ -581,6 +581,8 @@ const CS = [
   ["Guest Services Agent", "Experience not required! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
   ["Guest Services Agent", "No hotel experience needed! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
   ["Guest Services Agent", "Zero experience? No problem! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  // The thirtieth (M4): a labelled "Experience:" reaches its hotels only within its own sentence, never past "!" or "?".
+  ["Guest Services Agent", "Experience: Preferred but not required! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -1092,6 +1094,12 @@ const NOT_CS = [
   // qualification names US hotels late in the line stays a desk.
   ["Guest Service Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nQualifications:\n- Experience: 1-2 years at a hotel front desk, ideally in US hotels.", "general"],
   ["Front Desk Officer", "Handle check-ins and check-outs, answer phone calls and process payments.\nExperience: at least 1 year as a front desk agent in luxury US hotels.", "admin"],
+  // The thirtieth (M2, M3): only "not required/needed/necessary/a must/mandatory" turns the past off, never "not less than";
+  // and "no", "zero" or "without" reach only words on their own line, never a "NO PLACEMENT FEE" or "- No tattoos" above.
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nExperience: Not less than 1 year in US hotels.", "general"],
+  ["Front Desk Officer", "Handle check-ins and check-outs, answer phone calls and process payments.\nWork experience not less than 2 years in US hotels.", "admin"],
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nNO PLACEMENT FEE\nExperience: 1 year as a front desk agent in US hotels", "general"],
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments.\nQualifications:\n- No tattoos\n- Experience in US hotels preferred", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));

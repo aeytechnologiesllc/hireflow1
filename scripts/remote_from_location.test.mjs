@@ -487,6 +487,14 @@ for (const [text, code] of [
   const mode = (work) => M.briefFromForm({ role: "Chat Support Representative", location: "Pasig City", type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
   for (const work of ["Answer customer chats.\nTraining:\n\nNesting\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH","Answer customer chats.\nTraining:\n✅ Paid training\nIn Ortigas\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH","Answer customer chats.\nTraining:\n✅ Paid training\n\nYou will train with our team leads for two weeks in our Ortigas office\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH"]) check(`"${work.replace(/\n/g, " / ").slice(0, 110)}" is built remote (the twenty-ninth)`, mode(work) === "remote", mode(work));
 }
+// The thirtieth Phase 4 review (M1): a "Label: value" line after a blank line ends the list above it again, as round 28 read
+// it ("Location: Makati City", "Account: US Telco"), and a separator never comes straight after a heading line, so the
+// twenty-ninth's "Training:\n\nDuration: 2 weeks" and "Nesting" still stay the training's.
+{
+  const mode = (work, location = "Makati City") => M.briefFromForm({ role: "Chat Support Representative", location, type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
+  for (const work of ["We are hiring Chat Support Representatives for a US e-commerce account!\n\nTraining:\n✅ 2 weeks paid training\n✅ WFH\n\nLocation: Makati City\n✅ Setup: Onsite (Makati)\n✅ Schedule: Night shift","Answer customer chats.\n\nTraining:\n👉 Paid training\n👉 WFH\n\nAccount: US Telco\n👉 Setup: Onsite (Makati)"]) check(`"${work.replace(/\n/g, " / ").slice(0, 120)}" is built on site (the thirtieth)`, mode(work) === "onsite", mode(work));
+  for (const work of ["Answer customer chats.\nTraining:\n\nDuration: 2 weeks\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH","Answer customer chats.\nTraining:\n\nNesting\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH"]) check(`"${work.replace(/\n/g, " / ")}" is still built remote (the thirtieth)`, mode(work, "Pasig City") === "remote", mode(work, "Pasig City"));
+}
 // Publish saves is_remote as the brief's work mode (src/lib/jobFromFlow.ts). That is the fifteenth's rule exactly, which also
 // read the post when the place or Type said remote, only while these two hold: every place or Type that says remote makes the
 // brief remote or hybrid, and no employment type reads as a place (the sixteenth review).

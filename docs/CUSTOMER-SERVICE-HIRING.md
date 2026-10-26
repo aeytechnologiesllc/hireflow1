@@ -318,7 +318,10 @@ seconds on 90 KB). In this order:
    business's own; the twenty-eighth: never after "no experience", and the
    hotels must start within the 45 characters; the twenty-ninth: nor after
    "zero" or "without" or before "not required", and a labelled
-   "Experience:" line reaches the hotels however far they come); chat or
+   "Experience:" line reaches the hotels in its own sentence, never past
+   "!" or "?"; the thirtieth: "not" turns the past off only before
+   required, needed, necessary, a must or mandatory, and "no", "zero" or
+   "without" reach only words on their own line); chat or
    email words count as a greeting "by phone" only within four words
    with no "and" between; only an interview's, training's or
    onboarding's own few words beside "in person" excuse it), their
@@ -644,7 +647,11 @@ the same things:
    line after it, before "✅ Setup: Onsite", still leaves that setup under
    the training, where a real "Job details:" heading would not (the
    twenty-ninth review); never one that names the training or the
-   interview, "Nesting");
+   interview, "Nesting"; the thirtieth: a "Label: value" line such as
+   "Location: Makati City" is one again, as round 28 read it, but never
+   straight after a heading line; a blank line inside a training's list
+   followed by "Duration: 2 weeks" ends that list early, a known limit
+   that review weighed against the 288 rows the other reading broke);
    the words are
    any of hiring, recruitment, application or selection with any of
    process, setup, mode, venue, site, location or steps), keeps its on-site line
