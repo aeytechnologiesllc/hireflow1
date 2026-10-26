@@ -289,7 +289,12 @@ seconds on 90 KB). In this order:
    evidence is taken out, check-ins as the topic, after "about" or
    "regarding" (the twentieth: "with" and "on" also lead the desk's own
    work, "Assist with guest check-ins", "Coordinate with housekeeping on
-   room status, process check-ins…", so they no longer count), their
+   room status, process check-ins…", so they no longer count; the
+   twenty-first: but "on" a call's, an email's or a question's topic, or
+   "over the phone with" the guest, within a few words or a list, are a
+   hotel account's calls, "Handle guest calls on reservations, check-ins
+   and check-outs"; "check-in/check-out" and "check in and check out"
+   are check-ins too), their
    times, policies, schedules (the twentieth: not procedures, "Assist with
    check-in and check-out procedures" is the desk's)
    or dates, and check-ins done by phone, video, chat or email unless in
@@ -440,7 +445,9 @@ seconds on 90 KB). In this order:
    Coordinate corporate events with the banquet team and answer calls from
    corporate clients" is the venue's; the twentieth: only clients the agency
    works "for", since "answer calls from our corporate clients" is a hotel's
-   too), and an event management company; or a conference or
+   too; the twenty-first: and "our clients" except "from our clients",
+   since "Plan corporate events with our clients" is an agency's), and an
+   event management company; or a conference or
    corporate event whose venues, catering or AV the work books (named before
    it, or after it only as what it books: "bookings for corporate events and
    conferences: venues, catering and AV", "Book conference venues and
@@ -584,7 +591,11 @@ the same things:
    site), and only an interview, training, nesting, hiring process,
    assessment, exam, onboarding or orientation heading, after a word or two
    at most ("Final interview:", "Paid training:", never "After training:";
-   the twentieth: "Hiring for:" lists two setups), keeps its on-site line
+   the twentieth: "Hiring for:" lists two setups; the twenty-first: the
+   hiring's own setup, mode, venue, site, location or steps, and a
+   recruitment, application or selection process, never a bare "Hiring
+   now:"; and an on-site line takes the remote line's marks, so "‼️ ONSITE
+   ‼️" beside "‼️ WFH ‼️" is a second setup), keeps its on-site line
    from the setup: under any other, "Work setup:\n- Onsite (Makati)\nAfter
    regularization:\n- WFH", "Option 1:\n- Onsite (Makati)\nOption 2:\n- WFH"
    and a perk under a heading the perks reader does not know, "What we can

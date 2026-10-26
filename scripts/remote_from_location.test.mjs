@@ -409,6 +409,17 @@ for (const [text, code] of [
     "Answer customer calls.\nWork setup:\n- Onsite (Makati)\nAfter training:\n- WFH", "Answer customer calls.\nWork setup options:\nOption 1:\n- Onsite (Makati)\nOption 2:\n- WFH",
   ]) check(`"${work.replace(/\n/g, " / ")}" is built on site (the twentieth)`, mode(work) === "onsite", mode(work));
 }
+// The twenty-first Phase 4 review, each case both ways.
+{
+  const mode = (work) => M.briefFromForm({ role: "Customer Service Representative", location: "Makati City", type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
+  // H2: an on-site line decorated as the remote line may be is a second setup too, so a two-setup post builds on site; a
+  // heading that only says the business is hiring ("HIRING ASAP:", "Hiring now:") lists setups, and a hiring event or day is
+  // on site.
+  for (const work of ["Answer customer calls.\nWork setup options:\n‼️ ONSITE ‼️\n‼️ WFH ‼️","Answer customer calls.\nWork setup:\n- WFH 💻\n- Onsite 🏢","Answer customer calls.\nHiring for:\n💻 WFH 💻\n🏢 Onsite 🏢","Answer customer calls.\nSetup:\n🔥 Onsite 🔥\n🔥 WFH 🔥","Answer customer calls.\nWork setup:\n- Onsite!!\n- WFH!!","Answer customer calls.\nWork setup:\n✅ Onsite ✅\n✅ WFH ✅","Answer customer calls.\nWORK SETUP:\nONSITE 🏢\nWORK FROM HOME 🏠","Answer customer calls.\nWe are hiring for two setups:\n- Onsite (Makati) 🏢\n- WFH 🏠","Answer customer calls.\nHIRING ASAP:\n✅ Onsite\n✅ WFH","Answer customer calls.\nHiring now:\n✅ Onsite\n✅ WFH","Answer customer calls.\nHiring CSRs:\n✅ Onsite\n✅ WFH","Answer customer chats.\nWork setup: Permanent WFH\nHiring event:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nHiring day:\n- Onsite (Makati)"]) check(`"${work.replace(/\n/g, " / ")}" is built on site (the twenty-first)`, mode(work) === "onsite", mode(work));
+  // M1: the hiring's own setup, venue, mode, site, location or steps, and a recruitment, application or selection process,
+  // keep their on-site line from the job's setup; a "no" mark still undoes an on-site line.
+  for (const work of ["Answer customer calls.\nOnsite ❌\nWFH ✅","Answer customer chats.\nWork setup: Permanent WFH\nHiring setup:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nHiring Set-up:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nHiring venue:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nHiring mode:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nHiring site:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nHiring location:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nHiring steps:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nRecruitment process:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nApplication process:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nSelection process:\n- Onsite (Makati)","Answer customer chats.\nWork setup: Permanent WFH\nRecruitment setup:\n- Onsite (Makati)"]) check(`"${work.replace(/\n/g, " / ")}" is built remote (the twenty-first)`, mode(work) === "remote", mode(work));
+}
 // Publish saves is_remote as the brief's work mode (src/lib/jobFromFlow.ts). That is the fifteenth's rule exactly, which also
 // read the post when the place or Type said remote, only while these two hold: every place or Type that says remote makes the
 // brief remote or hybrid, and no employment type reads as a place (the sixteenth review).
