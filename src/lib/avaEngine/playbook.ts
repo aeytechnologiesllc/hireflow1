@@ -64,6 +64,9 @@ const CUSTOMER_WORD = String.raw`(customer|client|patient|caller|player|guest|me
 const CS_TITLE = new RegExp(
   [
     String.raw`\b(customer|client|guest|member|player) (services?|supports?|care|success|experience|happiness|relations)\b`,
+    // A seller's, merchant's, rider's or driver's support is the platform's customer service, as "Merchant Support Agent" is
+    // (the thirty-first Phase 4 review: the bare noun read as the cash family).
+    String.raw`\b(seller|merchant|rider|driver|courier|subscriber|passenger) (supports?|care)\b`,
     // "patient care" is nursing work; a patient services desk is customer service.
     String.raw`\bpatient (services?|experience|support) (agent|rep|representative|specialist|coordinator|advisor|associate)\b`,
     // (A hotline's agent or officer answers its calls, as Philippine posts name the phone line: "Hotline Agent / Answer calls on
@@ -605,7 +608,9 @@ const AT_OUR_LODGING = /\b(at|in) (our|the) ([\w-]+ )?(hotel|resort|inn|hostel|m
 // (The thirtieth: within its own sentence only, never past "!" or "?"; "not" turns it off only before required, needed,
 // necessary, a must or mandatory, never "not less than 1 year"; and "no", "zero" or "without" reach only words on their own
 // line, never a "NO PLACEMENT FEE" or "- No tattoos" line above.)
-const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|(?<!\bwith (our |the )?)partner hotels?|(?<!(?<!\b(guest|customer)\s+|\b(no|zero|without)[ \t]+([\w-]+[ \t]+){0,2})\bexperience\b(?!:?\s+(is\s+)?not\s+(required|needed|necessary|a\s+must|mandatory)\b)(?=:[^.;!?\n]{0,120}\b(us|u\.s\.|uk)(-based)? hotel|[^.;\n]{0,45}\b(us|u\.s\.|uk)(-based)? hotel)[^.;\n]{0,45}\b((in|at|from|with|of)\s+|working\s+for\s+)([\w-]+\s+){0,3})\b(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
+// (The thirty-first: "not" turns it off before any word but "less" or "fewer", round 29's reading kept, "Experience not
+// essential!", "not compulsory"; and any space on the line, a no-break space too, between "no" and "experience".)
+const REMOTE_HOST = /\b(airbnb|vrbo|rentals?|vacation (homes?|propert\w*)|holiday homes?|client hotels?|hotels we (support|serve)|(?<!\bwith (our |the )?)partner hotels?|(?<!(?<!\b(guest|customer)\s+|\b(no|zero|without)[^\S\n]+([\w-]+[^\S\n]+){0,2})\bexperience\b(?!:?\s+(is\s+)?not\b(?!\s+(less|lower|below|under|more|fewer)\b))(?=:[^.;!?\n]{0,120}\b(us|u\.s\.|uk)(-based)? hotel|[^.;\n]{0,45}\b(us|u\.s\.|uk)(-based)? hotel)[^.;\n]{0,45}\b((in|at|from|with|of)\s+|working\s+for\s+)([\w-]+\s+){0,3})\b(us|u\.s\.|uk)(-based)? hotels?( chains?)?)\b/;
 // Where the agent sits or when they work says nothing about whose front desk
 // it is: "office hours", "work in our office in Ortigas" (the ninth review).
 const OFFICE_NOT_VENUE = /\b(work|working|report|reporting|based|stationed|sit|sitting)\s+(in|at|from|out of)\s+(our|the|an?)\s+([\w']+\s+)?office\b|\boffice[- ](hours|based|setup|set-up|schedule|days?)\b|\b(in|home|back)[- ]office\b/g;
@@ -1232,9 +1237,11 @@ function remoteSetupLine(work: string): boolean {
   // (The thirtieth: a "Label: value" line ends the list again, as round 28 read it, "Location: Makati City" before the job's
   // own "✅ Setup: Onsite"; and a separator never comes straight after a heading line, so "Training:\n\nDuration: 2 weeks" stays
   // the training's. Left: a blank line inside a training's list, then "Duration: 2 weeks", ends that list early.)
+  // (The thirty-first: but a line that is only the remote setup still ends the list straight after a heading, so
+  // "Training:\n\nWFH" is the training's and the job's own "✅ Setup: Onsite" after it is the job's.)
   const mark = (line: string) => /^[ \t]*([^\p{L}\p{N}\s])/u.exec(line)?.[1] ?? "";
   let last = "";
-  const sep = lines.map((line, i) => afterBlank[i] && i > 0 && !/:\s*$/.test(lines[i - 1]) && !mark(line) && /^[^.,;!?]{1,40}$/.test(line.trim()) && line.trim().split(/\s+/).length <= 4 && !SEPARATE_HEADING.test(line));
+  const sep = lines.map((line, i) => afterBlank[i] && i > 0 && (!/:\s*$/.test(lines[i - 1]) || ONLY_REMOTE_LINE.test(line.trim())) && !mark(line) && /^[^.,;!?]{1,40}$/.test(line.trim()) && line.trim().split(/\s+/).length <= 4 && !SEPARATE_HEADING.test(line));
   const before = lines.map((line, i) => { const was = last; if (/:\s*$/.test(line)) last = ":"; else if (mark(line)) last = mark(line); else if (sep[i]) last = ""; return was; });
   const listed = (i: number) => /^[ \t]*[-•*]/.test(lines[i]) || (mark(lines[i]) !== "" && (before[i] === ":" || before[i] === mark(lines[i])));
   const under = lines.map((line, i) => (/:\s*$/.test(line) ? (heading = line) : (/^[^a-z0-9]*((work|job) )?(setup|set-up|arrangement)\s*[:\-–]\s*[a-z0-9]/.test(line) && !listed(i)) || /^[^a-z0-9]*(work|job) (setup|set-up|arrangement|location|mode)\s*[:\-–]\s*[a-z0-9]/.test(line) ? "" : heading));

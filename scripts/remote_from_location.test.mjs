@@ -495,6 +495,12 @@ for (const [text, code] of [
   for (const work of ["We are hiring Chat Support Representatives for a US e-commerce account!\n\nTraining:\n✅ 2 weeks paid training\n✅ WFH\n\nLocation: Makati City\n✅ Setup: Onsite (Makati)\n✅ Schedule: Night shift","Answer customer chats.\n\nTraining:\n👉 Paid training\n👉 WFH\n\nAccount: US Telco\n👉 Setup: Onsite (Makati)"]) check(`"${work.replace(/\n/g, " / ").slice(0, 120)}" is built on site (the thirtieth)`, mode(work) === "onsite", mode(work));
   for (const work of ["Answer customer chats.\nTraining:\n\nDuration: 2 weeks\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH","Answer customer chats.\nTraining:\n\nNesting\n✅ Setup: Onsite (Ortigas)\n\nProduction:\n✅ Setup: Permanent WFH"]) check(`"${work.replace(/\n/g, " / ")}" is still built remote (the thirtieth)`, mode(work, "Pasig City") === "remote", mode(work, "Pasig City"));
 }
+// The thirty-first Phase 4 review (R1): a line that is only the remote setup still ends the list after a heading, so a
+// training whose only line is "WFH" stays the training's and the job's own "✅ Setup: Onsite" after it is the job's.
+{
+  const mode = (work) => M.briefFromForm({ role: "Chat Support Representative", location: "Makati City", type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
+  for (const work of ["Answer customer chats.\n\nTraining:\n\nWFH\n✅ Setup: Onsite (Makati)\n✅ Schedule: Night shift"]) check(`"${work.replace(/\n/g, " / ")}" is built on site (the thirty-first)`, mode(work) === "onsite", mode(work));
+}
 // Publish saves is_remote as the brief's work mode (src/lib/jobFromFlow.ts). That is the fifteenth's rule exactly, which also
 // read the post when the place or Type said remote, only while these two hold: every place or Type that says remote makes the
 // brief remote or hybrid, and no employment type reads as a place (the sixteenth review).

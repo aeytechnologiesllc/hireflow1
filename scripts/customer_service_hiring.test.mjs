@@ -583,6 +583,15 @@ const CS = [
   ["Guest Services Agent", "Zero experience? No problem! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
   // The thirtieth (M4): a labelled "Experience:" reaches its hotels only within its own sentence, never past "!" or "?".
   ["Guest Services Agent", "Experience: Preferred but not required! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  // The thirty-first (M1, R2): "not" turns the past off before any word but "less" or "fewer" ("not essential", "not
+  // compulsory"), and a no-break space after "No" is a space; (M3) a seller's, merchant's or rider's support is customer service.
+  ["Guest Services Agent", "Experience not essential! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  ["Guest Services Agent", "Experience is not a requirement! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  ["Guest Services Agent", "Experience not compulsory! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  ["Guest Services Agent", "No experience needed! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  ["Merchant Support - Non Voice", "Handle merchant concerns via chat and email for a food delivery account."],
+  ["Seller Support", "Help our sellers with listings, payouts and order issues by chat and email."],
+  ["Rider Support - Voice", "Answer calls from our riders about deliveries and payouts."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -1501,6 +1510,11 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Customer Support (Phone)", "We need someone experienced in handling high call volumes who will also reply to customer emails and chats.", "mixed"],
     ["Email Support Specialist", "Reply to customer emails. Skilled in handling live chat too: you will also answer chats.", "chat"],
     ["Hotline Agent", "Answer calls and reply to customer emails.", "mixed"],
+    // The thirty-first (M2): calling customers is phone work ("Call customers to confirm their COD orders"), never after "never".
+    ["Customer Service Representative", "Call customers to confirm their COD orders before we ship.", "phone"],
+    ["Customer Service Representative", "Call patients to confirm appointments and answer their questions.", "phone"],
+    ["Customer Service Representative", "Call back customers who left a message.", "phone"],
+    ["Chat Support Agent", "Chat only, never call customers.", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
