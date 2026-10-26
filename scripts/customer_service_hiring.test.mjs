@@ -529,6 +529,19 @@ const CS = [
   ["Guest Services Agent", "Answer guest calls and emails on reservations, check-ins and check-outs, and billing."],
   ["Guest Services Agent", "Responsibilities:\n- Answer guest calls and emails\n- Handle questions on reservations, check-ins and check-outs\n- Process refunds"],
   ["Reservations Agent", "Answer calls and emails from our VIP clients about reservations and coordinate corporate events with the banquet team."],
+  // The twenty-second (H1, H4): check-in requests, concerns, issues or questions are a topic, and hotels the agent serves for
+  // someone else ("our client hotels", "partner hotels", "US hotels") are not their own desk, so a hotel or travel account
+  // stays calls; and check-ins in a product's software are a feature, not a door. "…calls on bookings and check-ins" is
+  // still the calls' topic (H2's other side).
+  ["Guest Services Agent (Travel Account)", "Answer guest calls. Help guests with early check-in/check-out requests, cancellations and refunds."],
+  ["Guest Services Agent", "Handle guest check-in/check-out requests and booking changes for US hotels. Calls and emails only."],
+  ["Guest Services Agent", "Responsibilities:\n- Answer calls and emails from hotel guests\n- Assist with check-in/check-out concerns\n- Process cancellations and refunds"],
+  ["Guest Services Agent", "Assist guests of our client hotels with check-ins and check-outs. Handle calls and emails."],
+  ["Guest Services Agent", "Assist hotel guests with reservations, check-in & check-out and billing concerns. Answer calls and emails from guests of our partner hotels."],
+  ["Guest Services Agent", "Handle guest emails and assist with check-in and check-out questions for a US hotel chain."],
+  ["Guest Service Agent", "Handle guest calls on bookings and check-ins and check-outs."],
+  ["Customer Support Specialist", "Help customers with check-in/check-out issues in our property management software."],
+  ["Customer Support Specialist", "Assist property managers with check in and check out automation in our software."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -1002,6 +1015,18 @@ const NOT_CS = [
   ["Front Desk Officer", "Coordinate with housekeeping on room status, process check-ins and check-outs and answer calls.", "cleaner"],
   ["Front Desk Agent", "Answer calls on reservations, process check-ins and check-outs and handle billing.", "general"],
   ["Front Desk Agent", "Answer calls by phone with courtesy and assist with check-ins and check-outs.", "general"],
+  // The twenty-second: "calls on reservations and handle check-ins" is a desk's two duties, not the calls' topic (H2a); and
+  // a lodging desk that greets or welcomes guests, works in the lobby or in person is at the door, check-ins or none (H2b,
+  // the second an old gap); a front desk using its PMS is still the desk (H4's other side).
+  ["Guest Service Agent", "Answer guest calls on reservations and handle check-ins and check-outs.", "general"],
+  ["Guest Service Agent", "Take calls on weekends and perform check-ins and check-outs.", "general"],
+  ["Guest Service Agent", "Handle phone inquiries on availability and perform check-in and check-out.", "general"],
+  ["Guest Service Agent", "Answer guest calls and emails on bookings and handle check-ins and check-outs for walk-in guests.", "general"],
+  ["Guest Service Agent", "Greet guests, handle inquiries on check-ins and check-outs, answer phone calls and process payments.", "general"],
+  ["Guest Service Agent", "Welcome guests in the lobby, answer questions on check-in and check-out and answer phone calls.", "general"],
+  ["Guest Service Agent", "Assist guests in person and over the phone with check-ins and check-outs.", "general"],
+  ["Guest Service Agent", "Welcome guests, answer phone calls and process payments.", "general"],
+  ["Customer Service Representative - Hotel", "Handle guest check-ins and check-outs at the front desk using Opera PMS, and answer phone calls.", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));

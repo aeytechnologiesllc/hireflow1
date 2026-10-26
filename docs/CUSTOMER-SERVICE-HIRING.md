@@ -294,9 +294,16 @@ seconds on 90 KB). In this order:
    "over the phone with" the guest, within a few words or a list, are a
    hotel account's calls, "Handle guest calls on reservations, check-ins
    and check-outs"; "check-in/check-out" and "check in and check out"
-   are check-ins too), their
+   are check-ins too; the twenty-second: never across "and" inside that
+   window, so "Answer guest calls on reservations and handle check-ins"
+   is the desk's; and hotels served for someone else, "our client
+   hotels", "partner hotels", "US hotels", are a hotel account's, not a
+   door; a lodging desk that greets or welcomes guests, works in the
+   lobby or in person is at the door; check-ins in a product's software,
+   SaaS or kiosk are a feature), their
    times, policies, schedules (the twentieth: not procedures, "Assist with
-   check-in and check-out procedures" is the desk's)
+   check-in and check-out procedures" is the desk's; the twenty-second:
+   requests, concerns, issues, inquiries, questions, problems, changes)
    or dates, and check-ins done by phone, video, chat or email unless in
    person too: "Handle check-ins and check-outs by phone and in person" is
    the desk's), the
@@ -595,7 +602,11 @@ the same things:
    hiring's own setup, mode, venue, site, location or steps, and a
    recruitment, application or selection process, never a bare "Hiring
    now:"; and an on-site line takes the remote line's marks, so "‼️ ONSITE
-   ‼️" beside "‼️ WFH ‼️" is a second setup), keeps its on-site line
+   ‼️" beside "‼️ WFH ‼️" is a second setup; the twenty-second: a WFH line
+   under such a heading is the hiring's too, so "Hiring setup:\n✅
+   Onsite\n✅ WFH" lists two setups and builds on site; the words are
+   any of hiring, recruitment, application or selection with any of
+   process, setup, mode, venue, site, location or steps), keeps its on-site line
    from the setup: under any other, "Work setup:\n- Onsite (Makati)\nAfter
    regularization:\n- WFH", "Option 1:\n- Onsite (Makati)\nOption 2:\n- WFH"
    and a perk under a heading the perks reader does not know, "What we can
