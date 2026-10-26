@@ -976,8 +976,14 @@ reached function deployed):
   papers' two picks the same; ID photos whose link never saved are swept;
   `file_queue_pick_by_index` 20261026201021 and `id_papers_pick_by_index`
   20261026201053 applied from their files; a rolled-back live write probe
-  and the next hourly run both answered right). **Round 13 is running**
-  (`sec13_brief.md`).
+  and the next hourly run both answered right). **Round 13**
+  (`sec13_report.md`) found two MEDIUM regressions in it, neither hit
+  live yet (empty bucket, 3 requests): the stray sweep scans storage per
+  request, so a big bucket times the due pick out and stops all ID-paper
+  deletion; and a deadlock on the new turn triggers during a delete is
+  swallowed by the queueing trigger, leaking that application's media.
+  No turn drift in tens of thousands of concurrent statements. **Its fixer
+  is running** (`r13_security_fix_brief.md`).
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -1052,8 +1058,10 @@ reached function deployed):
   patch (83a6a2d3, 1bc78236, a0d57f2f; every fixed case a check both
   ways, earlier probes unchanged). **Round 28** (`p4r28_report.md`) was
   the first to find no HIGH: three MEDIUM, two fixed by its patch in
-  b8431433, one left (a conflict between rounds). **Round 29 is running**
-  (`p4r29_brief.md`).
+  b8431433, one left (a conflict between rounds). **Round 29**
+  (`p4r29_report.md`), again no HIGH: three zero-cost narrowings (691
+  rows better, 0 worse) in c1296137, plus checks that hold the
+  separator's limits. **Round 30 is running** (`p4r30_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
