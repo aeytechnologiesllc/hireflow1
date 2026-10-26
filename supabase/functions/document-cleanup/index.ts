@@ -17,7 +17,10 @@
 // and the files of deleted requests (document_file_trash), are taken fairly:
 // each business's oldest first, businesses in turn, 200 a run, so one
 // business's flood holds up only its own papers (the twelfth Phase 5 review),
-// and the admins are told once a day when either backs up.
+// and the admins are told once a day when either backs up. A file an
+// applicant sent again (or took away) on a request still open is queued
+// there too and goes in the next run, that file alone (the thirteenth). Only
+// ever a file in the request's own folder, <applicant>/<request>/.
 //
 // It also empties the files queued for removal (storage_file_trash): those
 // "Delete their information" could not delete at the time (remove-applicant),
@@ -121,13 +124,16 @@ Deno.serve(async (req) => {
   const counts = { due: error ? 0 : due.length, deleted: 0, failed: 0 };
   for (const request of error ? [] : due) {
     const path = String(request.file_url);
-    // Only ever a file in that applicant's own folder.
-    if (!path.startsWith(`${request.candidate_id}/`) || path.includes("..")) {
+    // Only ever a file in that request's own folder, <applicant>/<request>/
+    // (the thirteenth Phase 5 review: the applicant's folder let a request
+    // that pointed at another request's file delete it; the database links
+    // nothing else since 20261025610000).
+    const folder = `${request.candidate_id}/${request.id}`;
+    if (!path.startsWith(`${folder}/`) || path.includes("..")) {
       counts.failed += 1;
       continue;
     }
     // The file, and anything else left in this request's folder.
-    const folder = `${request.candidate_id}/${request.id}`;
     const { data: listed } = await admin.storage.from(BUCKET).list(folder, { limit: 100 });
     const paths = [...new Set([path, ...(listed ?? []).filter((f) => f.name).map((f) => `${folder}/${f.name}`)])];
     const { error: removeError } = await admin.storage.from(BUCKET).remove(paths);
@@ -158,15 +164,41 @@ Deno.serve(async (req) => {
   const { data: trashPick, error: trashError } = await admin.rpc("document_file_trash_fair_pick");
   if (trashError) console.error("[document-cleanup] could not read the trash:", trashError.message);
   const trash = (trashPick ?? []) as TrashNote[];
+  // Which of these notes' requests are still open, and the file each links
+  // now. A note for an open request is a file the applicant sent again or
+  // took away (document_requests_guard_update queues it, 20261025640000, the
+  // thirteenth Phase 5 review): only that file goes, never the request's
+  // folder, where the file sent in its place is, and never the file the
+  // request links now. Read by the notes' own ids, at most one run's.
+  const linkedNow = new Map<string, string | null>();
+  let openError: { message: string } | null = null;
+  const requestIds = [...new Set(trash.map((note) => note.request_id))];
+  for (let i = 0; i < requestIds.length && !openError; i += IDS_PER_REQUEST) {
+    const { data: open, error: openReadError } = await admin.from("document_requests").select("id, file_url").in("id", requestIds.slice(i, i + IDS_PER_REQUEST));
+    if (openReadError) openError = openReadError;
+    else for (const r of (open ?? []) as { id: string; file_url: string | null }[]) linkedNow.set(r.id, r.file_url);
+  }
+  // Not knowing which are open, none is touched this run (a folder swept for
+  // an open request would take the file sent in its place): the notes wait
+  // for the next, and the admins are told the list could not be read.
+  if (openError) console.error("[document-cleanup] could not read which requests of the queued files are still open:", openError.message);
   let orphans = 0;
   let orphansFailed = 0;
   const orphanTries = new Map<number, string[]>();
-  for (const note of trash) {
+  for (const note of openError ? [] : trash) {
     const folder = `${note.candidate_id}/${note.request_id}`;
     const file = String(note.file_url ?? "");
-    const own = file.startsWith(`${note.candidate_id}/`) && !file.includes("..") ? [file] : [];
-    const { data: listed } = await admin.storage.from(BUCKET).list(folder, { limit: 100 });
-    const paths = [...new Set([...own, ...(listed ?? []).filter((f) => f.name).map((f) => `${folder}/${f.name}`)])];
+    // Only ever a file in that request's own folder, <applicant>/<request>/
+    // (the thirteenth Phase 5 review: the applicant's folder let a note that
+    // pointed at another request's file delete it).
+    const own = file.startsWith(`${folder}/`) && !file.includes("..") ? [file] : [];
+    let paths: string[];
+    if (linkedNow.has(note.request_id)) {
+      paths = own.filter((p) => p !== linkedNow.get(note.request_id));
+    } else {
+      const { data: listed } = await admin.storage.from(BUCKET).list(folder, { limit: 100 });
+      paths = [...new Set([...own, ...(listed ?? []).filter((f) => f.name).map((f) => `${folder}/${f.name}`)])];
+    }
     if (paths.length > 0) {
       const { error: removeError } = await admin.storage.from(BUCKET).remove(paths);
       if (removeError) {
@@ -404,6 +436,12 @@ Deno.serve(async (req) => {
   if (trashError) {
     await tell("read-trash", "Files of deleted requests are not being deleted", `document-cleanup could not read the files of deleted requests (${String(trashError.message).slice(0, 160)}). It tries again every hour.`);
   }
+  // Not knowing which of their requests are still open is a failed read too:
+  // none of the notes was touched (the thirteenth Phase 5 review). The same
+  // day's alert as the list itself.
+  if (openError && !trashError) {
+    await tell("read-trash", "Files of deleted requests are not being deleted", `document-cleanup could not read which requests of the files queued for deletion are still open (${String(openError.message).slice(0, 160)}), so none of them was deleted. It tries again every hour.`);
+  }
   // The ID papers' own backlogs, each on its own day's alert (the twelfth
   // Phase 5 review: one business's flood of deleted requests held every real
   // ID up for days, and nobody was told). The deleted requests' queue is
@@ -419,7 +457,7 @@ Deno.serve(async (req) => {
   if (leftoverError) {
     await tell("read-leftovers", "Files queued for removal are not being deleted", `document-cleanup could not read the files queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash) (${String(leftoverError.message).slice(0, 160)}). It tries again every hour.`);
   }
-  const unread = [error, trashError, leftoverError].filter(Boolean);
+  const unread = [error, trashError, openError, leftoverError].filter(Boolean);
   if (counts.failed > 0 || orphansFailed > 0) {
     const parts = [
       counts.failed > 0 ? `${counts.failed} ID file${counts.failed === 1 ? "" : "s"} past 24 hours` : "",

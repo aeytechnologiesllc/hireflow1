@@ -125,7 +125,16 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   check("…under two titles, so a delete failure never hides a read failure, and files of deleted requests are named as such (the sixth)", /tell\("read-requests", "ID papers are not being deleted"/.test(cleanup) && /tell\("delete", "ID papers were not deleted on time"/.test(cleanup) && /of deleted requests/.test(cleanup));
   check("…every hour, so 24 hours means 24 hours", /'document-cleanup',\s*'17 \* \* \* \*'/.test(hourly));
   check("…only with the secret from Vault, checked by the database", /x-cleanup-secret/.test(cleanup) && /document_cleanup_secret_matches/.test(cleanup) && /401/.test(cleanup));
-  check("…and only files in the applicant's own folder", /startsWith\(`\$\{request\.candidate_id\}\/`\)/.test(cleanup) && /includes\("\.\."\)/.test(cleanup));
+  // The request's own folder, not the applicant's (the thirteenth Phase 5
+  // review: an applicant's folder holds every business's papers for them, so
+  // a request pointing at another request's file would have deleted it). The
+  // behaviour is proved in scripts/document_cleanup.test.mjs.
+  check(
+    "…and only files in that request's own folder, for a paper that is due and for a queued one",
+    /const folder = `\$\{request\.candidate_id\}\/\$\{request\.id\}`;\s*if \(!path\.startsWith\(`\$\{folder\}\/`\) \|\| path\.includes\("\.\."\)\) \{/.test(cleanup) &&
+      /const folder = `\$\{note\.candidate_id\}\/\$\{note\.request_id\}`;[\s\S]{0,400}?const own = file\.startsWith\(`\$\{folder\}\/`\) && !file\.includes\("\.\."\) \? \[file\] : \[\];/.test(cleanup) &&
+      !/startsWith\(`\$\{(?:request|note)\.candidate_id\}\/`\)/.test(cleanup),
+  );
   const schedule = read("supabase/migrations/20261010150100_document_cleanup_schedule.sql");
   check("the schedule sends the secret from Vault and never holds it", /'document-cleanup'/.test(schedule) && /vault\.decrypted_secrets/.test(schedule) && !/x-cleanup-secret',\s*'[0-9a-f]{32,}/.test(schedule));
   check("…the check is the service role's alone", /REVOKE ALL ON FUNCTION public\.document_cleanup_secret_matches\(text\) FROM anon, authenticated;/.test(schedule) && /GRANT EXECUTE ON FUNCTION public\.document_cleanup_secret_matches\(text\) TO service_role;/.test(schedule));
@@ -147,26 +156,36 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   // security review: storage-js puts the path into the request address as it
   // is, where "%2e%2e" is a parent step, and the link is signed with the
   // service key).
-  check("…and checks the stored path with ownFolder.ts before it signs", /import \{ inOwnFolder \} from "\.\/ownFolder\.ts";/.test(fn) && !/function inOwnFolder/.test(fn) && fn.search(/if \(!inOwnFolder\(request\.file_url, request\.candidate_id\)\) return jsonResponse\(\{ error: "Nothing has been sent for this request" \}, 404\);/) > 0 && fn.search(/if \(!inOwnFolder\(request\.file_url, request\.candidate_id\)\)/) < fn.search(/\.createSignedUrl\(/));
+  check("…and checks the stored path with ownFolder.ts before it signs, against that request's own folder", /import \{ inOwnFolder \} from "\.\/ownFolder\.ts";/.test(fn) && !/function inOwnFolder/.test(fn) && fn.search(/if \(!inOwnFolder\(request\.file_url, request\.candidate_id, request\.id\)\) return jsonResponse\(\{ error: "Nothing has been sent for this request" \}, 404\);/) > 0 && fn.search(/if \(!inOwnFolder\(request\.file_url, request\.candidate_id, request\.id\)\)/) < fn.search(/\.createSignedUrl\(/));
   const { inOwnFolder } = await import(pathToFileURL(resolve(root, "supabase/functions/requested-document-url/ownFolder.ts")).href);
   const owner = "aaaaaaaa-0000-4000-8000-000000000001";
   const stored = `${owner}/%2e%2e/x/y.pdf`; // the reviewer's value (path_rule_check.mjs)
   check("(why) once in an address, that stored path leaves the applicant's folder", new URL(`https://p.supabase.co/storage/v1/object/sign/requested-documents/${stored}`).pathname === "/storage/v1/object/sign/requested-documents/x/y.pdf");
-  check("a file in the applicant's own folder is signed", inOwnFolder(`${owner}/req-1/id-1.jpg`, owner) && inOwnFolder(`${owner}/req-1/NBI clearance (1).pdf`, owner));
+  check("a file in the request's own folder is signed", inOwnFolder(`${owner}/req-1/id-1.jpg`, owner, "req-1") && inOwnFolder(`${owner}/req-1/NBI clearance (1).pdf`, owner, "req-1"));
+  // The thirteenth Phase 5 review: an applicant who applied to two
+  // businesses has both businesses' papers in their own folder, so a request
+  // of the second that pointed at the first's ID (its weakenings K7 and K8 of
+  // the database's guard) would have been signed for the second.
+  check("…never another request's file, though it is in the same applicant's folder (the thirteenth Phase 5 review)", !inOwnFolder(`${owner}/req-2/id-1.jpg`, owner, "req-1") && !inOwnFolder(`${owner}/req-1/id-1.jpg`, owner, "req-10") && !inOwnFolder(`${owner}/req-10/id-1.jpg`, owner, "req-1"));
+  check("…nor a file straight in the applicant's folder, the request's folder itself, or with no request named", !inOwnFolder(`${owner}/id-1.jpg`, owner, "req-1") && !inOwnFolder(`${owner}/req-1/`, owner, "req-1") && !inOwnFolder(`${owner}/req-1/id-1.jpg`, owner, "") && !inOwnFolder(`${owner}/req-1/id-1.jpg`, owner, undefined));
   for (const [what, bad] of [
     ["%2e%2e (the reviewer's value)", stored],
-    ["%252e%252e", `${owner}/%252e%252e/x/y.pdf`],
+    // Each of these inside the request's own folder, so it is refused for
+    // what it holds, not for where it starts.
+    ["%2e%2e inside the request's folder", `${owner}/req-1/%2e%2e/%2e%2e/x/y.pdf`],
+    ["%252e%252e", `${owner}/req-1/%252e%252e/x/y.pdf`],
     ["any %", `${owner}/req-1/id%20card.jpg`],
-    ["a backslash", `${owner}/req-1\\x.pdf`],
+    ["a backslash", `${owner}/req-1/..\\x.pdf`],
+    ["a backslash alone", `${owner}/req-1/a\\x.pdf`],
     ["a control character", `${owner}/req-1/id\u0001.jpg`],
     ["a tab", `${owner}/req-1/id\t.jpg`],
-    ["an empty part", `${owner}//id.jpg`],
-    ["a dot part", `${owner}/./id.jpg`],
-    ["..", `${owner}/../x/id.jpg`],
-    ["another folder", `bbbbbbbb-0000-4000-8000-000000000002/id.jpg`],
-    ["a long path", `${owner}/${"x".repeat(1100)}`],
+    ["an empty part", `${owner}/req-1//id.jpg`],
+    ["a dot part", `${owner}/req-1/./id.jpg`],
+    ["..", `${owner}/req-1/../req-2/id.jpg`],
+    ["another folder", `bbbbbbbb-0000-4000-8000-000000000002/req-1/id.jpg`],
+    ["a long path", `${owner}/req-1/${"x".repeat(1100)}`],
     ["no path", null],
-  ]) check(`…but not a path with ${what}`, !inOwnFolder(bad, owner));
+  ]) check(`…but not a path with ${what}`, !inOwnFolder(bad, owner, "req-1"));
   const hook = read("src/cockpit/hooks/useApplicantRequests.ts");
   const panel = read("src/cockpit/components/ApplicantDocumentsPanel.tsx");
   check("the team's screens open files through the function, never the bucket", /functions\.invoke\("requested-document-url"/.test(hook) && !/requested-documents/.test(hook + panel) && !/createSignedUrl/.test(hook + panel));
@@ -180,6 +199,17 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   check("…is told who sees it and when an ID is deleted", /Only the hiring team can see it/.test(dialog) && /idDeletionPromise\("the hiring team"\)/.test(dialog));
   check("…and the team's bell names them, never their email", !/user\.email/.test(dialog));
   check("a file sent again replaces the earlier one", /remove\(\[previous\]\)/.test(dialog));
+  // The thirteenth Phase 5 review (finding 2): the database queues the
+  // earlier file too (launch_locks_behaviour section 20), and a photo that
+  // went up but whose link was not saved stayed in storage with no time limit.
+  check("…only one in this request's own folder", /previous\.startsWith\(`\$\{user\.id\}\/\$\{request\.id\}\/`\)/.test(dialog) && !/previous\.startsWith\(`\$\{user\.id\}\/`\)/.test(dialog));
+  check(
+    "a photo whose link was not saved is removed again, unless the request links it after all",
+    /if \(uploadError\) throw uploadError;\s*uploaded = fileName;/.test(dialog) &&
+      /await updateRequest\.mutateAsync\(\{[\s\S]{0,300}?\}\);\s*linked = true;/.test(dialog) &&
+      /\} catch \(err\) \{\s*console\.error\("Upload error:", err\);\s*if \(uploaded && !linked\) void removeUnlinkedUpload\(uploaded, request\.id\);/.test(dialog) &&
+      /if \(readError \|\| data\?\.file_url === path\) return;\s*await supabase\.storage\.from\("requested-documents"\)\.remove\(\[path\]\);/.test(dialog),
+  );
 }
 
 // --- hiring: one welcome email, never twice (approved 2026-10-10) ------------------

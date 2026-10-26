@@ -560,10 +560,10 @@ export default [
       if (!/import \{ isPlainObjectPath \} from "\.\.\/_shared\/ownDocumentFile\.ts";/.test(paths) || !/if \(!isPlainObjectPath\(path\)\) return null;\s*return path;\s*\}$/.test(from.trim()))
         detail.push("supabase/functions/applicant-file-url/filePaths.ts: storagePathFrom must refuse a path that is not plain (isPlainObjectPath) before it returns one");
       const own = strip(await ctx.read("supabase/functions/requested-document-url/ownFolder.ts"));
-      if (!/import \{ isPlainObjectPath \} from "\.\.\/_shared\/ownDocumentFile\.ts";/.test(own) || !/path\.startsWith\(`\$\{candidateId\}\/`\)[^;]*&& isPlainObjectPath\(path\);/.test(own))
-        detail.push("supabase/functions/requested-document-url/ownFolder.ts: inOwnFolder must hold the path to the applicant's folder and to isPlainObjectPath");
+      if (!/import \{ isPlainObjectPath \} from "\.\.\/_shared\/ownDocumentFile\.ts";/.test(own) || !/path\.startsWith\(`\$\{candidateId\}\/\$\{requestId\}\/`\)[^;]*&& isPlainObjectPath\(path\);/.test(own))
+        detail.push("supabase/functions/requested-document-url/ownFolder.ts: inOwnFolder must hold the path to the request's own folder (<applicant>/<request>/, the thirteenth Phase 5 review) and to isPlainObjectPath");
       const fn = strip(await ctx.read("supabase/functions/requested-document-url/index.ts"));
-      const guard = fn.search(/if \(!inOwnFolder\(request\.file_url, request\.candidate_id\)\) return jsonResponse\(/);
+      const guard = fn.search(/if \(!inOwnFolder\(request\.file_url, request\.candidate_id, request\.id\)\) return jsonResponse\(/);
       if (!/import \{ inOwnFolder \} from "\.\/ownFolder\.ts";/.test(fn) || guard < 0 || guard > fn.search(/\.createSignedUrl\(request\.file_url/)) detail.push("supabase/functions/requested-document-url/index.ts: the stored path must pass ownFolder.ts's inOwnFolder before it is signed");
       // The portfolio review downloads with the service key too (the seventh security review).
       const portfolio = strip(await ctx.read("supabase/functions/ai-analyze-portfolio/index.ts"));

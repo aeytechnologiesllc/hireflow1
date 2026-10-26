@@ -111,7 +111,11 @@ export default [
       // kinds and cutoffs, backs off a note that failed, and tells the admins.
       const fn = code(await read("supabase/functions/document-cleanup/index.ts"));
       if (!/admin\.rpc\("document_requests_due_pick", \{\s*p_kinds: DELETED_KINDS,\s*p_opened_before: openedBefore,\s*p_sent_before: sentBefore,\s*\}\)/.test(fn) || !/const DELETED_KINDS = \["government_id", "nbi_clearance", "proof_of_address"\];/.test(fn)) detail.push("document-cleanup: the due ID papers must be read through document_requests_due_pick, with DELETED_KINDS and the 24-hour and 7-day cutoffs");
-      if (/from\("document_requests"\)\s*\.select\(/.test(fn)) detail.push("document-cleanup: reads the ID papers straight from document_requests, not through the fair pick");
+      // Its one read of document_requests is which of the picked notes'
+      // requests are still open, by their ids (the thirteenth Phase 5 review:
+      // a file sent again is queued while its request stays); never the due papers.
+      const straight = [...fn.matchAll(/from\("document_requests"\)\s*\.select\(/g)].filter((m) => !fn.slice(m.index).startsWith('from("document_requests").select("id, file_url").in("id", requestIds.slice(i, i + IDS_PER_REQUEST));'));
+      if (straight.length) detail.push("document-cleanup: reads the ID papers straight from document_requests, not through the fair pick");
       if (!/admin\.rpc\("document_file_trash_fair_pick"\)/.test(fn) || /from\("document_file_trash"\)\s*\.select\("[^"]*\b(?:file_url|request_id)\b/.test(fn)) detail.push("document-cleanup: the files of deleted requests must be read only through document_file_trash_fair_pick");
       if (!/\.from\("document_file_trash"\)\.update\(\{ attempts: tries \+ 1, last_tried_at: orphanTriedAt \}\)/.test(fn)) detail.push("document-cleanup: a note of a deleted request that storage refused must have its tries counted (it waits out a back-off)");
       if (!/await tell\("deleted-requests-backlog", "Files of deleted requests are backing up",/.test(fn) || !/await tell\("due-backlog", "ID papers are waiting past their time",/.test(fn)) detail.push("document-cleanup: the admins must be told once a day when the deleted requests' files or the due ID papers back up");

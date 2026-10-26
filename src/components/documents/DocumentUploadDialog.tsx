@@ -173,10 +173,35 @@ export function DocumentUploadDialog({
     }
   };
 
+  // A photo that went up but whose link was not saved is removed again, so no
+  // copy of an ID is left in storage that no request points to (the
+  // thirteenth Phase 5 review: it stayed with no time limit, since the
+  // 24-hour rule finds a paper by its link). Only once the request is read
+  // back and does not link it: when the save went through and only its
+  // answer was lost, the request links it and it stays. When even that read
+  // fails, it is left in the request's folder, which goes with the request,
+  // or when the paper sent in its place is deleted (docs/DOCUMENT-REQUESTS.md).
+  const removeUnlinkedUpload = async (path: string, requestId: string) => {
+    try {
+      const { data, error: readError } = await supabase
+        .from("document_requests")
+        .select("file_url")
+        .eq("id", requestId)
+        .maybeSingle();
+      if (readError || data?.file_url === path) return;
+      await supabase.storage.from("requested-documents").remove([path]);
+    } catch (removeError) {
+      console.error("Could not remove an upload whose link was not saved:", removeError);
+    }
+  };
+
   const handleUpload = async () => {
     if (!selectedFile || !request || !user) return;
 
     setError(null);
+    // What went up, and whether the request links it yet.
+    let uploaded: string | null = null;
+    let linked = false;
 
     try {
       // Uploading. The Supabase storage SDK doesn't expose real progress events for
@@ -191,6 +216,7 @@ export function DocumentUploadDialog({
         .upload(fileName, selectedFile);
 
       if (uploadError) throw uploadError;
+      uploaded = fileName;
 
       // Store just the file path (without bucket prefix) for createSignedUrl
       const storagePath = fileName;
@@ -204,10 +230,13 @@ export function DocumentUploadDialog({
         status: "submitted",
         submitted_at: new Date().toISOString(),
       });
+      linked = true;
 
       // Sent again after "please send it again": the earlier file goes, so
-      // no second copy of an ID is left behind (their own folder only).
-      if (previous && previous !== storagePath && previous.startsWith(`${user.id}/`)) {
+      // no second copy of an ID is left behind (this request's own folder
+      // only). The database has queued it for the hourly cleanup as well
+      // (20261025640000), so it goes even when this does not.
+      if (previous && previous !== storagePath && previous.startsWith(`${user.id}/${request.id}/`)) {
         void supabase.storage.from("requested-documents").remove([previous]);
       }
 
@@ -225,6 +254,7 @@ export function DocumentUploadDialog({
       }, 1500);
     } catch (err) {
       console.error("Upload error:", err);
+      if (uploaded && !linked) void removeUnlinkedUpload(uploaded, request.id);
       setError(getErrorMessage(err, "Failed to upload document. Please try again."));
       setPhase("idle");
     }

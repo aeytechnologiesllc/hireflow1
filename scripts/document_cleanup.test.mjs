@@ -42,7 +42,13 @@
  *     long (the twelfth Phase 5 review: dropping the kinds, the
  *     never-marked-sent read or the 7-day read passed every test), one
  *     business's 5,000 never keep a real ID out of the next run, a refused
- *     note waits out a back-off, and both backlogs are told once a day.
+ *     note waits out a back-off, and both backlogs are told once a day;
+ *   - only ever a file in the request's own folder, <applicant>/<request>/:
+ *     a due paper or a queued note pointing at another request's file never
+ *     deletes it (the thirteenth Phase 5 review); a file sent again on a
+ *     request still open (queued by the database, 20261025640000) goes alone,
+ *     never the request's folder or the file it links now; and when it cannot
+ *     tell which requests are open, it touches none and tells the admins.
  *
  * Run with: node scripts/document_cleanup.test.mjs
  */
@@ -102,6 +108,8 @@ function freshWorld() {
     storage: { "requested-documents": new Set(), videos: new Set(), portfolios: new Set(), resumes: new Set(), "voice-interview-recordings": new Set(), documents: new Set() },
     refuseRemove: new Set(),
     refuseAll: false,
+    // Tables whose reads fail (a select), for a failed read.
+    failRead: new Set(),
     removeCalls: [],
     claims: new Set(),
     // storage_file_trash_served: when the pick last took each person, by kind of note.
@@ -251,6 +259,7 @@ function query(table) {
       world.tables[table] = world.tables[table].filter((r) => !gone.has(r));
       return { data: null, error: null };
     }
+    if (world.failRead.has(table)) return { data: null, error: { message: `stand-in: could not read ${table}` } };
     let out = rows();
     for (const [col, ascending] of [...orders].reverse()) out = [...out].sort((a, b) => (ascending ? 1 : -1) * (a[col] < b[col] ? -1 : a[col] > b[col] ? 1 : 0));
     if (countOnly) return { data: null, count: out.length, error: null };
@@ -634,6 +643,73 @@ console.log("\nThe papers of deleted requests, one business's flood (the twelfth
   });
   await runIt();
   check("a queue a run clears is no backlog", told("Files of deleted requests are backing up") === 0 && world.tables.document_file_trash.length === 0);
+}
+
+console.log("\nOnly the request's own folder, and a paper sent again (the thirteenth Phase 5 review)\n");
+{
+  // The applicant's own folder holds every business's papers for them: an
+  // applicant of two businesses has the first's ID in it. The checks were
+  // "in the applicant's folder", so one slip in the database's guard (the
+  // review's K7 or K8: a request pointing at another request's file) would
+  // have deleted the first business's copy through the second's request.
+  const BIZ = id(51);
+  const OTHER_BIZ = id(52);
+  const ID_REQ = id(53); // BIZ's ID request, still open
+  const POINTER = id(54); // OTHER_BIZ's request, pointing at BIZ's copy
+  const GONE = id(55); // a deleted request whose note points at BIZ's copy
+  const idFile = `${ANA}/${ID_REQ}/1729000000000.jpg`;
+  const open = (extra) => ({ candidate_id: ANA, document_type: "government_id", status: "submitted", submitted_at: hoursAgo(30), created_at: hoursAgo(40), ...extra });
+  reset((w) => {
+    w.tables.document_requests.push(
+      open({ id: ID_REQ, employer_id: BIZ, file_url: idFile, team_opened_at: hoursAgo(1) }),
+      open({ id: POINTER, employer_id: OTHER_BIZ, file_url: idFile, team_opened_at: hoursAgo(25) }),
+    );
+    w.tables.document_file_trash.push({ id: "pointer", candidate_id: ANA, employer_id: OTHER_BIZ, request_id: GONE, file_url: idFile, attempts: 0, last_tried_at: null, queued_at: hoursAgo(1) });
+    for (const p of [idFile, `${ANA}/${GONE}/1729000000000.jpg`]) w.storage["requested-documents"].add(p);
+  });
+  const r = await runIt();
+  check("a due paper whose link is another request's file never deletes it (it is counted as not deleted, and the admins are told)", world.storage["requested-documents"].has(idFile) && r.body?.failed === 1 && told("ID papers were not deleted on time") === 1, show(r.body));
+  check("…nor does a deleted request's note that points at it, while its own folder still goes", world.storage["requested-documents"].has(idFile) && !world.storage["requested-documents"].has(`${ANA}/${GONE}/1729000000000.jpg`) && !world.tables.document_file_trash.some((t) => t.id === "pointer"), show([...world.storage["requested-documents"]]));
+  check("…and the first business's request keeps its link", world.tables.document_requests.find((q) => q.id === ID_REQ).file_url === idFile);
+
+  // A paper sent again on a request still open: the database queued the
+  // earlier file (document_requests_guard_update, 20261025640000). Only that
+  // file goes; the copy sent in its place, in the same folder, stays.
+  const RESENT = id(56);
+  const earlier = `${ANA}/${RESENT}/1729000000000.jpg`;
+  const now = `${ANA}/${RESENT}/1729000000001.jpg`;
+  const alsoThere = `${ANA}/${RESENT}/1729000000002.jpg`;
+  reset((w) => {
+    w.tables.document_requests.push(open({ id: RESENT, employer_id: BIZ, file_url: now, team_opened_at: null, submitted_at: hoursAgo(0.5) }));
+    w.tables.document_file_trash.push({ id: "earlier", candidate_id: ANA, employer_id: BIZ, request_id: RESENT, file_url: earlier, attempts: 0, last_tried_at: null, queued_at: hoursAgo(0.5) });
+    for (const p of [earlier, now, alsoThere]) w.storage["requested-documents"].add(p);
+  });
+  const resent = await runIt();
+  check("a file sent again goes in the next run, and its note with it", resent.status === 200 && !world.storage["requested-documents"].has(earlier) && world.tables.document_file_trash.length === 0 && resent.body?.orphans === 1, show(resent.body));
+  check("…never the copy sent in its place, nor anything else in that request's folder", world.storage["requested-documents"].has(now) && world.storage["requested-documents"].has(alsoThere) && world.tables.document_requests.find((q) => q.id === RESENT).file_url === now, show([...world.storage["requested-documents"]]));
+
+  // Sent again, and the applicant linked the earlier file once more: it is
+  // the request's file now, so it stays; the note goes.
+  reset((w) => {
+    w.tables.document_requests.push(open({ id: RESENT, employer_id: BIZ, file_url: earlier, team_opened_at: null }));
+    w.tables.document_file_trash.push({ id: "relinked", candidate_id: ANA, employer_id: BIZ, request_id: RESENT, file_url: earlier, attempts: 0, last_tried_at: null, queued_at: hoursAgo(0.5) });
+    w.storage["requested-documents"].add(earlier);
+  });
+  await runIt();
+  check("a queued file the request links again stays, and its note goes", world.storage["requested-documents"].has(earlier) && world.tables.document_file_trash.length === 0);
+
+  // Not knowing which requests are still open, none of the notes is touched
+  // (a folder swept for an open request would take the copy sent in its
+  // place), and the admins are told the list could not be read.
+  reset((w) => {
+    w.tables.document_requests.push(open({ id: RESENT, employer_id: BIZ, file_url: now }));
+    w.tables.document_file_trash.push({ id: "earlier", candidate_id: ANA, employer_id: BIZ, request_id: RESENT, file_url: earlier, attempts: 0, last_tried_at: null, queued_at: hoursAgo(0.5) });
+    for (const p of [earlier, now]) w.storage["requested-documents"].add(p);
+    w.failRead.add("document_requests");
+  });
+  const blind = await runIt();
+  check("when it cannot read which requests are open, it deletes nothing of the queue and keeps every note as it was", world.storage["requested-documents"].has(now) && world.storage["requested-documents"].has(earlier) && world.tables.document_file_trash.length === 1 && world.tables.document_file_trash[0].attempts === 0, show(blind.body));
+  check("…answers as a failed read, and the admins are told", blind.status === 500 && blind.body?.error === "read_failed" && told("Files of deleted requests are not being deleted") === 1, show(blind));
 }
 
 globalThis.fetch = realFetch;

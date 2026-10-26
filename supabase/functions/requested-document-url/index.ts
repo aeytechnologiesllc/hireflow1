@@ -18,7 +18,9 @@
  * RPC error denies.
  *
  * What is signed: only that request's own file_url, and only when it sits in
- * that applicant's folder with every part a plain name (ownFolder.ts; the
+ * that request's own folder (<applicant id>/<request id>/, since the
+ * thirteenth Phase 5 review; it was the applicant's folder, which holds every
+ * business's papers for them) with every part a plain name (ownFolder.ts; the
  * database's guard already refuses anything else; this checks again). A path
  * that is not gets the same answer as no file. A deleted file answers 410.
  *
@@ -101,7 +103,7 @@ Deno.serve(async (req) => {
     }
 
     if (request.file_deleted_at && !request.file_url) return jsonResponse({ error: "This file has been deleted. Ask for it again if you need it." }, 410);
-    if (!inOwnFolder(request.file_url, request.candidate_id)) return jsonResponse({ error: "Nothing has been sent for this request" }, 404);
+    if (!inOwnFolder(request.file_url, request.candidate_id, request.id)) return jsonResponse({ error: "Nothing has been sent for this request" }, 404);
 
     const download = body?.download === true;
     const { data: signed, error: signError } = await admin.storage

@@ -336,6 +336,28 @@ these either; each has a guard or a test that CI runs:
   (17: removal and withdrawal rules after every migration),
   `scripts/document_cleanup.test.mjs`, `scripts/delete_account.test.mjs`;
   remove_applicant.pglite tests the latest definition.
+- (The thirteenth Phase 5 review, `20261025640000`.) The rules that decide
+  when an ID is deleted and which file a request may point to are held
+  against every migration (launch_locks_behaviour section 19): no client
+  moves `team_opened_at`, `submitted_at` (the hiring side), `created_at` or
+  `file_deleted_at`, or changes whom a request is for or what was asked; the
+  hiring side never touches the file; a new file restarts its clock; a new
+  request starts with no file, unopened, for its application's applicant.
+  Nine one-line weakenings (K1 to K9) had passed every test; with two of them
+  another business could open an applicant's ID. The service-key code takes
+  only a file in that request's own folder, `<applicant>/<request>/`
+  (`inOwnFolder(path, candidate, request)` in requested-document-url, both
+  checks in document-cleanup), not anywhere in the applicant's folder. A paper
+  sent again (or taken back) has its earlier file queued in
+  `document_file_trash` by `document_requests_guard_update` itself (where
+  storage holds it, naming the business, 50 a day for one applicant), and
+  document-cleanup deletes, for a request still open, only that file, never
+  its folder or the file it links now. The upload dialog removes a photo whose
+  link failed to save. Left (docs/DOCUMENT-REQUESTS.md): a photo whose link
+  save and removal both failed, on a request still open, has no timer until
+  `document_requests_due_pick` also takes an ID request with no link whose
+  folder holds something. Section 20, `scripts/document_cleanup.test.mjs`,
+  `scripts/requested_document_url.test.mjs` (the real function).
 - When a day's AI budget is reached, applicants are told to come back later
   today or tomorrow (`wait: "long"`, `aiUnavailableExtra`), never "a couple
   of minutes"; a refused step stays open (chat, interview, sales), and a

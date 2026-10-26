@@ -115,6 +115,21 @@
  *      only; a paper named under "Something else" goes with its application;
  *      an applicant withdraws only while nobody has decided and nothing is
  *      signed.
+ *  19. Who may move an ID paper's clock, and which file a request may point
+ *      to, after every migration (the thirteenth Phase 5 review, finding 1:
+ *      its weakenings K1 to K9 of the two guards passed every test): no
+ *      client changes when the team first opened it, when it was sent or
+ *      asked for, that its file was deleted, whom it is for or what was
+ *      asked; the hiring side never changes the file or the answer; a new
+ *      file starts its own clock; a new request starts empty, unopened, for
+ *      its application's applicant; another business cannot point a request
+ *      at a first business's copy of an ID (probes p2 and p3), and
+ *      requested-document-url signs only a file in its request's own folder.
+ *  20. A paper sent again, or taken back: the database queues the earlier
+ *      file for document-cleanup (the thirteenth Phase 5 review, finding 2;
+ *      20261025640000), only where storage holds it, naming its business, at
+ *      most 50 a day for one applicant; never from the hiring side or the
+ *      server.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -1782,6 +1797,214 @@ console.log("\n17. What a removal or a withdrawal keeps, and what it takes\n");
   for (const status of ["in_progress", "pending", "reviewing"]) check(`an applicant may withdraw an application at "${status}"`, await withdraws(status));
   for (const status of ["interview", "offered", "hired", "rejected"]) check(`…never one at "${status}": the interview, offer and decision are the business's record too (S11)`, !(await withdraws(status)));
   check("…nor one with a document they signed, though nobody decided yet (S10)", !(await withdraws("reviewing", true)));
+}
+
+// The papers' own people for sections 19 and 20 (an id range of their own).
+const P13 = (n) => `9d130000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+const ID_KINDS = `array['government_id', 'nbi_clearance', 'proof_of_address']`;
+const duePapers = async () => {
+  const r = await as(SERVICE, `select id from public.document_requests_due_pick(${ID_KINDS}, now() - interval '24 hours', now() - interval '7 days')`);
+  if (!r.ok) throw new Error(`the due pick: ${r.error}`);
+  return new Set(r.rows.map((x) => x.id));
+};
+const paperRow = (request) => one(`select * from public.document_requests where id = $1`, [request]);
+const sameValue = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+// ---------------------------------------------------------------------------
+console.log("\n19. Who may move an ID paper's clock, and which file a request may point to\n");
+{
+  // The thirteenth Phase 5 review (finding 1): of document_requests_guard_update
+  // only its link clause was held against its latest definition (section 16),
+  // and document_requests_guard_insert was tested only by
+  // document_requests.pglite on three fixed files. Nine weakenings, one line
+  // each, passed every test (K1 to K9); with K7 or K8 another business could
+  // open an applicant's ID (probes p2 and p3), with K1 the business kept an
+  // opened ID for good. Every migration is applied here, so each now fails a
+  // check below.
+  const { inOwnFolder } = await import("../supabase/functions/requested-document-url/ownFolder.ts");
+  const A = P13(1); // applied to BIZ and to STRANGER
+  const OTHER = P13(2); // another applicant of BIZ's
+  for (const u of [A, OTHER]) await makeUser(u, "candidate");
+  const appBiz = await apply(A, JOB);
+  const appOther = await apply(OTHER, JOB);
+  const SJOB = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Phone support agent', 'Answer calls.', 'published') returning id`, [STRANGER])).id;
+  const appStranger = await apply(A, SJOB);
+  const ask = async (business, application, candidate, type = "government_id") => {
+    const r = await as(user(business), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, custom_document_name) values ($1, $2, $3, $4, case when $4 = 'custom' then 'Anything' end) returning id`, [application, business, candidate, type]);
+    if (!r.ok) throw new Error(`setup: ${business} could not ask: ${r.error}`);
+    return r.rows[0].id;
+  };
+  const send = async (who, request, file) => {
+    await putFile("requested-documents", file);
+    const r = await as(user(who), `update public.document_requests set file_url = $2, file_name = 'ID.jpg', status = 'submitted' where id = $1 returning id`, [request, file]);
+    if (!r.ok || r.rows.length !== 1) throw new Error(`setup: the paper could not be sent: ${show(r)}`);
+  };
+  // BIZ asks A for their ID, A sends it, and the team opened it 25 hours ago
+  // (requested-document-url stamps the first opening, as the server).
+  const rid = await ask(BIZ, appBiz, A);
+  const first = `${A}/${rid}/1729000000000.jpg`;
+  await send(A, rid, first);
+  await as(SERVICE, `update public.document_requests set team_opened_at = now() - interval '25 hours' where id = $1`, [rid]);
+  check("(set-up) an ID opened 25 hours ago is due for deletion", (await duePapers()).has(rid));
+
+  // (a) What the hiring side may not change. Each try also changes the
+  // request's note, which the hiring side may, so the update goes through.
+  const before = await paperRow(rid);
+  const hiringTries = [
+    ["when the team first opened it, to never (the review's K1)", "team_opened_at", "2999-01-01T00:00:00Z"],
+    ["when the team first opened it, back to unopened (K1: that would start its 24 hours again)", "team_opened_at", null],
+    ["when it was sent (K2: the 7 days of a paper nobody opened)", "submitted_at", new Date(Date.now() + 30 * 86_400_000).toISOString()],
+    ["when it was asked for (K4: the 7 days of a paper never marked sent)", "created_at", "2999-01-01T00:00:00Z"],
+    ["that its file was deleted, while it is there (K5)", "file_deleted_at", new Date().toISOString()],
+    ["which file it holds (K8)", "file_url", `${A}/${rid}/1729000000009.jpg`],
+    ["whom it is for (K9)", "candidate_id", OTHER],
+    ["which application it is on", "application_id", appOther],
+    ["which business asked", "employer_id", STRANGER],
+    ["what was asked", "document_type", "custom"],
+    ["the name of the file sent", "file_name", "forged.jpg"],
+    ["the answer typed", "answer_text", "000-000-000"],
+  ];
+  let note = 0;
+  for (const [what, column, value] of hiringTries) {
+    note += 1;
+    const r = await as(user(BIZ), `update public.document_requests set description = $2, ${column} = $3 where id = $1 returning id`, [rid, `Note ${note}`, value]);
+    const after = await paperRow(rid);
+    check(`the hiring side cannot change ${what}`, r.ok && r.rows.length === 1 && after.description === `Note ${note}` && sameValue(after[column], before[column]), show({ r: r.error, was: before[column], now: after[column] }));
+    if (column === "team_opened_at" && value !== null) check("…so the ID it opened 25 hours ago is still due (the review's p2: the pick no longer took it)", (await duePapers()).has(rid));
+  }
+  // (b) The same columns are the database's on the applicant's side too.
+  const applicantTries = [
+    ["when the team first opened it, back to unopened (K1)", "team_opened_at", null],
+    ["when it was asked for (K4)", "created_at", "2999-01-01T00:00:00Z"],
+    ["that its file was deleted (K5)", "file_deleted_at", new Date().toISOString()],
+    ["which business asked", "employer_id", STRANGER],
+    ["what was asked", "document_type", "custom"],
+  ];
+  for (const [what, column, value] of applicantTries) {
+    note += 1;
+    const r = await as(user(A), `update public.document_requests set file_name = $2, ${column} = $3 where id = $1 returning id`, [rid, `ID ${note}.jpg`, value]);
+    const after = await paperRow(rid);
+    check(`the applicant cannot change ${what}`, r.ok && r.rows.length === 1 && after.file_name === `ID ${note}.jpg` && sameValue(after[column], before[column]), show({ r: r.error, was: before[column], now: after[column] }));
+  }
+  const moveAway = await as(user(A), `update public.document_requests set candidate_id = $2 where id = $1 returning id`, [rid, OTHER]);
+  check("…nor give the request to someone else (K9)", (await paperRow(rid)).candidate_id === A, show(moveAway));
+
+  // (c) A new file starts its own clock (K3): the team asks again, the
+  // applicant sends a new photo, and the earlier opening no longer counts.
+  const asked = await as(user(BIZ), `update public.document_requests set status = 'rejected', rejection_reason = 'The photo is blurry' where id = $1 returning id`, [rid]);
+  if (!asked.ok) throw new Error(`setup: ask again: ${asked.error}`);
+  const second = `${A}/${rid}/1729000000001.jpg`;
+  await send(A, rid, second);
+  const resent = await paperRow(rid);
+  check("a paper sent again is not yet opened (K3: it kept the first copy's opening, and went before the team saw it)", resent.file_url === second && resent.team_opened_at === null && Date.now() - new Date(resent.submitted_at).getTime() < 60_000, show(resent));
+  check("…so it is not due for deletion", !(await duePapers()).has(rid));
+  // Once document-cleanup has deleted a file, a new one clears that too.
+  await as(SERVICE, `update public.document_requests set file_url = null, file_deleted_at = now(), status = 'rejected' where id = $1`, [rid]);
+  const third = `${A}/${rid}/1729000000002.jpg`;
+  await send(A, rid, third);
+  const again = await paperRow(rid);
+  check("…and one sent after the cleanup deleted the last is not marked deleted", again.file_url === third && again.file_deleted_at === null && again.team_opened_at === null, show(again));
+
+  // (d) A new request starts empty and unopened, for its application's
+  // applicant, filed under the job's owner (document_requests_guard_insert).
+  const forged = await as(user(BIZ), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, status, file_url, file_name, answer_text, submitted_at, team_opened_at, file_deleted_at, reviewed_at, reviewed_by, rejection_reason, candidate_viewed_at)
+    values ($1, $2, $3, 'government_id', 'approved', $4, 'ID.jpg', '123', now() - interval '8 days', now() - interval '25 hours', now(), now(), $5, 'No', now()) returning id`, [appBiz, STRANGER, OTHER, third, BIZ]);
+  const born = forged.ok ? await paperRow(forged.rows[0].id) : null;
+  check("(set-up) the hiring side's request with every field filled in goes in", !!born, show(forged));
+  for (const [what, ok] of [
+    ["with no file the business chose (K7: it could carry another request's photo)", born?.file_url === null && born?.file_name === null],
+    ["not yet opened (K6: its 24 hours would start before anyone opened it)", born?.team_opened_at === null],
+    ["not marked deleted, sent, answered, seen or reviewed", born?.file_deleted_at === null && born?.submitted_at === null && born?.answer_text === null && born?.candidate_viewed_at === null && born?.reviewed_at === null && born?.reviewed_by === null && born?.rejection_reason === null],
+    ["waiting for the applicant", born?.status === "pending"],
+    ["for the application's own applicant, never another (it named another applicant of the business's)", born?.candidate_id === A],
+    ["filed under the job's owner (it named another business)", born?.employer_id === BIZ],
+  ]) check(`a new request starts ${what}`, ok, show(born));
+  if (born) await as(SERVICE, `delete from public.document_requests where id = $1`, [born.id]);
+
+  // (e) The review's proof (probes p2 and p3): another business that A also
+  // applied to tries to point a request of its own at BIZ's copy of A's ID.
+  const k7 = await as(user(STRANGER), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type, custom_document_name, file_url, file_name) values ($1, $2, $3, 'custom', 'Anything', $4, 'ID.jpg') returning id, file_url`, [appStranger, STRANGER, A, third]);
+  check("another business cannot make a request carrying the first business's copy of the ID (K7, probe p2)", k7.ok && (await paperRow(k7.rows[0].id)).file_url === null, show(k7));
+  const ridS = await ask(STRANGER, appStranger, A, "custom");
+  const k8 = await as(user(STRANGER), `update public.document_requests set file_url = $2 where id = $1 returning id`, [ridS, third]);
+  check("…nor point a request of its own at it (K8, probe p3)", (await paperRow(ridS)).file_url === null, show(k8));
+  check("…and requested-document-url signs a file only in its request's own folder, so it would not sign it for that business either", inOwnFolder(third, A, rid) && !inOwnFolder(third, A, ridS) && !inOwnFolder(third, A, k7.rows?.[0]?.id ?? ridS));
+  for (const r of [k7.rows?.[0]?.id, ridS].filter(Boolean)) await as(SERVICE, `delete from public.document_requests where id = $1`, [r]);
+  await db.query(`delete from public.document_file_trash`);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n20. A paper sent again, or taken back: the database queues the earlier file\n");
+{
+  // The thirteenth Phase 5 review (finding 2): the upload dialog deleted the
+  // earlier file itself, fire-and-forget, after saving the new link. When
+  // that delete did not go through, an ID the team had already opened stayed
+  // until the new copy's own deadline (probe p1 D: 25 hours after the team
+  // opened the first copy, nothing was due). document_requests_guard_update
+  // queues it now (20261025640000), and document_file_trash_fair_pick takes
+  // it in the next run.
+  await db.query(`delete from public.document_file_trash`);
+  const B = P13(10);
+  await makeUser(B, "candidate");
+  const app = await apply(B, JOB);
+  const asked = await as(user(BIZ), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'government_id') returning id`, [app, BIZ, B]);
+  const rid = asked.rows[0].id;
+  const link = (file) => as(user(B), `update public.document_requests set file_url = $2, file_name = 'ID.jpg', status = 'submitted' where id = $1 returning id`, [rid, file]);
+  const notesOf = async (request) => (await db.query(`select candidate_id, request_id, file_url, employer_id from public.document_file_trash where request_id = $1 order by queued_at, file_url`, [request])).rows;
+  const f = (n) => `${B}/${rid}/17290000000${String(n).padStart(2, "0")}.jpg`;
+  await putFile("requested-documents", f(0));
+  await link(f(0));
+  check("a paper sent for the first time queues nothing", (await notesOf(rid)).length === 0);
+  await as(SERVICE, `update public.document_requests set team_opened_at = now() - interval '25 hours' where id = $1`, [rid]);
+  await as(user(BIZ), `update public.document_requests set status = 'rejected', rejection_reason = 'The photo is blurry' where id = $1`, [rid]);
+  await putFile("requested-documents", f(1));
+  const resent = await link(f(1));
+  const queued = await notesOf(rid);
+  check("sent again, the earlier file is queued for document-cleanup, naming the applicant and the business that asked", resent.ok && queued.length === 1 && queued[0].file_url === f(0) && queued[0].candidate_id === B && queued[0].employer_id === BIZ, show({ resent: resent.error, queued }));
+  const picked = await as(SERVICE, `select request_id, file_url from public.document_file_trash_fair_pick()`);
+  check("…and document_file_trash_fair_pick gives it to the next run, as it does a deleted request's", picked.ok && picked.rows.some((n) => n.request_id === rid && n.file_url === f(0)), show(picked));
+  await db.query(`delete from public.document_file_trash`);
+  // A file storage no longer holds (the dialog's own delete went first) leaves no note.
+  await db.query(`delete from storage.objects where bucket_id = 'requested-documents' and name = $1`, [f(1)]);
+  await putFile("requested-documents", f(2));
+  await link(f(2));
+  check("a file storage no longer holds leaves no note", (await notesOf(rid)).length === 0, show(await notesOf(rid)));
+  // A link the database refuses queues nothing (the update never happens).
+  const refused = await link(`${B}/${rid}/never-uploaded.jpg`);
+  check("a link the database refuses queues nothing", !refused.ok && (await notesOf(rid)).length === 0 && (await paperRow(rid)).file_url === f(2), show(refused));
+  // Taken back: the applicant clears the link.
+  const cleared = await as(user(B), `update public.document_requests set file_url = null where id = $1 returning id`, [rid]);
+  check("a paper taken back (its link cleared) queues its file too", cleared.ok && JSON.stringify((await notesOf(rid)).map((n) => n.file_url)) === JSON.stringify([f(2)]), show({ cleared: cleared.error, notes: await notesOf(rid) }));
+  await db.query(`delete from public.document_file_trash`);
+  // The server clearing a link it deleted (document-cleanup) queues nothing;
+  // the hiring side cannot change the link, so neither does it.
+  await putFile("requested-documents", f(3));
+  await link(f(3));
+  await as(user(BIZ), `update public.document_requests set file_url = null, description = 'Thanks' where id = $1`, [rid]);
+  check("the hiring side's update queues nothing (it cannot touch the link)", (await notesOf(rid)).length === 0 && (await paperRow(rid)).file_url === f(3));
+  await as(SERVICE, `update public.document_requests set file_url = null, file_deleted_at = now() where id = $1`, [rid]);
+  check("…nor does document-cleanup's own clearing, once it deleted the file", (await notesOf(rid)).length === 0);
+
+  // At most 50 a day for one applicant: one account sending a paper again in
+  // a loop cannot fill its business's turn in that queue. Every send still
+  // goes through. The limit counts by UTC day: a run that crosses midnight is
+  // not counted.
+  const LOOP = P13(11);
+  await makeUser(LOOP, "candidate");
+  const loopApp = await apply(LOOP, JOB);
+  const loopRid = (await as(user(BIZ), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'government_id') returning id`, [loopApp, BIZ, LOOP])).rows[0].id;
+  const day = () => new Date().toISOString().slice(0, 10);
+  const startedOn = day();
+  let sends = 0;
+  for (let n = 0; n <= 55; n += 1) {
+    const file = `${LOOP}/${loopRid}/${1729000000000 + n}.jpg`;
+    await putFile("requested-documents", file);
+    const r = await as(user(LOOP), `update public.document_requests set file_url = $2, status = 'submitted' where id = $1 returning id`, [loopRid, file]);
+    if (r.ok && r.rows.length === 1) sends += 1;
+  }
+  const loopNotes = (await notesOf(loopRid)).length;
+  check("one applicant sending a paper again 55 times: every send goes in, 50 earlier files are queued that day", day() !== startedOn || (sends === 56 && loopNotes === 50), show({ sends, loopNotes }));
+  await db.query(`delete from public.document_file_trash`);
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
