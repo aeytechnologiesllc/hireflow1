@@ -17,9 +17,12 @@
 //
 // It also empties the files queued for removal (storage_file_trash): those
 // "Delete their information" could not delete at the time (remove-applicant),
-// and every deleted application's recordings, video introduction and work
-// samples (a withdrawal, Delete Account, a deleted job; the database's own
-// applications_queue_voice_recordings trigger).
+// and a deleted application's recordings, video introduction, work samples
+// and the files sent with its form, where storage holds them (a withdrawal,
+// Delete Account, a deleted job; the database's own
+// applications_queue_voice_recordings trigger). When the queue backs up (a
+// run's worth still waiting, or a note waiting over three hours), the
+// platform admins are told once a day.
 //
 // Called every hour by the database's own scheduler (pg_cron, the
 // `document-cleanup` job), never by a browser. The job sends a secret it reads
@@ -36,6 +39,10 @@ const DAYS_UNOPENED = 7;
 const BUCKET = "requested-documents";
 /** The buckets an applicant's removal may leave a file in (storage_file_trash's own check). */
 const REMOVAL_BUCKETS = new Set(["videos", "portfolios", "resumes", "voice-interview-recordings", "documents"]);
+/** Notes of the removal queue taken each run (every hour). */
+const LEFTOVERS_PER_RUN = 200;
+/** A note never tried after this long means the queue is backed up (it is taken oldest first, every hour). */
+const BACKLOG_HOURS = 3;
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
@@ -132,7 +139,7 @@ Deno.serve(async (req) => {
     // Fewest tries first, so notes that keep failing never hold up new ones.
     .order("attempts", { ascending: true })
     .order("queued_at", { ascending: true })
-    .limit(200);
+    .limit(LEFTOVERS_PER_RUN);
   if (leftoverError) console.error("[document-cleanup] could not read the removal queue:", leftoverError.message);
   let leftoversRemoved = 0;
   let leftoversFailed = 0;
@@ -165,6 +172,23 @@ Deno.serve(async (req) => {
     }
     await admin.from("storage_file_trash").delete().eq("id", note.id);
     leftoversRemoved += 1;
+  }
+  // What is still waiting, never tried, after this run: the queue is backed
+  // up when a whole run's worth is, or when one note has waited more than
+  // BACKLOG_HOURS (the eleventh Phase 5 review: one account looping "start
+  // an application, withdraw it" filled the queue far faster than 200 an
+  // hour, every real removal waited behind it, and nobody was told, since
+  // only failures were).
+  let leftoversWaiting: number | null = null;
+  let oldestWaiting: string | null = null;
+  if (!leftoverError) {
+    const { count, error: countError } = await admin.from("storage_file_trash").select("id", { count: "exact", head: true }).eq("attempts", 0);
+    const { data: oldest, error: oldestError } = await admin.from("storage_file_trash").select("queued_at").eq("attempts", 0).order("queued_at", { ascending: true }).limit(1);
+    if (countError || oldestError) console.error("[document-cleanup] could not count the removal queue:", (countError ?? oldestError)?.message);
+    else {
+      leftoversWaiting = count ?? 0;
+      oldestWaiting = typeof oldest?.[0]?.queued_at === "string" ? oldest[0].queued_at : null;
+    }
   }
   // A failed read of the ID papers still answers as a failure (after the
   // queues ran), so a lasting error shows in the scheduler's history instead
@@ -221,6 +245,10 @@ Deno.serve(async (req) => {
   if (leftoversFailed > 0) {
     await tell("leftovers", "Files queued for removal are not all deleted", `document-cleanup could not delete ${leftoversFailed} file${leftoversFailed === 1 ? "" : "s"} queued for removal (from "Delete their information", a withdrawal, Delete Account or a deleted job; see its logs). It tries again every hour.`);
   }
-  if (unread.length > 0) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed }, 500);
-  return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed });
+  const waitedTooLong = oldestWaiting !== null && Date.now() - Date.parse(oldestWaiting) > BACKLOG_HOURS * 3_600_000;
+  if (leftoversWaiting !== null && (leftoversWaiting >= LEFTOVERS_PER_RUN || waitedTooLong)) {
+    await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes ${LEFTOVERS_PER_RUN} an hour, oldest first. If one account is filling it, its folder shows in the queue.`);
+  }
+  if (unread.length > 0) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversWaiting }, 500);
+  return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversWaiting });
 });

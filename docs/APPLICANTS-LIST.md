@@ -716,7 +716,15 @@ kept in the deletion record only):
   first version deleted whatever it named, another business's signed copy
   included (the Phase 5 review; `20261025180000`). A file that cannot be
   deleted at once is queued in `storage_file_trash` and retried every hour by
-  `document-cleanup`; the page says so.
+  `document-cleanup`; the page says so. The database queues the same files
+  itself as the application goes, where storage holds them
+  (`applications_queue_voice_recordings`; the form's files too since
+  `20261025540000`), so a withdrawal and a deleted job take them as well.
+- It is the only way a business deletes an application: the two old policies
+  that let the owner or a teammate delete one straight through the API (no
+  record of who, the signed copies and form files left with nothing pointing
+  at them) are dropped (`20261025550000`, the eleventh Phase 5 review). The
+  applicant's own withdrawal and a deleted job's cascade are unchanged.
 - **Stays:** their messages (their conversation too; they lose the link to
   the application), the signing audit log (it cannot be changed, by design;
   it loses the link to the document; the confirm says so), the original file
@@ -729,6 +737,9 @@ kept in the deletion record only):
   blocked applicant's only application left it stored with nothing that
   could show or lift it. Not the same as Remove and block: that hides and blocks
   without deleting anything.
-- Proof: `scripts/remove_applicant.pglite.test.mjs`; guard
-  `applicant-data-can-be-removed`.
+- Proof: `scripts/remove_applicant.pglite.test.mjs`; the function itself
+  against a stand-in, `scripts/remove_applicant_function.test.mjs`; every
+  migration replayed, `scripts/launch_locks_behaviour.pglite.test.mjs`
+  (sections 1, 2, 11 and 13: the files queued, a teammate's scope, a
+  business's direct delete refused); guard `applicant-data-can-be-removed`.
 

@@ -31,6 +31,10 @@
  *   - the pages: isServiceDelay recognises it, and a page still on the
  *     previous build reads the same answer as "not saved" (it gives the text
  *     back to the box) for a message, and as an ordinary error for a send;
+ *   - a day's budget used up (the eleventh Phase 5 review): the answer is
+ *     "come back later today or tomorrow" (wait: "long", Retry-After to
+ *     midnight UTC), never a short wait, and the database's explicit "no"
+ *     stops the call before anything goes to OpenAI;
  *   - the reply time the chat practice measures takes off the time the
  *     server held a new reply while the model took it (typing.ts).
  *
@@ -47,7 +51,7 @@ import { build } from "esbuild";
 import * as O from "../supabase/functions/_shared/openai.ts";
 import { DEFAULT_HEADER_TIMEOUT_MS, streamOpenAIChatCompletion } from "../supabase/functions/_shared/openaiStreaming.ts";
 import { replyTypingRows, modelWaitMs } from "../supabase/functions/ai-chat-simulation/typing.ts";
-import { SERVICE_DELAY_LINE, ServiceDelayError, isServiceDelay } from "../src/lib/serviceDelay.ts";
+import { SERVICE_DELAY_LINE, SERVICE_DELAY_LONG_LINE, ServiceDelayError, isServiceDelay } from "../src/lib/serviceDelay.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -332,6 +336,42 @@ async function main() {
   });
   await new Promise((resolve) => setTimeout(resolve, 80));
   check("a reply whose body outlasts the header wait is never cut off by it", slowText === null && calls.length === 1 && calls[0].init.signal.aborted === false, `${slowText?.message ?? ""} aborted=${calls[0]?.init.signal.aborted}`);
+
+  // =========================================================================
+  console.log("\nWhen a day's budget is used up:\n");
+  // The eleventh Phase 5 review: answering a budget refusal with a short wait
+  // ({ wait: "short", retryAfterSeconds: 60 }), or aiBudget.ts ignoring the
+  // database's explicit "no", passed every test. The day lasts until
+  // midnight UTC, so the applicant is asked to come back later today or
+  // tomorrow, never in a couple of minutes.
+  {
+    const noon = Date.parse("2026-10-25T12:00:00.000Z");
+    const refusal = new O.AiUnavailableError("budget_reached", "The daily AI budget is used up", null);
+    const extra = O.aiUnavailableExtra(refusal, noon);
+    check("a budget refusal asks the applicant to come back later today or tomorrow (wait: long)", extra.wait === "long" && extra.message === SERVICE_DELAY_LONG_LINE && /later today or tomorrow/.test(extra.message), JSON.stringify(extra));
+    check("…never a short wait or \"a couple of minutes\"", extra.wait !== "short" && !/couple of minutes/.test(String(extra.message)));
+    check("…and to retry only when the day starts again at midnight UTC (12 hours after noon)", extra.retryAfterSeconds === 43_200, String(extra.retryAfterSeconds));
+    check("…at least a minute just before midnight", O.aiUnavailableExtra(refusal, Date.parse("2026-10-25T23:59:59.500Z")).retryAfterSeconds === 60);
+    const longResponse = O.aiUnavailableResponse({}, extra);
+    const longBody = await longResponse.json();
+    check("the 503 carries it: Retry-After to midnight, wait long, the long line", longResponse.status === 503 && longResponse.headers.get("Retry-After") === "43200" && longBody.wait === "long" && longBody.message === SERVICE_DELAY_LONG_LINE);
+    check("any other refusal adds nothing (the couple-of-minutes answer stands)", JSON.stringify(O.aiUnavailableExtra(new O.AiUnavailableError("credit_exhausted", "x", 429), noon)) === "{}" && JSON.stringify(O.aiUnavailableExtra(new Error("x"), noon)) === "{}");
+
+    // End to end: the database's ai_budget_take answers false.
+    const BIZ = "10000000-0000-4000-8000-000000000002";
+    globalThis.Deno = { env: { get: (name) => ({ SUPABASE_URL: "http://database.stand-in", SUPABASE_SERVICE_ROLE_KEY: "service-key" })[name] } };
+    const asked = [];
+    globalThis.fetch = async (url, init) => {
+      asked.push({ url: String(url), body: init?.body ? JSON.parse(init.body) : null });
+      if (String(url).endsWith("/rest/v1/rpc/ai_budget_take")) return new Response("false", { status: 200, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ choices: [{ message: { content: "should not be asked" } }] }), { status: 200 });
+    };
+    const refused = await caught(() => O.callOpenAIChat({ apiKey: "k", model: "gpt-5.6-luna", messages: [{ role: "user", content: "hi" }], business: BIZ }));
+    check("when the budget says no, the call is refused before anything goes to OpenAI", O.isAiUnavailable(refused) && refused.reason === "budget_reached" && asked.length === 1 && asked[0].url.endsWith("/rpc/ai_budget_take"), JSON.stringify(asked.map((a) => a.url)));
+    check("…the budget was asked for the job's business", asked[0]?.body?.p_business === BIZ && asked[0]?.body?.p_calls === 1, JSON.stringify(asked[0]?.body));
+    check("…and the applicant's answer is the long one", O.aiUnavailableExtra(refused, noon).wait === "long");
+    delete globalThis.Deno;
+  }
 
   globalThis.fetch = realFetch;
 

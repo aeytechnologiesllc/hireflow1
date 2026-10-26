@@ -175,6 +175,37 @@ check("the rate-limit table keeps two days (a day cap is not reset) and is prune
 {
   const budget = await import(path.join(ROOT, "supabase/functions/_shared/aiBudget.ts"));
   check("the budget check fails open when it has no settings (a Node run)", (await budget.takeDailyAiBudget()) === true);
+  // Only the database's explicit "no" refuses (the eleventh Phase 5 review:
+  // ignoring it passed every test); anything else fails open.
+  const realFetch = globalThis.fetch;
+  globalThis.Deno = { env: { get: (name) => ({ SUPABASE_URL: "http://database.stand-in", SUPABASE_SERVICE_ROLE_KEY: "service-key" })[name] } };
+  const answer = async (respond, business = "30000000-0000-4000-8000-000000000001") => {
+    const asked = [];
+    globalThis.fetch = async (url, init) => {
+      asked.push({ url: String(url), headers: init?.headers, body: JSON.parse(init?.body ?? "{}") });
+      return respond();
+    };
+    return { ok: await budget.takeDailyAiBudget(3, business), asked };
+  };
+  try {
+    const no = await answer(() => new Response("false", { status: 200 }));
+    check("the database says no (false): the call is refused", no.ok === false, JSON.stringify(no));
+    check("…it asked ai_budget_take with the service key, for that business and that many units", no.asked.length === 1 && no.asked[0].url === "http://database.stand-in/rest/v1/rpc/ai_budget_take" && no.asked[0].headers?.apikey === "service-key" && no.asked[0].body.p_business === "30000000-0000-4000-8000-000000000001" && no.asked[0].body.p_calls === 3, JSON.stringify(no.asked));
+    check("the database says yes: it goes ahead", (await answer(() => new Response("true", { status: 200 }))).ok === true);
+    const failsOpen = [
+      await answer(() => new Response("{}", { status: 500 })),
+      await answer(() => new Response("null", { status: 200 })),
+      await answer(() => {
+        throw new Error("network down");
+      }),
+    ];
+    check("an error answer, a strange answer or no answer: it goes ahead (fails open)", failsOpen.every((r) => r.ok === true), JSON.stringify(failsOpen.map((r) => r.ok)));
+    const notAnId = await answer(() => new Response("true", { status: 200 }), "not-an-id");
+    check("…and a business that is not an id is left out of the question", notAnId.ok === true && notAnId.asked[0]?.body && !("p_business" in notAnId.asked[0].body), JSON.stringify(notAnId.asked));
+  } finally {
+    globalThis.fetch = realFetch;
+    delete globalThis.Deno;
+  }
 // The second Phase 7 security review: one unit paid for a prompt of any size.
 check("an ordinary call takes one unit", budget.budgetUnitsFor([{ content: "x".repeat(30000) }]) === 1);
 check("a 1.2 MB prompt takes 30 units, not one", budget.budgetUnitsFor([{ role: "user", content: "x".repeat(1_200_000) }]) === 30);

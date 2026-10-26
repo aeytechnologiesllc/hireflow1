@@ -4,7 +4,7 @@ import { Lock, Search, X } from "lucide-react";
 import { toast } from "sonner";
 import { useOfferPeople, type OfferPerson } from "../hooks/useOfferLetter";
 import { useApplicantRequests, useSendRequests, type NewRequest } from "../hooks/useApplicantRequests";
-import { DUE_CHOICES, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS } from "@/lib/documentRequests";
+import { DUE_CHOICES, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS, looksLikeAnId } from "@/lib/documentRequests";
 import { addDays, dayOf, longDate } from "../lib/offerLetter";
 import { requestLocks, useBusinessStanding } from "@/hooks/useBusinessStanding";
 
@@ -27,12 +27,6 @@ const STAGE_WORDS: Record<string, string> = { hired: "Hired", offered: "Offer ou
 /** Documents are usually asked for once someone is offered or hired; earlier stages can be searched. */
 const REQUEST_STAGES = ["offered", "hired", "interview", "reviewing"] as const;
 
-
-/** A paper named under "Something else" that is really an ID (passport,
- *  driver's license, UMID…): it would be kept, unlike the Government ID choice. */
-function looksLikeAnId(name: string): boolean {
-  return /\b(?:passport|driver'?s?\s*licen[cs]e|national\s*id|umid|postal\s*id|voter'?s?\s*id|prc\s*id|sss\s*id|philhealth\s*id|government\s*id|(?:valid|photo)\s*id|ids?|i\.d\.)\b/i.test(name);
-}
 
 export function RequestDocumentsDialog({ open, applicationId, onClose }: { open: boolean; applicationId?: string | null; onClose: () => void }) {
   const { data: people = [], isLoading } = useOfferPeople(open, REQUEST_STAGES);

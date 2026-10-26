@@ -66,6 +66,18 @@ eq("a TIN shows its last four digits to the team", lib.shownAnswer("tin", "123-4
 eq("an email shows whole", lib.shownAnswer("payment_email", " ana@x.com "), "ana@x.com");
 eq("nothing shows nothing", lib.shownAnswer("tin", null), "");
 
+// --- a named paper that is really an ID gets the "it is kept" warning -------------
+// The eleventh Phase 5 review: the curly apostrophe an iPhone types, British
+// spelling, the Philippine national ID and SSS card, and "I.D." at the end
+// were all missed.
+for (const name of ["Passport", "Driver's license", "Driver’s license", "drivers licence", "Driving licence", "PhilSys card", "PhilSys ID", "National ID", "UMID", "SSS card", "SSS ID", "GSIS card", "Postal ID", "Postal I.D.", "Voter’s ID", "PRC ID", "TIN ID", "Pag-IBIG ID", "PhilHealth ID", "Valid ID", "two IDs", "Company I.D"]) {
+  check(`an ID named "${name}" is recognised`, lib.looksLikeAnId(name) === true);
+}
+for (const name of ["Diploma", "Certificate of employment", "Transcript of records", "Birth certificate", "Video of your desk", "Medical certificate", "Résumé (updated)", "Idea board"]) {
+  check(`"${name}" is not taken for an ID`, lib.looksLikeAnId(name) === false);
+}
+check("the request screen warns with it", /import \{[^}]*\blooksLikeAnId\b[^}]*\} from "@\/lib\/documentRequests";/.test(read("src/cockpit/components/RequestDocumentsDialog.tsx")) && /\{looksLikeAnId\(other\) && \(/.test(read("src/cockpit/components/RequestDocumentsDialog.tsx")));
+
 // --- status and deletion ----------------------------------------------------------
 eq("team: received", lib.statusWords("submitted", "team"), "Received");
 eq("team: asked again", lib.statusWords("rejected", "team"), "Asked again");

@@ -7,21 +7,25 @@
  *     platform's (20261025160000_ai_business_budget.sql).
  *   - applicant-signup-shows-privacy-notice: an applicant is told where their
  *     information goes before they hand it over (sign-up and the form), and
- *     the business sign-up links the Privacy Policy as well as the Terms.
+ *     the business and team-member sign-ups link the Privacy Policy as well
+ *     as the Terms.
  *   - legal-pages-name-entity-and-contact: both pages name the company that
  *     runs the site and end with how to reach it: Contact us (an applicant's
  *     own Help thread) or Help (a hiring team), never Messages to the
  *     hiring business.
  *   - applicant-data-can-be-removed: a business can delete an applicant's
  *     information (the Terms ask it to act on such a request), only through
- *     the remove-applicant function, which names the actor from the sign-in.
+ *     the remove-applicant function, which names the actor from the sign-in
+ *     (no browser delete rule but the applicant's own withdrawal); a deleted
+ *     application queues the files storage holds for it, and one account
+ *     starts at most 20 applications an hour (the eleventh Phase 5 review).
  *   - named-papers-kept-until-the-application-goes: the Terms and the request
  *     screen never promise the business can delete a paper it named itself;
  *     once something is sent, only Delete their information (or a deleted
  *     account) removes it (the sixth product review).
  */
 
-import { grantsToBrowser, latestDefinition, triggerProblems } from "./phase-7-launch-locks.mjs";
+import { grantsToBrowser, latestDefinition, migrationTexts, triggerProblems } from "./phase-7-launch-locks.mjs";
 
 const ENTITY = "Southern Digital Technologies LLC";
 
@@ -195,7 +199,8 @@ export default [
     why:
       "An applicant is told where their information goes before they hand it over: the sign-up form links the " +
       "Terms and the Privacy Policy, and the application form says who sees it and links the Privacy Policy. The " +
-      "business sign-up's agreement links both. (docs/LAUNCH-PLAN.md, Phase 5, task 2.)",
+      "business sign-up's agreement links both, and so does the team-member sign-up's (the eleventh Phase 5 " +
+      "review). (docs/LAUNCH-PLAN.md, Phase 5, task 2.)",
     run: async ({ read }) => {
       const detail = [];
       const candidate = (await read("src/pages/CandidateAuth.tsx")) ?? "";
@@ -207,6 +212,14 @@ export default [
       const business = (await read("src/pages/Auth.tsx")) ?? "";
       const agree = /data-signup-agree>([\s\S]*?)<\/label>/.exec(business)?.[1] ?? "";
       if (!/hireflownow\.com\/terms/.test(agree) || !/hireflownow\.com\/privacy/.test(agree)) detail.push("Auth.tsx: the business sign-up's agreement must link the Terms and the Privacy Policy");
+      // The team-member sign-up too (the eleventh Phase 5 review: "Create
+      // Account & Join Team" made an account without either): the same
+      // agreement, and no account until it is ticked.
+      const team = (await read("src/pages/JoinTeam.tsx")) ?? "";
+      const teamAgree = /data-signup-agree>([\s\S]*?)<\/label>/.exec(team)?.[1] ?? "";
+      const teamSignUp = /const handleSignUp = async[\s\S]*?\n  };/.exec(team)?.[0] ?? "";
+      if (!/hireflownow\.com\/terms/.test(teamAgree) || !/hireflownow\.com\/privacy/.test(teamAgree)) detail.push("JoinTeam.tsx: the team-member sign-up must link the Terms and the Privacy Policy");
+      if (!/if \(!agreed\) \{[\s\S]*?return;\s*\}[\s\S]*signUp\(email, password, fullName, "team_member"\)/.test(teamSignUp) || !/disabled=\{isSubmitting \|\| !agreed\}/.test(team)) detail.push("JoinTeam.tsx: the team-member account is made only once the agreement is ticked");
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },
@@ -249,7 +262,9 @@ export default [
       "The Terms ask every business to act on an applicant's request to delete their information. 'Delete their " +
       "information' on the applicant's ⋯ menu calls remove-applicant, which takes the actor from the caller's " +
       "sign-in and lets public.remove_applicant (service role only) decide (owner, or a teammate who manages " +
-      "applicants), log it and delete the application before any file goes.",
+      "applicants), log it and delete the application before any file goes. No browser may delete an application " +
+      "but the applicant withdrawing their own, and a deleted application queues the files storage holds for it " +
+      "(the eleventh Phase 5 review).",
     run: async ({ read, walk }) => {
       const detail = [];
       // The latest migration that defines remove_applicant, not the first (the
@@ -289,9 +304,44 @@ export default [
       const queueDef = await latestDefinition({ read, walk }, "applications_queue_voice_recordings");
       const queue = (queueDef?.body ?? "").replace(/\s+/g, " ");
       if (!queueDef?.securityDefiner) detail.push(`${queueDef?.alteredIn ?? queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must run with its own rights (an applicant's own delete cannot write storage_file_trash)`);
-      const tuples = [["voice-interview-recordings", "old\\.id::text", "''"], ["videos", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"], ["portfolios", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"]].map(([bucket, folder, prefix]) => `\\('${bucket}', ${folder}, ${prefix}, old\\.id\\)`);
-      if (!new RegExp(`^\\s*begin begin insert into public\\.storage_file_trash \\(bucket, folder, starts_with, application_id\\) values ${tuples.join(", ")}; exception when others then raise log [^;]*; end; return old; end;?\\s*$`, "i").test(queue)) {
-        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the recordings, videos and portfolios folders of every deleted application, first thing, as written`);
+      // Since the eleventh Phase 5 review each folder is queued where storage
+      // holds a file there, and whenever the database cannot look
+      // (private.storage_holds answers NULL, read as "queue it"): an unsent
+      // form queued three empty rows, and one account looping "start,
+      // withdraw" buried every real removal behind them.
+      const tuples = [["voice-interview-recordings", "old\\.id::text", "''"], ["videos", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"], ["portfolios", "old\\.candidate_id::text", "old\\.id::text \\|\\| '-'"]].map(([bucket, folder, prefix]) => `\\('${bucket}', ${folder}, ${prefix}\\)`);
+      if (!new RegExp(`^\\s*declare [^$]*? begin begin insert into public\\.storage_file_trash \\(bucket, folder, starts_with, application_id\\) select t\\.bucket, t\\.folder, t\\.starts_with, old\\.id from \\(values ${tuples.join(", ")} \\) as t \\(bucket, folder, starts_with\\) where t\\.folder is not null and coalesce\\(private\\.storage_holds\\(t\\.bucket, t\\.folder \\|\\| '/' \\|\\| t\\.starts_with\\), true\\); exception when others then raise log [^;]*; end; `, "i").test(queue)) {
+        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the recordings, videos and portfolios folders of a deleted application where storage holds a file (or cannot say), first thing, as written`);
+      }
+      // …and the files sent with its form (the eleventh review, finding 4).
+      if (!/continue when not coalesce\(private\.storage_holds\('resumes', v_path\), true\); insert into public\.storage_file_trash \(bucket, path, application_id\) values \('resumes', v_path, old\.id\); end loop;/.test(queue) || !/ return old; end;?\s*$/.test(queue)) {
+        detail.push(`${queueDef?.rel ?? "supabase/migrations"}: applications_queue_voice_recordings must queue the resume and the form's files a deleted application lists`);
+      }
+      const holds = await latestDefinition({ read, walk }, String.raw`"?private"?\s*\.\s*"?storage_holds`);
+      const holdsBody = (holds?.body ?? "").replace(/\s+/g, " ");
+      if (!holds?.securityDefiner || !/r\.rolsuper or r\.rolbypassrls\)\) then return null; end if;/.test(holdsBody) || !/exception when others then return null; end;?\s*$/.test(holdsBody)) {
+        detail.push(`${holds?.rel ?? "supabase/migrations"}: private.storage_holds must run with its own rights and answer NULL (\"cannot say\") whenever it cannot read storage, so the queue never skips a file it could not see`);
+      }
+      // One account starts at most 10 applications an hour with one business
+      // and 20 in all (the eleventh review: nothing limited it).
+      detail.push(...(await triggerProblems({ read, walk }, { name: "applications_start_limit", table: "applications", timing: "BEFORE", event: "INSERT", fn: "applications_start_limit" })));
+      const startLimit = ((await latestDefinition({ read, walk }, "applications_start_limit"))?.body ?? "").replace(/\s+/g, " ");
+      const allowance = ((await latestDefinition({ read, walk }, "client_send_allowed"))?.body ?? "").replace(/\s+/g, " ");
+      if (!/IF NOT public\.client_send_allowed\('application', coalesce\(business, NEW\.job_id\)\) THEN RAISE EXCEPTION 'too_many_applications'/i.test(startLimit) || !/ELSIF p_kind = 'application' THEN pair_limit := 10; total_limit := 20;/i.test(allowance)) {
+        detail.push("supabase/migrations: a browser must start at most 10 applications an hour with one business and 20 in all (applications_start_limit, client_send_allowed 'application')");
+      }
+      // A business deletes an application only through remove_applicant (the
+      // eleventh review, finding 3): the only DELETE rule left on applications
+      // is the applicant's own withdrawal.
+      const deleteRules = new Map();
+      for (const { rel, sql } of await migrationTexts({ read, walk })) {
+        for (const m of sql.matchAll(/\b(CREATE|DROP)\s+POLICY\s+(?:IF\s+EXISTS\s+)?"([^"]+)"\s+ON\s+(?:"?public"?\s*\.\s*)?"?applications"?(?![\w"])([^;]*);/gi)) {
+          if (m[1].toUpperCase() === "DROP") deleteRules.delete(m[2]);
+          else if (/\bFOR\s+(?:DELETE|ALL)\b/i.test(m[3]) || !/\bFOR\s+(?:SELECT|INSERT|UPDATE)\b/i.test(m[3])) deleteRules.set(m[2], rel);
+        }
+      }
+      for (const [name, rel] of deleteRules) {
+        if (name !== "Candidates can delete their own applications") detail.push(`${rel}: "${name}" lets a browser delete applications; a business removes one only through Delete their information (remove-applicant)`);
       }
       const fn = (await read("supabase/functions/remove-applicant/index.ts")) ?? "";
       if (!/p_actor: caller\.userId/.test(fn) || !/requireSignedInUser\(req, corsHeaders\)/.test(fn)) detail.push("remove-applicant: the actor must come from the caller's sign-in");

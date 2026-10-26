@@ -17,7 +17,8 @@
  * written, fails here.
  *
  *   1. A deleted application queues its recordings, video introduction and
- *      work samples in storage_file_trash (3 rows): the applicant's own
+ *      work samples in storage_file_trash (3 rows, each where storage holds a
+ *      file) and the files sent with its form: the applicant's own
  *      withdrawal, Delete Account, a deleted job, and remove_applicant.
  *   2. remove_applicant: refused to anon and authenticated; the service role
  *      removes for the job's owner, logs it, refuses a stranger.
@@ -39,6 +40,19 @@
  *      requested paper) hold no "%", backslash or control character, which
  *      the service-key signers would read as a step out of their folder
  *      (20261025500000_plain_file_paths.sql).
+ *   8. A new application starts clean.
+ *   9. One account cannot flood the file queue: an application queues only
+ *      the files storage holds, and one account starts at most 10
+ *      applications an hour with one business and 20 in all (the eleventh
+ *      Phase 5 review, in the shape of its flood proof).
+ *  10. A deleted request's papers are queued for document-cleanup, a photo
+ *      whose link was never saved included (document_requests_trash_file).
+ *  11. remove_applicant refuses a teammate assigned elsewhere, no longer
+ *      active, or not managing applicants.
+ *  12. ai_budget_take counts a teammate against their business, and tells
+ *      the admins at 80% (platform:80) and at 100% (platform:100) apart.
+ *  13. A business deletes no application straight through the API; Delete
+ *      their information still does (20261025550000).
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -217,6 +231,11 @@ const JOB_GOES = id(4, 2);
 const JOB_P = id(4, 3);
 const JOB_Q = id(4, 4);
 const JOB_NEW = id(4, 5);
+// BIZ's team (sections 11 to 13).
+const TM_OK = id(6, 1); // active, manages applicants, on every job
+const TM_ELSEWHERE = id(6, 2); // active, manages applicants, assigned to JOB_NEW only
+const TM_GONE = id(6, 3); // manages applicants, no longer active
+const TM_VIEW = id(6, 4); // active, on every job, does not manage applicants
 
 const businesses = [[ADMIN, "HireFlow"], [BIZ, "Clinic One"], [NEWBIZ, "New Shop"], [BIZ_E, "Dental Two"], [PBIZ, "Plain Co"], [QBIZ, "Quick Co"], [STRANGER, "Elsewhere"]];
 const applicants = [WD, GONE, JOBLESS, REMOVED, ANA, ANA2, ANA3, ANA4, ...R, ...S];
@@ -266,7 +285,9 @@ const apply = async (who, job) => {
   return r.rows[0].id;
 };
 const queued = async (application) =>
-  (await db.query(`select bucket, folder, starts_with from public.storage_file_trash where application_id = $1 order by bucket`, [application])).rows;
+  (await db.query(`select bucket, folder, starts_with from public.storage_file_trash where application_id = $1 and path is null order by bucket`, [application])).rows;
+const queuedPaths = async (application) =>
+  (await db.query(`select path from public.storage_file_trash where application_id = $1 and path is not null order by path`, [application])).rows.map((r) => r.path);
 const queuesAll = (rows, application, candidate) =>
   JSON.stringify(rows) ===
   JSON.stringify([
@@ -274,25 +295,70 @@ const queuesAll = (rows, application, candidate) =>
     { bucket: "videos", folder: candidate, starts_with: `${application}-` },
     { bucket: "voice-interview-recordings", folder: application, starts_with: "" },
   ]);
+/** A file in storage, as Storage records an upload (storage.objects). */
+const putFile = async (bucket, name) => {
+  await db.query(`insert into storage.buckets (id, name) values ($1, $1) on conflict (id) do nothing`, [bucket]);
+  await db.query(`insert into storage.objects (bucket_id, name) values ($1, $2)`, [bucket, name]);
+};
+/** What a real application has by the time it is withdrawn: a recording, a video introduction and a work sample. */
+const putStepFiles = async (application, candidate) => {
+  await putFile("voice-interview-recordings", `${application}/interview-1.webm`);
+  await putFile("videos", `${candidate}/${application}-intro.webm`);
+  await putFile("portfolios", `${candidate}/${application}-sample.pdf`);
+};
+/** A new account, as Supabase Auth makes one (its trigger makes the profile). */
+const makeUser = async (u, role, meta = { full_name: "Someone" }) => {
+  await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, $3::jsonb)`, [u, `${u.slice(0, 8)}-${u.slice(-4)}@example.test`, JSON.stringify(meta)]);
+  await db.query(`insert into public.user_roles (user_id, role) values ($1, $2)`, [u, role]);
+};
 
 // ---------------------------------------------------------------------------
 console.log("\n1. A deleted application's files are queued for removal\n");
 {
   const app = await apply(WD, JOB);
+  await putStepFiles(app, WD);
+  // The form's files (resumes/<applicant>/<time>…, ApplicationFormPhase.tsx),
+  // one of them also listed by another application of theirs, one listed but
+  // never uploaded (the eleventh Phase 5 review, finding 4).
+  const other = await apply(WD, JOB_P);
+  const SHARED = `${WD}/1729000000009_cv.pdf`;
+  await putFile("resumes", SHARED);
+  const otherOk = await as(user(WD), `update public.applications set resume_url = $2 where id = $1`, [other, SHARED]);
+  const FORM = [`${WD}/1729000000000.pdf`, `${WD}/1729000000001_page1.png`, `${WD}/1729000000002_q1.pdf`, `${WD}/1729000000003_q1_page1.png`];
+  for (const f of FORM) await putFile("resumes", f);
+  const NEVER_UPLOADED = `${WD}/1729000000004_q2.pdf`;
+  const formOk = await as(user(WD), `update public.applications set resume_url = $2, notes = $3 where id = $1`, [app, FORM[0], JSON.stringify({
+    resumeImageUrls: [FORM[1]],
+    fileUploads: { q1: { url: FORM[2], imageUrls: [FORM[3]], isResume: false }, q2: { fileUrl: NEVER_UPLOADED, isResume: false }, q3: { url: SHARED, isResume: true } },
+  })]);
+  if (!otherOk.ok || !formOk.ok) throw new Error(`setup: the form's files could not be written: ${show({ otherOk, formOk })}`);
   const r = await as(user(WD), `delete from public.applications where id = $1 returning id`, [app]);
   check("the applicant withdraws their own application", r.ok && r.rows.length === 1, show(r));
   const rows = await queued(app);
   check("…and its recordings, video introduction and work samples are queued (3 rows)", queuesAll(rows, app, WD), show(rows));
+  const paths = await queuedPaths(app);
+  check("…and the files sent with the form: the resume, the form's file and their page images", JSON.stringify(paths) === JSON.stringify([...FORM].sort()), show(paths));
+  check("…never a file another application of theirs still lists, nor one never uploaded", !paths.includes(SHARED) && !paths.includes(NEVER_UPLOADED), show(paths));
+
+  const bare = await apply(WD, JOB_NEW);
+  await as(user(WD), `delete from public.applications where id = $1`, [bare]);
+  check("a form withdrawn with nothing uploaded queues nothing (the eleventh Phase 5 review)", (await queued(bare)).length === 0 && (await queuedPaths(bare)).length === 0, show(await queued(bare)));
 
   const goneApp = await apply(GONE, JOB);
+  await putStepFiles(goneApp, GONE);
   await db.query(`delete from auth.users where id = $1`, [GONE]); // Delete Account: Supabase Auth deletes the user
   const goneRows = await queued(goneApp);
   check("Delete Account (the account's applications go by cascade) queues the same 3", (await one(`select count(*)::int n from public.applications where id = $1`, [goneApp])).n === 0 && queuesAll(goneRows, goneApp, GONE), show(goneRows));
 
   const joblessApp = await apply(JOBLESS, JOB_GOES);
+  await putStepFiles(joblessApp, JOBLESS);
+  const CV = `${JOBLESS}/1729000000000.pdf`;
+  await putFile("resumes", CV);
+  await as(user(JOBLESS), `update public.applications set resume_url = $2 where id = $1`, [joblessApp, CV]);
   const d = await as(user(BIZ), `delete from public.jobs where id = $1 returning id`, [JOB_GOES]);
   const joblessRows = await queued(joblessApp);
   check("the business deletes a job: each of its applications queues the same 3", d.ok && d.rows.length === 1 && queuesAll(joblessRows, joblessApp, JOBLESS), show({ d, joblessRows }));
+  check("…and the resume sent with it", JSON.stringify(await queuedPaths(joblessApp)) === JSON.stringify([CV]), show(await queuedPaths(joblessApp)));
   check("nobody but the server reads the queue", !(await as(user(WD), `select * from public.storage_file_trash`)).ok || (await as(user(WD), `select * from public.storage_file_trash`)).rows.length === 0);
 }
 
@@ -300,6 +366,7 @@ console.log("\n1. A deleted application's files are queued for removal\n");
 console.log("\n2. remove_applicant is the server's, for the job's own business\n");
 {
   const app = await apply(REMOVED, JOB);
+  await putStepFiles(app, REMOVED);
   const call = `select public.remove_applicant($1, $2, 'asked by email') as r`;
   const anon = await as(ANON, call, [app, BIZ]);
   check("a signed-out visitor cannot call it", !anon.ok && /permission denied/.test(anon.error), show(anon));
@@ -506,6 +573,206 @@ console.log("\n8. A new application starts clean\n");
   } else {
     check("an applicant's own score and team note never land (refused outright)", /permission denied|not allowed|protect/i.test(scored.error), show(scored));
   }
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n9. One account cannot flood the file queue\n");
+{
+  // The eleventh Phase 5 review (finding 1), in the shape of its proof
+  // (mut/flood.mjs): a throwaway applicant loops "start an application,
+  // withdraw it". Every loop queued three rows (906 in 2.6 seconds), and a
+  // real withdrawal after the loop was not in document-cleanup's next 200.
+  const REAL = id(5, 2);
+  const REAL_AFTER = id(5, 3);
+  const FLOOD = id(5, 1);
+  for (const u of [REAL, REAL_AFTER, FLOOD]) await makeUser(u, "candidate");
+  const real = await apply(REAL, JOB);
+  await putStepFiles(real, REAL);
+  await as(user(REAL), `delete from public.applications where id = $1`, [real]);
+  const elsewhere = [];
+  for (const [biz, title] of [[STRANGER, "Help desk agent"], [BIZ_E, "Dental front desk"]]) {
+    elsewhere.push((await one(`insert into public.jobs (employer_id, title, description, status) values ($1, $2, 'Answer the phone.', 'published') returning id`, [biz, title])).id);
+  }
+  const hour = () => Math.floor(Date.now() / 3_600_000);
+  /** The review's loop on one business's job, then on three businesses' jobs. */
+  const floodFrom = async (account) => {
+    const startedIn = hour();
+    let loops = 0;
+    let refusal = "";
+    for (let i = 0; i < 300; i += 1) {
+      const r = await as(user(account), `insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [JOB_NEW, account]);
+      if (!r.ok) {
+        refusal = r.error;
+        break;
+      }
+      const d = await as(user(account), `delete from public.applications where id = $1 returning id`, [r.rows[0].id]);
+      if (!d.ok || d.rows.length !== 1) {
+        refusal = `delete: ${d.error ?? "refused"}`;
+        break;
+      }
+      loops += 1;
+    }
+    let more = 0;
+    let totalRefusal = "";
+    for (const job of [JOB_P, ...elsewhere]) {
+      for (let i = 0; i < 10 && !totalRefusal; i += 1) {
+        const r = await as(user(account), `insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [job, account]);
+        if (!r.ok) totalRefusal = r.error;
+        else {
+          more += 1;
+          await as(user(account), `delete from public.applications where id = $1`, [r.rows[0].id]);
+        }
+      }
+    }
+    return { loops, refusal, more, totalRefusal, sameHour: hour() === startedIn };
+  };
+  // The limit counts in clock hours: a run that crosses one is done again by
+  // a fresh account.
+  const FLOOD_AGAIN = id(5, 8);
+  let f = await floodFrom(FLOOD);
+  if (!f.sameHour) {
+    await makeUser(FLOOD_AGAIN, "candidate");
+    f = await floodFrom(FLOOD_AGAIN);
+  }
+  check("one account starts at most 10 applications an hour with one business, then is refused", f.loops === 10 && /too_many_applications/.test(f.refusal), `${f.loops} ${f.refusal}`);
+  const fromFlood = (await one(`select count(*)::int n from public.storage_file_trash where folder in ($1, $2) or path like $3 or path like $4`, [FLOOD, FLOOD_AGAIN, `${FLOOD}/%`, `${FLOOD_AGAIN}/%`])).n;
+  check("…and an application started and withdrawn with nothing uploaded queues nothing", fromFlood === 0, String(fromFlood));
+  check("…and at most 20 an hour in all, whichever businesses", f.loops + f.more === 20 && /too_many_applications/.test(f.totalRefusal), `${f.loops + f.more} ${f.totalRefusal}`);
+  const real2 = await apply(REAL_AFTER, JOB);
+  await putStepFiles(real2, REAL_AFTER);
+  await as(user(REAL_AFTER), `delete from public.applications where id = $1`, [real2]);
+  // document-cleanup reads 200 a run, fewest attempts first, oldest first.
+  const pick = (await db.query(`select application_id from public.storage_file_trash order by attempts asc, queued_at asc limit 200`)).rows.map((r) => r.application_id);
+  check("a real withdrawal before and after it is in document-cleanup's next run", pick.includes(real) && pick.includes(real2), String((await one(`select count(*)::int n from public.storage_file_trash`)).n));
+  const server = await as(SERVICE, `insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [JOB_NEW, FLOOD]);
+  check("the server's own insert is not counted against the account", server.ok, show(server));
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n10. The papers of a deleted request are queued for removal\n");
+{
+  // document_requests_trash_file carries the Privacy Policy's 24-hour /
+  // 7-day promise once the application is gone (the eleventh Phase 5 review,
+  // finding 2: nothing proved it).
+  const PAPERS = id(5, 4);
+  await makeUser(PAPERS, "candidate");
+  const app = await apply(PAPERS, JOB);
+  const ask = async (type) => {
+    const r = await as(user(BIZ), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, $4) returning id`, [app, BIZ, PAPERS, type]);
+    if (!r.ok) throw new Error(`setup: BIZ could not ask for ${type}: ${r.error}`);
+    return r.rows[0].id;
+  };
+  const sent = await ask("government_id");
+  const neverSaved = await ask("nbi_clearance");
+  const nothing = await ask("proof_of_address");
+  const file = `${PAPERS}/${sent}/1729000000000.jpg`;
+  await putFile("requested-documents", file);
+  const up = await as(user(PAPERS), `update public.document_requests set file_url = $2, file_name = 'ID.jpg', status = 'submitted' where id = $1`, [sent, file]);
+  if (!up.ok) throw new Error(`setup: the paper could not be sent: ${up.error}`);
+  // A photo that went up whose link was never saved (finding 7).
+  await putFile("requested-documents", `${PAPERS}/${neverSaved}/1729000000001.jpg`);
+  const w = await as(user(PAPERS), `delete from public.applications where id = $1 returning id`, [app]);
+  check("the applicant withdraws an application with papers sent", w.ok && w.rows.length === 1, show(w));
+  const trash = async (request) => (await db.query(`select candidate_id, file_url from public.document_file_trash where request_id = $1`, [request])).rows;
+  const t = await trash(sent);
+  check("…the sent paper's file is queued for document-cleanup", t.length === 1 && t[0].candidate_id === PAPERS && t[0].file_url === file, show(t));
+  check("…and so is the folder of a photo whose link was never saved", (await trash(neverSaved)).length === 1, show(await trash(neverSaved)));
+  check("…while a request with nothing sent and nothing in storage queues nothing", (await trash(nothing)).length === 0, show(await trash(nothing)));
+  const peek = await as(user(PAPERS), `select * from public.document_file_trash`);
+  check("nobody but the server reads that queue", !peek.ok || peek.rows.length === 0, show(peek));
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n11. remove_applicant: a teammate only on the jobs they work on\n");
+{
+  // The eleventh Phase 5 review (finding 2): the behaviour test checked only
+  // the owner and a stranger, so a teammate limited to one job, or one whose
+  // access was taken away, could have deleted applicants on every job.
+  const team = [[TM_OK, "active", true, []], [TM_ELSEWHERE, "active", true, [JOB_NEW]], [TM_GONE, "revoked", true, []], [TM_VIEW, "active", false, []]];
+  for (const [u, status, manages, jobs] of team) {
+    await makeUser(u, "team_member");
+    await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_manage_pipeline, assigned_job_ids) values ($1, $2, $3, $4, $5, $6::uuid[])`, [u, BIZ, emailOf(u), status, manages, jobs]);
+  }
+  const SOMEONE = id(5, 5);
+  await makeUser(SOMEONE, "candidate");
+  const app = await apply(SOMEONE, JOB);
+  const call = (actor) => as(SERVICE, `select public.remove_applicant($1, $2, null) as r`, [app, actor]);
+  for (const [actor, who] of [[TM_ELSEWHERE, "a teammate assigned to another job only"], [TM_GONE, "a teammate no longer active"], [TM_VIEW, "a teammate who does not manage applicants"]]) {
+    const r = await call(actor);
+    check(`refused for ${who}`, r.ok && r.rows[0].r?.reason === "not_allowed" && (await one(`select count(*)::int n from public.applications where id = $1`, [app])).n === 1, show(r));
+  }
+  const ok = await call(TM_OK);
+  check("removed for an active teammate who manages applicants on every job", ok.ok && ok.rows[0].r?.ok === true, show(ok));
+  check("…and logged as theirs", (await one(`select removed_by from private.applicant_removals where application_id = $1`, [app]))?.removed_by === TM_OK);
+  const ASSIGNED = id(5, 7);
+  await makeUser(ASSIGNED, "candidate");
+  const onTheirJob = await apply(ASSIGNED, JOB_NEW);
+  const theirs = await as(SERVICE, `select public.remove_applicant($1, $2, null) as r`, [onTheirJob, TM_ELSEWHERE]);
+  check("a teammate assigned to a job removes an applicant to that job", theirs.ok && theirs.rows[0].r?.ok === true, show(theirs));
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n12. The AI budget: a teammate counts for their business; the 80% and 100% alerts\n");
+{
+  // The eleventh Phase 5 review (finding 2): giving each teammate a day of
+  // their own, keying the 100% alert like the 80% one (so it never came on a
+  // day the 80% one had), or moving 80% to 99% passed everything. Section 3
+  // used up today's day; it starts again here.
+  await db.exec(`
+    delete from private.ai_daily_usage;
+    delete from private.ai_business_daily_usage;
+    delete from private.ai_budget_alerts;
+    delete from public.notifications where user_id = '${ADMIN}' and type = 'system';
+  `);
+  const take = (units, business) => as(SERVICE, `select public.ai_budget_take($1, $2) as ok`, [units, business]);
+  const usage = async (business) => (await one(`select calls from private.ai_business_daily_usage where business_id = $1 and day = (now() at time zone 'utc')::date`, [business]))?.calls ?? 0;
+  const platform = async () => (await one(`select calls from private.ai_daily_usage where day = (now() at time zone 'utc')::date`))?.calls ?? 0;
+  const alerts = async () => (await db.query(`select alert from private.ai_budget_alerts order by alert`)).rows.map((r) => r.alert);
+  const adminTold = async (title) => (await one(`select count(*)::int n from public.notifications where user_id = $1 and type = 'system' and title = $2`, [ADMIN, title])).n;
+
+  const first = await take(100, TM_OK);
+  check("a teammate's call counts against their business's day, not a day of their own", first.ok && first.rows[0].ok === true && (await usage(BIZ)) === 100 && (await usage(TM_OK)) === 0, JSON.stringify({ biz: await usage(BIZ), tm: await usage(TM_OK) }));
+  await take(100, TM_GONE);
+  check("…a teammate no longer active is not counted as the business", (await usage(BIZ)) === 100, String(await usage(BIZ)));
+  let allowed = 1;
+  for (let i = 0; i < 19; i += 1) if ((await take(100, TM_OK)).rows?.[0]?.ok === true) allowed += 1;
+  const past = await take(100, TM_OK);
+  check("…so the teammate stops where the business's 2,000 stop", allowed === 20 && past.ok && past.rows[0].ok === false, `${allowed} ${show(past)}`);
+  check("…and the alert names the business (business:<id>), not the teammate", (await alerts()).includes(`business:${BIZ}`) && !(await alerts()).some((a) => a.includes(TM_OK)), JSON.stringify(await alerts()));
+
+  // The platform has 2,000 + 100 (the former teammate's own day) counted.
+  while ((await platform()) < 7_900) await take(100, null);
+  check("no 80% alert below 80% of the platform's day", (await platform()) === 7_900 && !(await alerts()).includes("platform:80") && (await adminTold("80% of today's AI budget is used")) === 0, JSON.stringify({ calls: await platform(), alerts: await alerts() }));
+  await take(100, null);
+  check("at 8,000 of 10,000 the admins are told 80% is used (platform:80)", (await alerts()).includes("platform:80") && (await adminTold("80% of today's AI budget is used")) === 1, JSON.stringify(await alerts()));
+  while ((await platform()) < 10_000) await take(100, null);
+  check("…once on the way to 10,000", (await adminTold("80% of today's AI budget is used")) === 1);
+  const refused = await take(100, null);
+  check("past 10,000 the call is refused", refused.ok && refused.rows[0].ok === false, show(refused));
+  check("…and the admins are told the day is used up, under its own key (platform:100), on a day the 80% one already came", (await alerts()).includes("platform:100") && (await adminTold("The daily AI budget is used up")) === 1, JSON.stringify(await alerts()));
+  await take(100, null);
+  check("…once", (await adminTold("The daily AI budget is used up")) === 1);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n13. A business removes an application only through Delete their information\n");
+{
+  // The eleventh Phase 5 review (finding 3): "Employers can delete
+  // applications to their jobs" and its team twin let the owner or a teammate
+  // delete one straight through the API, skipping remove_applicant (no log,
+  // signed copies and form files left with nothing pointing at them).
+  const DIRECT = id(5, 6);
+  await makeUser(DIRECT, "candidate");
+  const app = await apply(DIRECT, JOB);
+  const owner = await as(user(BIZ), `delete from public.applications where id = $1 returning id`, [app]);
+  check("the job's owner deletes nothing straight through the API", owner.ok && owner.rows.length === 0, show(owner));
+  const teammate = await as(user(TM_OK), `delete from public.applications where id = $1 returning id`, [app]);
+  check("…nor a teammate who manages applicants", teammate.ok && teammate.rows.length === 0, show(teammate));
+  check("…the application is still there", (await one(`select count(*)::int n from public.applications where id = $1`, [app])).n === 1);
+  const policies = (await db.query(`select policyname from pg_policies where schemaname = 'public' and tablename = 'applications' and cmd = 'DELETE' order by policyname`)).rows.map((r) => r.policyname);
+  check("…the only delete rule left on applications is the applicant's own withdrawal", JSON.stringify(policies) === JSON.stringify(["Candidates can delete their own applications"]), JSON.stringify(policies));
+  const removed = await as(SERVICE, `select public.remove_applicant($1, $2, 'asked in a message') as r`, [app, BIZ]);
+  check("…and Delete their information still removes it, logged", removed.ok && removed.rows[0].r?.ok === true && (await one(`select reason from private.applicant_removals where application_id = $1`, [app]))?.reason === "asked in a message", show(removed));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

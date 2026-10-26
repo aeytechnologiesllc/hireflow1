@@ -88,7 +88,7 @@ Wise or PayPal and is paid there. A test fails if a bank kind is added.
 | Files | Private bucket `requested-documents`, in the applicant's own folder (`<applicant id>/<request id>/…`). |
 | Opening a file | Only through the `requested-document-url` function: signed-in caller must be the applicant, the job's owner or an active team member on that job; a five-minute link to that request's own file; every opening is written to `document_request_events`. The old employers' storage rule (a `LIKE` match that could be pointed at another folder) is dropped. |
 | Who may change what | `document_requests_guard_insert` / `_update` (migration `20261010150000_document_requests_safe.sql`). A new request is always pending and empty, for the application's applicant, filed under the job's owner. The applicant may only send their file or typed answer and mark it sent, never once approved. The hiring side may only approve or ask again, once something is sent, and never changes what the applicant sent. |
-| Deletion | `document-cleanup`, every hour at :17 (pg_cron; daily until 2026-10-10). A government ID, NBI clearance or proof of address loses its file 24 hours after the hiring side first opened it (`team_opened_at`), or 7 days after it was sent if nobody did (the request keeps `file_deleted_at`); anything else in that request's folder goes with it. A file sent again replaces the earlier one at once and starts its own clock. Typed answers are kept. A paper named under "Something else" (an ID named there too) is kept until the application is deleted (⋯ → Delete their information, docs/APPLICANTS-LIST.md section 11) or the account is: once anything is sent, its request cannot be deleted on its own, so the Terms and the request screen never say "until you delete it" (the sixth product review; guard `named-papers-kept-until-the-application-goes`). |
+| Deletion | `document-cleanup`, every hour at :17 (pg_cron; daily until 2026-10-10). A government ID, NBI clearance or proof of address loses its file 24 hours after the hiring side first opened it (`team_opened_at`), or 7 days after it was sent if nobody did (the request keeps `file_deleted_at`); anything else in that request's folder goes with it. A file sent again replaces the earlier one at once and starts its own clock. Typed answers are kept. A paper named under "Something else" (an ID named there too) is kept until the application is deleted (⋯ → Delete their information, docs/APPLICANTS-LIST.md section 11) or the account is: once anything is sent, its request cannot be deleted on its own, so the Terms and the request screen never say "until you delete it" (the sixth product review; guard `named-papers-kept-until-the-application-goes`). The request screen warns when a paper named there looks like an ID (`looksLikeAnId` in `src/lib/documentRequests.ts`: "Driver’s license" with a curly apostrophe, "Driving licence", "PhilSys card", "SSS card" and "Postal I.D." too since the eleventh Phase 5 review). A request deleted with its application, job or account leaves a note in `document_file_trash` (`document_requests_trash_file`) and the cleanup deletes its file and folder; since `20261025540000` also when the photo went up but its link was never saved (a dropped connection), if storage holds a file in its folder. Such a photo on a request still open is not yet found by the 24-hour rule (it goes with the request, or with the next upload's folder sweep). |
 | The cleanup's secret | Made inside the database, kept only in Vault (`document_cleanup_secret`), checked by `document_cleanup_secret_matches` (service role only). Not in the repo or any function setting. |
 
 The Privacy Policy says all of this (`src/content/legal.ts`), and
@@ -97,9 +97,14 @@ The Privacy Policy says all of this (`src/content/legal.ts`), and
 ## Tests
 
 - `scripts/document_requests.test.mjs`: the rules, the cleanup function's list
-  and days, the function's checks, the applicant's screens.
+  and days, the function's checks, the applicant's screens, the ID warning.
 - `scripts/document_requests.pglite.test.mjs`: a real Postgres with the live
   policies: every forgery above is tried and refused.
+- `scripts/document_cleanup.test.mjs` (the eleventh Phase 5 review): the real
+  `document-cleanup` against a stand-in database and storage: an ID 24 hours
+  after opening, a deleted request's file and folder, the removal queue and
+  its backlog alert. `scripts/launch_locks_behaviour.pglite.test.mjs`,
+  section 10: a withdrawal queues its requests' papers.
 
 ## Trying it without a real applicant
 

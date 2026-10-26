@@ -24,7 +24,8 @@ export function isApplicantBlockedError(error: unknown): boolean {
  * The database's other refusals of a new application, in words a retry can't
  * contradict: the job closed (or its business is paused), both
  * applications_only_to_open_jobs's "job_not_open"; or its deadline passed
- * (check_application_deadline). Null for anything else.
+ * (check_application_deadline); or too many started in the last hour
+ * (applications_start_limit's "too_many_applications"). Null for anything else.
  */
 export function applicationClosedMessage(error: unknown): string | null {
   if (!error || typeof error !== "object") return null;
@@ -34,5 +35,8 @@ export function applicationClosedMessage(error: unknown): string | null {
   // A withdrawn, sent application starts over only after 30 days
   // (20261025350000_applicant_writes_round2.sql).
   if (/withdrew_recently/.test(message)) return "You withdrew from this job recently, so you can apply to it again 30 days after that. If this was a mistake, write to us from Contact us in your account menu.";
+  // Ten an hour with one business, twenty in all (applications_start_limit,
+  // 20261025540000; the eleventh Phase 5 review): a retry later works.
+  if (/too_many_applications/.test(message)) return "You've started a lot of applications in the last hour. Please wait a little and try again.";
   return null;
 }

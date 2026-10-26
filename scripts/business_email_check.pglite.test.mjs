@@ -68,6 +68,8 @@ const NOT_THE_CHECK = {
   "20261025500000_plain_file_paths.sql": "an applicant's resume link, the form's file paths and a requested document's file are plain paths; nothing of jobs, profiles or the check",
   "20261025510000_growth_google_is_search.sql": "Admin → Growth's channel names (google is search only, Lite apps named); nothing of jobs, profiles or the check",
   "20261025520000_growth_front_page_not_staff.sql": "admin_growth's front-page count leaves out the staff host; reads page counts and sign-up tags, nothing of the check",
+  "20261025540000_file_queue_only_what_is_there.sql": "a deleted application or request queues only the files storage holds, and a browser starts at most 20 applications an hour (applications and the removal queues); it reads a job's business and a profile's resume link, and changes nothing of jobs, profiles or the check",
+  "20261025550000_applications_removed_only_through_delete_their_information.sql": "drops the two business delete policies on applications; nothing of jobs, profiles or the check",
   "20261025270000_phase5_review6.sql": "the AI budget's new-business day only when smaller (no change to the check)",
   "20261025250000_phase5_review5.sql": "the AI budget reads business_email_verified and live jobs (no change to either); nothing of jobs, profiles or the check's tables",
   "20261025260000_drop_evaluation_move_backup.sql": "drops the evaluations move's private backup; nothing of jobs, profiles or the check's tables",

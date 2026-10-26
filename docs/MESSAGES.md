@@ -199,7 +199,10 @@ replaces it with "Job owners can delete the messages of their own
 applications": an applicant can remove no message at all, neither can
 someone on a hiring team, and the job's owner can still clear the messages
 of an application they are deleting (`useDeleteApplication`, the one place
-the app ever did it). The unused `useDeleteConversation` hook, which removed
+the app ever did it; that hook had no caller and is gone since the eleventh
+Phase 5 review, when a business's direct delete of an application was
+dropped too: "Delete their information" removes one, and its messages stay,
+docs/APPLICANTS-LIST.md section 11). The unused `useDeleteConversation` hook, which removed
 a whole chat for both sides, is gone. An applicant's Messages has no delete
 button today; `set_chat_state` already lets a person delete their own side
 only, so one can be added without touching the database.

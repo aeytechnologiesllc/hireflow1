@@ -84,6 +84,18 @@ export const CUSTOM_KIND: RequestKind = { key: "custom", label: "Something else"
 /** The identity papers, deleted after they are seen (the cleanup function keeps the same list). */
 export const ID_PAPER_KINDS: readonly string[] = REQUEST_KINDS.filter((k) => k.idPaper).map((k) => k.key);
 
+/**
+ * A paper named under "Something else" that is really an ID (passport,
+ * driver's license, UMID…): it would be kept, unlike the Government ID
+ * choice, so the request screen warns. Written the ways people write them
+ * (the eleventh Phase 5 review: "Driver’s license" with the curly apostrophe
+ * an iPhone types, "Driving licence", "PhilSys card", "SSS card" and
+ * "Postal I.D." were missed).
+ */
+export function looksLikeAnId(name: string): boolean {
+  return /\b(?:passport|driv(?:er['’]?s?|ing)\s*licen[cs]e|national\s*id|philsys|phil\s*id|umid|postal\s*id|voter['’]?s?\s*id|prc\s*id|sss|gsis|tin\s*id|pag-?ibig\s*(?:id|card)|philhealth\s*id|government\s*id|(?:valid|photo)\s*id|ids?)\b|\bi\.\s?d\.?(?!\w)/i.test(name);
+}
+
 /** The promise, said the same way on every screen, email and the privacy page. */
 export function idDeletionPromise(team: string): string {
   return `HireFlow deletes it ${ID_DELETE_HOURS_AFTER_OPENED} hours after ${team} first opens it, and after ${ID_DELETE_DAYS_UNOPENED} days if they never do.`;

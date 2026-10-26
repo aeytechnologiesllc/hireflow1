@@ -187,16 +187,33 @@ these either; each has a guard or a test that CI runs:
   app at 80%/100% and when a business hits its cap. A cost guard, never a
   paywall. Guard `ai-budget-enforced`.
 - The legal pages name **Southern Digital Technologies LLC**; the contact
-  email and governing-law state are still owner inputs. Both sign-ups and the
-  application form link the Privacy Policy. Guards
+  email and governing-law state are still owner inputs. Both sign-ups, the
+  team-member sign-up (`JoinTeam.tsx`, the same agreement as the business's,
+  since the eleventh Phase 5 review) and the application form link the
+  Privacy Policy. Guards
   `legal-pages-name-entity-and-contact`, `applicant-signup-shows-privacy-notice`.
 - "Delete their information" (⋯ menu) deletes one application and its files
   through `remove-applicant` → `remove_applicant` (service role only, logged).
+  It is a business's only way: the two old browser delete policies on
+  `applications` are dropped (`20261025550000`; only the applicant's own
+  withdrawal is left; a deleted job's cascade is unaffected).
   A document's files are found by its id only (`documents/<id>/`), never by
   its file address (a business writes that; the first version would have
   deleted another business's signed copy); a teammate only on jobs they are
   assigned to; files storage refuses are queued in `storage_file_trash` and
   retried hourly by `document-cleanup`. Guard `applicant-data-can-be-removed`.
+- (The eleventh Phase 5 review, `20261025540000`.) A deleted application
+  queues only what storage holds for it (`private.storage_holds`; NULL,
+  "cannot say", queues as before): its recordings, video introduction and
+  work samples, and the resume and form files it lists (never one another
+  application of theirs or their profile lists). A browser starts at most 10
+  applications an hour with one business and 20 in all
+  (`applications_start_limit`, `client_send_allowed('application', …)`,
+  `too_many_applications`): one account looping "start, withdraw" had buried
+  every real removal. document-cleanup tells the admins once a day when the
+  queue backs up (`cleanup:backlog`: 200 still waiting, or one over three
+  hours). A deleted request whose photo went up without its link saved still
+  queues its folder.
 - The way to reach the company is **Contact us** (an applicant's own Help
   thread at `/contact`, `20261025200000_help_for_applicants.sql`; `/help` is
   staff-only on the staff host) or Help (a hiring team); Messages reach the
@@ -279,9 +296,10 @@ these either; each has a guard or a test that CI runs:
   in the text it goes with (`withApplicantTextRule(prompt, text)`: each
   function makes its own word). Every XML feed goes out through `sendXml`,
   which drops XML-illegal characters. A deleted application (withdrawal,
-  Delete Account, a deleted job) always queues its recordings, video
+  Delete Account, a deleted job) queues its recordings, video
   introduction and work samples in `storage_file_trash`
-  (`20261025490000`, SECURITY DEFINER).
+  (`20261025490000`, SECURITY DEFINER; since `20261025540000` only where
+  storage holds them, with the form's files too).
 - (Round 3.) What an applicant signs is what they were shown: at signing
   the server hashes the letter's text or the uploaded file's bytes, refuses
   unless the applicant's screen hashed the same (`viewedHash`), makes that

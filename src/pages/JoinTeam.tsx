@@ -92,6 +92,11 @@ export default function JoinTeam() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  // The same agreement as the business sign-up (Auth.tsx): a teammate handles
+  // applicants' information under the Terms and the Privacy Policy, so the
+  // account is made only once they have seen both (the eleventh Phase 5
+  // review: this form made one without either).
+  const [agreed, setAgreed] = useState(false);
 
   // Fetch invitation details
   useEffect(() => {
@@ -309,6 +314,11 @@ export default function JoinTeam() {
         description: "Use at least 8 characters.",
         variant: "destructive",
       });
+      return;
+    }
+
+    if (!agreed) {
+      toast({ variant: "warning", description: "Please agree to the Terms first." });
       return;
     }
 
@@ -581,7 +591,15 @@ export default function JoinTeam() {
                         required
                       />
                     </div>
-                    <Button type="submit" className="w-full" disabled={isSubmitting}>
+                    <label className="flex cursor-pointer items-start gap-2.5 pt-1 text-xs leading-relaxed text-muted-foreground" data-signup-agree>
+                      <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--primary))]" />
+                      <span>
+                        I agree to the{" "}
+                        <a href="https://hireflownow.com/terms" target="_blank" rel="noreferrer" className="text-primary hover:underline">Terms</a> and the{" "}
+                        <a href="https://hireflownow.com/privacy" target="_blank" rel="noreferrer" className="text-primary hover:underline">Privacy Policy</a>. I will never charge applicants anything, and I will only ask for ID papers I need to hire them.
+                      </span>
+                    </label>
+                    <Button type="submit" className="w-full" disabled={isSubmitting || !agreed}>
                       {isSubmitting ? (
                         <>
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />

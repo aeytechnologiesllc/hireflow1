@@ -413,33 +413,8 @@ export function useUpdateApplication() {
   });
 }
 
-export function useDeleteApplication() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (applicationId: string) => {
-      // Delete related documents first
-      await supabase.from("documents").delete().eq("application_id", applicationId);
-      
-      // Delete related interviews
-      await supabase.from("interviews").delete().eq("application_id", applicationId);
-      
-      // Delete related messages
-      await supabase.from("messages").delete().eq("application_id", applicationId);
-      
-      // Delete the application
-      const { error } = await supabase
-        .from("applications")
-        .delete()
-        .eq("id", applicationId);
-      
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["applications"] });
-      queryClient.invalidateQueries({ queryKey: ["documents"] });
-      queryClient.invalidateQueries({ queryKey: ["interviews"] });
-      queryClient.invalidateQueries({ queryKey: ["messages"] });
-    },
-  });
-}
+// No useDeleteApplication: a business removes an application only through
+// "Delete their information" (remove-applicant), which logs who did it and
+// deletes its files; the database refuses a business's direct delete since
+// 20261025550000 (the eleventh Phase 5 review). An applicant withdraws their
+// own from Applications.
