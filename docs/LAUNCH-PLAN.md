@@ -1039,8 +1039,12 @@ reached function deployed):
   site; an in-person interview made a phone job a desk; front desks read
   as customer service), each fixed by the reviewer's validated patch
   (f6cbeef3, 0656e133; the second also made the setup check linear: 15,000
-  lines under one heading took 1.3 s on every keystroke). **Round 25 is
-  running** (`p4r25_brief.md`).
+  lines under one heading took 1.3 s on every keystroke). **Rounds 25–27**
+  (`p4r25_report.md` to `p4r27_report.md`) each found one to three HIGH
+  in the last round's narrowings, each fixed by the reviewer's validated
+  patch (83a6a2d3, 1bc78236, a0d57f2f; every fixed case a check both
+  ways, earlier probes unchanged). **Round 28 is running**
+  (`p4r28_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1058,8 +1062,11 @@ reached function deployed):
   giving their age read as a self-introduction; one customer named before
   the quote excused an age question to the applicant) and smaller ones;
   fixed by a8032927 (round 16's readings reverted or narrowed to their own
-  evidence; six functions deployed). **Round 18 is running**
-  (`p6r18_brief.md`).
+  evidence; six functions deployed). **Round 18** (`p6r18_report.md`) was
+  the first to find no MEDIUM regression: its MEDIUM (a customer's own age
+  in a replied-to message with no customer word) is old, its regressions
+  LOW–MEDIUM; fixed by 8edc67fc (six functions deployed). **Round 19 is
+  running** (`p6r19_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
