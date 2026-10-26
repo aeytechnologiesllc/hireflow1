@@ -22,13 +22,17 @@
  *     10 with one business on any of its jobs, and queues at most 200 exact
  *     paths a day (the eighth security review).
  *   - file-queue-fair-and-bounded: document-cleanup takes the removal queue
- *     fairly (storage_file_trash_fair_pick: a few from each person a run,
- *     every note never tried before any that failed, each person's oldest
- *     note oldest first, then the people with the fewest waiting first) and
- *     clears exact paths in bulk, so one account's uploads hold up only
- *     itself (the eighth security review) and many accounts hold up nobody
- *     for good; a note that is not a plain path is dropped, not retried
- *     every hour (the ninth).
+ *     fairly (storage_file_trash_fair_pick: a few from each person a run, a
+ *     note that failed behind every note that is due until its back-off ends,
+ *     each person's oldest note, people in turn by when the pick last took
+ *     them, which it records itself, then the people with the fewest waiting
+ *     first) and clears exact paths in bulk, so one account's uploads hold up
+ *     only itself (the eighth security review), many accounts hold up nobody
+ *     for good, and a note that is not a plain path is dropped, not retried
+ *     every hour (the ninth); a burst by many accounts delays a later removal
+ *     by about a run for every 200 of them, not for as long as their notes
+ *     last, and a record is pruned only once its person holds nothing (the
+ *     tenth).
  *   - applications-stay-on-their-job: nobody but the server changes an
  *     application's job (moving it to a throwaway job and deleting that was
  *     a way round Delete their information), and a deleted document's kept
@@ -397,8 +401,12 @@ export default [
       "queue only through storage_file_trash_fair_pick (service role only: a few from each person a run, the people " +
       "with the fewest waiting first) and clears exact paths in one remove() a bucket. Many accounts hold up nobody " +
       "for good (the ninth security review: a thousand accounts' notes that failed every hour, or 200 accounts with " +
-      "one note each, kept a real withdrawal out of every run): every note never tried comes before any that failed, " +
-      "each person's oldest note goes oldest first across people, and a note that is not a plain path is dropped.",
+      "one note each, kept a real withdrawal out of every run): a note that failed never comes before one that is due, " +
+      "and a note that is not a plain path is dropped. People take turns (the tenth security review: ranked by each " +
+      "note's age, 200 accounts' one-hour burst queued before a real withdrawal kept a place ahead of it for 30 runs, " +
+      "and a real note that failed once was never tried again while a flood went on): each run records whom it took, " +
+      "a person's first note is ranked by when they were last taken or it became due, whichever is later, a note that " +
+      "failed waits out a back-off, and a person's record goes only once they hold nothing in that queue.",
     run: async ({ read, walk }) => {
       const detail = [];
       const pick = await latestDefinition({ read, walk }, "storage_file_trash_fair_pick");
@@ -406,13 +414,47 @@ export default [
       if (!pick) detail.push("supabase/migrations: no storage_file_trash_fair_pick (document-cleanup's fair pick, 20261025560000)");
       else {
         if (!/row_number\(\) over \(partition by m\.person order by m\.attempts, m\.queued_at, m\.id\) as nth, count\(\*\) over \(partition by m\.person\) as waiting/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must number each person's notes (fewest tries, oldest first) and count how many each has waiting`);
-        if (!/where r\.nth <= case when coalesce\(p_exact, false\) then 40 else 6 end order by \(r\.attempts > 0\), r\.nth > 1, case when r\.nth = 1 then r\.queued_at end, r\.waiting, r\.nth, r\.attempts, r\.queued_at, r\.id limit case when coalesce\(p_exact, false\) then 1000 else 200 end\s*$/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must take at most 6 folders and 40 exact paths from one person, every note never tried before any that failed, each person's oldest note oldest first across people, then the people with the fewest waiting first, 200 folders and 1,000 paths a run`);
-        if (/person\s*=|where false|limit 0\b/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick is narrowed to nothing or to one person`);
+        // A note that failed is due an hour a try after its last try (up to a
+        // day) and half an hour more; until then it waits behind every note
+        // that is due (the ninth and tenth security reviews).
+        if (!body.includes("case when m.attempts > 0 then coalesce(m.last_tried_at, m.queued_at) + least(m.attempts, 24) * interval '1 hour' + interval '30 minutes' else m.queued_at end as due_at")) detail.push(`${pick.rel}: storage_file_trash_fair_pick must make a note that failed due an hour a try after its last try (up to a day) and half an hour more, and one never tried due when it was queued`);
+        if (!/row_number\(\) over \(order by r\.due_at > now\(\), r\.nth > 1, case when r\.nth = 1 then greatest\(s\.served_at, r\.due_at\) end, r\.waiting, r\.nth, r\.attempts, r\.queued_at, r\.id\) as place from ranked r left join public\.storage_file_trash_served s on s\.exact = coalesce\(p_exact, false\) and s\.person = r\.person where r\.nth <= case when coalesce\(p_exact, false\) then 40 else 6 end \), picked as materialized \( select p\.id, p\.person, p\.place from placed p where p\.place <= case when coalesce\(p_exact, false\) then 1000 else 200 end \)/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must take at most 6 folders and 40 exact paths from one person, a note that failed behind every note that is due, each person's first note in turn (by when they were last taken or it became due, whichever is later), then the people with the fewest waiting first, 200 folders and 1,000 paths a run`);
+        // Each run records whom it took, in the same statement, and answers in
+        // that order (the tenth security review).
+        if (!/served as \( insert into public\.storage_file_trash_served \(exact, person, served_at\) select distinct coalesce\(p_exact, false\), p\.person, now\(\) from picked p on conflict \(exact, person\) do update set served_at = excluded\.served_at \) select t\.\* from picked p join public\.storage_file_trash t on t\.id = p\.id order by p\.place\s*$/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must record whom each run took (storage_file_trash_served, now()) and answer with exactly those notes, in their order`);
+        if (/\bperson\s*=(?!\s*r\.person\b)|where false|limit 0\b|place <= 0\b/i.test(body)) detail.push(`${pick.rel}: storage_file_trash_fair_pick is narrowed to nothing or to one person`);
         if (pick.securityDefiner) detail.push(`${pick.alteredIn ?? pick.rel}: storage_file_trash_fair_pick must run with the caller's rights (only the server may read the queue)`);
         const sql = (await read(pick.rel)) ?? "";
         if (!/grant execute on function public\.storage_file_trash_fair_pick\(boolean\) to service_role;/i.test(sql) || !/revoke all on function public\.storage_file_trash_fair_pick\(boolean\) from public, anon, authenticated;/i.test(sql)) detail.push(`${pick.rel}: storage_file_trash_fair_pick must be the service role's only`);
         for (const rel of await grantsToBrowser({ read, walk }, "storage_file_trash_fair_pick")) detail.push(`${rel}: storage_file_trash_fair_pick granted to a browser role`);
       }
+      // Whom each run took is the server's own record: row-level security on,
+      // nothing for a browser (a browser that could write it could give its
+      // accounts the front of the queue, or send a real person to its back).
+      const texts = await migrationTexts({ read, walk });
+      const all = texts.map((t) => t.sql).join("\n").replace(/\s+/g, " ");
+      if (!/create table if not exists public\.storage_file_trash_served \( exact boolean not null, person text not null, served_at timestamptz not null default now\(\), primary key \(exact, person\) \);/i.test(all)) detail.push("supabase/migrations: no public.storage_file_trash_served (exact, person, served_at), one row for each person and kind of note (20261025590000)");
+      if (!/alter table public\.storage_file_trash_served enable row level security;/i.test(all) || !/revoke all on table public\.storage_file_trash_served from public, anon, authenticated;/i.test(all)) detail.push("supabase/migrations: public.storage_file_trash_served must have row-level security on and nothing for public, anon or authenticated");
+      for (const { rel, sql } of texts) {
+        const flat = sql.replace(/\s+/g, " ");
+        for (const m of flat.matchAll(/\bgrant\s+[^;]*?\bon\s+(?:table\s+)?([^;]*?)\s+to\s+([^;]*);/gi)) {
+          if (/(?:^|[\s,"])(?:"?public"?\s*\.\s*)?"?storage_file_trash_served"?(?:$|[\s,"])|^all\s+tables\s+in\s+schema\s+[^;]*\bpublic\b/i.test(m[1]) && /(?:^|[\s,"])(anon|authenticated|public)(?:$|[\s,"])/i.test(m[2])) detail.push(`${rel}: public.storage_file_trash_served granted to a browser role`);
+        }
+        if (/\bstorage_file_trash_served\b[^;]*\b(?:disable|no force) row level security\b|\bcreate policy\b[^;]*\bon\s+(?:"?public"?\s*\.\s*)?"?storage_file_trash_served"?\b/i.test(flat)) detail.push(`${rel}: public.storage_file_trash_served opened to a browser (row-level security off, or a policy)`);
+      }
+      // …and a person's record goes only once they hold nothing in that
+      // queue, a day after their last turn, by the same person as the pick
+      // reads (dropping it while they hold a note would rank them by its age
+      // again, ahead of everyone who waited since).
+      const prune = await latestDefinition({ read, walk }, "prune_storage_file_trash_served");
+      const pruneBody = (prune?.body ?? "").replace(/\s+/g, " ");
+      if (!prune?.securityDefiner || !pruneBody.includes("delete from public.storage_file_trash_served s where s.served_at < now() - interval '1 day' and not exists ( select 1 from public.storage_file_trash t where (t.path is not null) = s.exact and coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) = s.person );") || !body.includes("coalesce(t.candidate_id::text, t.application_id::text, t.bucket || ':' || coalesce(t.path, t.folder)) as person")) {
+        detail.push(`${prune?.rel ?? "supabase/migrations"}: prune_storage_file_trash_served must drop a person's record only a day after their last turn and once they hold nothing in that queue, read as the pick reads a person`);
+      }
+      if (prune && (!/revoke all on function public\.prune_storage_file_trash_served\(\) from public, anon, authenticated;/i.test((await read(prune.rel)) ?? "") || (await grantsToBrowser({ read, walk }, "prune_storage_file_trash_served")).length)) detail.push(`${prune.rel}: prune_storage_file_trash_served must be the server's only`);
+      const scheduledAt = all.search(/perform cron\.schedule\('prune-storage-file-trash-served', '\d{1,2} \d{1,2} \* \* \*', 'select public\.prune_storage_file_trash_served\(\)'\);(?![\s\S]*cron\.schedule\('prune-storage-file-trash-served')/i);
+      const unscheduledAt = Math.max(-1, ...[...all.matchAll(/cron\.unschedule\('prune-storage-file-trash-served'\)/gi)].map((m) => m.index));
+      if (scheduledAt < 0 || unscheduledAt > scheduledAt) detail.push("supabase/migrations: prune_storage_file_trash_served must run daily (pg_cron, prune-storage-file-trash-served), and no later migration may unschedule it");
       // document-cleanup: the queue read only through the pick, both kinds;
       // exact paths in bulk; a refused batch tried one path at a time, with a
       // stop when storage itself refuses.

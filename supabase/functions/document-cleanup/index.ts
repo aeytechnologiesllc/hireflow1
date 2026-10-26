@@ -21,13 +21,14 @@
 // and the files sent with its form, where storage holds them (a withdrawal,
 // Delete Account, a deleted job; the database's own
 // applications_queue_voice_recordings trigger), and a deleted document's kept
-// copies (documents_queue_files). It takes them fairly, a few from each
-// person a run: each person's oldest note, oldest first, then the people
-// with the fewest waiting first, every note never tried before any that
-// failed (storage_file_trash_fair_pick), and clears exact paths in bulk, so
-// one account that fills the queue holds up only itself (the eighth security
-// review) and many accounts hold up nobody for good (the ninth). When the
-// queue backs up (a run's worth still waiting, or a note
+// copies (documents_queue_files). It takes them fairly: a few from each
+// person a run, people in turn (storage_file_trash_fair_pick, which records
+// whom each run took), a note that failed only after a back-off; and it
+// clears exact paths in bulk. So one account that fills the queue holds up
+// only itself (the eighth security review), many accounts hold up nobody for
+// good (the ninth), and a burst by many accounts delays a later removal about
+// a run for every 200 of them, not for as long as their notes last (the
+// tenth). When the queue backs up (a run's worth still waiting, or a note
 // waiting over three hours), the platform admins are told once a day.
 //
 // Called every hour by the database's own scheduler (pg_cron, the
@@ -153,15 +154,18 @@ Deno.serve(async (req) => {
   // application's own files and a deleted document's kept copies: an exact
   // file, or a folder whose names start with a prefix. Tried again every hour
   // until storage takes them; the note goes once they are gone.
-  // Taken fairly (storage_file_trash_fair_pick, 20261025560000 and
-  // 20261025580000): a few from each person a run, each person's oldest note
-  // first, oldest first across people, then the people with the fewest
-  // waiting first; every note never tried before any that failed. The eighth
-  // security review: one account's 860 notes an hour, taken 200 a run oldest
-  // first, held every real withdrawal up for days. The ninth: by the fewest
-  // waiting alone, many accounts with one note each (or one note each that
-  // failed every hour) kept a real withdrawal out of every run. Folders and
-  // exact paths are read apart, so neither answer passes the API's 1,000-row
+  // Taken fairly (storage_file_trash_fair_pick, 20261025560000,
+  // 20261025580000 and 20261025590000): a few from each person a run, each
+  // person's oldest note first, people in turn (by when the pick last took
+  // them, which it records itself), then the people with the fewest waiting
+  // first; a note that failed waits out a back-off behind every note that is
+  // due. The eighth security review: one account's 860 notes an hour, taken
+  // 200 a run oldest first, held every real withdrawal up for days. The
+  // ninth: by the fewest waiting alone, many accounts with one note each (or
+  // one note each that failed every hour) kept a real withdrawal out of every
+  // run. The tenth: by each note's age, 200 accounts' one-hour burst kept a
+  // place ahead of every later withdrawal for 30 runs. Folders and exact
+  // paths are read apart, so neither answer passes the API's 1,000-row
   // ceiling.
   type Note = { id: string; bucket: string; path: string | null; folder: string | null; starts_with: string | null; attempts: number | null };
   const [folderPick, exactPick] = await Promise.all([
@@ -274,7 +278,8 @@ Deno.serve(async (req) => {
   // faster than it cleared, every real removal waited behind it, and nobody
   // was told, since only failures were). Since the fair pick, an account
   // filling it waits behind everyone else, and this tells the admins it is
-  // there.
+  // there, and how to see whether it is one account or many (the tenth
+  // security review: "one candidate_id on many rows" described only one).
   let leftoversWaiting: number | null = null;
   let backedUp = false;
   let oldestWaiting: string | null = null;
@@ -350,7 +355,7 @@ Deno.serve(async (req) => {
   }
   const waitedTooLong = oldestWaiting !== null && Date.now() - Date.parse(oldestWaiting) > BACKLOG_HOURS * 3_600_000;
   if (leftoversWaiting !== null && (backedUp || waitedTooLong)) {
-    await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes up to ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} folders and ${PATH_NOTES_PER_RUN.toLocaleString("en-US")} files an hour, a few from each person at a time, so one account filling it holds up only itself. Such an account shows as one candidate_id on many rows.`);
+    await tell("backlog", "Files queued for removal are backing up", `${leftoversWaiting} file${leftoversWaiting === 1 ? " is" : "s are"} waiting in the removal queue (from "Delete their information", a withdrawal, Delete Account or a deleted job; storage_file_trash)${oldestWaiting ? `, the oldest since ${oldestWaiting.slice(0, 16).replace("T", " ")} UTC` : ""}. document-cleanup deletes up to ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} folders and ${PATH_NOTES_PER_RUN.toLocaleString("en-US")} files an hour, a few from each person in turn, so each file of a real removal waits about an hour for every ${FOLDER_NOTES_PER_RUN.toLocaleString("en-US")} people with files ahead of it. To see who fills it, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each.`);
   }
   if (unread.length > 0) return json({ error: "read_failed", ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting }, 500);
   return json({ ok: counts.failed === 0 && orphansFailed === 0 && leftoversFailed === 0, ...counts, orphans, orphansFailed, leftoversRemoved, leftoversFailed, leftoversDropped, leftoversWaiting });

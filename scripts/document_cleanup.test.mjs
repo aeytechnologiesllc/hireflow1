@@ -23,9 +23,10 @@
  *     waiting over three hours) is told to the admins once a day, through
  *     claim_daily_alert; a short queue is not;
  *   - it is read through storage_file_trash_fair_pick (the stand-in below
- *     answers as 20261025580000 does; the SQL itself is proved in
+ *     answers as 20261025590000 does; the SQL itself is proved in
  *     launch_locks_behaviour, sections 14 and 15): one person's 450 notes
  *     never keep another's out of the run (the eighth security review);
+ *     the backlog alert says how to tell one account from many (the tenth);
  *   - exact paths go in one remove() a bucket for up to 1,000; a batch
  *     storage refuses is tried one path at a time, so one refused path keeps
  *     only its own note, and storage refusing everything costs three more
@@ -93,35 +94,43 @@ function freshWorld() {
     refuseAll: false,
     removeCalls: [],
     claims: new Set(),
+    // storage_file_trash_served: when the pick last took each person, by kind of note.
+    served: new Map(),
   };
 }
 
 const order = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 /**
- * storage_file_trash_fair_pick as 20261025580000 makes it: the folders
+ * storage_file_trash_fair_pick as 20261025590000 makes it: the folders
  * (exact false, 200, 6 from one person) or the exact paths (exact true,
- * 1,000, 40 from one person); every note never tried before any that failed;
- * each person's fewest-tries, oldest note first, oldest first across people;
- * then the rest, the people with the fewest waiting first.
+ * 1,000, 40 from one person); a note that failed waits behind every note that
+ * is due for an hour a try (up to a day) and half an hour more; each person's
+ * fewest-tries, oldest note first, people in turn (by when they were last
+ * taken or the note became due, whichever is later); then the rest, the
+ * people with the fewest waiting first. It records whom it took.
  */
 function fairPick(exact) {
   const person = (r) => r.candidate_id ?? r.application_id ?? `${r.bucket}:${r.path ?? r.folder}`;
+  const now = Date.now();
+  const due = (r) => (r.attempts > 0 ? Date.parse(r.last_tried_at ?? r.queued_at) + (Math.min(r.attempts, 24) + 0.5) * 3_600_000 : Date.parse(r.queued_at));
   const groups = new Map();
   for (const r of world.tables.storage_file_trash.filter((r) => (r.path != null) === exact)) groups.set(person(r), [...(groups.get(person(r)) ?? []), r]);
   const ranked = [];
-  for (const rows of groups.values()) {
+  for (const [who, rows] of groups) {
     rows.sort((a, b) => a.attempts - b.attempts || order(a.queued_at, b.queued_at) || order(a.id, b.id));
-    rows.forEach((r, i) => ranked.push({ r, nth: i + 1, waiting: rows.length }));
+    rows.forEach((r, i) => ranked.push({ r, who, nth: i + 1, waiting: rows.length, due: due(r) }));
   }
-  return ranked
+  const turn = (x) => Math.max(world.served.get(`${exact}:${x.who}`) ?? -Infinity, x.due);
+  const picked = ranked
     .filter((x) => x.nth <= (exact ? 40 : 6))
     .sort((a, b) =>
-      (a.r.attempts > 0) - (b.r.attempts > 0) ||
+      (a.due > now) - (b.due > now) ||
       (a.nth > 1) - (b.nth > 1) ||
-      (a.nth === 1 ? order(a.r.queued_at, b.r.queued_at) : 0) ||
+      (a.nth === 1 ? turn(a) - turn(b) : 0) ||
       a.waiting - b.waiting || a.nth - b.nth || a.r.attempts - b.r.attempts || order(a.r.queued_at, b.r.queued_at) || order(a.r.id, b.r.id))
-    .slice(0, exact ? 1000 : 200)
-    .map((x) => ({ ...x.r }));
+    .slice(0, exact ? 1000 : 200);
+  for (const x of picked) world.served.set(`${exact}:${x.who}`, now);
+  return picked.map((x) => ({ ...x.r }));
 }
 
 const compare = (a, b) => (Date.parse(a) || a) <= (Date.parse(b) || b);
@@ -289,7 +298,10 @@ console.log("\nThe removal queue, and a backlog\n");
   check("a run takes 200 folder notes, oldest first: their files go, then the notes", r.status === 200 && r.body?.leftoversRemoved === 200 && world.tables.storage_file_trash.length === 250 && !world.storage.videos.has(`${id(2000)}/${id(600)}-intro.webm`), show(r.body));
   check("…250 still waiting is a backlog: the admins are told", r.body?.leftoversWaiting === 250 && told("Files queued for removal are backing up") === 1, show(r.body));
   const card = world.tables.notifications.find((n) => n.title === "Files queued for removal are backing up");
-  check("…in plain words: how many, since when, how fast it clears and that one account holds up only itself", /^250 files are waiting in the removal queue/.test(card?.message ?? "") && /deletes up to 200 folders and 1,000 files an hour, a few from each person at a time, so one account filling it holds up only itself/.test(card?.message ?? ""), card?.message);
+  check("…in plain words: how many, since when, how fast it clears and how long a real removal waits", /^250 files are waiting in the removal queue/.test(card?.message ?? "") && /, the oldest since \d{4}-\d\d-\d\d \d\d:\d\d UTC\./.test(card?.message ?? "") && /deletes up to 200 folders and 1,000 files an hour, a few from each person in turn, so each file of a real removal waits about an hour for every 200 people with files ahead of it\./.test(card?.message ?? ""), card?.message);
+  // The tenth security review: "one candidate_id on many rows" described one
+  // account, never many throwaway accounts with a few rows each.
+  check("…and how to see who fills it: rows by candidate_id, one account or many", /To see who fills it, count storage_file_trash's rows by candidate_id: one account is one candidate_id with many rows; many throwaway accounts are many candidate_ids with a few rows each\.$/.test(card?.message ?? ""), card?.message);
   await runIt();
   check("…once a day (claim_daily_alert), however many runs", told("Files queued for removal are backing up") === 1 && world.claims.has("cleanup:backlog"));
 

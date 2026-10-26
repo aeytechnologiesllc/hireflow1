@@ -68,12 +68,21 @@
  *      shape of its flood proof; 20261025560000).
  *  15. Many accounts cannot keep a real removal out of the run: the trigger
  *      queues no "." part and an exact path only where storage holds exactly
- *      that name; a note that failed comes after every note never tried (a
+ *      that name; a note that failed waits behind every note that is due (a
  *      thousand accounts' failing notes, then a real withdrawal: taken
  *      within two runs); and a real withdrawal's oldest note waits only for
  *      those queued before it (200 accounts queuing a folder each an hour:
  *      one of its folders every run). The ninth security review, in the
- *      shape of its proofs; 20261025580000.
+ *      shape of its proofs; 20261025580000. And people take turns: each run
+ *      records whom it took, so 200 accounts' burst of 30 folders an hour
+ *      each, queued before a real withdrawal (for one hour or three, or going
+ *      on), gives it a folder within two runs and all three within four
+ *      (ranked by age it waited 30 runs for every hour of burst); 200 fresh
+ *      accounts every hour, one a run; a real folder storage refused once is
+ *      taken again within four runs while a flood goes on; folders and exact
+ *      paths keep their own turns; the record is pruned only once its person
+ *      holds nothing, and no browser may touch it. The tenth security
+ *      review, in the shape of its proof; 20261025590000.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -1131,7 +1140,7 @@ console.log("\n15. Many accounts cannot keep a real removal out of the run\n");
   const refusesDot = (n) => typeof n.path === "string" && n.path.endsWith("/.");
   const exactRuns = [];
   for (let h = 0; h < 2; h += 1) exactRuns.push((await runOnce(true, refusesDot)).filter((n) => n.application_id === real).length);
-  check("…and both are taken within two runs: a note that failed comes after every note never tried", exactRuns.reduce((a, b) => a + b, 0) === 2 && (await queuedPaths(real)).length === 0, show(exactRuns));
+  check("…and both are taken within two runs: a note that failed waits out its back-off behind every note that is due", exactRuns.reduce((a, b) => a + b, 0) === 2 && (await queuedPaths(real)).length === 0, show(exactRuns));
   check("…while the notes that keep failing are tried again, behind it", (await one(`select count(*)::int n from public.storage_file_trash where attempts >= 1`)).n === 1000);
   await db.query(`delete from public.storage_file_trash`);
 
@@ -1159,6 +1168,179 @@ console.log("\n15. Many accounts cannot keep a real removal out of the run\n");
   }
   check("200 accounts queuing one folder each an hour fill every run", folderRuns.every((x) => x.picked === 200), show(folderRuns));
   check("…yet the real withdrawal gets a folder in every run, all three within three runs", folderRuns.every((x) => x.victim >= 1) && (await queued(victim)).length === 0, show(folderRuns));
+
+  // (C) The tenth security review (finding 1), in the shape of its proof
+  // (probes/burst.mjs): 200 throwaway accounts, each starting and withdrawing
+  // 10 applications an hour on one job with a tiny file in each
+  // application's three folders, for an hour, then nothing. Ranked by each
+  // note's age, an account whose notes were all queued before a real
+  // withdrawal kept a place ahead of it in every run until they were gone:
+  // its first folder waited 31 runs, 91 after a three-hour burst. People now
+  // take turns: each run records whom it took (storage_file_trash_served),
+  // and a person's first note is ranked by when they were last taken or it
+  // became due, whichever is later. The flood's notes are written as the
+  // trigger writes them; one account's hour of it goes through the trigger.
+  const anHourOfIt = async (account) => {
+    const startedIn = Math.floor(Date.now() / 3_600_000);
+    await makeUser(account, "candidate");
+    let apps = 0;
+    let refused = "";
+    for (let i = 0; i < 11; i += 1) {
+      const r = await as(user(account), `insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [JOB, account]);
+      if (!r.ok) {
+        refused = r.error;
+        break;
+      }
+      apps += 1;
+      await putStepFiles(r.rows[0].id, account);
+      await as(user(account), `delete from public.applications where id = $1`, [r.rows[0].id]);
+    }
+    const folders = (await one(`select count(*)::int n from public.storage_file_trash where candidate_id = $1 and path is null`, [account])).n;
+    return { apps, refused, folders, sameHour: Math.floor(Date.now() / 3_600_000) === startedIn };
+  };
+  // The start limit counts in clock hours: a run that crosses one is done
+  // again by a fresh account.
+  let bursty = await anHourOfIt(id(9, 4));
+  if (!bursty.sameHour) bursty = await anHourOfIt(id(9, 5));
+  check("one account starts and withdraws 10 applications an hour on one job (the 11th is refused): 30 folders an hour", bursty.apps === 10 && /too_many_applications/.test(bursty.refused) && bursty.folders === 30, show(bursty));
+
+  const served = (await one(`select to_regclass('public.storage_file_trash_served') is not null as there`)).there;
+  // The clock: an hour passes between runs, so before each run every stored
+  // time is made an hour older, and the run's own now() comes an hour after
+  // the last run's.
+  const anHourPasses = async () => {
+    await db.exec(`update public.storage_file_trash set queued_at = queued_at - interval '1 hour', last_tried_at = last_tried_at - interval '1 hour'`);
+    if (served) await db.exec(`update public.storage_file_trash_served set served_at = served_at - interval '1 hour'`);
+  };
+  /** k folders for each of these people, as the trigger writes them, spread over the hour that starts `ago` hours back. */
+  const queueFolders = (people, k, ago) =>
+    db.query(
+      `insert into public.storage_file_trash (bucket, folder, starts_with, application_id, candidate_id, queued_at)
+       select 'videos', x.person::text, x.app::text || '-', x.app, x.person, x.at
+         from (select p.person, gen_random_uuid() as app, now() - interval '1 hour' * ($3::float8 - 0.98 * (n - 0.5) / ($2::int + 1)) as at
+                 from unnest($1::uuid[]) as p (person), generate_series(1, $2::int) as n) x`,
+      [people, k, ago],
+    );
+  let made = 0;
+  const people = (n) => Array.from({ length: n }, () => `9c${String((made += 1)).padStart(6, "0")}-0000-4000-8000-${String(made).padStart(12, "0")}`);
+  let victims = 0;
+  /**
+   * A real withdrawal, after what `before()` queues in the hours before it;
+   * then document-cleanup's runs, an hour apart (the first an hour after it),
+   * while `each()` queues more in each hour between: the run (1 = the next)
+   * in which its first and last folder went. With failOnce, the first of its
+   * folders a run takes is refused once (a storage hiccup): the run that was,
+   * and the run it went in after all.
+   */
+  const realWithdrawal = async ({ before = async () => {}, each = async () => {}, failOnce = false, runs = 6, onRun = async () => {} }) => {
+    await db.query(`delete from public.storage_file_trash`);
+    if (served) await db.query(`delete from public.storage_file_trash_served`);
+    const who = id(9, 100 + (victims += 1));
+    await makeUser(who, "candidate");
+    const app = await apply(who, JOB_P);
+    await putStepFiles(app, who);
+    await as(user(who), `delete from public.applications where id = $1`, [app]);
+    if ((await queued(app)).length !== 3) throw new Error(`setup: the real withdrawal queued ${show(await queued(app))}`);
+    await before();
+    const taken = [];
+    let refusedId = null;
+    let refusedIn = Infinity;
+    let retried = Infinity;
+    for (let h = 1; h <= runs && (taken.length < 3 || (failOnce && retried === Infinity)); h += 1) {
+      await anHourPasses();
+      await each();
+      const r = await as(SERVICE, `select id, application_id, candidate_id from public.storage_file_trash_fair_pick(false)`);
+      if (!r.ok) throw new Error(`the pick: ${r.error}`);
+      await onRun(h, r.rows);
+      const mine = r.rows.filter((n) => n.application_id === app);
+      let refused = [];
+      if (failOnce && refusedId === null && mine.length) {
+        refused = [(refusedId = mine[0].id)];
+        refusedIn = h;
+      } else if (refusedId !== null && mine.some((n) => n.id === refusedId)) retried = h;
+      for (const n of mine) if (!refused.includes(n.id)) taken.push(h);
+      if (refused.length) await db.query(`update public.storage_file_trash set attempts = attempts + 1, last_tried_at = now() where id = any($1::uuid[])`, [refused]);
+      await db.query(`delete from public.storage_file_trash where id = any($1::uuid[])`, [r.rows.filter((n) => !refused.includes(n.id)).map((n) => n.id)]);
+    }
+    return { first: taken[0] ?? Infinity, all: taken[2] ?? Infinity, refusedIn, retried };
+  };
+  const shownRuns = (r) => JSON.stringify(r, (_, v) => (v === Infinity ? "not in these runs" : v));
+
+  const crowd200 = people(200);
+  let recorded = null;
+  const c1 = await realWithdrawal({
+    before: () => queueFolders(crowd200, 30, 1),
+    onRun: async (h, picked) => {
+      if (h !== 1 || !served) return;
+      const rows = (await db.query(`select person, served_at = (select max(served_at) from public.storage_file_trash_served) as now from public.storage_file_trash_served where not exact`)).rows;
+      const took = new Set(picked.map((n) => n.candidate_id));
+      recorded = { rows: rows.length, now: rows.filter((x) => x.now).length, took: took.size, same: rows.every((x) => x.now === took.has(x.person)) };
+    },
+  });
+  check("each run records whom it took, and when (storage_file_trash_served)", recorded !== null && recorded.same && recorded.now === recorded.took && recorded.rows === recorded.took, show(recorded));
+  check("200 accounts' one-hour burst (30 folders each) queued before a real withdrawal: its first folder goes within two runs, all three within four (was 31)", c1.first <= 2 && c1.all <= 4, shownRuns(c1));
+  const c3 = await realWithdrawal({
+    before: async () => {
+      for (const ago of [3, 2, 1]) await queueFolders(crowd200, 30, ago);
+    },
+  });
+  check("…a three-hour burst: the same, however long it went on (was 91)", c3.first <= 2 && c3.all <= 4, shownRuns(c3));
+  const c2 = await realWithdrawal({ before: () => queueFolders(crowd200, 30, 1), each: () => queueFolders(crowd200, 30, 1) });
+  check("…a burst that keeps going: the same", c2.first <= 2 && c2.all <= 4, shownRuns(c2));
+  const c2f = await realWithdrawal({ before: () => queueFolders(crowd200, 30, 1), each: () => queueFolders(crowd200, 30, 1), failOnce: true, runs: 10 });
+  check("…and a real folder storage refused once is taken again within four runs while it goes on, not after every note never tried", c2f.retried - c2f.refusedIn <= 4, shownRuns(c2f));
+  const b2 = await realWithdrawal({ each: () => queueFolders(people(200), 1, 1) });
+  check("200 fresh accounts every hour, one folder each: the real withdrawal still gets a folder every run, all three within three", b2.first === 1 && b2.all <= 3, shownRuns(b2));
+
+  // Folders and exact paths are two queues, read by two calls in one run:
+  // each keeps its own turns, so a withdrawal's folders taken first never
+  // send its resume behind a thousand accounts' files queued after it.
+  await db.query(`delete from public.storage_file_trash`);
+  if (served) await db.query(`delete from public.storage_file_trash_served`);
+  const APART = id(9, 70);
+  await makeUser(APART, "candidate");
+  const apartApp = await apply(APART, JOB_P);
+  await putStepFiles(apartApp, APART);
+  const APART_CV = `${APART}/1729000000000.pdf`;
+  await putFile("resumes", APART_CV);
+  await as(user(APART), `update public.applications set resume_url = $2 where id = $1`, [apartApp, APART_CV]);
+  await as(user(APART), `delete from public.applications where id = $1`, [apartApp]);
+  await db.query(
+    `insert into public.storage_file_trash (bucket, path, application_id, candidate_id)
+     select 'resumes', p.person::text || '/1729000000000.pdf', gen_random_uuid(), p.person
+       from (select gen_random_uuid() as person from generate_series(1, 1000)) p`,
+  );
+  const apartFolders = await as(SERVICE, `select id, application_id from public.storage_file_trash_fair_pick(false)`);
+  const apartPaths = await as(SERVICE, `select id, application_id, path from public.storage_file_trash_fair_pick(true)`);
+  check("folders and exact paths take turns apart: a withdrawal's folders taken in a run keep its resume ahead of a thousand accounts' files queued after it", apartFolders.ok && apartFolders.rows.filter((n) => n.application_id === apartApp).length === 3 && apartPaths.ok && apartPaths.rows.some((n) => n.path === APART_CV), show({ folders: apartFolders.rows?.length, paths: apartPaths.rows?.length, cv: apartPaths.rows?.some((n) => n.path === APART_CV) }));
+
+  // The record is the server's: a person's turn goes a day after it, once
+  // they hold nothing in that queue (dropping it while they hold a note would
+  // rank them by that note's age again, ahead of everyone who waited since).
+  await db.query(`delete from public.storage_file_trash`);
+  const [GONE_DAY, HOLDS, RECENT, OTHER_KIND] = [id(9, 60), id(9, 61), id(9, 62), id(9, 63)];
+  let pruned = null;
+  if (served) {
+    await db.query(`delete from public.storage_file_trash_served`);
+    await queueFolders([HOLDS, OTHER_KIND], 1, 1);
+    await db.query(`insert into public.storage_file_trash_served (exact, person, served_at) values (false, $1, now() - interval '2 days'), (false, $2, now() - interval '2 days'), (false, $3, now() - interval '1 hour'), (true, $4, now() - interval '2 days')`, [GONE_DAY, HOLDS, RECENT, OTHER_KIND]);
+  }
+  try {
+    await db.query(`select public.prune_storage_file_trash_served()`);
+    pruned = (await db.query(`select exact, person from public.storage_file_trash_served order by person`)).rows.map((x) => `${x.exact}:${x.person}`);
+  } catch (e) {
+    pruned = e.message;
+  }
+  check("a person's record goes a day after their last turn once they hold nothing in that queue; one still holding a note, or served today, stays", JSON.stringify(pruned) === JSON.stringify([`false:${HOLDS}`, `false:${RECENT}`]), show(pruned));
+  const browserTries = [
+    await as(user(ANA), `select * from public.storage_file_trash_served`),
+    await as(ANON, `select * from public.storage_file_trash_served`),
+    await as(user(ANA), `insert into public.storage_file_trash_served (exact, person, served_at) values (false, $1, now() - interval '1 year')`, [ANA]),
+    await as(user(ANA), `update public.storage_file_trash_served set served_at = now() + interval '1 year'`),
+    await as(user(ANA), `select public.prune_storage_file_trash_served()`),
+    await as(user(ANA), `select id from public.storage_file_trash_fair_pick(false)`),
+  ];
+  check("…and no browser may read or write it, prune it or take a run (which writes it)", served && browserTries.every((r) => !r.ok), show(browserTries.map((r) => r.ok || r.error)));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

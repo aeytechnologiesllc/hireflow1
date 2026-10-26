@@ -243,22 +243,45 @@ these either; each has a guard or a test that CI runs:
   up nobody's removal for good. The pick puts every note never tried before
   any that failed, then each person's oldest note, oldest first across
   people, then everyone's next notes, the people with the fewest waiting
-  first (caps unchanged). By the fewest waiting alone, a thousand accounts'
+  first (caps unchanged; the tenth review changed the first two, below).
+  By the fewest waiting alone, a thousand accounts'
   `<uid>/.` notes, refused every hour, held the front of every exact-path
   run, and 200 accounts with one note each an hour kept a three-folder
   withdrawal out of every folder run. The trigger queues no `.` part (the
   `isPlainObjectPath` rule) and an exact path only where storage holds that
   exact name (`private.storage_holds(…, p_exact => true)`; as a prefix,
   `<uid>/.` was "there" because `<uid>/.x` was); document-cleanup drops a
-  note that is not a plain path (logged once) instead of retrying it.
-  Left until Turnstile is set up (an owner input): many accounts still
-  delay a real removal, never keep it out. 200 accounts queuing a folder
-  each an hour give a three-folder withdrawal one folder a run (three runs);
-  a flood bigger than a run puts it behind every note queued before it. A
+  note that is not a plain path (logged once) instead of retrying it. A
   document's files by its id only now has a proof for documents_queue_files
   too (section 13: an address naming another business's upload). Guards
   `file-queue-fair-and-bounded`, `applicant-data-can-be-removed`;
   launch_locks_behaviour sections 13 and 15, `scripts/document_cleanup.test.mjs`.
+- (The tenth security review, `20261025590000`.) People take turns in the
+  removal queue. Ranked by each note's age, 200 accounts' one-hour burst
+  (10 applications an hour each on the one live job, 30 folders) queued
+  before a real withdrawal kept a place ahead of it in every run: 31 runs
+  for its first folder, 30 more for every further hour of burst, with no
+  upkeep after it. Each run now records whom it took
+  (`storage_file_trash_served`, one row for each person and kind of note,
+  written by `storage_file_trash_fair_pick` itself in the same statement, so
+  the pick is VOLATILE; service role only), and a person's first note is
+  ranked by when they were last taken or it became due, whichever is later.
+  A note that failed waits behind every note that is due for an hour a try
+  (up to a day) and half an hour more, then takes its turn (behind every
+  note never tried, a real one that failed once was never tried again while
+  a flood went on). A person's record goes a day after their last turn, once
+  they hold nothing in that queue (`prune_storage_file_trash_served`, daily,
+  pg_cron); dropping it while they hold a note would rank them by its age
+  again. The bursts (one hour, three, going on) now give a real withdrawal a
+  folder in the second run and all three by the fourth. document-cleanup's
+  backlog alert says how to tell one account from many (rows by
+  `candidate_id`). Left until Turnstile is set up (an owner input): many
+  accounts still delay a real removal, never keep it out: each of its notes
+  waits about a run for every 200 people (1,000 for exact paths) with notes
+  ahead of it (1,000 accounts with 6 folders each: its first folder in the
+  sixth run, all three by the sixteenth), however many notes they hold.
+  Guard `file-queue-fair-and-bounded`; launch_locks_behaviour section 15,
+  `scripts/document_cleanup.test.mjs`.
 - The way to reach the company is **Contact us** (an applicant's own Help
   thread at `/contact`, `20261025200000_help_for_applicants.sql`; `/help` is
   staff-only on the staff host) or Help (a hiring team); Messages reach the
