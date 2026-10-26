@@ -1030,7 +1030,11 @@ reached function deployed):
   taken as it is in 10ed2430 (each case a check both ways). **Round 21**
   (`p4r21_report.md`) found two HIGH and two MEDIUM regressions of round
   20 and one old gap, with a validated four-hunk patch, taken as it is in
-  88f9dd9c. **Round 22 is running** (`p4r22_brief.md`).
+  88f9dd9c. **Round 22** (`p4r22_report.md`) found four HIGH (hotel and
+  travel accounts read as in-person desks through round 21's spellings,
+  and the reverse; a WFH line under the hiring's heading), with a
+  validated patch, taken as it is in 223ccbf4. **Round 23 is running**
+  (`p4r23_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1043,7 +1047,11 @@ reached function deployed):
   the customer is named in the sentence before the quote; and, never
   caught by any round, the Philippine self-introduction template "My name
   is ___, ___ years old") and four smaller; fixed by 57925031 (six
-  functions deployed). **Round 17 is running** (`p6r17_brief.md`).
+  functions deployed). **Round 17** (`p6r17_report.md`) found two MEDIUM
+  regressions against all three earlier rounds (a customer's own message
+  giving their age read as a self-introduction; one customer named before
+  the quote excused an age question to the applicant) and smaller ones;
+  **its fixer is running** (`age17_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
