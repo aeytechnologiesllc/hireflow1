@@ -285,8 +285,9 @@ export function drawerCaption(rows: CaptionRow[], { canSend }: { canSend: boolea
     const titles = [...new Set(stillExpired.map((r) => r.title).filter((t): t is string => !!t))];
     const allTitled = stillExpired.every((r) => !!r.title);
     const named = allTitled && titles.length > 0 && titles.length <= 2 ? ` for ${titles.map((t) => `\u201c${t}\u201d`).join(" and ")}` : null;
-    const which = replaced.size > 0 ? named ?? (people === 1 ? " for the one that expired" : " for the ones that expired") : "";
+
     const many = people > 1 || titles.length > 1;
+    const which = replaced.size > 0 ? named ?? (many ? " for the ones that expired" : " for the one that expired") : "";
     return `${line} — ${many ? `send new ones${which} if you still need them` : `send a new one${which} if you still need it`}.`;
   }
   return `${line}.`;

@@ -103,6 +103,10 @@ check("team: no Withdraw or 'your turn' for a teammate who cannot send; the copy
   const panel = read("src/cockpit/components/ApplicantDocumentsPanel.tsx");
   const hook = read("src/cockpit/hooks/useApplicantRequests.ts");
   check("papers: Approve and Ask again only for someone who may send documents; a review that changes no row says so and asks no one again", /const canReview = isTeamMember \? !!teamPermissions\?\.canSendDocuments : role === "employer";/.test(panel) && /\{received && canReview && \(/.test(panel) && /data-request-no-review/.test(panel) && /\.eq\("id", request\.id\)\s*\.select\("id"\);/.test(hook) && hook.indexOf("if (!changed || changed.length === 0) throw") > -1 && hook.indexOf("if (!changed || changed.length === 0) throw") < hook.indexOf('title: "Please send it again"'));
+  // The sixteenth product review: the phone layout of the applicant's page shows the papers too (the "Document received" bell
+  // opens it), and "to review" is said only to someone who may review them.
+  const detail = read("src/cockpit/pages/CandidateDetail.tsx");
+  check("papers: the applicant's page shows them on a phone too; 'to review' only for a reviewer", (detail.match(/<ApplicantDocumentsPanel applicationId=\{c\.id\}/g) ?? []).length === 2 && /\$\{canReview \? "to review" : "waiting for review"\}/.test(panel) && /status === "yours" \? "Nothing needs you right now\."/.test(docsPage));
 }
 {
   // The dev preview answers as live does (it served the kept copy before

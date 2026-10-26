@@ -115,6 +115,9 @@ eq("the status words; \"Closed\" names declined, withdrawn, voided and expired a
   }
   const twoPapers = f.drawerCaption([{ ...ana, title: "Offer Letter — Server" }, { id: "e3", status: "Expired", applicationId: "a-ana", type: "File", title: "House rules" }, benOld, benNew], { canSend: true });
   check("two different expired papers beside a replaced letter: both named, new ones", /send new ones for \u201cOffer Letter — Server\u201d and \u201cHouse rules\u201d if you still need them\.$/.test(twoPapers), twoPapers);
+  // The sixteenth product review: three or more different expired papers beside a replaced letter: plural throughout.
+  const three = f.drawerCaption([{ ...ana, title: "A" }, { id: "e4", status: "Expired", applicationId: "a-ana", type: "File", title: "B" }, { id: "e5", status: "Expired", applicationId: "a-ana", type: "File", title: "C" }, benOld, benNew], { canSend: true });
+  check("three different expired papers beside a replaced letter: \"for the ones that expired\", plural", /send new ones for the ones that expired if you still need them\.$/.test(three), three);
 }
 
 // The line beside the meter. The tenth product review: a letter past its date

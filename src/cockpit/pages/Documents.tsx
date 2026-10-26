@@ -740,7 +740,7 @@ export default function CockpitDocuments() {
 
       {shownCount === 0 && (
         <div className="ck-card mt-3 p-5 text-[13.5px]" style={{ color: "var(--ink-2)" }} data-filter-empty>
-          {filtersOn ? "Nothing matches these filters." : `Nothing is ${STATUS_WORDS[status].toLowerCase()} right now.`}{" "}
+          {filtersOn ? "Nothing matches these filters." : status === "yours" ? "Nothing needs you right now." : `Nothing is ${STATUS_WORDS[status].toLowerCase()} right now.`}{" "}
           <button type="button" className="underline underline-offset-2" style={{ color: "var(--action)" }} onClick={clearFilters}>
             Show everything
           </button>

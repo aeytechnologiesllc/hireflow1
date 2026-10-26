@@ -205,11 +205,15 @@ export function RequestRow({ request, person }: { request: ApplicantRequest; per
 
 export function ApplicantDocumentsPanel({ applicationId, firstName, show, onRequest }: { applicationId: string; firstName: string; show: boolean; onRequest?: () => void }) {
   const { data: requests = [], isLoading } = useApplicantRequests(applicationId);
+  const { role, isTeamMember } = useAuth();
+  const { data: teamPermissions } = useTeamMemberPermissions();
+  const canReview = isTeamMember ? !!teamPermissions?.canSendDocuments : role === "employer";
   if (!show && requests.length === 0) return null;
   const waiting = requests.filter((r) => r.status === "submitted" || r.status === "reviewed").length;
   return (
     <section aria-label="Documents" data-applicant-documents>
-      <PanelLabel>Documents{waiting > 0 ? ` · ${waiting} to review` : ""}</PanelLabel>
+      {/* "To review" only for someone who may review them (the sixteenth product review). */}
+      <PanelLabel>Documents{waiting > 0 ? ` · ${waiting} ${canReview ? "to review" : "waiting for review"}` : ""}</PanelLabel>
       <div className="ck-card px-4 py-1.5">
         {isLoading ? (
           <p className="py-2.5 text-[12.5px]" style={{ color: "var(--ink-3)" }}>Loading...</p>
