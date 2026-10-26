@@ -315,7 +315,8 @@ seconds on 90 KB). In this order:
    past, "experience as a front desk agent in US hotels" too, when "in",
    "at", "from", "with", "of" or "working for" comes before the hotels;
    the twenty-seventh: "years of experience supporting US hotels" is a
-   business's own); chat or
+   business's own; the twenty-eighth: never after "no experience", and the
+   hotels must start within the 45 characters); chat or
    email words count as a greeting "by phone" only within four words
    with no "and" between; only an interview's, training's or
    onboarding's own few words beside "in person" excuse it), their
@@ -635,7 +636,9 @@ the same things:
    the heading, so "✅ Setup: Onsite" under "Training:" is the training's;
    the twenty-seventh: the mark is a line's first symbol, compared with the
    nearest marked line since the heading, and a remote line with its own
-   "Setup:" label is never the hiring's second setup);
+   "Setup:" label is never the hiring's second setup; the twenty-eighth: a
+   short unmarked line after a blank line, "PRODUCTION", "JOB DETAILS",
+   ends the list above it like a heading without its colon);
    the words are
    any of hiring, recruitment, application or selection with any of
    process, setup, mode, venue, site, location or steps), keeps its on-site line

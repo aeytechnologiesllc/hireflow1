@@ -570,6 +570,10 @@ const CS = [
   // partners" stay a hotel account's.
   ["Guest Services Agent", "We have 10 years of experience supporting US hotels. Process check-ins and check-outs, cancellations and refunds. Answer guest calls and emails."],
   ["Guest Services Agent", "No experience needed! You will support our US hotel partners: process check-ins and check-outs, cancellations and refunds, and answer guest calls and emails."],
+  // The twenty-eighth (M3): "No experience needed!" is never the applicant's past, and the hotels must start inside the
+  // window, so a call's "great experience … at US hotels" further on is an account's.
+  ["Guest Services Agent", "Deliver a great experience on every call while helping travelers with reservations at US hotels. Process check-ins and check-outs, cancellations and refunds."],
+  ["Guest Services Agent", "No experience needed! Take calls from guests of US hotels. Process check-ins and check-outs, cancellations and refunds."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
