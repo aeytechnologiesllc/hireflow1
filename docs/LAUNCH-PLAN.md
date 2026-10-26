@@ -967,7 +967,12 @@ reached function deployed):
   accounts makes a withdrawal's later folders wait longer each time) with
   a validated fix; fixed by 6c30ecd4 (a withdrawal's files go together in
   its turn; `file_queue_whole_turns` live 20261026130943, document-cleanup
-  deployed). **Round 12 is running** (`sec12_brief.md`).
+  deployed). **Round 12** (`sec12_report.md`) found one MEDIUM (every run
+  ranks the whole queue, so about 700,000 notes, a day of 1,000 free
+  accounts, push the pick past the API's 8-second limit and the queue never
+  empties again; round 11's extra sort lowered that size) and one LOW;
+  **its fixer is running** (`r12_security_fix_brief.md`: a run's cost
+  independent of the queue's size, with a timing check).
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -978,7 +983,12 @@ reached function deployed):
   request queues only a file storage holds, an applicant links only their
   own upload, 50 requests per application and 300 an hour per business,
   both papers queues read fairly by business, Delete Account and the
-  Privacy Policy say what stays. **Round 13 is running** (`p5r13_brief.md`).
+  Privacy Policy say what stays. **Round 13** (`p5r13_report.md`) found
+  one LOW-MEDIUM (the rules that decide when an ID is deleted are tested
+  only against old definitions: nine weakenings pass everything) and one
+  LOW (an ID photo whose link was never saved is not deleted on time);
+  nothing found on the live rules; **its fixer is running**
+  (`p5r13_fix_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1008,8 +1018,11 @@ reached function deployed):
   country written after the client words was dropped, so "US company -
   Makati" saved as the US and USD; hotlines with written duties read
   mixed; either-way Types read on site; hotel check-in bullets read as
-  customer service), each with a validated fix; **its fixer is running**
-  (`p4r19_fix_brief.md`).
+  customer service), each with a validated fix; fixed by 7022b369.
+  **Round 20** (`p4r20_report.md`) found two HIGH and three MEDIUM
+  regressions of round 19's narrowings, with a validated four-line patch,
+  taken as it is in 10ed2430 (each case a check both ways). **Round 21 is
+  running** (`p4r21_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
