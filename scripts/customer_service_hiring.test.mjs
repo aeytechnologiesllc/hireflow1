@@ -1498,6 +1498,26 @@ let aiFlow;
       const connection = flow.phases.some((p) => p.kind === "equipment_check");
       check(`the AI plan's chat note and what Publish saves agree (${role}, ${location}, "${work.slice(0, 32)}…": ${remote ? "remote" : "on site"})`, b0.workMode === (remote ? "remote" : "onsite") && saved === remote && /typing speed and reply time measured/.test(note) === remote && connection === remote && !/this one's/.test(note), `${b0.workMode} saved=${saved} connection=${connection} ${note}`);
     }
+    // …and the template path, where Publish read the post's own words: any "WFH" in What they do saved an on-site job remote,
+    // with no currency, though the builder made it on site (the fifteenth review's flag). Publish now takes remote from the
+    // brief, or from a place or Type that says so.
+    for (const [role, location, work, remote] of [
+      ["Customer Service Representative", "Makati City", "Answer customer calls and emails for our telco account. Work setup: Onsite. Possible WFH after regularization.", false],
+      ["Customer Service Representative", "Makati City", "Answer customer calls for our insurance account. WFH is not available for this role.", false],
+      ["Customer Service Representative", "Makati City", "Answer customer calls. Must have WFH experience.", false],
+      ["Front Desk Receptionist", "Austin, TX", "Greet visitors at our office and answer phones.\nBenefits:\n- Work from home Fridays\n- HMO", false],
+      ["Customer Service Representative", "Philippines", "Permanent work from home. Answer customer chats and emails for our online store.", true],
+      ["Work From Home Chat Support Agent", "Cebu City", "Reply to customer chats about orders and refunds.", true],
+      ["Customer Service Representative", "Remote - Philippines", "Answer customer chats and emails for our online store.", true],
+    ]) {
+      const b0 = M.briefFromForm({ role, location, type: "Full-time · On-site", pay: "18,000 - 22,000 monthly", start: "ASAP", work });
+      const b = { ...b0, followUps: [{ questionId: M.JOB_KIND_ID, question: "", answer: M.JOB_KIND_CHIPS[0] }, { questionId: "cs-channel", question: "", answer: "Chat" }, { questionId: "cs-industry", question: "", answer: "Online store" }] };
+      const flow = M.generateTemplateFlow({ brief: b, rigor: "standard" }).flow;
+      globalThis.__fakeSupabase = fakeSupabase();
+      await M.createJobFromFlow(flow, b, { status: "published", voiceInterview: false });
+      const saved = globalThis.__fakeSupabase.inserted[0]?.is_remote;
+      check(`the template plan and what Publish saves agree (${role}, ${location}, "${work.slice(0, 32)}…": ${remote ? "remote" : "on site"})`, saved === remote && (b0.workMode === "remote") === remote, `${b0.workMode} saved=${saved}`);
+    }
     const noInterview = M.applyCustomerServicePack([{ id: "ph_app", kind: "application", order: 0, title: "App", candidateDescription: "", rationale: "", config: { kind: "application", questions: [] }, rubric: { criteria: [] }, weight: 0.1, scoringMode: "auto" }], formFor("Online store", "Phone", "Remote"));
     check("a plan with no written interview never says the interview asks about calls", !/written interview/i.test(noInterview.find((p) => p.kind === "simulation").rationale), noInterview.find((p) => p.kind === "simulation").rationale);
   }

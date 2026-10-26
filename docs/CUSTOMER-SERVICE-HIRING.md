@@ -507,9 +507,10 @@ which the interview guide reads.
 
 The plan's notes to the business say only what this job gets (the fifth
 product review, a US dental office hiring on site): the chat practice's says
-typing speed is measured only for a remote job (the brief's work mode;
-Publish saves it, and on the built-in plan also reads the post's words, as
-above), and otherwise states the rule, that it counts only for a
+typing speed is measured only for a remote job (the brief's work mode,
+which Publish saves as `is_remote` on both plans: the post's other words can
+no longer make an on-site job remote, only a place or Type that says remote
+can; the fifteenth review), and otherwise states the rule, that it counts only for a
 remote job since an on-site job's chat may be done on a phone, never that
 this one's is not counted (the fourteenth review); the skills check's names
 second-language readers only
