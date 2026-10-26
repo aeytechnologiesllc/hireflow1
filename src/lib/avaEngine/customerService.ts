@@ -106,6 +106,18 @@ const NOT_WHEN = String.raw`(?!\s+(calls?\s+)?(on|at|after|before|during|over|ou
 // within three rings" says how, not who (the seventh).
 const elsewhere = (words: string) =>
   new RegExp(String.raw`(^|[.;!?]\s*|\b(all|any)\s+)(${words})( support)?\s+(are|is|will be|gets?|get)\s+(handled|covered|answered|taken|done|managed)\s+(by\s+(another|a separate|a different|our other|other|someone|the|our)\b[\w\s'-]{0,25}?\b(team|center|centre|department|staff|colleagues|agents|office)|elsewhere|separately|in-house)\b|\b(another|a separate|a different|our other) team (handles|takes|answers|covers|does) (the |all |our )?(${words})\b`);
+// What the agent is asked to have done before, never a duty: "Must have experience replying to emails", "Experience in
+// answering chats", "proficient in handling email support" (the eighteenth review). Bounded by its clause.
+const QUALIFIED_IN = /\b(experience[ds]?|background|proficien(t|cy)|skilled|familiar(ity)?|knowledge)\s+((in|with|at|of|on)\s+)?(answering|replying|responding|handling|managing|writing)\b[^.;,\n]*/g;
+// A customer duty that names no channel, in its own part of a list ("Answer customer inquiries", "Handle customer
+// concerns", "Assist subscribers with load, billing and network concerns", "Assist customers with their orders"): a hotline
+// title's phone (the eighteenth review). Never one whose part names a channel: "Handle customer concerns via email and
+// chat", "Answer customer chat inquiries", "Reply to customer emails". Each part is bounded, so a huge pasted line costs
+// linear time.
+const CHANNEL_NAMED = String.raw`(live chats?|chats?|e-?mails?|tickets?|messages?|sms|texts?|viber|whatsapp|messenger|facebook|fb|social media|phones?|calls?|voice|hotlines?|telephone)`;
+const DUTY_VERB = String.raw`(answer|answers|answering|handle|handles|handling|(respond|responds|responding|reply|replies|replying|attend|attends|attending) to|address|addresses|addressing|assist|assists|assisting|resolve|resolves|resolving|help|helps|helping|entertain|entertains|entertaining)`;
+const DUTY_OBJECT = String.raw`(inquir(y|ies)|enquir(y|ies)|concerns?|questions?|complaints?|issues?|requests?|quer(y|ies)|customers?|clients?|callers?|subscribers?|members?|cardholders?|policyholders?|guests?|patients?|users?|shoppers?|buyers?|players?)`;
+const UNTIED_DUTY = new RegExp(String.raw`\b${DUTY_VERB}\s+((?!${CHANNEL_NAMED}\b)[\w'-]+,?\s+){0,5}?${DUTY_OBJECT}\b(?!((?!\s(and|then|also|or|while)\s+${DUTY_VERB}\b)[^.;\n]){0,80}?\b${CHANNEL_NAMED}\b)`);
 
 /**
  * How they will talk to customers: the business's answer, else its own words, else chat.
@@ -263,8 +275,16 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // tests below read. Any written word let the hotline go: "Proficient in MS Office and email", "Experience in chat support is a
   // plus", "Prepare reports and email summaries to supervisors", "send updates to customers via SMS", "Document every
   // interaction in Zendesk" were email or chat jobs.)
-  const writtenReply = /\b(answer|answering|reply|replying|respond|responding|handle|handling)\b( to)?[^.;\n]{0,25}\b(live chats?|chats?|e-?mails?|tickets?|messages|sms|texts|viber|whatsapp|messenger)\b/.test(positiveWork);
-  const titlePhone = tPhone && !(tOnlyHotline && writtenReply && !phoneWork && !list);
+  // (The eighteenth: within its own part of a list, so "Answer customer inquiries, log tickets and escalate complaints" is no
+  // written reply; never a qualification, QUALIFIED_IN; and only when every customer duty names a written channel: a duty
+  // that names none is the hotline's own, UNTIED_DUTY, so the phone stays and the written reply is added beside it. "Answer
+  // customer inquiries and reply to emails", "Handle inbound customer inquiries and reply to emails", "Answer product
+  // inquiries and handle email escalations" and "Handle customer inquiries; also reply to emails and Facebook messages" are
+  // a mix (hotlineReply, below), and "Handle customer concerns. Must have experience replying to emails" the phone; each
+  // dropped the phone.)
+  const dutyWork = positiveWork.replace(QUALIFIED_IN, " ");
+  const writtenReply = /\b(answer|answering|reply|replying|respond|responding|handle|handling)\b( to)?[^.;,\n]{0,25}\b(live chats?|chats?|e-?mails?|tickets?|messages|sms|texts|viber|whatsapp|messenger)\b/.test(dutyWork);
+  const titlePhone = tPhone && !(tOnlyHotline && writtenReply && !UNTIED_DUTY.test(dutyWork) && !phoneWork && !list);
   const titleNames = tChat || tEmail || titlePhone || tWritten;
   const phoneOut = hardNoPhone || ((softNoPhone || elsewhere(PHONE).test(work)) && !phoneWork && !voiceAccount);
   const chatOut = noChat || (elsewhere(CHAT).test(work) && !/\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\bchats?\b/.test(work));
@@ -273,11 +293,16 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const phone = !phoneOut && (titlePhone || phoneWork || list || onlyPhone || (!titleNames && (phoneMention || ((phoneExperience || inboundOnly) && !chatIn && !emailIn))));
   // A title that only says "non-voice" leaves chat or email to the description.
   const titleSays = tChat || tEmail || titlePhone;
-  const chat = !chatOut && (tChat || (chatIn && (!titleSays || list || /\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\b(live )?chats?\b/.test(work))));
-  const email = !emailOut && (tEmail || (emailIn && (!titleSays || list || /\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,25}\b(e-?mails?|tickets?)\b/.test(work))));
+  // (By the agent's work, never a qualification: "Must have experience replying to emails" adds no email; the eighteenth.)
+  const workDone = work.replace(QUALIFIED_IN, " ");
+  const chat = !chatOut && (tChat || (chatIn && (!titleSays || list || /\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\b(live )?chats?\b/.test(workDone))));
+  const email = !emailOut && (tEmail || (emailIn && (!titleSays || list || /\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,25}\b(e-?mails?|tickets?)\b/.test(workDone))));
 
   // A list names a written channel even when it is only "text" or "SMS".
-  const written = chat || email || (list && !chatOut) || (tWritten && !chatOut);
+  // (...and a hotline that keeps its phone beside a written reply adds that reply, whichever channel it names: "24/7 Hotline
+  // Agent / Assist customers with their orders. Reply to messages on Facebook as backup" is a mix; the eighteenth.)
+  const hotlineReply = tOnlyHotline && titlePhone && writtenReply;
+  const written = chat || email || (list && !chatOut) || (tWritten && !chatOut) || (hotlineReply && !(chatOut && emailOut));
   if (phone && written) return "mixed";
   if (phone) return "phone";
   if (chat) return "chat";

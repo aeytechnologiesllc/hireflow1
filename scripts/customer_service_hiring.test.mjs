@@ -489,6 +489,24 @@ const CS = [
   ["Customer Support Specialist", "Help users of our hotel booking app with check-ins and check-outs, refunds and cancellations."],
   ["Customer Support Specialist", "Help parents with daycare check-ins and check-outs in our app."],
   ["Virtual Front Desk Agent", "Handle check-ins and check-outs for hotel guests by phone and chat."],
+  // The eighteenth Phase 4 review: check-ins and check-outs are a desk's only when the agent's own verb takes them and they
+  // are not done by phone, video, chat or email, so a hotel account's guest-services agent is customer service again; a perks
+  // block keeps round sixteen's bullets, so the duties after an emoji-led one count; "What you'll get to do:" heads duties.
+  // (The other side, the seventeenth's in-person desks, the pension house, motel and B&B among them, is in NOT_CS.)
+  ["Guest Services Agent", "Answer guest calls and emails about reservations, check-in and check-out times and billing."],
+  ["Guest Services Representative", "Handle guest calls and emails about bookings, check-ins and check-outs for our hotel chain."],
+  ["Guest Services Agent - Travel Account", "Assist hotel guests over the phone with booking changes, check-in and check-out times, and refunds."],
+  ["Guest Services Agent - Hotel BPO", "Handle check-ins and check-outs over the phone for US hotel guests."],
+  ["Guest Relations Associate", "Handle guest calls about reservations, check-ins and check-outs for our client hotels."],
+  ["Guest Relations Agent - Cruise Line", "Handle guest calls about embarkation check-in and check-out procedures and booking changes."],
+  ["Front Desk Associate", "Handle check-ins and check-outs through our video concierge system and answer guest calls from home."],
+  ["Virtual Assistant", "Benefits:\n✅ HMO\n✅ Paid leaves\n📌 Responsibilities:\n✅ Answer customer chats and emails\n✅ Process refunds"],
+  ["Team Member", "Benefits:\n✅ HMO\n✅ 13th month pay\n📌 What you will do:\n✅ Answer inbound customer calls\n✅ Resolve billing concerns"],
+  ["Representative", "Compensation:\n$15/hour\n- Answer customer chats\n- Process returns"],
+  ["Associate", "Perks:\n👉 Free meals\n👉 Transportation allowance\n👉 Answer customer calls and emails for our telco client"],
+  ["Associate", "Compensation:\n₱20,000 - ₱25,000\n📞 Answer inbound customer calls for our healthcare account\n📧 Reply to patient emails"],
+  ["Virtual Assistant", "What you'll get to do:\n- Answer customer emails and live chats\n- Process refunds"],
+  ["Team Member", "What you get to do:\n- Answer inbound customer calls"],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -913,6 +931,20 @@ const NOT_CS = [
   ["Guest Service Agent", "Handle guest check-ins and check-outs, answer phones, and process payments at our B&B.", "general"],
   ["Front Desk Associate", "Handle check-ins and check-outs at our inn and answer the phone.", "general"],
   ["Reservations Agent", "Handle room reservations at our partner hotels for corporate clients and coordinate corporate events.", "general"],
+  // The eighteenth: a perks block with round sixteen's bullets no longer swallows the store's duties after it (nor the
+  // seventeenth's own case after a pay line); and the seventeenth's two venue forms, the banquet team and "for the hotel",
+  // are an event agency's when its words name clients. (The other side, a resort's reservations agent with its banquet team
+  // and the hotel's banquet calendar, is in CS.)
+  ["Customer Service Associate", "Benefits:\n✅ Free meals\n✅ Uniform provided\n📌 Duties:\n✅ Assist shoppers in the store\n✅ Operate the cash register", "cash"],
+  ["Customer Service Associate", "Perks:\n👉 Staff discount\n👉 Greet customers, take orders and handle the cash register", "cash"],
+  ["Customer Service Representative", "Compensation:\n₱18,000/month\n- Work the tills, process refunds and help shoppers in the aisles", "cash"],
+  ["Customer Service Representative", "Benefits:\n✅ HMO\n📍 Work at our branch in SM North\n✅ Assist walk-in customers with bills payment and handle cash", "cash"],
+  ["Front Desk Agent", "Benefits:\n✅ Free meals\n✅ Handle guest check-ins and check-outs\n✅ Answer phone calls", "general"],
+  ["Booking Coordinator", "Plan corporate events for our clients and coordinate with the banquet team at each venue.", "admin"],
+  ["Booking Agent", "Organize corporate events for our clients; liaise with the banquet staff of partner hotels.", "general"],
+  ["Reservations Coordinator", "Coordinate corporate events for our clients and work with the banquet office of the hotel they choose.", "admin"],
+  ["Booking Coordinator", "Plan and execute corporate events for clients; negotiate rates for the hotel or resort they pick.", "admin"],
+  ["Booking Coordinator", "Organize corporate events for the hotel clients we serve as an event agency.", "admin"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -934,6 +966,15 @@ for (const [title, work, want] of NOT_CS) {
   }
   const ms = performance.now() - t0;
   check(`four pasted lines of about 50 KB each are read in well under a second (${ms.toFixed(0)} ms)`, ms < 1000, `${ms.toFixed(0)} ms`);
+  // (The eighteenth: a hotline's duty and qualification tests, and the check-in desk, on a huge pasted line.)
+  const huge18 = ["answer customer inquiries ".repeat(2000) + "via email", "handle customer concerns and ".repeat(2000), "experience replying to ".repeat(2500) + "emails", "handle check-ins and check-outs ".repeat(1500)];
+  const t1 = performance.now();
+  for (const w of huge18) {
+    M.channelForBrief({ roleTitle: "Hotline Agent", whatTheyDo: w, followUps: [] });
+    M.detectFamily(brief("Guest Services Agent", w));
+  }
+  const ms18 = performance.now() - t1;
+  check(`…and four for the eighteenth's rules (${ms18.toFixed(0)} ms)`, ms18 < 1000, `${ms18.toFixed(0)} ms`);
 }
 
 // The fourth Phase 4 review: the guess is only the start; the business confirms the kind of job.
@@ -1249,7 +1290,35 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Customer Service Hotline Agent", "Handle customer concerns on billing, service interruptions and repairs. Log every concern in the CRM and send a reference number by email or SMS.", "phone"],
     ["Hotline Associate", "Handle inquiries, complaints and follow-ups; coordinate with branches through email and Viber.", "phone"],
     ["Hotline Agent", "Answer customer emails and chats about orders.", "chat"],
+    // The eighteenth: a hotline title gives way only when every customer duty names a written channel. A duty that names none
+    // is the hotline's, so the written reply is added beside the phone; a written reply is within its own part of a list
+    // ("log tickets" after a comma is none); a qualification is no duty, for any title. LOW 5's "messages from walk-in
+    // branches" is no chat. And the other way: duties that all name a written channel are written, as the sixteenth's are.
+    ["Hotline Agent", "Answer customer inquiries and reply to emails.", "mixed"],
+    ["Hotline Agent", "Handle inbound customer inquiries and reply to emails.", "mixed"],
+    ["Hotline Agent", "Answer product inquiries and handle email escalations.", "mixed"],
+    ["Hotline Agent", "Handle customer inquiries; also reply to emails and Facebook messages.", "mixed"],
+    ["Hotline Agent", "Assist customers with their concerns and reply to emails.", "mixed"],
+    ["Hotline Agent", "Answer customer inquiries, log tickets and escalate complaints.", "mixed"],
+    ["Hotline Agent", "Handle customer concerns. Must have experience replying to emails.", "phone"],
+    ["Hotline Agent", "Answer customer inquiries. Experience in replying to emails is a plus.", "phone"],
+    ["Hotline Agent", "Handle customer concerns. Skilled in responding to chats and emails.", "phone"],
+    ["24/7 Hotline Agent", "Assist customers with their orders. Reply to messages on Facebook as backup.", "mixed"],
+    ["Telco Hotline Agent", "Assist subscribers with load, billing and network concerns; answer SMS inquiries.", "mixed"],
+    ["Hotline Agent", "Handle customer concerns via email and chat.", "chat"],
+    ["Hotline Agent", "Reply to customer emails and chats about orders.", "chat"],
+    ["Customer Hotline Associate", "Answer customer emails and resolve their concerns via chat.", "chat"],
+    ["Hotline Agent", "Answer customer emails, chats and inquiries.", "chat"],
+    ["Phone Support Agent", "Answer inbound customer calls. Experience handling emails and chats is a plus.", "phone"],
+    ["Call Center Agent", "Take inbound calls. Must have experience replying to emails.", "phone"],
+    ["Phone Support Agent", "Answer inbound calls and reply to customer emails.", "mixed"],
+    ["Email Support Specialist", "Reply to customer emails. Proficient in handling live chats.", "email"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
+  // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
+  {
+    const low5 = ch("Hotline Agent", "Answer inquiries from customers about our products and handle messages from walk-in branches.");
+    check(`"Hotline Agent — Answer inquiries from customers about our products and handle messages from walk-in branches." keeps the phone (${low5})`, low5 === "phone" || low5 === "mixed", low5);
+  }
 }
 
 /* ── 3. The packs ─────────────────────────────────────────────────────── */
@@ -1712,7 +1781,10 @@ let aiFlow;
       ["Onsite CSR | WFH after 3 months", "Quezon City", "On-site", undefined, "Answer inbound calls.", false, "20000 monthly", "PH"],
       ["CSR - Onsite (WFH after regularization)", "Makati City", "Full-time · Not remote", undefined, "Answer inbound calls.", false, "25,000 per month", "PH"],
       ["Work From Home Chat Support Agent", "Cebu City", "Full-time · On-site only", undefined, "Reply to customer chats.", false, "20,000/month", "PH"],
-      ["Work From Home Chat Support Agent", "Cebu City", "Full-time · On-site", true, "Reply to customer chats.", false, "20,000/month", "PH"],
+      // (The eighteenth: the default's own text typed is still the default's place, so this one is remote now; the choice this
+      // row made the other way. A place the business typed still decides, "On-site" below.)
+      ["Work From Home Chat Support Agent", "Cebu City", "Full-time · On-site", true, "Reply to customer chats.", true, "20,000/month", "PH"],
+      ["Work From Home Chat Support Agent", "Cebu City", "On-site", true, "Reply to customer chats.", false, "20,000/month", "PH"],
       ["Customer Service Representative", "Philippines", "Office-based", undefined, "Answer customer chats.\nWork setup: Permanent WFH", false, "20,000/month", "PH"],
       ["Work From Home Chat Support Agent", "Cebu City", "Full-time · On-site", false, "Reply to customer chats.", true, "20,000/month", "PH"],
       ["Work From Home Chat Support Agent", "Cebu City", "Part-time", undefined, "Reply to customer chats.", true, "20,000/month", "PH"],
@@ -1737,6 +1809,37 @@ let aiFlow;
         // (A remote job gets no currency from its place, so only an on-site one is checked for PHP.)
         const placeOk = country === "none" ? !row.location_country_code && !row.salary_currency : (row.salary_currency !== "USD" || /\$/.test(pay)) && (country !== "PH" || (row.location_country_code === "PH" && (remote || row.salary_currency === "PHP")));
         check(`the ${plan} plan builds and Publish saves ${remote ? "remote" : "on site"} (the seventeenth): ${JSON.stringify(role)}, ${location}, Type "${type}"${typeChosen === undefined ? "" : typeChosen ? " (typed)" : " (default)"}, "${work.replace(/\n/g, " / ").slice(0, 40)}…"${country ? ` (${country === "none" ? "no country, no currency" : country})` : ""}`, (b0.workMode === "remote") === remote && row.is_remote === remote && connection === remote && placeOk, `${b0.workMode} saved=${row.is_remote} connection=${connection} ${row.location_country_code} ${row.salary_currency}`);
+      }
+    }
+    // The eighteenth: a business that changed only the employment word in Type ("Part-time · On-site"), typed or an old
+    // draft's, gets the title's or the words' remote job, with its connection check, the note that measures typing, and no
+    // currency guessed (a US one was paid in USD); a place typed in Type still decides; "Makati (US BPO)" is a Philippine job
+    // paid in PHP; "Remote (US company) - Full-time" is a US job with no city.
+    for (const [role, location, type, typeChosen, work, remote, pay, country, city] of [
+      ["Work From Home Chat Support Agent", "Philippines", "Part-time · On-site", true, "Answer customer chats and emails for our online store.", true, "20,000/month", "PH"],
+      ["Chat Support Agent", "Philippines", "Part-time · On-site", true, "Answer customer chats and emails.\nPermanent WFH", true, "20,000/month", "PH"],
+      ["Work From Home Chat Support Agent", "Philippines", "Part-time · On-site", undefined, "Answer customer chats and emails.", true, "20,000/month", "PH"],
+      ["Work From Home Chat Support Agent", "Philippines", "Contract · On-site", true, "Answer customer chats and emails.", true, "20,000/month", "PH"],
+      ["Work From Home Customer Service Representative", "Austin, TX", "Part-time · On-site", true, "Answer customer calls and emails.", true, "18/hr", "US"],
+      ["Work From Home Chat Support Agent", "Philippines", "Full-time · On-site only", true, "Answer customer chats and emails.", false, "20,000/month", "PH"],
+      ["Work From Home Chat Support Agent", "Cebu City", "Full-time · In person", true, "Answer customer chats and emails.", false, "20,000/month", "PH"],
+      ["Customer Service Representative", "Makati (US BPO)", "Full-time · On-site", undefined, "Answer inbound customer calls for our telco account.", false, "25,000 - 30,000 per month", "PH"],
+      ["Customer Service Representative", "Taguig (US call center)", "Full-time · On-site", undefined, "Answer inbound customer calls.", false, "25,000 per month", "PH"],
+      ["Customer Support Specialist", "Remote (US company) - Full-time", "Full-time · Remote", true, "Answer customer emails and chats.", true, "$18/hr", "US", "none"],
+      ["Customer Support Specialist", "Remote (US-based position) - Night shift", "Full-time · Remote", true, "Answer customer emails and chats.", true, "$18/hr", "US", "none"],
+    ]) {
+      const b0 = M.briefFromForm({ role, location, type, typeChosen, pay, start: "ASAP", work });
+      const b = { ...b0, followUps: [{ questionId: M.JOB_KIND_ID, question: "", answer: M.JOB_KIND_CHIPS[0] }, { questionId: "cs-channel", question: "", answer: "Chat" }, { questionId: "cs-industry", question: "", answer: "Online store" }] };
+      for (const plan of ["template", "AI"]) {
+        globalThis.fetch = async () => new Response(JSON.stringify({ jobPost: { title: role, summary: work, responsibilities: ["Answer customers"], requirements: ["Clear writing"], niceToHaves: [] }, application: ["Hours?", "Why?", "Experience?"], quiz: [], simulation: [], voiceQuestions: ["Tell us about a hard customer.", "Why this job?", "How do you stay calm?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+        const flow = plan === "template" ? M.generateTemplateFlow({ brief: b, rigor: "standard" }).flow : (await M.generateJobFlow({ brief: b, rigor: "standard" })).flow;
+        globalThis.__fakeSupabase = fakeSupabase();
+        await M.createJobFromFlow(flow, b, { status: "published", voiceInterview: false });
+        const row = globalThis.__fakeSupabase.inserted[0] ?? {};
+        const connection = flow.phases.some((p) => p.kind === "equipment_check");
+        const note = flow.phases.find((p) => p.kind === "simulation").rationale;
+        const placeOk = row.location_country_code === country && (row.salary_currency !== "USD" || /\$/.test(pay)) && (remote || country !== "PH" || row.salary_currency === "PHP") && (city !== "none" || !row.location_city);
+        check(`the ${plan} plan builds and Publish saves ${remote ? "remote" : "on site"} (the eighteenth): ${JSON.stringify(role)}, ${location}, Type "${type}"${typeChosen === undefined ? "" : typeChosen ? " (typed)" : " (default)"} (${country}${city === "none" ? ", no city" : ""})`, (b0.workMode === "remote") === remote && row.is_remote === remote && connection === remote && /typing speed and reply time measured/.test(note) === remote && placeOk, `${b0.workMode} saved=${row.is_remote} connection=${connection} ${row.location_country_code} ${row.salary_currency} ${row.location_city}`);
       }
     }
     const noInterview = M.applyCustomerServicePack([{ id: "ph_app", kind: "application", order: 0, title: "App", candidateDescription: "", rationale: "", config: { kind: "application", questions: [] }, rubric: { criteria: [] }, weight: 0.1, scoringMode: "auto" }], formFor("Online store", "Phone", "Remote"));

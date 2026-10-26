@@ -118,7 +118,11 @@ const CLIENT_COUNTRY = new RegExp(String.raw`\b${COUNTRY_WORD}(?:(?:-based)?\s+(
 const PEOPLE = String.raw`applicants?|candidates?|employees?|teams?|staff|workers?|people|talent|hires?|residents?|citizens?|only|preferred|remote|professionals?|agents?|freelancers?|contractors?|individuals?|persons?`;
 const BUSINESS = String.raw`bpos?|compan(y|ies)|firms?|agenc(y|ies)|startups?|business(es)?|brands?|(call|contact) cent(er|re)s?|clinics?|practices?|offices?|stores?|shops?`;
 const CLIENT_BASED = new RegExp(String.raw`\b${COUNTRY_WORD}-based\s+(?:(?!(?:${PEOPLE})\b)[\w-]+\s+){0,2}?(?:${BUSINESS})\b`, "gi");
-const CLIENT_IF_ELSEWHERE = new RegExp(String.raw`\b${COUNTRY_WORD}(?:-based\s+(?!(?:${PEOPLE})\b)[\w-]+(?:\s+(?!(?:${PEOPLE})\b)[\w-]+){0,2}|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:compan(?:y|ies)|brands?|business(?:es)?|startups?)\b)`, "gi");
+// (The eighteenth: a bare business after a country is any of CLIENT_BASED's, so "Makati (US BPO)", "Taguig (US call
+// center)", "Quezon City (US agency)" and "Pasig (UK firm)" are the Philippines, paid in PHP, as "Cebu City (US company)"
+// is. "Remote (US BPO)" is still the US, as "Remote (US company)" is.)
+const CLIENT_IF_ELSEWHERE = new RegExp(String.raw`\b${COUNTRY_WORD}(?:-based\s+(?!(?:${PEOPLE})\b)[\w-]+(?:\s+(?!(?:${PEOPLE})\b)[\w-]+){0,2}|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:${BUSINESS})\b)`, "gi");
+const FIRST_CLIENT_IF_ELSEWHERE = new RegExp(CLIENT_IF_ELSEWHERE.source, "i");
 // What names no place: how and where from the work is done, and who does it ("Remote", "Work from home", "applicants only").
 const NOT_A_PLACE = new RegExp(String.raw`\b(fully|permanent(ly)?|remote(ly)?|work(ing)?[-\s]?(from|at)[-\s]?home|wfh|home[-\s]?based|telecommut\w*|online|anywhere|worldwide|setup|set-up|positions?|roles?|jobs?|${PEOPLE})\b`, "gi");
 
@@ -126,7 +130,12 @@ export function inferCountryCode(locationText?: string | null): string | null {
   const kept = (locationText ?? "").trim().replace(CLIENT_COUNTRY, " ").replace(CLIENT_BASED, " ");
   const elsewhere = kept.replace(CLIENT_IF_ELSEWHERE, " ");
   // (Anything left but the setup is the place, whether the hints know it or not; the seventeenth.)
-  const placeLeft = /[a-z]/i.test(elsewhere.replace(NOT_A_PLACE, " "));
+  // (Only what comes before the first of those client words, the eighteenth review: a note after them is no place. Anything
+  // left counted, so "Remote (US company) - Full-time", "Remote (US-based position) - Night shift", "Remote - US-based role,
+  // EST hours" and "Remote (UK-based role) - GMT hours" lost their country, and a job the geocoder missed was saved with
+  // none and the note as its city. "Las Pinas (US company)" still has no country.)
+  const first = FIRST_CLIENT_IF_ELSEWHERE.exec(kept);
+  const placeLeft = /[a-z]/i.test((first ? kept.slice(0, first.index) : elsewhere).replace(NOT_A_PLACE, " "));
   return countryOfText(placeLeft ? elsewhere : kept);
 }
 function countryOfText(text: string): string | null {

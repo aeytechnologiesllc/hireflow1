@@ -225,14 +225,21 @@ for (const [text, code] of [
 }
 
 // The seventeenth Phase 4 review. The Type field, a class: an on-site Type the business chose ("On-site only", "Office-based",
-// "Not remote", or the default's own words once typed) decides over the title and What they do; the builder's untouched
-// default still lets them decide, a chosen Type that names no place leaves it to them, and a remote place still decides.
+// "Not remote") decides over the title and What they do; the builder's untouched default still lets them decide, a chosen
+// Type that names no place leaves it to them, and a remote place still decides.
+// (The eighteenth: the default's own form, an employment word and "· On-site", is still the default's place once typed, so
+// it no longer keeps a WFH title on site; that is the choice this check made the other way. A place typed in it decides,
+// "In person" too.)
 {
   const mode = (role, type, typeChosen, work = "", location = "Makati City") => M.briefFromForm({ role, location, type, typeChosen, pay: "", start: "ASAP", work }).workMode;
-  for (const type of ["Full-time · On-site only", "Full-time · Office-based", "Full-time · Not remote", "On-site", "Part-time · On-site"]) {
+  for (const type of ["Full-time · On-site only", "Full-time · Office-based", "Full-time · Not remote", "On-site", "Onsite", "Full-time · On-site (Makati)", "Full-time · In person", "Part-time · In-store"]) {
     check(`Type ${JSON.stringify(type)} keeps "CSR - Onsite (WFH after regularization)" and "Work From Home Chat Support Agent" on site`, mode("CSR - Onsite (WFH after regularization)", type) === "onsite" && mode("Work From Home Chat Support Agent", type) === "onsite", `${mode("CSR - Onsite (WFH after regularization)", type)} ${mode("Work From Home Chat Support Agent", type)}`);
   }
-  check("…and so does the default's own text once the business typed it (typeChosen)", mode("Work From Home Chat Support Agent", "Full-time · On-site", true) === "onsite" && mode("Customer Service Representative", "Full-time · On-site", true, "Answer customer chats.\nWork setup: Permanent WFH", "Philippines") === "onsite");
+  for (const type of ["Part-time · On-site", "Contract · On-site", "Full time · On-site", "Project-based · On-site", "Full-time · On-site"]) {
+    check(`Type ${JSON.stringify(type)}, typed or an old draft's, is still the default's place: "Work From Home Chat Support Agent" and a "Permanent WFH" line are remote (the eighteenth)`, [true, undefined].every((chosen) => mode("Work From Home Chat Support Agent", type, chosen, "", "Philippines") === "remote" && mode("Chat Support Agent", type, chosen, "Answer customer chats and emails.\nPermanent WFH", "Philippines") === "remote"), `${mode("Work From Home Chat Support Agent", type, true, "", "Philippines")} ${mode("Chat Support Agent", type, true, "Answer customer chats and emails.\nPermanent WFH", "Philippines")}`);
+  }
+  check("…and the title still decides at a US place too: \"Work From Home Customer Service Representative\", Austin, TX, \"Part-time · On-site\" typed", mode("Work From Home Customer Service Representative", "Part-time · On-site", true, "", "Austin, TX") === "remote");
+  check("…while a CSR title with no remote word stays on site with it", mode("Customer Service Representative", "Part-time · On-site", true) === "onsite");
   check("…and a chosen on-site Type keeps a WFH setup line on site too", mode("Customer Service Representative", "Office-based", undefined, "Answer customer chats.\nWork setup: Permanent WFH", "Philippines") === "onsite");
   check("the builder's untouched default lets the title and the words decide", mode("Work From Home Chat Support Agent", "Full-time · On-site") === "remote" && mode("Work From Home Chat Support Agent", "Full-time · On-site", false) === "remote" && mode("Customer Service Representative", "Full-time · On-site", false, "Answer customer chats.\n✅ Permanent WFH", "Philippines") === "remote");
   check("a chosen Type that names no place leaves it to the title (\"Part-time\", \"Full-time\")", mode("Work From Home Chat Support Agent", "Part-time") === "remote" && mode("Work From Home Chat Support Agent", "Full-time") === "remote");
@@ -282,13 +289,57 @@ for (const [text, code] of [
   ["Marikina - US company", null], ["Eastwood, Libis (US-based BPO)", null], ["Alabang (US-based healthcare BPO)", null], ["Naga City - Canadian-based BPO", null],
   ["General Santos (US-based company)", null], ["Mandaluyong City", null], ["Pasay City (US account)", null], ["Lipa City (UK company)", null],
   ["Remote - US-based BPO", null], ["Work from home (US-based company)", null], ["Remote - UK-based agency", null], ["Home-based (for a US-based dental office)", null],
-  ["London (US-based company)", null], ["US company - remote, Latin America", null],
+  // (The eighteenth: only text before the first client words can be the place, so this one is the US now; the choice this
+  // check made the other way. "Remote (US company) - Full-time" is the US again, below.)
+  ["London (US-based company)", null], ["US company - remote, Latin America", "US"],
   ["Remote (US-based staffers)", "US"], ["Remote (US-based moms welcome)", "US"], ["Remote (US-based new grads welcome)", "US"], ["Remote - US-based support role", "US"],
   ["Remote (US-based opportunity)", "US"], ["Remote (US-based work)", "US"], ["Remote (US-based W2 only)", "US"], ["Remote, US company", "US"],
   ["Remote (US company), Philippines applicants", "PH"], ["Remote | US-based company | Philippines", "PH"], ["Austin, TX (UK-based company)", "US"],
   ["Anywhere in the US (Canadian company)", "US"], ["Iloilo (US-based dental office)", "PH"], ["Ortigas (US-based mortgage company)", "PH"],
 ]) {
   check(`${JSON.stringify(text)} is ${code ? `in ${code}` : "in no country"}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
+}
+// The eighteenth Phase 4 review, each case both ways.
+{
+  const mode = (role, location, work = "", type = "Full-time · On-site", typeChosen) => M.briefFromForm({ role, location, type, typeChosen, pay: "", start: "ASAP", work }).workMode;
+  // H5: on-site nesting, an interview, hiring, an exam or an assessment in a WFH title is not the job's setup, nor training
+  // that "is" or ": " on site; LOW 2: nor in-office training, which isFullyRemoteText read in the whole title.
+  for (const role of ["WFH Customer Service Representative (Onsite Interview)", "WFH Chat Support | Onsite Hiring", "Work From Home CSR - Onsite Assessment in Ortigas", "WFH CSR | Onsite exam and interview", "WFH CSR - Onsite Nesting", "WFH CSR (2 weeks onsite nesting)", "WFH CSR | Walk-in Onsite Interview", "WFH CSR - Training is onsite", "WFH CSR | Training: Onsite", "WFH CSR - In-office training"]) {
+    check(`${JSON.stringify(role)} is built remote (the eighteenth)`, mode(role, "Cebu City", "Answer customer chats.") === "remote", mode(role, "Cebu City", "Answer customer chats."));
+  }
+  for (const role of ["Work From Home CSR (onsite during training)", "WFH Customer Service | Onsite for the first month", "WFH Customer Support - Onsite equipment pickup", "Customer Service - Onsite 2 weeks then Permanent WFH", "CSR - Onsite (WFH after regularization)"]) {
+    check(`${JSON.stringify(role)} is still built on site`, mode(role, "Cebu City", "Answer customer chats.") === "onsite", mode(role, "Cebu City", "Answer customer chats."));
+  }
+  // M2: another setup counts only under the same heading as the WFH line; two setups under one heading are still two.
+  for (const work of ["Answer customer chats.\nWork setup:\n- Permanent WFH\nInterview:\n- Onsite (Makati)", "Answer customer chats.\nTraining:\n- Onsite (2 weeks)\nWork setup:\n- Permanent WFH"]) {
+    check(`"${work.replace(/\n/g, " / ")}" is built remote (another heading's on-site line, the eighteenth)`, mode("Chat Support Agent", "Philippines", work) === "remote", mode("Chat Support Agent", "Philippines", work));
+  }
+  for (const work of ["Answer customer chats.\nWork setup options:\n- Onsite\n- WFH", "Answer customer chats.\nWork setup: Hybrid\n- WFH", "Answer customer chats.\nWork setup:\n- Permanent WFH\n- Onsite (Makati)"]) {
+    check(`"${work.replace(/\n/g, " / ")}" is still built on site (two setups under one heading)`, mode("Chat Support Agent", "Philippines", work) === "onsite", mode("Chat Support Agent", "Philippines", work));
+  }
+  // LOW 3: a mark after the setup line, never one that says no.
+  for (const line of ["Permanent WFH 🏠", "Work From Home ✅"]) check(`"Answer customer chats. / ${line}" is built remote (the eighteenth)`, mode("Chat Support Agent", "Philippines", `Answer customer chats.\n${line}`) === "remote");
+  for (const line of ["WFH ❌", "WFH:", "Work from home?"]) check(`"Answer customer chats. / ${line}" is still built on site`, mode("Chat Support Agent", "Philippines", `Answer customer chats.\n${line}`) === "onsite");
+  // M3: an on-site Type the business chose is read whole, whatever WFH it mentions; on-site training in it is still training.
+  for (const type of ["Full-time · Onsite (WFH after regularization)", "Full-time · On-site, WFH not available", "Full-time · Onsite, possible WFH", "Full-time · Onsite (Remote not available)", "Full-time · On-site only (WFH is not an option)", "Full-time · Onsite then WFH"]) {
+    check(`Type ${JSON.stringify(type)} (typed) is on site (the eighteenth)`, mode("Customer Service Representative", "Makati City", "Answer inbound customer calls.", type, true) === "onsite", mode("Customer Service Representative", "Makati City", "Answer inbound customer calls.", type, true));
+  }
+  for (const type of ["Full-time · Remote", "Full-time · WFH (onsite training)", "Part-time · Work from home"]) {
+    check(`Type ${JSON.stringify(type)} (typed) is still remote`, mode("Customer Service Representative", "Makati City", "Answer inbound customer calls.", type, true) === "remote", mode("Customer Service Representative", "Makati City", "Answer inbound customer calls.", type, true));
+  }
+}
+// H4: a note after the client's words is no place, so the country is kept; M4: a bare BPO, call centre, agency or firm after
+// a city is the client too. A client's country is never the job's: "Las Pinas (US company)" has none, "Makati (US BPO)" is
+// the Philippines, "Remote (US BPO)" the US.
+for (const [text, code] of [
+  ["Remote (US company) - Full-time", "US"], ["Remote (US company) - Night shift", "US"], ["Remote, US company, flexible schedule", "US"], ["Work from home (US company) - Urgent hiring", "US"],
+  ["Remote - US brand - Evening shift", "US"], ["Remote (US-based position) - Night shift", "US"], ["Remote - US-based role, EST hours", "US"], ["Remote - US-based role (Pacific Time)", "US"],
+  ["Remote (US-based moms welcome) - part-time", "US"], ["Remote (UK-based role) - GMT hours", "GB"], ["Remote - Canada-based reps, bilingual", "CA"], ["Remote (US-based position), Full-time", "US"],
+  ["Remote (US-based reps), flexible hours", "US"], ["Remote - US-based support role, night shift", "US"], ["Remote (US-based staffers) - Graveyard", "US"], ["Remote (US-based W2 role) - CST", "US"],
+  ["Makati (US BPO)", "PH"], ["Taguig (US call center)", "PH"], ["Quezon City (US agency)", "PH"], ["Pasig (UK firm)", "PH"], ["Remote (US BPO)", "US"],
+  ["Las Pinas (US company)", null], ["Mandaluyong (US-based BPO)", null], ["Cebu City (US company)", "PH"], ["Remote - US-based BPO", null],
+]) {
+  check(`${JSON.stringify(text)} is ${code ? `in ${code}` : "in no country"} (the eighteenth)`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
 }
 // Publish saves is_remote as the brief's work mode (src/lib/jobFromFlow.ts). That is the fifteenth's rule exactly, which also
 // read the post when the place or Type said remote, only while these two hold: every place or Type that says remote makes the
