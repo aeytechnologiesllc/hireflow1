@@ -891,6 +891,10 @@ When presenting any data (scores, stats, analysis):
 - Add context: "which is pretty solid for a sales role"
 - Highlight what matters: "Main concern is the gap in their work history"
 
+=== NEVER ASK OR MARK AGE OR FAMILY ===
+Never ask applicants their age, date of birth, birth year, graduation year, marital status or family plans, and never write an age preference or limit (an age range, 'below 30', 'young', 'fresh graduates only') in the post, its requirements or its questions: every application already asks 'Are you 18 or older?' on its own.
+Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)
+
 === SCHEDULING INTERVIEWS ===
 ${googleCalendarConnected ? `- You CAN create calendar events with Google Meet links
 - Parse natural times: "tomorrow at 10am", "next Tuesday 2pm"
@@ -2386,6 +2390,8 @@ You blend several modes and decide each turn which fits — do NOT treat every t
    Refer to steps by their plain names (Job post, Application, Quiz, Simulation, Voice interview). Change only what they ask for — never redesign the plan unprompted. If they ask for something you can't do, say so plainly and offer the closest thing.
 
 Capture into set_brief_fields: role; employmentType (full-time/part-time/contract/temporary); workMode (onsite/hybrid/remote — a local role is onsite unless they say otherwise); location (city/state — REQUIRED for onsite or hybrid roles: if they haven't said where it's based, ask "what city is this based in?" before you move on; only skip this for a fully remote role); pay (exactly as said, or the value they accept from your suggestion); startDateText; responsibilities (short phrases); optionally requirements / niceToHave / benefits.
+
+Age and family, in every suggestion, requirement and posting you write or read back: Never ask applicants their age, date of birth, birth year, graduation year, marital status or family plans, and never write an age preference or limit (an age range, 'below 30', 'young', 'fresh graduates only') in the post, its requirements or its questions: every application already asks 'Are you 18 or older?' on its own.
 
 Style:
 • You speak first: a brief warm hello, then "tell me who you need to hire."

@@ -17,14 +17,16 @@
  * ai-shortlist) carry APPLICANT_AGE_RULE in their prompts; since the ninth,
  * also ava-voice-session's interviewer, the performance report, the practice
  * chat's reviewer, ai-analyze-portfolio and the sales practice's grader, and
- * ai-analyze's interview questions carry AGE_RULE.
+ * ai-analyze's interview questions carry AGE_RULE; since the tenth, also
+ * ava-voice-session's assistant and job intake.
  *
  * Each round's fixes were also run over the real strings in the repo (scenario
  * packs, question banks, fixtures, prompts, test job posts, docs, the blog:
  * 12,903 lines in the eighth round; every string literal and doc line, 142,431
- * lines and sentences in 1,012 files, in the ninth) to see what the new rules
- * drop that the old ones kept; the seventh to ninth reviews' fixes drop none
- * of them.
+ * lines and sentences in 1,012 files, in the ninth; 145,325 in 1,017 files,
+ * against both earlier rounds, in the tenth) to see what the new rules drop
+ * that the old ones kept; the seventh to tenth reviews' fixes drop none of
+ * them.
  *
  * Run with: node scripts/age_wording.test.mjs
  */
@@ -400,6 +402,112 @@ for (const line of [
 for (const line of ["Became a parent figure to the newer agents.", "Kind to the parent who has small kids on the line.", "Calmed a parent with two kids on the line.", "Handled the single parent's billing case well."]) check(`(9th review, guard) a reviewer's remark about the work stays: ${JSON.stringify(line)}`, !A.marksAgeOrFamily(line));
 for (const line of ["He's 23 and eager.", "Led a team at age 19.", "At 23: may lack maturity."]) check(`(9th review, guard) a reviewer's remark on age or family is dropped: ${JSON.stringify(line)}`, A.marksAgeOrFamily(line));
 
+// The tenth Phase 6 review: the ninth round's exemptions let applicant asks and hiring ages through (an unquoted "Ask:" or
+// "Script:" line holding a check word such as "confirm", a customer word right after a hiring age, a benefit word anywhere in
+// an "up to age 35" line, a prefixed blank label, "we recruit", "would be perfect for a 22-year-old"), and its narrowings
+// dropped a tax or insurance desk's dependents lines, an insurance desk's identity check naming "your policy", a product's
+// range of ages told as "you must be", a queue item's age range and a grader's line about a single or working parent
+// customer. Each was fixed where it came from; every check in this list fails on the ninth round's module.
+console.log("\nThe tenth review's cases\n");
+for (const line of [
+  // Finding 1: after "Say:", "Ask:" or "Script:", unquoted, only a plain identity check of a customer is theirs.
+  "Ask: How old are you? Are you single? Let me confirm your schedule.", "Ask: Do you have children? Verify that they can work weekends.",
+  "Ask: Which age group are you in? Then confirm their availability.", "Ask: Are you married or single? I need to verify your HMO enrollment.",
+  "Ask: Can you confirm your date of birth for our records?", "Script: Hi, thanks for applying to Bright Clinic! Can you confirm your date of birth?",
+  "Screening script: Please verify your date of birth and civil status.", "Opening: Hi, thanks for applying! Before we begin, can you confirm your age and civil status?",
+  "Greeting: Thanks for applying! Please confirm your date of birth and whether you are married.",
+  "Record a 60-second video. Say: your full name, age, civil status, and confirm you can work nights.",
+  "In your video, say: your name, your age, where you live, and confirm your internet speed.",
+  "Say: Thanks for your interest in the role. How old are you, and do you have kids? I just need to confirm a few details.",
+  // Finding 2: a customer word right after a hiring age, or before "preferred".
+  "Hiring 21-35 year old Patient Access Representatives.", "Hiring 21-35 year old patient coordinators for our clinic.", "Hiring 20-30 year old Patient Services Representatives in Makati.",
+  "We are looking for 20-30 year old Member Services Representatives.", "Hiring 21-35 year old Guest Services Agents for our resort.", "Hiring 21-35 year old client services associates.",
+  "Hiring 21-30 year old customer representatives.", "Hiring 21-35 year old help desk agents.", "Seeking 18-25 year old gamers to join our player support team.",
+  "Now hiring 21-35 year old residents of Cebu City.", "Hiring 21-30 year old patient and friendly CSRs.", "Looking for 21-30 year old patient, friendly agents.",
+  "• 21-35 years old residents of Metro Manila preferred", "18-30 year old residents of Cebu City preferred.", "21-35 year old gamers preferred.",
+  // Finding 3: "up to / until / at age N" with the benefit after the age.
+  "We hire agents up to age 35 and offer full benefits.", "Hiring until age 35 only, with competitive rates.", "Open to fresh graduates up to age 30, with full benefits.",
+  "Open to all genders up to age 35, with HMO and paid leave benefits.", "We welcome agents up to age 40, with health insurance from day one.",
+  "Agents up to age 35 get a sign-on bonus and HMO coverage.", "Agents are hired at age 21 and up, with HMO coverage.", "Start your career at age 18 with full benefits!",
+  "Work with us at age 18+ with paid training and HMO benefits.", "We accept walk-ins until age 35, with full benefits.",
+  // Finding 7: a blank label with "Applicant", "Candidate" or "Employee" before it.
+  "Applicant age: ____", "Applicant date of birth: ____", "Applicant DOB: ______", "Candidate date of birth: ____", "Candidate civil status: ____", "Employee date of birth: ______",
+  // Finding 8: "we recruit", "would be perfect for", "it's great for" a job.
+  "We recruit students aged 18-22 as part-time chat agents.", "We actively recruit retirees aged 55-70 for our day shift.",
+  "This role would be perfect for a 22-year-old fresh graduate.", "It's great for a 21-year-old looking for a first job.",
+]) check(`(10th review) asks for age or sets a limit: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+for (const line of [
+  // Finding 4: a customer's dependents in tax, marketplace, family-plan and HMO-card work.
+  "Collect the number of dependents for the tax filing.", "Confirm income, filing status and number of dependents before you file.", "Ask for the number of dependents to claim on Form 1040.",
+  "Ask for household size and number of dependents to estimate the subsidy.", "Verify the number of dependents for the household's coverage.",
+  "Enter the number of children covered under the family plan.", "Record the number of dependents covered on the HMO card.",
+  // Finding 5: an insurance desk's identity check naming the customer's own policy, file or records.
+  'Ask: "May I have your date of birth so I can find your policy?"', 'Script: "Can I get your date of birth to pull your policy?"', 'Say: "Please give me your date of birth to locate your file."',
+  'Ask: "What is your date of birth? I need it to update your records."', 'Ask, "What\'s your date of birth?" and update the policy record.', 'Ask: "Do you have dependents on your policy?"',
+  // Finding 9: a product's range of ages told as "you must be".
+  "Explain that you must be 18-25 to get the youth rate.", "Tell the guest that you must be 18 to 25 for the youth hostel rate.", "Tell callers that you must be 18 to 25 for the student plan.",
+  // Finding 10: a queue item's age range before "in".
+  "Escalate any ticket aged 48-72 in the queue.", "Follow up on requests aged 30-60 in Zendesk.", "Prioritize chats aged 10-15 in the queue.", "Escalate any case aged 30-60 in the queue.",
+]) check(`(10th review) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+for (const line of [
+  // Finding 6: a single, solo, working or stay-at-home parent who is a customer.
+  "Was kind to a single parent whose card was declined.", "Strong: kept a single parent on the line and fixed the double charge.", "Her reply to a single parent's refund request was warm and exact.",
+  "Calmed a parent of two who was double-charged.", "Gave a working parent clear options for evening appointments.", "Kind to a stay-at-home parent confused by the bill.",
+  "Correctly explained solo parent leave eligibility.", "Ask how they would help a working parent who can only come in after 5 pm.", "Ask how they would calm a single parent whose child's appointment was cancelled.",
+]) check(`(10th review) a reviewer's remark about the work stays: ${JSON.stringify(line)}`, !A.marksAgeOrFamily(line));
+// …and in the real paths: generate-flow (:252) and ai-generate-workflow (:616) drop a practice case whole, ai-generate-workflow
+// (:607) deletes a step's prompt that asks, ai-generate-job-content (:387) keeps a description's other sentences, and the
+// written interview's grader (interviewContext.ts) drops a strength that marks.
+check("(10th review) a tax desk's, a marketplace desk's and an insurance desk's practice cases are kept whole", A.withoutAgeAsks([
+  { title: "Tax season", prompt: "A filer calls about a late refund. Confirm income, filing status and number of dependents before you file, then explain the timeline." },
+  { title: "Marketplace renewal", prompt: "A caller is renewing her marketplace plan. Ask for household size and number of dependents to estimate the subsidy, and explain the deadline." },
+  { title: "Policy lookup", prompt: 'An insured caller wants her claim status. Ask: "May I have your date of birth so I can find your policy?" Then give the status.' },
+], (s) => `${s.title}. ${s.prompt}`).length === 3);
+check("(10th review) …a requirements list loses a hiring age before a customer word, a benefit after an age and a prefixed blank", JSON.stringify(A.withoutAgeAsks([
+  "Excellent written English", "Hiring 21-35 year old residents of Cebu City", "Start your career at age 18 with full benefits!", "Seeking 18-25 year old gamers to join our player support team", "Applicant age: ____",
+])) === JSON.stringify(["Excellent written English"]));
+check("(10th review) …a video prompt or a phone screen that asks age or civil status after \"Say:\" or \"Ask:\" asks", A.asksAgeOrStatus("Record a 60-second video. Say: your full name, age, civil status, and confirm you can work nights.") && A.asksAgeOrStatus("Phone screen.\nAsk: How old are you? Are you single? Let me confirm your schedule.\nThen ask about shifts."));
+check("(10th review) …a description keeps its other sentences", A.textWithoutAgeAsks("We are a growing clinic in Cebu. Hiring 21-35 year old Patient Coordinators. We hire agents up to age 35 and offer full benefits. Day shift.") === "We are a growing clinic in Cebu. Day shift.");
+check("(10th review) …and the grader's strengths keep a line about a single parent customer", ["Was kind to a single parent whose card was declined.", "Calmed a parent of two who was double-charged.", "Clear written English."].filter((l) => !A.marksAgeOrFamily(l)).length === 3);
+// Guards: what each narrowed rule must still keep or drop, and the four weakenings the tenth review found no check for (a neutral
+// person after an age, "hmo" as a benefit, a range without "and", renting widened to booking).
+for (const line of [
+  "Say: Thank you for calling Bright Clinic. For security, may I have your full name and date of birth?", "Patient intake script: May I have your date of birth?",
+  "Greeting: Thank you for calling Bright Clinic, this is Ana. Can I get your date of birth to pull up your chart?", "Ask: May I have the patient's date of birth?",
+  "Script: Thanks for calling about your loan application. For security, may I have your date of birth?",
+  "Ideal for 16-year-old players new to the game.", "Under the ACA, your child can stay on your plan until age 26.", "Agents should know coverage ends at age 26.",
+  "It's perfect for a 12-year-old's first phone.", "Loan applicant age: ____", "Tell the caller that the youth plan is for ages 18-25.",
+  "At age 65, you can enroll in Medicare.", "Until age 26, your child can stay on your plan.", "You qualify at age 60 for the senior rate.", "You become eligible at age 65 for Medicare.",
+]) check(`(10th review, guard) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+for (const line of [
+  "Script: Thanks for applying! For security, may I have your date of birth?", "Say: Please confirm your date of birth and civil status for the account.", "Opening: Thanks for calling! How old are you?",
+  "Phone screen script: Hi [Name], thanks for applying. To verify your application, what is your date of birth?", 'Ask: "Are you married? I need it to update your records."',
+  "Hiring 21-30 year old women for the night shift.", "We want 22-30 year old individuals with BPO experience.", "21-30 year old individuals with BPO experience.",
+  "With full benefits, we hire agents up to age 35.", "Free HMO for agents up to age 35.", "We hire at age 21 and above, HMO from day one.",
+  "Explain that you must be between 21 and 35 to join the team.", "Explain that you must be 21-35 for the healthcare account.", "We will explain that you must be 21 to 35 years old for the role.",
+  "You must be 21 or older to book shifts in our scheduling app.", "Number of dependents covered under the company HMO:", "Number of children (for the family plan):",
+  "Hiring 21-35 year old Patient Access Representatives in Cebu; patients first.", "21-35 year old agents with BPO experience.",
+  'Say: "Thanks for your interest in the role. How old are you? I just need a few details."', "Say: Welcome to the applicant portal. Please enter your date of birth.",
+  "Say: Thanks for calling Bright Clinic! Ilang taon ka na?", 'Ask: "What is your date of birth? It is for our records."', "Explain that you must be 21-35 to join our insurance team.",
+  "Number of dependents covered under the company plan:", "Full benefits for agents from age 21.", "We hire up to age 35 for full-time roles with benefits.",
+]) check(`(10th review, guard) …and still drops: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+for (const line of [
+  "She's a single parent, so nights may be hard.", "She, a single parent, may need day shifts.", "Also a single parent, which may limit nights.", "Works as a solo parent and needs flexibility.",
+  "Single parent; may need day shifts.", "Parent of two; nights may be hard.", "Being a solo parent, she prefers days.", "She has been a single parent for years.", "She is now a single parent.",
+]) check(`(10th review, guard) a reviewer's remark on age or family is dropped: ${JSON.stringify(line)}`, A.marksAgeOrFamily(line));
+// Known, and left (the tenth review): each is read as shown for the reason given, so the next review need not report it.
+for (const [line, drops, why] of [
+  ['Ask: "Can you confirm your date of birth? Just for our records."', false, "in quotes, \"confirm\" is a customer's check (a clinic asks \"for our records\" too); only an unquoted \"Ask:\" line must be a plain identity check"],
+  ["Say: Thanks for calling. Do you have children on your policy?", true, "after a script's colon only a date of birth is a customer's; the same words in quotes stay"],
+  ["Ask: Can you please verify your date of birth?", true, "after a script's colon \"confirm\" or \"verify\" alone does not say who is asked (\"Ask: Can you confirm your date of birth for our records?\"); quoted, or naming a customer or a check, it stays"],
+  ["We recruit parents aged 25-45 for our product panels.", true, "\"we recruit\" is the business hiring; an agent's \"to recruit\" respondents stays"],
+  ["We want 70-year-old patients to feel heard.", true, "a hiring word right before an age hires whoever is named after it (\"Seeking 18-25 year old gamers\")"],
+  ["Full HMO coverage for agents up to age 35.", false, "a benefit named before the age reads as the benefit's age (\"You are covered up to age 65\")"],
+  ["Up to age 35, with full benefits.", false, "an age that opens its clause is a benefit's when the sentence names one (\"At age 65, you can enroll in Medicare\")"],
+  ["Ideal for 18-25 year old gamers.", false, "\"ideal for\" before a customer word reads as a product's (\"Ideal for 16-year-old players new to the game\")"],
+  ["• 21-35 years old residents of Metro Manila", false, "with no hiring word before it and no preference after it, the person right after an age says whose it is (\"Most 70-year-old patients prefer a phone call\")"],
+]) check(`(10th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, A.asksAgeOrStatus(line) === drops);
+
 console.log("\nThe three job writers\n");
 const flow = read("supabase/functions/generate-flow/index.ts");
 check("generate-flow tells the model the rule", /from "\.\.\/_shared\/ageWording\.ts"/.test(flow) && /for phone work, include interview questions about handling calls\. " \+\s*AGE_RULE;/.test(flow));
@@ -472,7 +580,15 @@ const shortlist = read("supabase/functions/ai-shortlist/index.ts");
 check("(8th review) ai-shortlist's instructions carry it", /import \{ APPLICANT_AGE_RULE \} from "\.\.\/_shared\/ageWording\.ts";/.test(shortlist) && /Look at their assessment data objectively\.\n\n\$\{APPLICANT_AGE_RULE\}\n/.test(shortlist));
 // The ninth review: five more prompts write about an applicant (their text is written out word for word: others are editing the rest of these functions).
 const voice = read("supabase/functions/ava-voice-session/index.ts");
-check("(9th review) ava-voice-session's interviewer (it reads the resume and scores culture fit) is told never to ask or mark age or family", voice.includes(`=== NEVER ASK OR MARK AGE OR FAMILY ===\nNever ask the candidate's age, birth date, graduation year, marital or civil status, children or family plans`) && voice.includes(rule) && voice.indexOf(rule) > voice.indexOf("You are an interviewer for") && voice.indexOf(rule) < voice.indexOf("=== INTERVIEW FLOW ==="));
+// Read inside the interviewer's own prompt: since the tenth review the assistant's prompt, earlier in the file, carries the rule too.
+const interviewer = voice.slice(voice.indexOf("You are an interviewer for"), voice.indexOf("=== INTERVIEW FLOW ==="));
+check("(9th review) ava-voice-session's interviewer (it reads the resume and scores culture fit) is told never to ask or mark age or family", voice.indexOf("You are an interviewer for") > 0 && interviewer.includes(`=== NEVER ASK OR MARK AGE OR FAMILY ===\nNever ask the candidate's age, birth date, graduation year, marital or civil status, children or family plans`) && interviewer.includes(rule));
+// The tenth review: the assistant speaks about an applicant to the employer and can write a job or a message; the intake writes
+// a posting and its requirements by voice, which no filter reads.
+const assistant = voice.slice(voice.indexOf("You are Ava (pronounced like the name, not spelled out), a sharp and insightful AI hiring assistant"), voice.indexOf("// Add the describe_current_view tool"));
+const intake = voice.slice(voice.indexOf("instructions = `You are Ava, a premium hiring assistant for small businesses, on a VOICE call"), voice.indexOf("name: \"set_brief_fields\""));
+check("(10th review) ava-voice-session's assistant mode is told never to ask or mark age or family", assistant.length > 1000 && assistant.includes(`=== NEVER ASK OR MARK AGE OR FAMILY ===\n${A.AGE_RULE}\n${rule}\n`));
+check("(10th review) ava-voice-session's intake mode (it writes the posting) carries the job writers' rule", intake.length > 1000 && intake.includes(A.AGE_RULE) && intake.indexOf(A.AGE_RULE) < intake.indexOf("Style:"));
 check("(9th review) ai-generate-performance-report's coaching report carries it", read("supabase/functions/ai-generate-performance-report/index.ts").includes(`- ${rule}\n`));
 const S = await import("../supabase/functions/ai-chat-simulation/prompts.ts");
 const simInput = { scenario: "A customer was charged twice.", customerName: "Ana", jobTitle: "Support Agent", focus: [], counterpart: "customer" };
