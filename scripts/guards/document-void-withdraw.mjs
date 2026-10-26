@@ -433,7 +433,8 @@ export default [
       if (!/export function drawerCaption\(rows: CaptionRow\[\], \{ canSend \}: \{ canSend: boolean \}\): string/.test(fn)) bad.push("drawerCaption must be told whether the person can send (canSend)");
       if (!/const replaced = new Set\(rows\.filter\(\(r\) => laterLetter\(r, rows\) !== null\)\);/.test(fn) || !/r\.status === status && !replaced\.has\(r\)/.test(fn)) bad.push("drawerCaption must leave a replaced letter out of what it counts");
       const ask = fn.indexOf("send a new one if you still need it");
-      if (ask === -1 || !/if \(parts\.length === 1 && expired > 0 && canSend\) \{/.test(fn.slice(Math.max(0, ask - 400), ask))) bad.push("\"send a new one\" must be said only when canSend");
+      // (The twelfth product review: the ask holds while only expired letters need acting on; a replaced one needs nothing.)
+      if (ask === -1 || !/const onlyExpiredNeedsAct = expired > 0 && withdrawn === 0 && voided === 0;/.test(fn) || !/if \(onlyExpiredNeedsAct && canSend\) \{/.test(fn.slice(Math.max(0, ask - 400), ask))) bad.push("\"send a new one\" must be said only when canSend, and only while expired letters are all that needs acting on");
       if (!/const caption = drawerCaption\(rows, \{ canSend \}\);/.test(stripTsComments(pageSrc))) bad.push("the Documents page must tell drawerCaption whether this person can send");
       if (!/newerLetterSentAt=\{sheetNewer\?\.createdAt \?\? null\}/.test(pageSrc) || !/canSend=\{canSend\}/.test(pageSrc)) bad.push("the Documents page must tell the letter's sheet about a newer letter, and whether this person can send");
       const expiredBlock = /\{state === "expired" && \([\s\S]*?\n\s*\)\}/.exec(sheetSrc)?.[0] ?? "";

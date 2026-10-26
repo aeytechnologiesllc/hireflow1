@@ -117,6 +117,10 @@ interface SignedDocumentViewerProps {
   document: DocumentWithApplication | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The business side may sign and read the signing record (the owner, or a
+   *  teammate with "Send documents"; document-signing's resolveDocumentRole and
+   *  document_audit_log agree). Absent: yes. */
+  canSendDocuments?: boolean;
 }
 
 const getActionIcon = (action: string) => {
@@ -269,7 +273,7 @@ function pdfFileName(title: string | null | undefined): string {
   return `${name || "Document"}.pdf`;
 }
 
-export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDocumentViewerProps) {
+export function SignedDocumentViewer({ document, open, onOpenChange, canSendDocuments = true }: SignedDocumentViewerProps) {
   const [showAuditTrail, setShowAuditTrail] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [documentData, setDocumentData] = useState<DocumentData | null>(null);
@@ -308,8 +312,13 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
     !document.candidate_signed_at &&
     !document.is_voided &&
     applicantDocumentState(document) !== "expired";
+  // Only someone who may send documents signs for the business: a teammate
+  // without "Send documents" was offered Countersign above the message saying
+  // they cannot open the file, and was refused on pressing it (the twelfth
+  // product review).
   const canCountersignAsEmployer =
     (role === "employer" || role === "team_member") &&
+    canSendDocuments &&
     document?.status === "pending" &&
     !!document?.candidate_signed_at &&
     !document?.employer_signed_at &&
@@ -322,7 +331,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   // (the fifth product review). The sixth product review: shown to them only
   // once countersigned, it was out of reach while the team took its time, and
   // for good once the team voided what they had signed.
-  const auditTrailOffered = document?.status === "signed" || role !== "candidate" || !!document?.candidate_signed_at;
+  // …and the signing record is theirs only if they may send documents: for a
+  // teammate without it, document_audit_log returns nothing, so the trail and
+  // the Audit PDF came back empty (the twelfth product review).
+  const auditTrailOffered = role === "candidate" ? document?.status === "signed" || !!document?.candidate_signed_at : canSendDocuments;
   // Which screens the footer has a button for: the copies (finished; the
   // team's on a computer) and the audit trail go with auditTrailOffered, and
   // only a phone has "Sign" / "Countersign". Nothing at all: no footer.

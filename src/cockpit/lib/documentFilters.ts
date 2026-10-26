@@ -36,7 +36,9 @@ export const STATUS_WORDS: Record<FilterStatus, string> = {
   yours: "Your turn",
   theirs: "Waiting on them",
   done: "Done",
-  closed: "Declined or withdrawn",
+  // Expired letters are filed here too (the twelfth product review: the label
+  // did not name them).
+  closed: "Closed",
 };
 
 export const KIND_WORDS: Record<FilterKind, string> = {
@@ -246,7 +248,11 @@ export function drawerCaption(rows: CaptionRow[], { canSend }: { canSend: boolea
   const line = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
   // Nothing can move the date once it has passed: a new letter is the way on,
   // one for each person (two expired letters to one person need one new one).
-  if (parts.length === 1 && expired > 0 && canSend) {
+  // A replaced letter needs nothing, so it never stops the ask for the people
+  // whose letter only expired (the twelfth product review: "1 expired … and 1
+  // was replaced" dropped the ask Ana still needed).
+  const onlyExpiredNeedsAct = expired > 0 && withdrawn === 0 && voided === 0;
+  if (onlyExpiredNeedsAct && canSend) {
     const people = new Set(rows.filter((r) => r.status === "Expired" && !replaced.has(r)).map((r, i) => r.applicationId ?? r.id ?? `row ${i}`)).size;
     return `${line} — ${people === 1 ? "send a new one if you still need it" : "send new ones if you still need them"}.`;
   }

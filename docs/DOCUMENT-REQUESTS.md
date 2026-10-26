@@ -54,7 +54,7 @@ gone; "Upload a file to sign" takes a PDF of his own (an NDA, a contract).
 - **Filters on the Documents page** (from the approved mock-up;
   `src/cockpit/lib/documentFilters.ts`, `scripts/document_filters.test.mjs`):
   search a name or a document; status with counts (Your turn / Waiting on
-  them / Done / Declined or withdrawn, expired unsigned counted there); kind
+  them / Done / Closed: declined, withdrawn, voided and expired unsigned); kind
   (Offer letters / ID & papers / Files to sign); job (when there is more than
   one); order (newest, oldest, due soonest). It opens on "Your turn" while
   something waits on him, else on All.

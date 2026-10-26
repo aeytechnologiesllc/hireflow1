@@ -239,6 +239,12 @@ export function TeamDocumentSheet({
     }
   };
 
+  // Declined after the applicant signed, it was the team's own decline on its
+  // turn (document-signing lets the team decline only then; offerLetterState
+  // reads it the same way): never quote the team's reason as the applicant's
+  // (the twelfth product review).
+  const declinedByTeam = state === "declined" && !!document.candidate_signed_at;
+
   const chip =
     state === "waiting"
       ? { text: `Waiting for ${first} to sign`, bg: "var(--amber-bg)", fg: "var(--amber-fg)", Icon: Clock }
@@ -247,7 +253,7 @@ export function TeamDocumentSheet({
         : state === "done"
           ? { text: "Signed by both", bg: "var(--action-soft)", fg: "var(--action-soft-fg)", Icon: CheckCircle2 }
           : state === "declined"
-            ? { text: `${First} declined`, bg: "var(--crit-bg)", fg: "var(--crit)", Icon: XCircle }
+            ? { text: declinedByTeam ? "You declined" : `${First} declined`, bg: "var(--crit-bg)", fg: "var(--crit)", Icon: XCircle }
             : state === "withdrawn"
               ? { text: "Withdrawn", bg: "var(--surface-2)", fg: "var(--ink-2)", Icon: XCircle }
               : state === "voided"
@@ -294,7 +300,10 @@ export function TeamDocumentSheet({
                 {isOffer ? "Signed by both. It's official." : "Signed by both."}
               </h3>
               <p className="mx-auto mt-2 max-w-sm text-[13.5px]" style={{ color: "var(--ink-2)" }}>
-                {First} gets the final copy too. When you're ready, press Hire on {first === "they" ? "their" : `${first}'s`} page to welcome them and ask for their documents.
+                {/* An already-hired person has no Hire to press (the twelfth product review: a letter sent after the hire). */}
+                {document.applications?.status === "hired"
+                  ? `${First} gets the final copy too. ${First === "They" ? "They're" : `${First} is`} already hired, so there is nothing more to do here.`
+                  : <>{First} gets the final copy too. When you're ready, press Hire on {first === "they" ? "their" : `${first}'s`} page to welcome them and ask for their documents.</>}
               </p>
               <div className="mt-5 flex flex-wrap justify-center gap-2">
                 <button type="button" className="ck-btn ck-btn-primary !py-2 !text-[13px]" onClick={() => void download()} disabled={downloading}>
@@ -315,7 +324,7 @@ export function TeamDocumentSheet({
               )}
               {state === "declined" && (
                 <div className="mb-4 rounded-[12px] px-4 py-3 text-[13.5px]" style={{ background: "var(--crit-bg)", color: "var(--crit)" }}>
-                  {First} declined{document.decline_reason ? `: "${document.decline_reason}"` : "."}
+                  {declinedByTeam ? "You declined this" : `${First} declined`}{document.decline_reason ? `: "${document.decline_reason}"` : "."}
                 </div>
               )}
               {(state === "withdrawn" || state === "voided") && (

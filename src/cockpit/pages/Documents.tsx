@@ -794,6 +794,7 @@ export default function CockpitDocuments() {
 
       <SignedDocumentViewer
         document={viewerDocument}
+        canSendDocuments={canSend}
         open={!!viewerDocId}
         onOpenChange={(open) => {
           if (!open) setViewerDocId(null);

@@ -12,6 +12,8 @@ export interface DocumentWithApplication extends Document {
   applications: {
     id: string;
     candidate_id: string;
+    /** Where the application stands (the team's sheet: an already-hired person has no Hire to press). */
+    status?: string | null;
     jobs: Tables<"jobs"> | null;
     profiles: Tables<"profiles"> | null;
   } | null;
@@ -32,6 +34,7 @@ export function useDocuments() {
           applications(
             id,
             candidate_id,
+            status,
             jobs(*)
           )
         `)

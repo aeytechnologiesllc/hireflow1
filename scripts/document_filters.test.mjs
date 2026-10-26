@@ -91,7 +91,15 @@ eq("requests by due date", f.applyDocFilters([], requests, { status: "all", ...f
 
 // --- words -------------------------------------------------------------------------
 eq("the line above the list", [f.resultLine("yours", 3, false), f.resultLine("yours", 1, false), f.resultLine("theirs", 6, false), f.resultLine("all", 14, false), f.resultLine("all", 2, true), f.resultLine("done", 0, true)], ["3 things need you", "1 thing needs you", "6 waiting on them", "14 in all", "2 matches", "Nothing matches these filters."]);
-eq("the status words, as in the mock-up", Object.values(f.STATUS_WORDS), ["All", "Your turn", "Waiting on them", "Done", "Declined or withdrawn"]);
+eq("the status words; \"Closed\" names declined, withdrawn, voided and expired alike (the twelfth product review)", Object.values(f.STATUS_WORDS), ["All", "Your turn", "Waiting on them", "Done", "Closed"]);
+// The twelfth product review: a replaced letter never stops the ask for the people whose letter only expired.
+{
+  const ana = { id: "e1", status: "Expired", applicationId: "a-ana", type: "Offer Letter", created: "x" };
+  const benOld = { id: "e2", status: "Expired", applicationId: "a-ben", type: "Offer Letter", created: "2026-10-01T00:00:00Z", createdAt: "2026-10-01T00:00:00Z" };
+  const benNew = { id: "s2", status: "Signed", applicationId: "a-ben", type: "Offer Letter", created: "2026-10-05T00:00:00Z", createdAt: "2026-10-05T00:00:00Z" };
+  const line = f.drawerCaption([ana, benOld, benNew], { canSend: true });
+  check("an expired letter beside a replaced one still asks for a new one", /send a new one if you still need it\.$/.test(line) && /replaced/.test(line), line);
+}
 
 // The line beside the meter. The tenth product review: a letter past its date
 // and never signed read "0 of 1 ready · Everything in here is done." (and a
