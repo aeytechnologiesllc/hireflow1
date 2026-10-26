@@ -1009,7 +1009,12 @@ reached function deployed):
   fix: `document_requests_sweep_strays`). **Round 14** (`p5r14_report.md`)
   found nothing MEDIUM and no regression: one LOW-MEDIUM (the automatic
   pause can be dodged by a business deleting its own contact traces) and
-  two LOWs; **its fixer is running** (`p5r14_fix_brief.md`).
+  two LOWs; fixed by 397ba288 (`contact_kept_when_made` live
+  20261026221959: contact is recorded when it is made, in an owner-only
+  table, so deleting a message, a request, an interview or the applicant no
+  longer dodges the pause; a rolled-back live insert re-recorded a contact;
+  the stamp rules held by the real function; Settings no longer says "all
+  data"). **Round 15 is next.**
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1066,7 +1071,10 @@ reached function deployed):
   separator's limits. **Round 30** (`p4r30_report.md`), no HIGH: four
   MEDIUM regressions, fixed by its zero-cost patch and its colon option
   in c1c7e6ba (the option's cost written down as a known limit). **Round
-  31 is running** (`p4r31_brief.md`).
+  31** (`p4r31_report.md`), no HIGH: one MEDIUM regression and two old
+  MEDIUM gaps ("Call customers to confirm…" read as chat; "Merchant
+  Support" not customer service) and three LOW regressions, all fixed by
+  its narrowing patches in b0d56e20. **Round 32 is next.**
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1090,7 +1098,10 @@ reached function deployed):
   LOW–MEDIUM; fixed by 8edc67fc (six functions deployed). **Round 19**
   (`p6r19_report.md`) again found no MEDIUM regression (its MEDIUM is the
   rest of the old one; one LOW–MEDIUM regression); fixed by e3854798 (six
-  functions deployed). **Round 20 is running** (`p6r20_brief.md`).
+  functions deployed). **Round 20** (`p6r20_report.md`) found one MEDIUM
+  regression against both (round 19 removed both paths that kept a
+  customer's own age after a reply label); **its fixer is running**
+  (`age20_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
