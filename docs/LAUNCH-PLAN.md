@@ -965,8 +965,9 @@ reached function deployed):
   document-cleanup deployed, its next hourly run answered `ok`). **Round
   11** (`sec11_report.md`) found one LOW regression (a stream of new
   accounts makes a withdrawal's later folders wait longer each time) with
-  a validated fix; **its fixer is running** (`r11_security_fix_brief.md`,
-  migration 20261025600000).
+  a validated fix; fixed by 6c30ecd4 (a withdrawal's files go together in
+  its turn; `file_queue_whole_turns` live 20261026130943, document-cleanup
+  deployed). **Round 12 is running** (`sec12_brief.md`).
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -994,14 +995,19 @@ reached function deployed):
   found two HIGH regressions (a typed employment word made the default's
   "On-site" a choice; "check-in and check-out" as a call topic became a
   front desk) and validated patches; earlier probes 158 of 6,975 (the probe
-  set grew), none newly failing. **Its fixer is running**
-  (`p4r18_fix_brief.md`; the first attempt hung on a shell command
-  before changing anything and was restarted).
+  set grew), none newly failing. Fixed by 98a40caf (front end only; the
+  first fixer hung on a shell command before changing anything and was
+  restarted): round 17's rules cut back to their evidence, 61 new checks,
+  earlier probes unchanged at 158 of 6,975. **Round 19 is running**
+  (`p4r19_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
-  functions that import the filter deployed). **Round 15 is running**
-  (`p6r15_brief.md`).
+  functions that import the filter deployed). **Round 15**
+  (`p6r15_report.md`) found one HIGH regression (a quote that names the
+  customer only inside it, "Are you a Medicare member? Are you 65 or
+  older?", was dropped, and three practice cases with it) and four LOWs;
+  **its fixer is running** (`age15_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
