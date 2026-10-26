@@ -210,6 +210,40 @@ export function canVoid(doc: DocumentSigningState, role: DocumentRole): Precondi
   return { ok: true };
 }
 
+/**
+ * What a voided (or withdrawn) document still answers: `view` (the opened
+ * stamp) and `original` (the copy the server kept of what the applicant
+ * signed), both read-only. Everything that moves a document (sign,
+ * countersign, decline, withdraw, void) stays refused, and `download` has no
+ * finished PDF to give.
+ *
+ * The tenth product review: a PDF the applicant signed and the team then
+ * voided could be opened by neither side. After the applicant signs, the
+ * viewer shows only the kept copy, and this function refused `original` on
+ * every voided document, so both were told the file "could not be opened",
+ * the team to "send it again as a PDF".
+ */
+export const OPEN_WHEN_VOIDED: readonly string[] = ["view", "original"];
+
+export function refusedWhenVoided(isVoided: boolean, action: string): boolean {
+  return isVoided && !OPEN_WHEN_VOIDED.includes(action);
+}
+
+/**
+ * `original`: the kept copy of an uploaded file, for the applicant and the
+ * sending business's team (resolveDocumentRole, as every other action), once
+ * the applicant has signed it. A void does not take it away (the record of
+ * what they signed is still both parties'); one never signed has no copy.
+ */
+export function canOpenKeptCopy(
+  doc: { candidateSignedAt: string | null; v1Hash: string | null; uploadedFile: boolean },
+  role: DocumentRole,
+): PreconditionResult {
+  if (role !== "candidate" && role !== "employer") return { ok: false, error: "role_mismatch" };
+  if (doc.candidateSignedAt === null || !doc.v1Hash || !doc.uploadedFile) return { ok: false, error: "not_pending" };
+  return { ok: true };
+}
+
 export interface SignaturePayload {
   method?: string;
   value?: string;

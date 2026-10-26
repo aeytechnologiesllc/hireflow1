@@ -92,6 +92,27 @@ eq("requests by due date", f.applyDocFilters([], requests, { status: "all", ...f
 // --- words -------------------------------------------------------------------------
 eq("the line above the list", [f.resultLine("yours", 3, false), f.resultLine("yours", 1, false), f.resultLine("theirs", 6, false), f.resultLine("all", 14, false), f.resultLine("all", 2, true), f.resultLine("done", 0, true)], ["3 things need you", "1 thing needs you", "6 waiting on them", "14 in all", "2 matches", "Nothing matches these filters."]);
 eq("the status words, as in the mock-up", Object.values(f.STATUS_WORDS), ["All", "Your turn", "Waiting on them", "Done", "Declined or withdrawn"]);
+
+// The line beside the meter. The tenth product review: a letter past its date
+// and never signed read "0 of 1 ready · Everything in here is done." (and a
+// withdrawn or voided one already did): "done" only when every row is.
+{
+  const rows = (...statuses) => statuses.map((status) => ({ status }));
+  eq("the caption: waiting on a signature", f.drawerCaption(rows("Pending", "Signed")), "I’m still waiting on 1 signature.");
+  eq("…on two", f.drawerCaption(rows("Pending", "Pending", "Expired")), "I’m still waiting on 2 signatures.");
+  eq("…a declined one", f.drawerCaption(rows("Declined", "Signed", "Expired")), "1 came back declined — worth another look.");
+  eq("…done only when every one is signed or on file", f.drawerCaption(rows("Signed", "Submitted")), "Everything in here is done.");
+  eq("…an expired letter is never 'done'", f.drawerCaption(rows("Expired")), "1 expired before it was signed — send a new one if you still need it.");
+  eq("…nor beside a signed one", f.drawerCaption(rows("Expired", "Signed")), "1 expired before it was signed — send a new one if you still need it.");
+  eq("…two expired", f.drawerCaption(rows("Expired", "Expired")), "2 expired before they were signed — send new ones if you still need them.");
+  eq("…a withdrawn one", f.drawerCaption(rows("Withdrawn", "Signed")), "1 was withdrawn.");
+  eq("…a voided one", f.drawerCaption(rows("Voided")), "1 was voided.");
+  eq("…all three kinds at once", f.drawerCaption(rows("Expired", "Withdrawn", "Withdrawn", "Voided", "Signed")), "1 expired before it was signed, 2 were withdrawn and 1 was voided.");
+  for (const closed of ["Expired", "Withdrawn", "Voided"]) {
+    check(`…"done" never with a ${closed} row in the drawer`, f.drawerCaption(rows(closed, "Signed", "Submitted")) !== "Everything in here is done.");
+  }
+  check("the page takes its caption from drawerCaption", /const caption = drawerCaption\(rows\);/.test(read("src/cockpit/pages/Documents.tsx")) && !/Everything in here is done/.test(read("src/cockpit/pages/Documents.tsx")));
+}
 eq("the kinds", Object.values(f.KIND_WORDS), ["Everything", "Offer letters", "ID & papers", "Files to sign"]);
 
 // --- the page ----------------------------------------------------------------------

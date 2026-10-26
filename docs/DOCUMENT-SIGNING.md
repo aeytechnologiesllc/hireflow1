@@ -121,6 +121,43 @@ buttons until both have signed. The full viewer
   under "Signed or closed", and the sidebar's badge counts the same. The full
   viewer no longer offers the place to sign once the date has passed.
 
+## The tenth product review (2026-10-25)
+
+- **A voided document still opens its kept copy.** After the applicant signs
+  an uploaded PDF, the viewer shows only the copy the server kept
+  (`original`), and the function refused every action but `view` on a voided
+  document, so a PDF the team voided after the applicant signed could be
+  opened by neither side, and the viewer blamed the file ("send it again as
+  a PDF"). A voided document now answers `view` and `original`
+  (`refusedWhenVoided` in `document-signing/stateMachine.ts`); `original`
+  serves the kept copy to the applicant and the sending business's team
+  (`canOpenKeptCopy`, the same people as before), voided or not, and only
+  once the applicant has signed. Sign, countersign, decline, withdraw, void
+  and download stay refused. The dev preview's stand-in answers the same way
+  (it served the copy before looking at the void, which hid the failure).
+  Proof: `scripts/document_signing_state_machine.test.mjs`, guard
+  `voided-document-still-opens-its-kept-copy`.
+- **The viewer says why it cannot show a file**: "This file is not a PDF" only
+  for a file that is not one; a copy it could not fetch "could not be loaded
+  just now". Guard `viewer-says-not-a-pdf-only-for-a-file-that-is-not-one`.
+- **"Signed PDF" only for a document signed by both.** The team's footer on
+  a computer offered it on declined, expired, voided and unsigned documents
+  and saved "<name>_Signed.pdf". Guard `signed-pdf-only-when-signed-by-both`.
+- **A closed offer letter links its signing record.** TeamDocumentSheet
+  linked it only once both had signed; a declined, withdrawn, voided or
+  expired letter now has "Signing record" too, so the record's status and
+  the Audit PDF reach letters. Guard `closed-letter-links-its-signing-record`.
+- **The Documents meter's line** says "done" only when every row is signed
+  or on file, and names what closed unfinished ("1 expired before it was
+  signed — send a new one if you still need it.", "1 was withdrawn.", "1 was
+  voided."): an expired letter read "Everything in here is done."
+  (`drawerCaption` in `src/cockpit/lib/documentFilters.ts`; guard
+  `drawer-caption-never-done-with-a-closed-row`).
+- **Hiring after an offer letter expired** no longer asks the applicant to
+  sign it: docs/DOCUMENT-REQUESTS.md, "Hiring".
+
+Deploy: `document-signing`, `send-notification-email`.
+
 ## Revision log (2026-09-16)
 
 A pre-implementation review raised six must-change findings and nine
@@ -873,7 +910,8 @@ Authorization: Bearer <candidate or employer JWT>
      IS NULL` or `job_id = ANY(assigned_job_ids)`).
    - Neither → `403`.
 4. `document.is_voided` → `409 { error: "voided" }` for every action except
-   `view`.
+   `view` (and, since the tenth product review, `original`: the kept copy of
+   what the applicant signed, read-only).
 
 ### `view` — replaces the client's direct `viewed_at` UPDATE
 

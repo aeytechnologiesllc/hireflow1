@@ -263,13 +263,17 @@ export function HireDialog({
               style={offerUnsigned ? { background: "var(--amber-bg)", color: "var(--amber-fg)" } : offer?.kind === "signed" ? { background: "var(--action-soft)", color: "var(--action-soft-fg)" } : { background: "var(--surface-2)", color: "var(--ink-2)" }}
               data-hire-offer={offer?.kind ?? "loading"}
             >
+              {/* An expired letter is nobody's to sign now (the tenth product
+                  review: the email asked them to sign one that had expired). */}
               {!offer
                 ? "Checking the offer letter..."
                 : offer.kind === "unsigned"
                   ? `${first} hasn't signed the offer letter yet, so the email asks for that too.`
                   : offer.kind === "signed"
                     ? `${first} signed the offer letter on ${longDate(dayOf(new Date(offer.signedAt)))}.`
-                    : "No offer letter has gone out. You can still send one from Documents."}
+                    : offer.kind === "expired"
+                      ? "The offer letter expired before it was signed, so the email doesn't ask for it. You can send a new one from Documents."
+                      : "No offer letter has gone out. You can still send one from Documents."}
             </div>
           </div>
 

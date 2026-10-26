@@ -27,7 +27,8 @@ import { readDocumentBody } from "@/components/documents/ApplicantDocumentSheet"
  *     team's), then "Sign and finish";
  *   - signed by both: both signatures, "Download signed copy", and the full
  *     signing record one tap away;
- *   - declined, withdrawn, voided or expired: said plainly, with the reason.
+ *   - declined, withdrawn, voided or expired: said plainly, with the reason,
+ *     and the signing record one tap away (the tenth product review).
  * The signing is the document-signing function's, unchanged.
  */
 
@@ -419,6 +420,19 @@ export function TeamDocumentSheet({
                     {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
                     Download signed copy
                   </button>
+                  <button type="button" className="inline-flex items-center gap-1.5 text-[13px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onShowRecord(document)}>
+                    <FileText className="h-4 w-4" aria-hidden />
+                    Signing record
+                  </button>
+                </div>
+              )}
+
+              {/* A closed letter keeps its record too: who did what and when,
+                  and a copy of that record to save (the tenth product review:
+                  the link was there only once both had signed, so a declined,
+                  withdrawn, voided or expired letter had no way to it). */}
+              {(state === "declined" || state === "withdrawn" || state === "voided" || state === "expired") && (
+                <div className="mt-5 flex justify-end" data-team-document-closed-record>
                   <button type="button" className="inline-flex items-center gap-1.5 text-[13px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onShowRecord(document)}>
                     <FileText className="h-4 w-4" aria-hidden />
                     Signing record

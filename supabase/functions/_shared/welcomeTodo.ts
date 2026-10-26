@@ -31,6 +31,27 @@ export interface WelcomeTodo {
 
 export const SIGN_OFFER_LINE = "Sign your offer letter";
 
+/** The fields of an offer letter that say whether it still waits on them. */
+export interface OfferLetterFacts {
+  status?: string | null;
+  candidate_signed_at?: string | null;
+  is_voided?: boolean | null;
+  expires_at?: string | null;
+}
+
+/**
+ * The newest offer letter still waits for their signature: sent, not signed,
+ * not withdrawn, and its date to sign not passed (document-signing refuses a
+ * signature after it). The same rule as offerLetterWaiting in
+ * src/lib/documentRequests.ts. The tenth product review: a letter past its
+ * date put "Sign your offer letter" in the welcome email, a task the
+ * applicant could not do (My Documents shows it as "Expired").
+ */
+export function offerLetterWaiting(letter: OfferLetterFacts | null | undefined, now = new Date()): boolean {
+  if (!letter || letter.candidate_signed_at || letter.is_voided || letter.status !== "pending") return false;
+  return !(letter.expires_at && new Date(letter.expires_at).getTime() <= now.getTime());
+}
+
 const LINES: Record<string, string> = {
   government_id: "Send a photo of your government ID",
   nbi_clearance: "Send your NBI clearance",

@@ -217,6 +217,49 @@ export const DUE_CHOICES = [3, 5, 7] as const;
 
 export const SIGN_OFFER_LINE = "Sign your offer letter";
 
+/** The fields of an offer letter that say whether it still waits on them. */
+export interface OfferLetterFacts {
+  status?: string | null;
+  candidate_signed_at?: string | null;
+  is_voided?: boolean | null;
+  expires_at?: string | null;
+}
+
+/**
+ * The newest offer letter still waits for their signature: sent, not
+ * signed, not withdrawn, and its date to sign not passed. The same rule as
+ * offerLetterWaiting in supabase/functions/_shared/welcomeTodo.ts, so the
+ * Hire dialog and the email agree. The tenth product review: a letter past
+ * its date (which reads "Expired" everywhere, and which nobody can sign) put
+ * "Sign your offer letter" in the welcome email.
+ */
+export function offerLetterWaiting(letter: OfferLetterFacts | null | undefined, now = new Date()): boolean {
+  if (!letter || letter.candidate_signed_at || letter.is_voided || letter.status !== "pending") return false;
+  return !(letter.expires_at && new Date(letter.expires_at).getTime() <= now.getTime());
+}
+
+/** Where an applicant's newest offer letter stands, for the Hire dialog. */
+export type OfferLetterState =
+  | { kind: "none" }
+  | { kind: "unsigned"; sentAt: string }
+  | { kind: "signed"; signedAt: string }
+  | { kind: "expired" }
+  | { kind: "withdrawn" };
+
+/**
+ * Past its date and never signed, a letter is "expired", not "unsigned":
+ * nobody can sign it any more, so the Hire dialog must not promise that the
+ * email asks for it, and the email leaves it out by the same rule.
+ */
+export function offerLetterState(letter: (OfferLetterFacts & { created_at: string }) | null | undefined, now = new Date()): OfferLetterState {
+  if (!letter) return { kind: "none" };
+  if (letter.is_voided) return { kind: "withdrawn" };
+  if (letter.candidate_signed_at) return { kind: "signed", signedAt: letter.candidate_signed_at };
+  if (offerLetterWaiting(letter, now)) return { kind: "unsigned", sentAt: letter.created_at };
+  if (letter.status === "pending") return { kind: "expired" };
+  return { kind: "withdrawn" };
+}
+
 const TODO_LINES: Record<string, string> = {
   government_id: "Send a photo of your government ID",
   nbi_clearance: "Send your NBI clearance",

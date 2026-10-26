@@ -320,7 +320,9 @@ these either; each has a guard or a test that CI runs:
   every browser (`20261025470000_security_round4.sql`): a change is a new
   document. Signing takes PDFs only; the kept copy is
   `documents/<id>/original-<v1>.pdf`, which both sides view after the
-  applicant signs (document-signing `original`). The prompt fence's markers
+  applicant signs (document-signing `original`; after a void too, the only
+  action besides `view` a voided document answers: the tenth product
+  review). The prompt fence's markers
   carry a word made when the function starts (`_shared/promptFence.ts`).
 - (Rounds 6–7.) Every function that reads or signs a stored file with the
   service key holds the path to `isPlainObjectPath` (applicant-file-url,

@@ -221,7 +221,7 @@ function client() {
     let cap = null;
     const run = () => {
       if (world.databaseDown) return { data: null, error: { message: "stand-in: database down" } };
-      let rows = rowsOf(table).filter((r) => filters.every(([col, val]) => r[col] === val));
+      let rows = rowsOf(table).filter((r) => filters.every(([col, val]) => (val && typeof val === "object" && Array.isArray(val.oneOf) ? val.oneOf.includes(r[col]) : r[col] === val)));
       if (order) rows = [...rows].sort((a, b) => (order.ascending ? 1 : -1) * String(a[order.col]).localeCompare(String(b[order.col])));
       if (cap != null) rows = rows.slice(0, cap);
       return { data: rows, error: null };
@@ -229,6 +229,8 @@ function client() {
     const q = {
       select: () => q,
       eq: (col, val) => (filters.push([col, val]), q),
+      // The welcome list's open requests (status in pending, rejected).
+      in: (col, vals) => (filters.push([col, { oneOf: vals }]), q),
       order: (col, opts) => ((order = { col, ascending: opts?.ascending !== false }), q),
       limit: (n) => ((cap = n), q),
       maybeSingle: async () => {
@@ -417,6 +419,16 @@ void quiet;
   // Since 2026-10-10 the welcome names the business in the subject and the
   // job in the first line (docs/DOCUMENT-REQUESTS.md, "Hiring").
   check("…naming the owner's business in the subject and the job the owner named in the first line", mail.subject.startsWith("Welcome to Zulu Support Team") && textOf(mail).includes(`You're joining Zulu Support Team as ${TITLE_A}`), `${mail.subject} | ${textOf(mail).slice(0, 160)}`);
+
+  // The welcome email asks them to sign the offer letter only while it is
+  // theirs to sign. The tenth product review: one past its date (My
+  // Documents reads it "Expired", and nobody can sign it) still put "Sign
+  // your offer letter" in the email.
+  const offerLetter = (expiresInMs) => [{ application_id: id(201), recipient_id: ANA, document_type: "offer_letter", status: "pending", candidate_signed_at: null, is_voided: false, expires_at: new Date(Date.now() + expiresInMs).toISOString(), created_at: "2026-10-10T10:00:00Z" }];
+  r = await hush(async () => (reset((w) => { w.documents = offerLetter(2 * 86_400_000); }), ask("tok-owner", { type: "status_hired", recipient_user_id: ANA, data: { job_title: TITLE_A, application_id: id(201) } })));
+  check("the welcome email asks them to sign an offer letter still in time", r.status === 200 && world.sent.length === 1 && textOf(world.sent[0]).includes("Before your first day, please:") && textOf(world.sent[0]).includes("Sign your offer letter"), textOf(world.sent[0] ?? { html: "" }).slice(0, 320));
+  r = await hush(async () => (reset((w) => { w.documents = offerLetter(-3600_000); }), ask("tok-owner", { type: "status_hired", recipient_user_id: ANA, data: { job_title: TITLE_A, application_id: id(201) } })));
+  check("…but not one past its date: the hire still goes, without that line", r.status === 200 && world.sent.length === 1 && !textOf(world.sent[0]).includes("Sign your offer letter") && textOf(world.sent[0]).includes(`You're joining Zulu Support Team as ${TITLE_A}`), textOf(world.sent[0] ?? { html: "" }).slice(0, 320));
 
   r = await hush(async () => (reset(), ask("tok-team-all", { type: "status_rejected", recipient_user_id: ANA, data: { company_name: "Rival Co" } })));
   mail = world.sent[0];

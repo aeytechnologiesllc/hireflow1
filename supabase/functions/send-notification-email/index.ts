@@ -6,7 +6,7 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 // function was already running on in production (what "@2" meant until then).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { declineNoteLines } from "../_shared/declineNote.ts";
-import { welcomeTodo, type WelcomeTodo } from "../_shared/welcomeTodo.ts";
+import { offerLetterWaiting, welcomeTodo, type OfferLetterFacts, type WelcomeTodo } from "../_shared/welcomeTodo.ts";
 import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkEmail } from "../_shared/continueOnComputerEmail.ts";
 import { BUSINESS_EMAIL_CODE_TYPE, businessEmailCodeEmail, readIssuedCode, waitWords } from "../_shared/businessEmailCode.ts";
 import { callerId as callerIp, checkRateLimit } from "../_shared/rateLimit.ts";
@@ -1124,9 +1124,10 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // The hire and documents emails list what is really waiting for them:
-    // the application's open requests and (for the hire) an unsigned offer
-    // letter. Looked up here, never taken from the request. A failed look-up
-    // sends the email without the list.
+    // the application's open requests and (for the hire) an offer letter
+    // still theirs to sign: not past its date (offerLetterWaiting; the tenth
+    // product review). Looked up here, never taken from the request. A failed
+    // look-up sends the email without the list.
     if ((type === "status_hired" || type === "document_requested") && typeof data?.application_id === "string") {
       try {
         const [requests, letters] = await Promise.all([
@@ -1141,7 +1142,7 @@ const handler = async (req: Request): Promise<Response> => {
           type === "status_hired"
             ? supabase
                 .from("documents")
-                .select("candidate_signed_at, is_voided, status")
+                .select("candidate_signed_at, is_voided, status, expires_at")
                 .eq("application_id", data.application_id)
                 .eq("document_type", "offer_letter")
                 .order("created_at", { ascending: false })
@@ -1150,8 +1151,8 @@ const handler = async (req: Request): Promise<Response> => {
         ]);
         if (requests.error) throw requests.error;
         if (letters.error) throw letters.error;
-        const letter = (letters.data ?? [])[0] as { candidate_signed_at?: string | null; is_voided?: boolean | null; status?: string | null } | undefined;
-        const offerUnsigned = !!letter && !letter.candidate_signed_at && !letter.is_voided && letter.status === "pending";
+        const letter = (letters.data ?? [])[0] as OfferLetterFacts | undefined;
+        const offerUnsigned = offerLetterWaiting(letter);
         data = { ...data, todo: welcomeTodo({ offerUnsigned, requests: requests.data ?? [] }) };
       } catch (lookupError) {
         console.error(`[send-notification-email] ${type}: could not read what is waiting:`, lookupError instanceof Error ? lookupError.message : lookupError);

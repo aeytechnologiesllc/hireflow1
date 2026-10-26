@@ -132,7 +132,9 @@ export function previewRequests(tables: FixtureTables, user: FixtureAuthUser, hi
  * applicant at Interview had their interview yesterday (completed), so the
  * page leads with "Send offer letter". `offer`: the applicant at Offer has an
  * offer letter waiting for their signature, so the Hire box says the welcome
- * email asks them to sign it.
+ * email asks them to sign it. `offer,expired`: its date to sign passed before
+ * they signed, so the Hire box says it expired and the email leaves it out
+ * (the tenth product review).
  */
 export function previewHiring(tables: FixtureTables, spec: string | null) {
   const flags = (spec ?? "").split(",").map((w) => w.trim()).filter(Boolean);
@@ -156,6 +158,7 @@ export function previewHiring(tables: FixtureTables, spec: string | null) {
         status: "pending",
         is_voided: false,
         candidate_signed_at: null,
+        expires_at: new Date(Date.now() + (flags.includes("expired") ? -3 * 3600_000 : 5 * DAY)).toISOString(),
         recipient_id: offered.candidate_id,
         created_at: new Date(Date.now() - 2 * DAY).toISOString(),
         updated_at: new Date(Date.now() - 2 * DAY).toISOString(),

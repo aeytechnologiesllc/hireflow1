@@ -126,7 +126,7 @@ mock-up.
 | You press | What happens | They get |
 |---|---|---|
 | **Send offer letter** (the main button once the interview is done; replaces "Move to Offer" on the applicant page and the Dashboard) | The guided offer letter opens; sending it moves them to Offer | "Congratulations, you've been selected! Your offer from {business}" (since 2026-10-10: the email says first that they were chosen, then asks them to sign), a link to read and sign it |
-| **Hire** (at Offer) | `HireDialog`: ID, NBI clearance and payment email ticked; due in 3/5/7 days; the welcome email shown as it will read | ONE email, "Welcome to {business}": congratulations, then "Before your first day, please:" with *Sign your offer letter* (only if unsigned) and each document |
+| **Hire** (at Offer) | `HireDialog`: ID, NBI clearance and payment email ticked; due in 3/5/7 days; the welcome email shown as it will read | ONE email, "Welcome to {business}": congratulations, then "Before your first day, please:" with *Sign your offer letter* (only while it is theirs to sign: not signed, not withdrawn, not past its date) and each document |
 
 - **Never twice.** The button locks before anything is awaited; the hire is a
   conditional update (`status not in (hired, rejected)`), so a second press,
@@ -139,7 +139,18 @@ mock-up.
   that links the sender to that applicant (`_shared/notificationAccess.ts`).
   The dialog's preview uses the same lines (`todoLine` in
   `src/lib/documentRequests.ts`); a test holds the two together.
+- **A letter past its date is not asked for** (the tenth product review: the
+  email said "Sign your offer letter" and the dialog "{First} hasn't signed
+  the offer letter yet" for a letter My Documents shows as "Expired", which
+  nobody can sign). The email and the dialog decide by one rule,
+  `offerLetterWaiting` (in `_shared/welcomeTodo.ts` and
+  `src/lib/documentRequests.ts`); the dialog says "The offer letter expired
+  before it was signed, so the email doesn't ask for it. You can send a new
+  one from Documents." Proof: `scripts/document_requests.test.mjs`, the real
+  function both ways in `scripts/notification_access.test.mjs`, guard
+  `hire-email-leaves-out-an-expired-offer-letter`.
 - After the interview, "Set up interview" becomes "Another interview"; the
   decision card says "Interview done" with the day.
 - Offline: `?__previewHiring=done,offer` (the interview held yesterday; an
-  unsigned offer letter on the applicant at Offer).
+  unsigned offer letter on the applicant at Offer); `offer,expired` is that
+  letter past its date.

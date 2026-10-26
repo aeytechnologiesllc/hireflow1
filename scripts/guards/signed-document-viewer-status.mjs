@@ -133,6 +133,61 @@ export default [
     },
   },
   {
+    id: "signed-pdf-only-when-signed-by-both",
+    why:
+      "The tenth product review: on a computer the team's viewer offered \"Signed PDF\" on declined, expired, voided " +
+      "and unsigned documents, and saved \"<name>_Signed.pdf\" (\"Signed PDF downloaded.\") with nobody's signature " +
+      "on it. Fails if the button is shown, or the download runs, for anything but a document signed by both.",
+    run: async ({ read }) => {
+      const viewer = await read("src/components/documents/SignedDocumentViewer.tsx");
+      if (!viewer) return { ok: false, detail: ["SignedDocumentViewer.tsx is missing"] };
+      const detail = [];
+      const buttons = [...viewer.matchAll(/>\s*Signed PDF\s*</g)];
+      if (buttons.length !== 1) detail.push(`expected one "Signed PDF" button, found ${buttons.length}`);
+      else if (!/\{record === "done" && \(\s*<Button[^>]*onClick=\{handleDownload\}[^>]*>\s*<Download[^>]*\/>\s*$/.test(viewer.slice(Math.max(0, buttons[0].index - 400), buttons[0].index + 1))) {
+        detail.push('the "Signed PDF" button must be inside {record === "done" && (...)}');
+      }
+      if (!/const handleDownload = async \(\) => \{[^}]*?if \(!document \|\| recordState\(document\) !== "done"\) return;/.test(viewer)) {
+        detail.push("handleDownload must save nothing for a document not signed by both");
+      }
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "viewer-says-not-a-pdf-only-for-a-file-that-is-not-one",
+    why:
+      "The tenth product review: a PDF the team voided after the applicant signed could not be opened, and the viewer " +
+      "told the team to \"send it again as a PDF\" and the applicant to ask for one. Fails if the viewer stops telling " +
+      "a file that is not a PDF from one it could not fetch, or blames the file for the second.",
+    run: async ({ read }) => {
+      const viewer = await read("src/components/documents/SignedDocumentViewer.tsx");
+      if (!viewer) return { ok: false, detail: ["SignedDocumentViewer.tsx is missing"] };
+      const detail = [];
+      if (!/useState<"not_pdf" \| "unavailable" \| null>\(null\)/.test(viewer)) detail.push("shownPdfFailed must say why: \"not_pdf\" or \"unavailable\"");
+      const loader = /const signedByApplicant = !!document\?\.candidate_signed_at;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
+      if (!/!== "%PDF-"\) \{\s*if \(!cancelled\) setShownPdfFailed\("not_pdf"\);/.test(loader)) detail.push('only the "%PDF-" check may set "not_pdf"');
+      if (!/\} catch \{[\s\S]*?setShownPdfFailed\("unavailable"\)/.test(loader) || /catch \{[^}]*not_pdf/.test(loader)) detail.push('a refused or failed fetch must set "unavailable", never "not_pdf"');
+      const unavailable = /shownPdfFailed === "unavailable"\s*\?\s*"([^"]*)"/.exec(viewer)?.[1] ?? "";
+      if (!unavailable) detail.push("the viewer must have its own words for a file it could not fetch");
+      else if (/PDF/.test(unavailable)) detail.push(`"${unavailable}" blames the file for a fetch that failed`);
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "closed-letter-links-its-signing-record",
+    why:
+      "The tenth product review: the team's letter sheet linked the signing record (the audit trail and its copies) " +
+      "only once both had signed, so a declined, withdrawn, voided or expired offer letter had no way to it. Fails " +
+      "if a closed letter loses the link.",
+    run: async ({ read }) => {
+      const sheet = await read("src/cockpit/components/TeamDocumentSheet.tsx");
+      if (!sheet) return { ok: false, detail: ["src/cockpit/components/TeamDocumentSheet.tsx is missing"] };
+      const block = /\{\(state === "declined" \|\| state === "withdrawn" \|\| state === "voided" \|\| state === "expired"\) && \([\s\S]*?\n\s*\)\}/.exec(sheet)?.[0] ?? "";
+      const ok = /onClick=\{\(\) => onShowRecord\(document\)\}/.test(block) && /Signing record/.test(block);
+      return { ok, detail: ok ? [] : ["a closed letter (declined, withdrawn, voided, expired) must link its signing record (onShowRecord)"] };
+    },
+  },
+  {
     id: "audit-trail-header-clears-close-button",
     why:
       "The eighth product review: on a phone the dialog's close X (and its 44px tap area at right-3) sat on " +

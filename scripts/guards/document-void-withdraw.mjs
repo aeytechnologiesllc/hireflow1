@@ -378,4 +378,30 @@ export default [
       return { ok: bad.length === 0, detail: bad };
     },
   },
+  {
+    id: "drawer-caption-never-done-with-a-closed-row",
+    why:
+      "The tenth product review: the line beside the Documents meter knew only waiting, declined and done, so a " +
+      "letter past its date and never signed read \"0 of 1 ready · Everything in here is done.\" (and a withdrawn " +
+      "or voided one already did). Fails if the page builds its own caption again, or if drawerCaption says " +
+      "\"done\" without every row signed or on file, or stops naming expired, withdrawn and voided rows.",
+    run: async ({ read }) => {
+      const bad = [];
+      const pageSrc = await read(COCKPIT_DOCS_PAGE);
+      const lib = await read("src/cockpit/lib/documentFilters.ts");
+      if (!pageSrc || !lib) return { ok: false, detail: [`${COCKPIT_DOCS_PAGE} or src/cockpit/lib/documentFilters.ts not found`] };
+      const page = stripTsComments(pageSrc);
+      if (!/const caption = drawerCaption\(rows\);/.test(page)) bad.push("the Documents page must take its caption from drawerCaption(rows)");
+      if (/Everything in here is done/.test(page)) bad.push("the Documents page writes its own \"done\" line again");
+      const fn = /export function drawerCaption\([\s\S]*?\n}/.exec(stripTsComments(lib))?.[0] ?? "";
+      const done = fn.indexOf('"Everything in here is done."');
+      if (done === -1 || !/if \(rows\.every\(isReady\)\) return "Everything in here is done\.";/.test(fn)) bad.push("drawerCaption must say done only when every row is ready (rows.every(isReady))");
+      if ((fn.match(/Everything in here is done/g) ?? []).length !== 1) bad.push("drawerCaption must have one \"done\" line, behind rows.every(isReady)");
+      for (const status of ["Expired", "Withdrawn", "Voided"]) {
+        if (!fn.includes(`count("${status}")`)) bad.push(`drawerCaption must name ${status} rows`);
+      }
+      if (!/export function isReady\(row: Pick<DocRow, "status">\): boolean \{\s*return row\.status === "Signed" \|\| row\.status === "Submitted";\s*\}/.test(lib)) bad.push("isReady must mean signed or on file, nothing else");
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
 ];

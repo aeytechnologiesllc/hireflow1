@@ -193,7 +193,39 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   const nothing = welcome.welcomeTodo({ offerUnsigned: false, requests: [{ document_type: "tin", due_date: "2026-10-01T00:00:00Z" }], now });
   check("a due date already past is not promised", nothing.dueInDays === null && nothing.deletesIds === false);
 
+  // An offer letter is on the list only while it is theirs to sign: the
+  // dialog and the email answer by the same rule (the tenth product review:
+  // a letter past its date, "Expired" in My Documents, was "Sign your offer
+  // letter" in the email and "hasn't signed yet" in the dialog).
+  {
+    const at = new Date("2026-10-20T12:00:00Z");
+    const letters = {
+      "in time": { status: "pending", candidate_signed_at: null, is_voided: false, expires_at: "2026-10-21T00:00:00Z", created_at: "2026-10-10T10:00:00Z" },
+      "no date": { status: "pending", candidate_signed_at: null, is_voided: false, expires_at: null, created_at: "2026-10-10T10:00:00Z" },
+      "past its date": { status: "pending", candidate_signed_at: null, is_voided: false, expires_at: "2026-10-20T11:59:59Z", created_at: "2026-10-10T10:00:00Z" },
+      "on its date to the second": { status: "pending", candidate_signed_at: null, is_voided: false, expires_at: "2026-10-20T12:00:00Z", created_at: "2026-10-10T10:00:00Z" },
+      signed: { status: "pending", candidate_signed_at: "2026-10-12T10:00:00Z", is_voided: false, expires_at: "2026-10-14T00:00:00Z", created_at: "2026-10-10T10:00:00Z" },
+      withdrawn: { status: "pending", candidate_signed_at: null, is_voided: true, expires_at: "2026-10-21T00:00:00Z", created_at: "2026-10-10T10:00:00Z" },
+      declined: { status: "declined", candidate_signed_at: null, is_voided: false, expires_at: "2026-10-21T00:00:00Z", created_at: "2026-10-10T10:00:00Z" },
+    };
+    const want = { "in time": true, "no date": true, "past its date": false, "on its date to the second": false, signed: false, withdrawn: false, declined: false };
+    for (const [name, letter] of Object.entries(letters)) {
+      eq(`an offer letter ${name}: ${want[name] ? "on" : "off"} the welcome list (the email)`, welcome.offerLetterWaiting(letter, at), want[name]);
+      eq(`…the dialog agrees`, lib.offerLetterWaiting(letter, at), want[name]);
+    }
+    eq("no letter at all: off the list", welcome.offerLetterWaiting(undefined, at), false);
+    eq("the dialog calls one past its date 'expired', not 'unsigned'", lib.offerLetterState(letters["past its date"], at).kind, "expired");
+    eq("…one in time 'unsigned'", lib.offerLetterState(letters["in time"], at).kind, "unsigned");
+    eq("…one signed in time 'signed', whatever the date says now", lib.offerLetterState(letters.signed, at).kind, "signed");
+    eq("…one withdrawn 'withdrawn'", lib.offerLetterState(letters.withdrawn, at).kind, "withdrawn");
+    const dialog = read("src/cockpit/components/HireDialog.tsx");
+    check("the Hire dialog says an expired letter expired, leaves it off the email and points to a new one", /offer\.kind === "expired"\s*\? "The offer letter expired before it was signed, so the email doesn't ask for it\. You can send a new one from Documents\."/.test(dialog) && /const offerUnsigned = offer\?\.kind === "unsigned";/.test(dialog) && /\.\.\.\(offerUnsigned \? \[SIGN_OFFER_LINE\] : \[\]\)/.test(dialog));
+    const hook = read("src/cockpit/hooks/useHire.ts");
+    check("…and its state reads the letter's date", /\.select\("status, candidate_signed_at, is_voided, expires_at, created_at"\)/.test(hook) && /return offerLetterState\(/.test(hook));
+  }
+
   const fn = read("supabase/functions/send-notification-email/index.ts");
+  check("the hire email leaves out a letter past its date: it reads expires_at and asks offerLetterWaiting", /\.select\("candidate_signed_at, is_voided, status, expires_at"\)/.test(fn) && /const offerUnsigned = offerLetterWaiting\(letter\);/.test(fn));
   check("the email function builds the list from the application, never from the request", /from\("document_requests"\)[\s\S]{0,300}\.eq\("application_id", data\.application_id\)[\s\S]{0,120}\.eq\("candidate_id", recipient_user_id\)/.test(fn) && /welcomeTodo\(\{ offerUnsigned, requests: requests\.data \?\? \[\] \}\)/.test(fn));
   const access = read("supabase/functions/_shared/notificationAccess.ts");
   check("…and only for an application that links the sender to that applicant", /kept\.application_id = links\.find\(\(l\) => l\.id === wanted\)\?\.id \?\? links\[0\]\.id;/.test(access));

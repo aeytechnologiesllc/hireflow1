@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { notifyStatusHired } from "@/utils/emailNotifications";
+import { offerLetterState, type OfferLetterFacts, type OfferLetterState } from "@/lib/documentRequests";
 import { insertRequestRows, type NewRequest } from "./useApplicantRequests";
 
 /**
@@ -17,18 +18,19 @@ import { insertRequestRows, type NewRequest } from "./useApplicantRequests";
  * (a conditional update, so a second press, a second tab or a retry changes
  * nothing and sends nothing), then the documents ticked are asked for, then
  * ONE welcome email goes. The email function lists what is really waiting on
- * the application (an unsigned offer letter, the documents just asked for),
+ * the application (an offer letter still theirs to sign, the documents just asked for),
  * so it is the same list the dialog showed. The applicant's bell
  * ("Congratulations! You're hired") is the database's own trigger.
  */
 
-export type OfferLetterState =
-  | { kind: "none" }
-  | { kind: "unsigned"; sentAt: string }
-  | { kind: "signed"; signedAt: string }
-  | { kind: "withdrawn" };
+export type { OfferLetterState };
 
-/** Where this applicant's newest offer letter stands. */
+/**
+ * Where this applicant's newest offer letter stands (offerLetterState). A
+ * letter past its date and never signed is "expired", not "unsigned" (the
+ * tenth product review: the Hire dialog said the welcome email would ask
+ * them to sign it, and the email did).
+ */
 export function useOfferLetterState(applicationId: string | null | undefined, enabled = true) {
   return useQuery({
     queryKey: ["offer-letter-state", applicationId],
@@ -37,18 +39,13 @@ export function useOfferLetterState(applicationId: string | null | undefined, en
     queryFn: async (): Promise<OfferLetterState> => {
       const { data, error } = await supabase
         .from("documents")
-        .select("status, candidate_signed_at, is_voided, created_at")
+        .select("status, candidate_signed_at, is_voided, expires_at, created_at")
         .eq("application_id", applicationId!)
         .eq("document_type", "offer_letter")
         .order("created_at", { ascending: false })
         .limit(1);
       if (error) throw error;
-      const letter = (data ?? [])[0] as { status?: string | null; candidate_signed_at?: string | null; is_voided?: boolean | null; created_at: string } | undefined;
-      if (!letter) return { kind: "none" };
-      if (letter.is_voided) return { kind: "withdrawn" };
-      if (letter.candidate_signed_at) return { kind: "signed", signedAt: letter.candidate_signed_at };
-      if (letter.status === "pending") return { kind: "unsigned", sentAt: letter.created_at };
-      return { kind: "withdrawn" };
+      return offerLetterState((data ?? [])[0] as (OfferLetterFacts & { created_at: string }) | undefined);
     },
   });
 }

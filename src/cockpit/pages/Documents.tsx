@@ -15,7 +15,7 @@ import { OfferLetterDialog } from "../components/OfferLetterDialog";
 import { RequestDocumentsDialog } from "../components/RequestDocumentsDialog";
 import { RequestRow } from "../components/ApplicantDocumentsPanel";
 import { useAllRequests, type RequestWithPerson } from "../hooks/useApplicantRequests";
-import { applyDocFilters, docJob, KIND_WORDS, NO_FILTERS, ORDER_WORDS, resultLine, STATUS_WORDS, type FilterKind, type FilterOrder, type FilterStatus } from "../lib/documentFilters";
+import { applyDocFilters, docJob, drawerCaption, isReady, KIND_WORDS, NO_FILTERS, ORDER_WORDS, resultLine, STATUS_WORDS, type FilterKind, type FilterOrder, type FilterStatus } from "../lib/documentFilters";
 import { requestTitle } from "@/lib/documentRequests";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
@@ -73,11 +73,6 @@ const CHIPS: Record<DocStatus, { label: string; bg: string; fg: string }> = {
   Voided: { label: "Voided", bg: "var(--crit-bg)", fg: "var(--crit)" },
   Expired: { label: "Expired", bg: "var(--surface-2)", fg: "var(--ink-3)" },
 };
-
-/** Ready means nobody is waiting on it — it is signed, or it is on file. */
-function isReady(row: DocRow) {
-  return row.status === "Signed" || row.status === "Submitted";
-}
 
 
 /** The mapper falls back to "Candidate"/"Role" when a document has no application. */
@@ -470,7 +465,7 @@ export default function CockpitDocuments() {
     setStatusPick("all");
   };
 
-  const { packet, people, ready, pending, declined, urgentId } = useMemo(() => {
+  const { packet, people, ready, pending, urgentId } = useMemo(() => {
     // Sorted already, by the order chosen; the sections keep that order.
     const filteredRows = result.docs;
     const packetRows = filteredRows.filter(isPacket);
@@ -505,7 +500,6 @@ export default function CockpitDocuments() {
       people,
       ready: rows.filter(isReady).length,
       pending: rows.filter((r) => r.status === "Pending").length,
-      declined: rows.filter((r) => r.status === "Declined").length,
       urgentId: urgent?.id ?? null,
     };
   }, [rows, result.docs]);
@@ -649,12 +643,9 @@ export default function CockpitDocuments() {
   }
 
   const total = rows.length;
-  const caption =
-    pending > 0
-      ? `I\u2019m still waiting on ${pending} signature${pending === 1 ? "" : "s"}.`
-      : declined > 0
-        ? `${declined} came back declined — worth another look.`
-        : "Everything in here is done.";
+  // Waiting, declined, done, or what closed unfinished (an expired letter read
+  // "done" before the tenth product review): documentFilters.ts.
+  const caption = drawerCaption(rows);
 
   const shownCount = result.docs.length + result.requests.length;
   const filterBar = (
@@ -735,7 +726,7 @@ export default function CockpitDocuments() {
             })}
           </span>
         )}
-        <span className="text-[13px]" style={{ color: "var(--ink-2)" }}>
+        <span className="text-[13px]" style={{ color: "var(--ink-2)" }} data-drawer-caption>
           {caption}
         </span>
       </div>

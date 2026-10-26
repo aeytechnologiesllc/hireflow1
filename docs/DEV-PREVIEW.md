@@ -182,7 +182,11 @@ eighth product review). Signed documents carry the hashes document-signing
 writes (`v2_hash` and `document_hash` at the applicant's signature, `v3_hash`
 at the countersign), and the signing record (`document_audit_log`) is answered
 from the preview's own rows, the team's address and place left out for the
-applicant as live, so the audit trail can be looked at offline.
+applicant as live, so the audit trail can be looked at offline. The offline
+`document-signing` refuses what live refuses on a voided document (anything
+but `view` and `original`), and gives the kept copy (`original`) only once
+the applicant has signed an uploaded file (the tenth product review: it gave
+it before looking at the void, so `pdf,voided` showed a file live refused).
 
 | Screen | URL |
 |---|---|
@@ -198,6 +202,9 @@ applicant as live, so the audit trail can be looked at offline.
 | Uploaded PDF, its date passed before signing ("Expired", out of "To sign") | `/my-documents?__preview=1&__previewRole=candidate&__previewDocs=pdf,expired` |
 | Signed in time, the date passed since: the team countersigns | `/documents?__preview=1&__previewRole=employer&__previewDocs=pdf,signed,expired` |
 | Uploaded PDF, countersigned (the signing record, in UTC) | `/documents?__preview=1&__previewRole=employer&__previewDocs=pdf,done` |
+| Uploaded PDF, voided after signing, as the team (the kept copy still opens) | `/documents?__preview=1&__previewRole=employer&__previewScenario=zulu&__previewDocs=pdf,voided` |
+| Offer letter past its date, never signed ("1 expired before it was signed", "Signing record" on the sheet) | `/documents?__preview=1&__previewRole=employer&__previewScenario=zulu&__previewDocs=offer,expired` |
+| Hire: the offer letter expired before it was signed (the email leaves it out) | `/applicants/30000000-0000-4000-8000-000000000010?__preview=1&__previewRole=employer&__previewHiring=offer,expired` |
 
 The café's Barista job ($15 to $18 an hour) shows an hourly range's letter
 starting on "an hour".

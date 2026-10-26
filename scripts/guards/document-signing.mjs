@@ -580,4 +580,47 @@ export default [
       return { ok: bad.length === 0, detail: bad };
     },
   },
+  {
+    id: "voided-document-still-opens-its-kept-copy",
+    why:
+      "The tenth product review: a PDF the applicant signed and the team then voided could be opened by neither " +
+      "side, because document-signing refused `original` (the kept copy, the only thing the viewer shows after the " +
+      "applicant signs) on every voided document, and the dev preview's stand-in served it anyway, hiding the " +
+      "failure. Fails if a voided document answers anything but view and original, if original stops asking " +
+      "canOpenKeptCopy with the caller's role or starts reading the void, or if the stand-in answers original " +
+      "before its own void check.",
+    run: async ({ read }) => {
+      const bad = [];
+      const machine = await read(STATE_MACHINE);
+      const fn = await read(FUNCTION);
+      const install = await read("src/dev-preview/install.ts");
+      if (!machine || !fn || !install) return { ok: false, detail: [`${STATE_MACHINE}, ${FUNCTION} or src/dev-preview/install.ts not found`] };
+      const code = stripTsComments(machine);
+      if (!/export const OPEN_WHEN_VOIDED: readonly string\[\] = \["view", "original"\];/.test(code)) {
+        bad.push('OPEN_WHEN_VOIDED must be exactly ["view", "original"]: both read-only, nothing that moves a document');
+      }
+      if (!/export function refusedWhenVoided\(isVoided: boolean, action: string\): boolean \{\s*return isVoided && !OPEN_WHEN_VOIDED\.includes\(action\);\s*\}/.test(code)) {
+        bad.push("refusedWhenVoided must refuse every action not in OPEN_WHEN_VOIDED on a voided document");
+      }
+      const kept = /export function canOpenKeptCopy\([\s\S]*?\n}/.exec(code)?.[0] ?? "";
+      if (!/role !== "candidate" && role !== "employer"\) return \{ ok: false, error: "role_mismatch" \}/.test(kept)) bad.push("canOpenKeptCopy must serve only the applicant and the sending business's team");
+      if (!/doc\.candidateSignedAt === null \|\| !doc\.v1Hash \|\| !doc\.uploadedFile\) return \{ ok: false, error: "not_pending" \}/.test(kept)) bad.push("canOpenKeptCopy must refuse a file the applicant has not signed");
+      if (/isVoided/.test(kept)) bad.push("canOpenKeptCopy must not read the void: the kept copy is still both parties' after it");
+      const body = stripTsComments(fn);
+      const gate = body.indexOf("if (refusedWhenVoided(!!document.is_voided, action))");
+      if (gate === -1) bad.push("document-signing must refuse a voided document through refusedWhenVoided");
+      else if (gate > body.indexOf('if (action === "view")') || gate > body.indexOf('if (action === "sign")')) bad.push("the void refusal must run before any action");
+      if (/document\.is_voided && action !== "view"/.test(body)) bad.push("the old gate (everything but view refused) is back: it refuses the kept copy of a voided document");
+      const originalAt = body.indexOf('if (action === "original")');
+      if (originalAt === -1 || !/canOpenKeptCopy\(\{ candidateSignedAt: document\.candidate_signed_at, v1Hash: document\.v1_hash, uploadedFile: !!kept\.uploadedFileUrl \}, role\)/.test(body.slice(originalAt, originalAt + 900))) {
+        bad.push("`original` must ask canOpenKeptCopy with the caller's role before minting the kept copy's address");
+      }
+      const handler = stripTsComments(install.slice(install.indexOf('if (name !== "document-signing") return null;')));
+      const standInGate = handler.indexOf('if (row.is_voided && body.action !== "view" && body.action !== "original")');
+      const standInOriginal = handler.indexOf('if (body.action === "original")');
+      if (standInGate === -1 || standInOriginal === -1 || standInGate > standInOriginal) bad.push("the dev preview's document-signing must check the void before it answers original, as the function does");
+      if (standInOriginal !== -1 && !/if \(!row\.candidate_signed_at \|\| !row\.v1_hash \|\| !uploaded\) return/.test(handler.slice(standInOriginal, standInOriginal + 900))) bad.push("the dev preview's original must refuse a file the applicant has not signed, as the function does");
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
 ];

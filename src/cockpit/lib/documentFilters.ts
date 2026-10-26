@@ -170,6 +170,45 @@ function sortValue(aMade: string | null | undefined, aDue: string | null | undef
   return order === "oldest" ? am - bm : bm - am;
 }
 
+/** Ready means nobody is waiting on it: it is signed, or it is on file. */
+export function isReady(row: Pick<DocRow, "status">): boolean {
+  return row.status === "Signed" || row.status === "Submitted";
+}
+
+/** "1 was", "2 were". */
+function counted(n: number, one: string, many: string): string {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+/**
+ * The line beside the meter ("0 of 1 ready · …"). "Done" only when every
+ * row is signed or on file. The tenth product review: the line knew only
+ * waiting, declined and done, so a letter past its date and never signed
+ * read "Everything in here is done." (and a withdrawn or voided one already
+ * did). A closed one is said as what it is.
+ */
+export function drawerCaption(rows: Pick<DocRow, "status">[]): string {
+  const count = (status: DocRow["status"]) => rows.filter((r) => r.status === status).length;
+  const pending = count("Pending");
+  if (pending > 0) return `I\u2019m still waiting on ${counted(pending, "signature", "signatures")}.`;
+  const declined = count("Declined");
+  if (declined > 0) return `${declined} came back declined — worth another look.`;
+  if (rows.every(isReady)) return "Everything in here is done.";
+  const expired = count("Expired");
+  const withdrawn = count("Withdrawn");
+  const voided = count("Voided");
+  const parts = [
+    expired > 0 ? counted(expired, "expired before it was signed", "expired before they were signed") : null,
+    withdrawn > 0 ? counted(withdrawn, "was withdrawn", "were withdrawn") : null,
+    voided > 0 ? counted(voided, "was voided", "were voided") : null,
+  ].filter((p): p is string => p !== null);
+  if (parts.length === 0) return `${counted(rows.filter((r) => !isReady(r)).length, "is", "are")} not finished.`;
+  const line = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+  // Nothing can move the date once it has passed: a new letter is the way on.
+  if (parts.length === 1 && expired > 0) return `${line} — ${expired === 1 ? "send a new one if you still need it" : "send new ones if you still need them"}.`;
+  return `${line}.`;
+}
+
 /** The line above the list: what the chosen status shows, in plain words. */
 export function resultLine(status: FilterStatus, shown: number, filtered: boolean): string {
   if (shown === 0) return filtered ? "Nothing matches these filters." : "Nothing here.";

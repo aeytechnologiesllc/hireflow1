@@ -907,8 +907,26 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
     const row = documents.find((d) => d.id === body.documentId);
     await new Promise((resolve) => setTimeout(resolve, 250));
     if (!row) return { data: { error: "not_found", message: "Document not found." }, error: null };
-    // The copy the server kept of an uploaded file: here, the preview's own PDF.
-    if (body.action === "original") return previewPdfAddress ? { data: { url: previewPdfAddress }, error: null } : { data: { error: "preview", message: "Not available in the dev preview." }, error: null };
+    // As the real function: a voided document answers only `view` and
+    // `original` (refusedWhenVoided in document-signing/stateMachine.ts), and
+    // the kept copy is there only once the applicant has signed an uploaded
+    // file (canOpenKeptCopy). The tenth product review: this answered
+    // `original` before anything else, so `pdf,voided` showed the file here
+    // while live refused it and the viewer blamed the file.
+    if (row.is_voided && body.action !== "view" && body.action !== "original") return { data: { error: "voided", message: "This document has been voided." }, error: null };
+    if (body.action === "original") {
+      const uploaded = (() => {
+        try {
+          const raw = String(row.file_url ?? "");
+          return raw.startsWith("data:application/json;base64,") && !!(JSON.parse(atob(raw.split(",")[1])) as { uploadedFileUrl?: string }).uploadedFileUrl;
+        } catch {
+          return false;
+        }
+      })();
+      if (!row.candidate_signed_at || !row.v1_hash || !uploaded) return { data: { error: "not_pending", message: "There is no signed copy of this file yet." }, error: null };
+      // The copy the server kept of an uploaded file: here, the preview's own PDF.
+      return previewPdfAddress ? { data: { url: previewPdfAddress }, error: null } : { data: { error: "preview", message: "Not available in the dev preview." }, error: null };
+    }
     const now = new Date().toISOString();
     const signer = String(user.user_metadata?.full_name ?? "");
     const me = { name: signer, userId: user.id };

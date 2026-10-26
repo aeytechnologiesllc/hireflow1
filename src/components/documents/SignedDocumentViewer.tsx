@@ -276,7 +276,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   // so the server signs nothing the applicant did not see (the third Phase 7
   // security review; supabase/functions/_shared/documentShown.ts).
   const [shownPdf, setShownPdf] = useState<{ src: string; hash: string } | null>(null);
-  const [shownPdfFailed, setShownPdfFailed] = useState(false);
+  // Why it could not be shown: the file is not a PDF ("not_pdf"), or it could
+  // not be fetched just now ("unavailable"). Only the first is the file's
+  // fault (the tenth product review: a voided PDF was "not a PDF").
+  const [shownPdfFailed, setShownPdfFailed] = useState<"not_pdf" | "unavailable" | null>(null);
   const [viewedHash, setViewedHash] = useState<string | null>(null);
   const [candidateSignature, setCandidateSignature] = useState<string | null>(null);
   const [employerSignature, setEmployerSignature] = useState<string | null>(null);
@@ -516,7 +519,8 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   };
 
   const handleDownload = async () => {
-    if (!document) return;
+    // Signed by both, or there is no signed copy to save.
+    if (!document || recordState(document) !== "done") return;
 
     setIsDownloading(true);
 
@@ -819,7 +823,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   useEffect(() => {
     const sent = externalHref(documentData?.uploadedFileUrl);
     setShownPdf(null);
-    setShownPdfFailed(false);
+    setShownPdfFailed(null);
     if (!sent) return;
     let cancelled = false;
     let blobUrl: string | null = null;
@@ -841,13 +845,17 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
         const bytes = await response.arrayBuffer();
         // A PDF only: a Word or text file cannot be shown or signed here.
         const head = new Uint8Array(bytes.slice(0, 5));
-        if (String.fromCharCode(...head) !== "%PDF-") throw new Error("not a pdf");
+        if (String.fromCharCode(...head) !== "%PDF-") {
+          if (!cancelled) setShownPdfFailed("not_pdf");
+          return;
+        }
         const hash = await generatePdfHash(bytes);
         if (cancelled) return;
         blobUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
         setShownPdf({ src: blobUrl, hash });
       } catch {
-        if (!cancelled) setShownPdfFailed(true);
+        // Refused or unreachable (the kept copy, the network): not the file's fault.
+        if (!cancelled) setShownPdfFailed("unavailable");
       }
     })();
     return () => {
@@ -882,12 +890,16 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
         return (
           <span className="text-muted-foreground">
             {/* Said to whoever is looking (the fifth product review: the team
-                was told to ask the hiring team). */}
-            {shownPdfFailed
+                was told to ask the hiring team), and "not a PDF" only for a
+                file that is not one (the tenth product review: a PDF the team
+                voided was blamed on its file, "send it again as a PDF"). */}
+            {shownPdfFailed === "not_pdf"
               ? role === "candidate"
-                ? "This document could not be opened here. If it is not a PDF, ask the hiring team to send it as a PDF; otherwise close it and open it again."
-                : "This document could not be opened here. Only a PDF can be signed: if it is another kind of file, send it again as a PDF; otherwise close it and open it again."
-              : "Loading document..."}
+                ? "This file is not a PDF, so it can't be shown or signed here. Ask the hiring team to send it again as a PDF."
+                : "This file is not a PDF, so it can't be shown or signed here. Send it again as a PDF."
+              : shownPdfFailed === "unavailable"
+                ? "This document could not be loaded just now. Close it and open it again."
+                : "Loading document..."}
           </span>
         );
       }
@@ -1295,10 +1307,16 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                       fifth product review: before signing they saw Signed PDF,
                       Certificate, Audit PDF and the audit trail). */}
                   <div className={`flex-wrap items-center gap-2 [&>button]:whitespace-nowrap ${document.status === "signed" ? "flex" : role === "candidate" ? "hidden" : "hidden sm:flex"}`}>
-                    <Button variant="outline" size="sm" onClick={handleDownload}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Signed PDF
-                    </Button>
+                    {/* A signed copy only of what both have signed (the tenth
+                        product review: the team's footer offered it on
+                        declined, expired, voided and unsigned documents, and
+                        saved "<name>_Signed.pdf" with nobody's signature). */}
+                    {record === "done" && (
+                      <Button variant="outline" size="sm" onClick={handleDownload} data-viewer-signed-pdf>
+                        <Download className="h-4 w-4 mr-2" />
+                        Signed PDF
+                      </Button>
+                    )}
                     <Button variant="outline" size="sm" onClick={handleDownloadCertificate} disabled={!completionCert}>
                       <Award className="h-4 w-4 mr-2" />
                       Certificate

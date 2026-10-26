@@ -9,9 +9,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import {
   canCountersign,
   canDecline,
+  canOpenKeptCopy,
   canSign,
   canVoid,
   canWithdraw,
+  refusedWhenVoided,
   resolveDocumentRole,
   validateDeclineReason,
   validateReviewConfirmed,
@@ -264,7 +266,10 @@ Deno.serve(async (req) => {
 
     if (!role) return errorResponse("role_mismatch", "You are not a party to this document.", 403);
 
-    if (document.is_voided && action !== "view") {
+    // A voided document still opens (view, and the copy kept of what the
+    // applicant signed: original); nothing else moves it (the tenth product
+    // review: a signed PDF the team voided could be opened by neither side).
+    if (refusedWhenVoided(!!document.is_voided, action)) {
       return errorResponse("voided", ERROR_MESSAGE.voided, 409);
     }
 
@@ -370,10 +375,13 @@ Deno.serve(async (req) => {
     // the server kept (what was signed), for either party to view: the
     // sender's own folder could hold another file by then (the fourth
     // security review: the record view and the in-browser download read it).
+    // Read-only, so a void does not take it away (the tenth product review).
     // ------------------------------------------------------------------
     if (action === "original") {
       const kept = parseDocumentData(document.file_url ?? "");
-      if (!document.candidate_signed_at || !document.v1_hash || !kept.uploadedFileUrl) {
+      const keptCopy = canOpenKeptCopy({ candidateSignedAt: document.candidate_signed_at, v1Hash: document.v1_hash, uploadedFile: !!kept.uploadedFileUrl }, role);
+      // (The v1_hash test only tells the type checker what canOpenKeptCopy already asked.)
+      if (!keptCopy.ok || !document.v1_hash) {
         return errorResponse("not_pending", "There is no signed copy of this file yet.", 409);
       }
       const { data: signed, error: signErr } = await admin.storage

@@ -75,6 +75,28 @@ check("Documents: a letter past its date and never signed reads Expired, not Wai
 check("Documents: the Expires tile only while the applicant may still sign by it", /if \(row\.expires && row\.status === "Pending" && !row\.candidateSignedAt\) meta\.push/.test(docsPage));
 check("PDF viewer: a declined document says the reason given", /document\.status === "declined" && document\.decline_reason && \(\s*<p[^>]*data-viewer-decline-reason>/.test(viewer));
 check("Audit PDF: the record's own status and 'Not completed' for a closed one, never 'PENDING'", (viewer.match(/status: recordStatusLabel\(document\),\s*completedAt: document\.signed_at,\s*closedUnfinished: recordClosedUnfinished\(recordState\(document\)\),/g) ?? []).length === 2 && /data\.closedUnfinished \? 'Not completed' : 'Pending'/.test(read("src/lib/auditExport.ts")));
+// The tenth product review: closed, unfinished documents.
+// A PDF the applicant signed and the team voided: the viewer shows only the
+// kept copy, which the function now gives on a voided document too; a file it
+// cannot show is blamed on the file only when it is not a PDF.
+check("PDF viewer: 'not a PDF' only for a file that is not one; a copy that could not be fetched says so, without blaming the file", /setShownPdfFailed\("not_pdf"\)/.test(viewer) && /setShownPdfFailed\("unavailable"\)/.test(viewer) && /shownPdfFailed === "not_pdf"\s*\? role === "candidate"\s*\? "This file is not a PDF, so it can't be shown or signed here\. Ask the hiring team to send it again as a PDF\."\s*: "This file is not a PDF, so it can't be shown or signed here\. Send it again as a PDF\."\s*: shownPdfFailed === "unavailable"\s*\? "This document could not be loaded just now\. Close it and open it again\."/.test(viewer) && !/if it is another kind of file, send it again as a PDF/.test(viewer) && !/throw new Error\("not a pdf"\)/.test(viewer));
+{
+  // Which of "unavailable" and "not_pdf" the viewer's own loader lands on.
+  const loader = /const signedByApplicant = !!document\?\.candidate_signed_at;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
+  check("…the kept copy refused (a void, the network) lands on 'unavailable', never 'not_pdf'", /if \(!kept\) throw new Error\("no signed copy"\);/.test(loader) && /\} catch \{[\s\S]*?setShownPdfFailed\("unavailable"\)/.test(loader) && loader.indexOf('setShownPdfFailed("not_pdf")') > loader.indexOf('!== "%PDF-"'));
+}
+check("PDF viewer: 'Signed PDF' only for a document signed by both (it was offered on declined, expired, voided and unsigned ones, and saved '<name>_Signed.pdf')", /\{record === "done" && \(\s*<Button variant="outline" size="sm" onClick=\{handleDownload\} data-viewer-signed-pdf>\s*<Download className="h-4 w-4 mr-2" \/>\s*Signed PDF/.test(viewer) && (viewer.match(/>\s*Signed PDF\s*</g) ?? []).length === 1 && /const handleDownload = async \(\) => \{\s*\/\/[^\n]*\n\s*if \(!document \|\| recordState\(document\) !== "done"\) return;/.test(viewer));
+check("team: a closed letter (declined, withdrawn, voided, expired) links its signing record too", /\{\(state === "declined" \|\| state === "withdrawn" \|\| state === "voided" \|\| state === "expired"\) && \(\s*<div className="mt-5 flex justify-end" data-team-document-closed-record>\s*<button[^>]*onClick=\{\(\) => onShowRecord\(document\)\}>[\s\S]{0,120}Signing record/.test(team));
+{
+  // The dev preview answers as live does (it served the kept copy before
+  // looking at a void, so `pdf,voided` hid the failure).
+  const install = read("src/dev-preview/install.ts");
+  const handler = install.slice(install.indexOf('if (name !== "document-signing") return null;'));
+  const gate = handler.indexOf('if (row.is_voided && body.action !== "view" && body.action !== "original")');
+  const original = handler.indexOf('if (body.action === "original")');
+  check("dev preview: a voided document answers only view and original, as the function does", gate !== -1 && original !== -1 && gate < original && gate < handler.indexOf('if (body.action === "view")'));
+  check("…and the kept copy only once the applicant has signed an uploaded file", /if \(!row\.candidate_signed_at \|\| !row\.v1_hash \|\| !uploaded\) return \{ data: \{ error: "not_pending"/.test(handler.slice(original, original + 900)));
+}
 // …and My Documents keeps "To sign" for documents waiting on them.
 check("My Documents: 'To sign' lists only documents waiting on them; the rest (signed by them or both, declined, voided, withdrawn, expired) are under 'Signed or closed'", /const toSign = signDocuments\.filter\(\(d\) => waitingOnApplicant\(d, now\)\);/.test(myDocs) && /const closedDocuments = signDocuments\.filter\(\(d\) => !waitingOnApplicant\(d, now\)\);/.test(myDocs) && /data-documents-section="to-sign"[\s\S]*?To sign — \{toSign\.length\} waiting on you[\s\S]*?\{toSign\.map\(/.test(myDocs) && /data-documents-section="closed"[\s\S]*?Signed or closed[\s\S]*?\{closedDocuments\.map\(/.test(myDocs) && !/\{signDocuments\.map\(\(doc\) => \(\s*<SignDocumentRow/.test(myDocs));
 check("My Documents: an expired one wears an 'Expired' chip and 'View', never 'Read and sign'", /if \(state === "expired"\) return \{ label: "Expired"/.test(myDocs) && /const theirTurn = waitingOnApplicant\(doc, now\);/.test(myDocs) && /\{theirTurn \? "Read and sign" : "View"\}/.test(myDocs));

@@ -14,12 +14,15 @@
  *
  * Run with: node scripts/document_signing_state_machine.test.mjs
  */
+import { readFileSync } from "node:fs";
 import {
   canCountersign,
   canDecline,
+  canOpenKeptCopy,
   canSign,
   canVoid,
   canWithdraw,
+  refusedWhenVoided,
   resolveDocumentRole,
   signedInTime,
   validateDeclineReason,
@@ -422,6 +425,35 @@ check(
   "void is NOT blocked by expiry — it's an administrative cancel, not a step in the signing flow",
   canVoid(doc({ candidateSignedAt: "2026-09-01T00:00:00Z", expiresAt: "2026-01-01T00:00:00Z" }), "employer").ok === true,
 );
+
+// ---------------------------------------------------------------------------
+// A voided document: what still opens. The tenth product review: a PDF the
+// applicant signed and the team then voided could be opened by neither side,
+// because the function refused `original` (the kept copy, the only thing the
+// viewer shows after the applicant signs) on every voided document.
+// ---------------------------------------------------------------------------
+console.log("\n-- a voided document: view and the kept copy, nothing else --");
+
+check("a voided document still answers `original` (the kept copy, read-only)", refusedWhenVoided(true, "original") === false);
+check("…and `view`", refusedWhenVoided(true, "view") === false);
+for (const action of ["sign", "countersign", "decline", "download", "withdraw", "void"]) {
+  check(`…but refuses \`${action}\``, refusedWhenVoided(true, action) === true);
+}
+check("a document that is not voided is never refused for being voided", ["view", "original", "sign", "countersign", "decline", "download", "withdraw", "void"].every((a) => refusedWhenVoided(false, a) === false));
+const keptSigned = { candidateSignedAt: "2026-09-01T00:00:00Z", v1Hash: "v1", uploadedFile: true };
+check("the applicant opens the kept copy of what they signed, voided or not (the copy has no void to read)", canOpenKeptCopy(keptSigned, "candidate").ok === true);
+check("…and so does the sending business's team", canOpenKeptCopy(keptSigned, "employer").ok === true);
+check("…but nobody else (role_mismatch)", canOpenKeptCopy(keptSigned, null).error === "role_mismatch");
+check("a file never signed (withdrawn before signing) has no kept copy (not_pending)", canOpenKeptCopy({ ...keptSigned, candidateSignedAt: null }, "employer").error === "not_pending");
+check("…nor one with no v1 to name it", canOpenKeptCopy({ ...keptSigned, v1Hash: null }, "candidate").error === "not_pending");
+check("…nor a written letter (no uploaded file)", canOpenKeptCopy({ ...keptSigned, uploadedFile: false }, "candidate").error === "not_pending");
+{
+  const fn = readFileSync(new URL("../supabase/functions/document-signing/index.ts", import.meta.url), "utf8");
+  const gate = fn.indexOf("if (refusedWhenVoided(!!document.is_voided, action))");
+  const original = fn.indexOf('if (action === "original")');
+  check("the function refuses a voided document through refusedWhenVoided, before any action runs", gate !== -1 && gate < fn.indexOf('if (action === "view")') && gate < original && !/document\.is_voided && action !== "view"/.test(fn));
+  check("…and `original` asks canOpenKeptCopy with the caller's role", /canOpenKeptCopy\(\{ candidateSignedAt: document\.candidate_signed_at, v1Hash: document\.v1_hash, uploadedFile: !!kept\.uploadedFileUrl \}, role\)/.test(fn.slice(original, original + 900)));
+}
 
 // ---------------------------------------------------------------------------
 // validateSignaturePayload
