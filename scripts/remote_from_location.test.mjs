@@ -180,6 +180,64 @@ for (const [text, code] of [
   check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
 }
 
+// The sixteenth Phase 4 review: the setup line in the forms posts write it in (a bullet, a "Work setup:" label, "This position
+// is fully remote.", "WFH (Permanent)") and a WFH title with its on-site training are remote, while the fifteenth's on-site
+// lines stay on site; a client's "-based" word or company is the client's only when the rest still names a place.
+{
+  const mode = (role, location, work) => M.briefFromForm({ role, location, type: "Full-time · On-site", pay: "", start: "ASAP", work }).workMode;
+  for (const [role, location, work] of [
+    ["Customer Service Representative", "Philippines", "Answer customer chats and emails for our US client.\nWork setup: Permanent WFH"],
+    ["Customer Service Representative", "Philippines", "Answer customer chats and emails.\nWork Setup: Work from home"],
+    ["Chat Support Agent", "Philippines", "Reply to customer chats about orders.\nSetup: WFH"],
+    ["Customer Service Representative", "Philippines", "Handle inbound calls.\nWork Arrangement: Permanent Work From Home"],
+    ["Customer Service Representative", "Philippines", "Handle inbound calls for a US telco account.\nWork arrangement: Remote"],
+    ["Chat Support Agent", "Philippines", "Reply to customer chats about orders and refunds.\nPermanent work-from-home"],
+    ["Chat Support Agent", "Philippines", "WFH (Permanent)\nReply to customer chats about orders and refunds."],
+    ["Customer Service Representative", "Philippines", "Job details:\n- Full-time\n- Permanent WFH\n- Night shift\n\nAnswer customer chats and emails."],
+    ["Chat Support Agent", "Philippines", "Reply to customer chats.\n\nJob Highlights:\n• Work from home\n• Day shift\n• 25K monthly"],
+    ["Customer Service Representative", "Cebu City", "What to expect:\n* 100% WFH\n* US holidays off\nHandle inbound calls for a US client."],
+    ["Customer Service Representative", "Philippines", "- Permanent work from home\n- Answer customer emails and chats"],
+    ["Customer Support Specialist", "United States", "This position is fully remote. Answer customer emails and chats for our SaaS product."],
+    ["Customer Support Specialist", "United States", "This role is 100% remote. Answer customer emails and chats for our SaaS product."],
+    ["WFH Customer Service Representative (Onsite Training)", "Cebu City", "Answer customer chats."],
+    ["WFH CSR | Onsite training in Cebu", "Cebu City", "Answer customer chats."],
+    ["Customer Service Representative - WFH after 2 weeks onsite training", "Quezon City", "Answer customer calls."],
+  ]) check(`${JSON.stringify(role)} at ${location}, "${work.replace(/\n/g, " / ")}", is built remote`, mode(role, location, work) === "remote", mode(role, location, work));
+  for (const [role, location, work] of [
+    ["Customer Service Representative", "Makati City", "Answer customer calls. Work setup: Onsite. Possible WFH after regularization."],
+    ["Customer Service Representative", "Makati City", "Answer customer calls.\n- WFH is not available for this role"],
+    ["Customer Service Representative", "Makati City", "Answer customer calls.\nWork setup: Onsite\n- WFH: No"],
+    ["Customer Service Representative", "Makati City", "Answer customer calls.\n- Must have WFH experience"],
+    ["Customer Service Representative", "Makati City", "Answer customer calls.\nSetup: Onsite"],
+    ["Customer Service Representative", "Makati City", "Answer customer calls.\nBenefits:\n- Work from home Fridays"],
+    ["CSR (Onsite / WFH)", "Makati", "Answer customer chats."],
+    ["CSR - Onsite or WFH", "Makati", "Answer customer chats."],
+  ]) check(`${JSON.stringify(role)} at ${location}, "${work.replace(/\n/g, " / ")}", is still built on site`, mode(role, location, work) === "onsite", mode(role, location, work));
+}
+for (const [text, code] of [
+  ["Remote - US-based role", "US"], ["Remote (US-based position)", "US"], ["Remote — US-based job", "US"], ["Remote (UK-based role)", "GB"],
+  ["Remote (Canada-based position)", "CA"], ["Remote (USA-based position)", "US"], ["Remote (US-based reps)", "US"], ["Remote (US-based CSRs)", "US"],
+  ["Remote (US-based specialists)", "US"], ["Remote (US-based W2 employees)", "US"], ["Remote (US-based workforce)", "US"], ["US-based full-time remote", "US"],
+  ["Cebu City (US company)", "PH"], ["Makati (US company)", "PH"], ["Cebu (US startup)", "PH"], ["Philippines (US-based company)", "PH"],
+  ["Makati (US-based BPO)", "PH"], ["Taguig (UK-based BPO)", "PH"], ["Remote (US company)", "US"], ["Remote - US brand", "US"], ["Makati City (US account)", "PH"],
+]) {
+  check(`${JSON.stringify(text)} is in ${code}`, M.inferCountryCode(text) === code, String(M.inferCountryCode(text)));
+}
+// Publish saves is_remote as the brief's work mode (src/lib/jobFromFlow.ts). That is the fifteenth's rule exactly, which also
+// read the post when the place or Type said remote, only while these two hold: every place or Type that says remote makes the
+// brief remote or hybrid, and no employment type reads as a place (the sixteenth review).
+{
+  const places = ["Remote", "Remote - Philippines", "Remote (US only)", "Work from home (Philippines)", "Home-based, Philippines", "Makati (WFH)", "Anywhere", "Worldwide", "Online", "Remote (no onsite)", "Remote (100%, no hybrid)", "Remote / hybrid in Makati", "Remote with occasional onsite", "WFH or Onsite (Makati)", "Hybrid (Taguig)", "Makati City", "Austin, TX", "Onsite (no WFH)", "Not remote - Cebu", "Remote (US-based position)", ""];
+  const types = ["Full-time · On-site", "Full-time · Remote", "Full-time · Hybrid", "Part-time · On-site", "Part-time · Work from home", "Contract", "Full-time", "WFH", "Full-time · No WFH"];
+  const bad = [];
+  for (const location of places) for (const type of types) {
+    const b = M.briefFromForm({ role: "Customer Service Representative", location, type, pay: "", start: "ASAP", work: "Answer customer calls. Work setup: Onsite in Makati." });
+    if ((M.placeSaysRemote(b.location) === "remote" || M.placeSaysRemote(b.employmentType) === "remote") && b.workMode === "onsite") bad.push(`${location} | ${type}`);
+  }
+  check("a place or Type that says remote always makes the brief remote or hybrid, so Publish needs only its work mode", bad.length === 0, bad.join("; "));
+  check("…and no employment type reads as a place", ["full_time", "part_time", "contract"].every((t) => M.placeSaysRemote(t) !== "remote"));
+}
+
 {
   const editor = (await import("node:fs")).readFileSync(path.join(ROOT, "src/pages/CreateJob.tsx"), "utf8");
   check("Edit job: remote work is the business's own switch, shown beside the place, never re-worked unseen", /isEditMode && existingJob\s*\? formData\.is_remote === true/.test(editor) && /data-edit-remote/.test(editor) && /handleChange\("is_remote", remoteAfterPlaceEdit\(/.test(editor));

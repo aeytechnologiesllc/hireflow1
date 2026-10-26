@@ -82,11 +82,27 @@ const PH_PLACE_HINT = /\b(metro manila|manila|quezon city|makati|pasig|taguig|bg
  *  "US-based preferred"). And a company, brand, business or startup is a
  *  client only after "-based", as the thirteenth had it: "Remote (US
  *  company)", "Remote - US brand" are the US (the fourteenth had made them
- *  no country, so a job the geocoder missed was in no feed). */
-const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:-based\s+(?!(?:applicants?|candidates?|employees?|teams?|staff|workers?|people|talent|hires?|residents?|citizens?|only|preferred|remote|professionals?|agents?|freelancers?|contractors?|individuals?|persons?)\b)[\w-]+|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|time(?:zone)?|hours|market|campaigns?)\b|\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)/gi;
+ *  no country, so a job the geocoder missed was in no feed).
+ *  The sixteenth: each of those fixed one side and broke the other. "-based"
+ *  before any word took the country from a remote job whose place is that
+ *  country ("Remote (US-based position)", "Remote (UK-based role)", "Remote
+ *  (US-based reps)": no country, in no feed), and a bare company read a
+ *  Philippine site as the US ("Cebu City (US company)" was saved as a US job
+ *  paid in dollars). So those two forms (CLIENT_IF_ELSEWHERE) are the
+ *  client's only when what is left still names a place: "Makati (US-based
+ *  BPO)" and "Cebu City (US company)" are the Philippines, "Remote
+ *  (US-based position)" and "Remote (US company)" the US. The kinds of
+ *  account, client or customer, the hours, the market and the industries
+ *  (CLIENT_COUNTRY) are always the client's. */
+const CLIENT_COUNTRY = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:(?:-based)?\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:accounts?|shifts?|clients?|customers?|time(?:zone)?|hours|market|campaigns?)\b|(?:-based)?\s+(?:healthcare|health care|mortgage|telco|insurance|banking|retail|e-?commerce)\b)/gi;
+const CLIENT_IF_ELSEWHERE = /\b(united states|u\.s\.a\.?|usa|us|u\.s\.|uk|united kingdom|canada|canadian|australia|australian)(?:-based\s+(?!(?:applicants?|candidates?|employees?|teams?|staff|workers?|people|talent|hires?|residents?|citizens?|only|preferred|remote|professionals?|agents?|freelancers?|contractors?|individuals?|persons?)\b)[\w-]+|\s+(?:(?!(?:remote|only|residents?|citizens?)\b)[\w-]+\s+){0,2}?(?:compan(?:y|ies)|brands?|business(?:es)?|startups?)\b)/gi;
 
 export function inferCountryCode(locationText?: string | null): string | null {
-  const text = (locationText ?? "").trim().replace(CLIENT_COUNTRY, " ");
+  const kept = (locationText ?? "").trim().replace(CLIENT_COUNTRY, " ");
+  const elsewhere = kept.replace(CLIENT_IF_ELSEWHERE, " ");
+  return countryOfText(elsewhere) ?? countryOfText(kept);
+}
+function countryOfText(text: string): string | null {
   if (!text.trim()) return null;
   for (const [pattern, code] of COUNTRY_TEXT_HINTS) {
     if (pattern.test(text)) return code;

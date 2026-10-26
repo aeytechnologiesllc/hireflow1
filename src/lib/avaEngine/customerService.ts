@@ -153,6 +153,9 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
     // "Call Center Customer Service Representative", "Customer Service - Call Center", "Contact Center Agent".
     (!tChat && !tEmail && !tWritten && new RegExp(String.raw`\b(call|contact) cent(er|re)\b${NOT_A_PRODUCT}`).test(titleRole)) ||
     (/\binbound\b/.test(titleNoVoice) && !tChat && !tEmail && !tWritten);
+  // The title's only phone word is its hotline ("Hotline Agent", "Customer Care Hotline Officer"), which a Philippine business
+  // also calls its SMS or Viber line (titlePhone below).
+  const tOnlyHotline = tPhone && /\bhotlines?\b/.test(titleNoVoice) && !/(?<!\b(mobile|cell|cellular|smart)\s)\b(phones?|voice|telephone|calls?|answering service|switchboard|inbound)\b/.test(titleNoVoice);
 
   // Ruled out. "Chat only" rules out phone and email; "email and chat only" only phone.
   // ("Only tickets and live chat" is both, not tickets only; the ninth review.)
@@ -220,8 +223,12 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
       // "Turn customer voicemails into tickets"; the thirteenth. A hotline is the phone line, as Philippine posts say it: "Answer the
       // customer hotline", "Man the hotline", "through our hotline and email"; the thirteenth. Never a messaging line, the fourteenth:
       // "via our Viber hotline", "our SMS hotline", "through our WhatsApp hotline and email" are written; NOT_WRITTEN_LINE.
-      // Its name may take two words or "24/7": "Answer the customer care hotline and emails", "Answer the 24/7 hotline"; the fifteenth.)
-      String.raw`|\b(respond|responding|reply|replying|attend|attending|tend|tending|listen|listening)\s+to\s+((the|all|our|incoming|inbound|customer|client|patient|every|their)\s+){0,2}calls\b|\b(up to|over|about|around|at least)?\s*(\d+\+?|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundreds of|dozens of)\s+((inbound|incoming|customer|phone)\s+)?calls\b|(?<!\bfollow(s|ed|ing)?[- ]up\s)\bon (customer |client |live |phone |inbound |incoming )?calls\b|\b(during|over|through|thru|via) (customer |client |live |phone |inbound |incoming )?calls\b|\bcalls? (are|is|get|gets) (answered|picked up|returned)\b(?!\s+(by|elsewhere|separately|in-house)\b)|\b(every|each) (customer |inbound |incoming )?call\b|\b(return|returns|returning|check|checks|checking|follow(s|ed|ing)?[- ]up on|respond to|responding to|listen to|listening to|answer|answering|call back|calling back)\s+((the|all|any|our|their|customer|client|patient)\s+){0,2}(missed calls|voice ?mails?)\b|\b(answer|answering|man|manning|staff|staffing|handle|handling|cover|covering|take|taking|monitor|monitoring)\s+(the\s+|our\s+)?(${NOT_WRITTEN_LINE}([\w-]+|24\/7)\s+){0,2}hotlines?\b|\b(on|through|thru|via|by|over)\s+(the\s+|our\s+)?(${NOT_WRITTEN_LINE}([\w-]+|24\/7)\s+){0,2}hotlines?\b`,
+      // Its name may take two words or "24/7": "Answer the customer care hotline and emails", "Answer the 24/7 hotline"; the fifteenth.
+      // Or three, "Answer our 24/7 customer service hotline"; the sixteenth. And a voicemail the agent handles or manages is
+      // returned too, at the head of a list as well: "Handle voicemails and emails from customers", "Manage voicemails, emails
+      // and live chats"; the sixteenth, since the fifteenth read a voicemail only after a written channel. Never transcriptions,
+      // as there.)
+      String.raw`|\b(respond|responding|reply|replying|attend|attending|tend|tending|listen|listening)\s+to\s+((the|all|our|incoming|inbound|customer|client|patient|every|their)\s+){0,2}calls\b|\b(up to|over|about|around|at least)?\s*(\d+\+?|ten|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|a hundred|hundreds of|dozens of)\s+((inbound|incoming|customer|phone)\s+)?calls\b|(?<!\bfollow(s|ed|ing)?[- ]up\s)\bon (customer |client |live |phone |inbound |incoming )?calls\b|\b(during|over|through|thru|via) (customer |client |live |phone |inbound |incoming )?calls\b|\bcalls? (are|is|get|gets) (answered|picked up|returned)\b(?!\s+(by|elsewhere|separately|in-house)\b)|\b(every|each) (customer |inbound |incoming )?call\b|\b(return|returns|returning|check|checks|checking|follow(s|ed|ing)?[- ]up on|respond to|responding to|listen to|listening to|answer|answering|call back|calling back|handle|handles|handling|manage|manages|managing)\s+((the|all|any|our|their|customer|client|patient)\s+){0,2}(missed calls|voice ?mails?)\b(?!\s+transcri\w*)|\b(answer|answering|man|manning|staff|staffing|handle|handling|cover|covering|take|taking|monitor|monitoring)\s+(the\s+|our\s+)?(${NOT_WRITTEN_LINE}([\w-]+|24\/7)\s+){0,3}hotlines?\b|\b(on|through|thru|via|by|over)\s+(the\s+|our\s+)?(${NOT_WRITTEN_LINE}([\w-]+|24\/7)\s+){0,3}hotlines?\b`,
   ).test(positiveWork);
   const phoneMention = new RegExp(String.raw`\b(phone (support|agent|rep|csr|calls?)|voice (agent|csr|support|account)|outbound calls?|telephone|bpo)\b${NOT_A_RULE}|\bcall cent(er|re)\b${NOT_A_PRODUCT}${NOT_A_RULE}`).test(work);
   // Call-centre, BPO or phone support experience, asked for or not ("no call
@@ -246,14 +253,21 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const chatIn = new RegExp(String.raw`\b(chats?|live chat|messaging|messenger|whatsapp)\b|(?<!\b(take|takes|taking|took|leave|leaves|leaving|relay|relays|relaying)\s)\bmessages\b|\b(via|in|on|through|thru|using|with) intercom\b|\bintercom (chats?|messages?|inbox|tickets?|conversations?|messenger)\b|\b${HELP_TOOL}\s*(,|&|\/|\band\b|\bor\b)\s*(and\s+)?intercom\b|\bintercom\s*(,|&|\/|\band\b|\bor\b)\s*(and\s+)?${HELP_TOOL}\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b`).test(work);
   const emailIn = new RegExp(String.raw`\b(e-?mails?)\b(?!\s+(accounts?|address(es)?|settings))${NOT_A_PRODUCT}|\b(answer|answering|resolve|resolving|respond to|responding to|reply to|replying to|handle|handling|work|working)\b[^.;]{0,25}\btickets?\b|\btickets? only\b|\bonly tickets\b|\bticket(ing)? support\b|\bsupport tickets\b|\bzendesk\b|\bfreshdesk\b`).test(work);
 
-  const titleNames = tChat || tEmail || tPhone || tWritten;
+  // A hotline that is the title's only phone word is the phone line unless the words name only written channels: then they
+  // decide, as for a bare CSR. "Hotline Officer / Reply to SMS and Viber messages from customers", "Hotline Agent / Answer
+  // customer messages on our Viber hotline", "Hotline Representative / Respond to customer chats and emails" and "Hotline Agent
+  // - Non-Voice / Handle customer concerns via email and chat" are written (the sixteenth review: the title's hotline, the
+  // thirteenth's, led over them). "Hotline Agent / Answer calls on our 24/7 customer hotline", "Hotline Agent / Answer the
+  // customer hotline and reply to emails" and a "Hotline Agent" with no words are still the phone.
+  const titlePhone = tPhone && !(tOnlyHotline && (chatIn || emailIn) && !phoneWork && !list);
+  const titleNames = tChat || tEmail || titlePhone || tWritten;
   const phoneOut = hardNoPhone || ((softNoPhone || elsewhere(PHONE).test(work)) && !phoneWork && !voiceAccount);
   const chatOut = noChat || (elsewhere(CHAT).test(work) && !/\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\bchats?\b/.test(work));
   const emailOut = noEmail || (elsewhere(`e-?mails?|email`).test(work) && !/\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\be-?mails?\b/.test(work));
   // With a channel in the title, the description adds one only by the agent's work or a list.
-  const phone = !phoneOut && (tPhone || phoneWork || list || onlyPhone || (!titleNames && (phoneMention || ((phoneExperience || inboundOnly) && !chatIn && !emailIn))));
+  const phone = !phoneOut && (titlePhone || phoneWork || list || onlyPhone || (!titleNames && (phoneMention || ((phoneExperience || inboundOnly) && !chatIn && !emailIn))));
   // A title that only says "non-voice" leaves chat or email to the description.
-  const titleSays = tChat || tEmail || tPhone;
+  const titleSays = tChat || tEmail || titlePhone;
   const chat = !chatOut && (tChat || (chatIn && (!titleSays || list || /\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,20}\b(live )?chats?\b/.test(work))));
   const email = !emailOut && (tEmail || (emailIn && (!titleSays || list || /\b(answer|answering|reply to|replying to|respond to|responding to|handle|handling)\b[^.;]{0,25}\b(e-?mails?|tickets?)\b/.test(work))));
 
@@ -312,9 +326,9 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
   // by Publish's own rule). The thirteenth Phase 4 review read What they do
   // here; the fourteenth found the AI plan's post rewords it, so a note said
   // typing was measured on a job Publish saved on site.
-  // (The fifteenth: What they do counts only by a line that is nothing but the setup (briefFromForm). Publish also reads the
-  // post's own words (isFullyRemoteText in jobFromFlow.ts), which on the built-in plan are What they do, so a job there can still
-  // be saved remote with an on-site brief, as in every version; NOT_TIMED states the rule only, so this note is true either way.)
+  // (The fifteenth: What they do counts only by a line that is nothing but the setup (briefFromForm). Publish now saves
+  // is_remote as this work mode on both plans (jobFromFlow.ts) and never reads the post's words, so the note and the saved job
+  // agree; the sixteenth review found this comment still said otherwise. NOT_TIMED states the rule only, as before.)
   const remote = brief.workMode === "remote";
   const country = inferCountryCode(brief.location);
   const secondLanguage = remote || (!!country && !ENGLISH_FIRST.has(country));
@@ -452,7 +466,10 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
       // (Each only as its evidence was, the fifteenth: a frustrating call, never "frustrating" as a verb, "How do you keep calls
       // short without frustrating customers?"; de-escalating frustration or theirs, never "the frustration you feel after a long
       // call", the agent's own.)
-      const OTHERS_TEMPER = /\b(frustrated|aggressive) (callers?|customers?|patients?)\b|\bfrustrating calls?\b|\b(callers?|customers?|patients?)(['’]s?)? frustration\b|\bde-?escalat\w*\s+((their|that)\s+)?frustration\b|\b(callers?|customers?|patients?|calls?|they|he|she)\b((?!\b(you|i|we)\b)[^.?!]){0,30}?\b(is|are|was|were|gets?|got|getting|becomes?|became|becoming|turns?|turned|seems?|sounds?)\s+((being|very|really|so|quite|increasingly|already|more and more|more)\s+){0,2}(frustrated|aggressive)\b/i;
+      // (The sixteenth: frustrating callers are frustrating calls, "How do you handle frustrating callers?", and so is the
+      // frustration of a caller, "How would you de-escalate the frustration of a caller who has been on hold for an hour?",
+      // never the agent's, "the frustration you feel". "Frustrating customers" stays out: it is the verb as often as not.)
+      const OTHERS_TEMPER = /\b(frustrated|aggressive) (callers?|customers?|patients?)\b|\bfrustrating (calls?|callers?)\b|\b(callers?|customers?|patients?)(['’]s?)? frustration\b|\bde-?escalat\w*\s+((the|their|that)\s+)?frustration\b(?!\s+(you|i|we)\b)|\b(callers?|customers?|patients?|calls?|they|he|she)\b((?!\b(you|i|we)\b)[^.?!]){0,30}?\b(is|are|was|were|gets?|got|getting|becomes?|became|becoming|turns?|turned|seems?|sounds?)\s+((being|very|really|so|quite|increasingly|already|more and more|more)\s+){0,2}(frustrated|aggressive)\b/i;
       const asksAngryCaller = (prompt: string) =>
         sentences(prompt).some((x) => onCall(x) && (OTHERS_TEMPER.test(x) || /\b(angry|upset|furious|irate|rude|abusive|difficult (callers?|customers?|patients?|calls?)|shout\w*|yell\w*|scream\w*|swear\w*|talk\w* over)\b/i.test(x)));
       // On hold is a person on hold ("put a caller on hold", "put patients on

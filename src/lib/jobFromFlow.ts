@@ -21,7 +21,7 @@ import { rigorToDb } from "@/lib/avaEngine/rigor";
 import { WRITTEN_INTERVIEW_DESCRIPTION, WRITTEN_INTERVIEW_TITLE } from "@/lib/avaEngine/assemble";
 import { geocodePlace } from "@/lib/geocode";
 import { normalizeBenefits } from "@/lib/jobBenefits";
-import { inferCountryCode, isFullyRemoteText, placeSaysRemote } from "@/lib/jobLocation";
+import { inferCountryCode } from "@/lib/jobLocation";
 import { parseSalary } from "@/lib/salaryParse";
 import type {
   JobFlow,
@@ -431,15 +431,20 @@ export async function createJobFromFlow(
   // whatever its place says (the fifth product review: "Full-time · Hybrid" at
   // "Remote, US" was saved remote, its chat practice computer-only, with no
   // check before it).
-  // Remote comes from the brief (its Type, its place, or a line of What they
-  // do that is nothing but the setup: briefFromForm), or from a place or Type
-  // that says remote. The post's other words may only say a remote place is
-  // not (an on-site line), never make an on-site job remote: "Work setup:
-  // Onsite. Possible WFH after regularization" was saved is_remote with no
-  // currency on the template path, though the builder made it on site (the
-  // fifteenth Phase 4 review).
-  const placeOrTypeRemote = placeSaysRemote(brief.location) === "remote" || placeSaysRemote(brief.employmentType) === "remote";
-  const isRemote = brief.workMode !== "hybrid" && (brief.workMode === "remote" || (placeOrTypeRemote && isFullyRemoteText(brief.location, brief.employmentType, description)));
+  // Remote is the brief's work mode (its Type, its place, the title, or a
+  // line of What they do that is nothing but the setup: briefFromForm), the
+  // one the plan was built for. The post's own words never decide it: "Work
+  // setup: Onsite. Possible WFH after regularization" was saved is_remote
+  // with no currency on the template path, though the builder made it on
+  // site (the fifteenth Phase 4 review).
+  // (The sixteenth: the fifteenth also read the post when the place or Type
+  // said remote, which never decided anything. briefFromForm already makes
+  // every place or Type that says remote a remote or a hybrid brief, and
+  // employmentType is full_time, part_time or contract, never a place; the
+  // builder is the only caller, and remote_from_location.test.mjs holds
+  // both. So a "Remote" place is saved remote whatever its post says, as in
+  // every version, and a hybrid one never.)
+  const isRemote = brief.workMode === "remote";
   if ((opts.status ?? "published") === "published" && !locationText) {
     throw new Error("Add a location before publishing, like \"Remote (worldwide)\" or \"London, United Kingdom\".");
   }

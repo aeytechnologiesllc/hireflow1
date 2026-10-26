@@ -441,6 +441,30 @@ const CS = [
   ["Customer Service Representative", "Help retailers set up their POS and cash registers over the phone."],
   ["Hotline Agent", "Answer calls on our 24/7 customer hotline."], ["Hotline Officer", "Answer the customer hotline and log complaints."],
   ["Delivery Hotline Agent", "Take delivery orders over the phone for our pizza chain."],
+  // The sixteenth Phase 4 review: a title with no store part reads only the counter's own duties, never a store-floor word
+  // named as a topic; a remote host's guests are a rental's whatever it is called; an office's front desk title with clients
+  // keeps its calls; and an applicant welcomed as a walk-in is no counter.
+  ["Technical Support Specialist", "Troubleshoot customer issues with the front end and back end of our web app."],
+  ["Technical Support Representative", "Troubleshoot point-of-sale terminals and cash registers for our restaurant clients."],
+  ["Merchant Support Representative", "Help merchants troubleshoot transactions on the POS terminal and settle disputes."],
+  ["Customer Service Representative", "Respond to customer inquiries, process returns and refunds, and coordinate restocking with our warehouse team."],
+  ["Customer Service Representative", "Answer customer questions about product availability and restock dates, and process returns."],
+  ["Airline Reservations Agent", "Handle bookings, seat selection (aisle or window) and baggage questions."],
+  ["Customer Service Agent - Airline", "Help passengers change flights and choose aisle or window seats."],
+  ["Customer Support Specialist", "Help users of our grocery delivery app with substitutions, missing items and restocked products."],
+  ["Customer Service Representative", "Support our partner stores with product returns, price tags and restocking schedules."],
+  ["Customer Service Representative", "Handle customer feedback about our 24-hour store branches and escalate to store managers."],
+  ["Customer Success Associate", "Onboard restaurants to our ordering platform and train their staff to take cash and card payments in the app."],
+  ["Customer Support Specialist", "Help retailers set up our inventory app: planograms, price tags and restocking alerts."],
+  ["Guest Support Agent", "Answer guest questions on Booking.com and Agoda, and manage check-ins and check-outs."],
+  ["Guest Support Specialist", "Coordinate guest check-ins and check-outs for our short-term vacation properties."],
+  ["Guest Experience Coordinator", "Coordinate check-ins and check-outs for our vacation homes across Florida."],
+  ["Guest Support Agent", "Support guests of our holiday homes: check-ins and check-outs, door codes and Wi-Fi."],
+  ["Customer Support Agent", "Help gym members with app check-ins and check-outs and billing questions."],
+  ["Front Office Associate", "Answer customer calls and emails and assist walk-in clients at the front desk."],
+  ["Front Desk Officer", "Assist walk-in clients at the front desk and answer calls and emails about their accounts."],
+  ["Customer Service Representative", "Handle customer inquiries. We welcome walk-ins!"],
+  ["CSR", "Assist customers with their account concerns. We also welcome walk-ins Monday to Friday."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -815,6 +839,22 @@ const NOT_CS = [
   ["Customer Service Representative", "Serve customers, take food orders and keep the dining area clean.", "general"],
   ["Customer Service Associate", "Assist customers with their purchases, restock shelves and operate the cash register.", "general"],
   ["Retail Customer Service Associate", "Operate the POS system, process returns and exchanges, and answer customer questions.", "cash"],
+  // The sixteenth: the other side of each. The counter's own duties are still the counter under a title with no store part
+  // (serving food among them); a lodging's own desk title answers its phone at the door; a walk-in query or queue, and
+  // handling or catering to walk-ins, are the counter's; a planner's hotel, room reservations with partner hotels and a
+  // venue's banquet team are a planner's.
+  ["Customer Service Representative", "Take customer orders and serve food.", "general"],
+  ["Guest Service Agent", "Welcome guests at the front desk, handle check-ins and check-outs, answer the phone and process payments.", "general"],
+  ["Front Desk Agent", "Greet guests at the front desk, answer phone calls and handle reservations.", "general"],
+  ["Guest Relations Officer", "Check guests in and out at the front desk, answer phones and respond to emails.", "admin"],
+  ["Customer Service Representative", "Answer walk-in queries and process payments.", "general"],
+  ["Customer Service Representative", "Manage the walk-in queue and assist customers.", "general"],
+  ["Customer Service Associate", "Handle walk-ins and process bills payment, remittance and e-loading.", "general"],
+  ["Customer Service Staff", "Cater to walk-ins and answer their inquiries.", "general"],
+  ["Booking Coordinator", "Plan and coordinate corporate events for our clients: book the hotel, catering and AV.", "admin"],
+  ["Booking Agent", "Organize corporate events for our clients and handle room reservations with partner hotels.", "general"],
+  ["Events Booking Coordinator", "Manage corporate events for our clients from start to finish; liaise with the venue's banquet team.", "admin"],
+  ["Booking Coordinator", "Plan corporate events and conferences for our clients and negotiate with the hotel on room rates.", "admin"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
@@ -1121,6 +1161,21 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Reservations Agent - Hotel", "Answer guest calls and emails about room bookings and event planning services.", "mixed"],
     ["Reservations Agent", "Answer guest calls and emails, book rooms, and manage corporate events and group bookings for our hotel.", "mixed"],
     ["Reservations Agent", "Take room reservations by phone and email and assist guests with event planning for weddings and birthdays.", "mixed"],
+    // The sixteenth: a voicemail the agent handles or manages is the phone at the head of a list too (never transcriptions); a
+    // title whose only phone word is its hotline yields to words that name only written channels, as a bare CSR does, and
+    // stays the phone otherwise; a hotline's name may take three words.
+    ["Customer Support Agent", "Handle voicemails and emails from customers.", "mixed"],
+    ["Customer Support Agent", "Manage voicemails, emails and live chats.", "mixed"],
+    ["Customer Support Agent", "Handle voicemail transcriptions and customer emails.", "email"],
+    ["Hotline Officer", "Reply to SMS and Viber messages from customers.", "chat"],
+    ["Hotline Agent", "Answer customer messages on our Viber hotline.", "chat"],
+    ["Hotline Representative", "Respond to customer chats and emails.", "chat"],
+    ["Hotline Agent - Non-Voice", "Handle customer concerns via email and chat.", "chat"],
+    ["Hotline Agent", "", "phone"], ["Hotline Agent", "Handle customer concerns and complaints.", "phone"],
+    ["Hotline Agent", "Answer the customer hotline and reply to emails.", "mixed"], ["Customer Care Hotline Agent", "Answer calls on our hotline.", "phone"],
+    ["Hotline Agent", "Answer inbound calls.", "phone"], ["Phone and Hotline Agent", "Reply to customer emails.", "mixed"],
+    ["Customer Service Representative", "Answer our 24/7 customer service hotline.", "phone"],
+    ["Customer Service Representative", "Man the 24/7 customer care hotline and reply to emails.", "mixed"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
 }
 
@@ -1407,6 +1462,13 @@ let aiFlow;
     "How do you avoid frustrating customers when you put them on hold on a call?",
     "How do you de-escalate the frustration you feel after a long call?",
   ]) check(`"frustrating" as a verb, or the agent's own frustration, is not the angry-caller question: ${JSON.stringify(prompt)}`, callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
+  // The sixteenth: frustrating callers, and the frustration of a caller, are the angry-caller question (the three above still
+  // are not: "frustrating customers" is the verb as often as not, and "the frustration you feel" is the agent's).
+  for (const prompt of [
+    "How do you handle frustrating callers?",
+    "How would you de-escalate the frustration of a caller who has been on hold for an hour?",
+    "How do you de-escalate the frustration of a customer on the phone?",
+  ]) check(`a frustrating caller, or a caller's frustration, is the angry-caller question: ${JSON.stringify(prompt)}`, !callQs([prompt, "Why us?", "Q3"]).includes("vphone0"));
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ jobPost: { title: "Front desk", summary: "", responsibilities: [], requirements: [], niceToHaves: [] }, application: [], quiz: [], simulation: [], voiceQuestions: ["Why us?", "How do you stay calm?", "What hours?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
   const worded = (await M.generateJobFlow({ brief: formFor("Medical or dental office", "Phone", "Remote"), rigor: "standard" })).flow.phases.find((p) => p.kind === "voice_interview").config.questions;
@@ -1517,6 +1579,47 @@ let aiFlow;
       await M.createJobFromFlow(flow, b, { status: "published", voiceInterview: false });
       const saved = globalThis.__fakeSupabase.inserted[0]?.is_remote;
       check(`the template plan and what Publish saves agree (${role}, ${location}, "${work.slice(0, 32)}…": ${remote ? "remote" : "on site"})`, saved === remote && (b0.workMode === "remote") === remote, `${b0.workMode} saved=${saved}`);
+    }
+    // The sixteenth: a WFH setup in the forms posts write it in (a bullet, a "Work setup:" label, "This position is fully
+    // remote.", "WFH (Permanent)") and a WFH title with its on-site training are built remote, with the connection check, and
+    // saved remote on both plans, with no currency picked from the place (a US one was paid in USD); the fifteenth's on-site
+    // lines stay on site. And a place's country is read as the place: "Cebu City (US company)" is a Philippine job paid in PHP,
+    // "Remote (US-based position)" a remote US one.
+    for (const [role, location, work, remote, pay = "18,000 - 22,000 monthly", country] of [
+      ["Customer Service Representative", "Philippines", "Answer customer chats and emails for our US client.\nWork setup: Permanent WFH", true],
+      ["Customer Service Representative", "Philippines", "Answer customer chats and emails.\nWork Setup: Work from home", true],
+      ["Chat Support Agent", "Philippines", "Reply to customer chats about orders.\nSetup: WFH", true],
+      ["Customer Service Representative", "Philippines", "Handle inbound calls.\nWork Arrangement: Permanent Work From Home", true],
+      ["Chat Support Agent", "Philippines", "WFH (Permanent)\nReply to customer chats about orders and refunds.", true],
+      ["Customer Service Representative", "Philippines", "Job details:\n- Full-time\n- Permanent WFH\n- Night shift\n\nAnswer customer chats and emails.", true],
+      ["Chat Support Agent", "Philippines", "Reply to customer chats.\n\nJob Highlights:\n• Work from home\n• Day shift\n• 25K monthly", true],
+      ["Customer Service Representative", "Cebu City", "What to expect:\n* 100% WFH\n* US holidays off\nHandle inbound calls for a US client.", true],
+      ["Customer Service Representative", "Philippines", "- Permanent work from home\n- Answer customer emails and chats", true],
+      ["Customer Support Specialist", "United States", "This position is fully remote. Answer customer emails and chats for our SaaS product.", true, "18 - 22 an hour", "US"],
+      ["Customer Support Specialist", "United States", "This role is 100% remote. Answer customer emails and chats for our SaaS product.", true, "18 - 22 an hour", "US"],
+      ["WFH Customer Service Representative (Onsite Training)", "Cebu City", "Answer customer chats.", true],
+      ["WFH CSR | Onsite training in Cebu", "Cebu City", "Answer customer chats.", true],
+      ["Customer Service Representative - WFH after 2 weeks onsite training", "Quezon City", "Answer customer calls.", true],
+      ["Customer Service Representative", "Makati City", "Answer customer calls and emails for our telco account. Work setup: Onsite. Possible WFH after regularization.", false],
+      ["Customer Service Representative", "Makati City", "Answer customer calls. WFH: No", false],
+      ["Customer Service Representative", "Makati City", "Answer customer calls. Must have WFH experience.", false],
+      ["CSR (Onsite / WFH)", "Makati", "Answer customer chats.", false],
+      ["Customer Service Representative", "Cebu City (US company)", "Answer customer calls for our US clients.", false, "18,000 - 22,000 monthly", "PH"],
+      ["Customer Service Representative", "Makati (US-based BPO)", "Answer customer calls.", false, "18,000 - 22,000 monthly", "PH"],
+      ["Customer Support Specialist", "Remote (US-based position)", "Answer customer emails and chats.", true, "$18/hr", "US"],
+    ]) {
+      const b0 = M.briefFromForm({ role, location, type: "Full-time · On-site", pay, start: "ASAP", work });
+      const b = { ...b0, followUps: [{ questionId: M.JOB_KIND_ID, question: "", answer: M.JOB_KIND_CHIPS[0] }, { questionId: "cs-channel", question: "", answer: "Chat" }, { questionId: "cs-industry", question: "", answer: "Online store" }] };
+      for (const plan of ["template", "AI"]) {
+        globalThis.fetch = async () => new Response(JSON.stringify({ jobPost: { title: role, summary: work, responsibilities: ["Reply to customers"], requirements: ["Clear writing"], niceToHaves: [] }, application: ["Hours?", "Why?", "Experience?"], quiz: [], simulation: [], voiceQuestions: ["Tell us about a hard customer.", "Why this job?", "How do you stay calm?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+        const flow = plan === "template" ? M.generateTemplateFlow({ brief: b, rigor: "standard" }).flow : (await M.generateJobFlow({ brief: b, rigor: "standard" })).flow;
+        globalThis.__fakeSupabase = fakeSupabase();
+        await M.createJobFromFlow(flow, b, { status: "published", voiceInterview: false });
+        const row = globalThis.__fakeSupabase.inserted[0] ?? {};
+        const connection = flow.phases.some((p) => p.kind === "equipment_check");
+        const currencyOk = remote ? row.salary_currency !== "USD" || /\$/.test(pay) : country !== "PH" || row.salary_currency === "PHP";
+        check(`the ${plan} plan builds and Publish saves ${remote ? "remote" : "on site"}: ${JSON.stringify(role)}, ${location}, "${work.replace(/\n/g, " / ").slice(0, 48)}…"${country ? ` (${country})` : ""}`, (b0.workMode === "remote") === remote && row.is_remote === remote && connection === remote && currencyOk && (!country || row.location_country_code === country), `${b0.workMode} saved=${row.is_remote} connection=${connection} ${row.location_country_code} ${row.salary_currency}`);
+      }
     }
     const noInterview = M.applyCustomerServicePack([{ id: "ph_app", kind: "application", order: 0, title: "App", candidateDescription: "", rationale: "", config: { kind: "application", questions: [] }, rubric: { criteria: [] }, weight: 0.1, scoringMode: "auto" }], formFor("Online store", "Phone", "Remote"));
     check("a plan with no written interview never says the interview asks about calls", !/written interview/i.test(noInterview.find((p) => p.kind === "simulation").rationale), noInterview.find((p) => p.kind === "simulation").rationale);
