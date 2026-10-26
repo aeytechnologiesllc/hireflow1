@@ -15,7 +15,7 @@ import { OfferLetterDialog } from "../components/OfferLetterDialog";
 import { RequestDocumentsDialog } from "../components/RequestDocumentsDialog";
 import { RequestRow } from "../components/ApplicantDocumentsPanel";
 import { useAllRequests, type RequestWithPerson } from "../hooks/useApplicantRequests";
-import { applyDocFilters, docJob, drawerCaption, isReady, KIND_WORDS, NO_FILTERS, ORDER_WORDS, resultLine, STATUS_WORDS, type FilterKind, type FilterOrder, type FilterStatus } from "../lib/documentFilters";
+import { applyDocFilters, docJob, drawerCaption, isReady, KIND_WORDS, laterLetter, NO_FILTERS, ORDER_WORDS, resultLine, STATUS_WORDS, type FilterKind, type FilterOrder, type FilterStatus } from "../lib/documentFilters";
 import { requestTitle } from "@/lib/documentRequests";
 import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
@@ -644,8 +644,12 @@ export default function CockpitDocuments() {
 
   const total = rows.length;
   // Waiting, declined, done, or what closed unfinished (an expired letter read
-  // "done" before the tenth product review): documentFilters.ts.
-  const caption = drawerCaption(rows);
+  // "done" before the tenth product review): documentFilters.ts. "Send a new
+  // one" only to someone who can, and never for a letter a later one
+  // replaced (the eleventh product review).
+  const caption = drawerCaption(rows, { canSend });
+  const sheetRow = rows.find((r) => r.id === sheetDocId) ?? null;
+  const sheetNewer = sheetRow ? laterLetter(sheetRow, rows) : null;
 
   const shownCount = result.docs.length + result.requests.length;
   const filterBar = (
@@ -774,6 +778,8 @@ export default function CockpitDocuments() {
       <TeamDocumentSheet
         document={sheetDocument}
         open={!!sheetDocId}
+        canSend={canSend}
+        newerLetterSentAt={sheetNewer?.createdAt ?? null}
         onClose={() => setSheetDocId(null)}
         onWithdraw={(doc) => {
           const row = rows.find((r) => r.id === doc.id);

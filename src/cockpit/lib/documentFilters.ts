@@ -180,15 +180,54 @@ function counted(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
+/** The fields of a row the drawer's line and the "replaced" rule read. */
+export type CaptionRow = Pick<DocRow, "status"> & Partial<Pick<DocRow, "id" | "type" | "applicationId" | "createdAt">>;
+
+/**
+ * The later offer letter that replaced this one, or null. Only an offer
+ * letter that closed unfinished (expired, or declined) is replaced: by a
+ * later offer letter on the same application that is signed or still
+ * waiting. One that also expired, or was declined, withdrawn or voided,
+ * replaces nothing: that person still has no letter.
+ *
+ * The eleventh product review: the Documents line kept asking for a new
+ * letter after one had been sent and signed ("1 of 2 ready · 1 expired
+ * before it was signed — send a new one if you still need it."), and nothing
+ * removes a row, so it asked for good. A file to sign is never replaced this
+ * way: two files sent to one person are usually two different papers.
+ */
+export function laterLetter<R extends CaptionRow>(row: CaptionRow, rows: R[]): R | null {
+  if (row.status !== "Expired" && row.status !== "Declined") return null;
+  const isLetter = (r: CaptionRow) => docKind(r as DocRow) === "offers";
+  const made = when(row.createdAt);
+  if (!row.applicationId || made === null || !isLetter(row)) return null;
+  const later = rows.filter(
+    (other) =>
+      other !== row &&
+      other.applicationId === row.applicationId &&
+      isLetter(other) &&
+      (isReady(other) || other.status === "Pending") &&
+      (when(other.createdAt) ?? -Infinity) > made,
+  );
+  return later.sort((a, b) => (when(b.createdAt) ?? 0) - (when(a.createdAt) ?? 0))[0] ?? null;
+}
+
 /**
  * The line beside the meter ("0 of 1 ready · …"). "Done" only when every
  * row is signed or on file. The tenth product review: the line knew only
  * waiting, declined and done, so a letter past its date and never signed
  * read "Everything in here is done." (and a withdrawn or voided one already
  * did). A closed one is said as what it is.
+ *
+ * The eleventh product review: an expired or declined letter that a later
+ * letter replaced (laterLetter) asks for nothing ("1 was replaced by a newer
+ * letter."), and "send a new one" is said only to someone who can send one
+ * (`canSend`: the owner, or a teammate with "Send documents"), one letter
+ * for each person.
  */
-export function drawerCaption(rows: Pick<DocRow, "status">[]): string {
-  const count = (status: DocRow["status"]) => rows.filter((r) => r.status === status).length;
+export function drawerCaption(rows: CaptionRow[], { canSend }: { canSend: boolean }): string {
+  const replaced = new Set(rows.filter((r) => laterLetter(r, rows) !== null));
+  const count = (status: DocRow["status"]) => rows.filter((r) => r.status === status && !replaced.has(r)).length;
   const pending = count("Pending");
   if (pending > 0) return `I\u2019m still waiting on ${counted(pending, "signature", "signatures")}.`;
   const declined = count("Declined");
@@ -199,13 +238,18 @@ export function drawerCaption(rows: Pick<DocRow, "status">[]): string {
   const voided = count("Voided");
   const parts = [
     expired > 0 ? counted(expired, "expired before it was signed", "expired before they were signed") : null,
+    replaced.size > 0 ? counted(replaced.size, "was replaced by a newer letter", "were replaced by newer letters") : null,
     withdrawn > 0 ? counted(withdrawn, "was withdrawn", "were withdrawn") : null,
     voided > 0 ? counted(voided, "was voided", "were voided") : null,
   ].filter((p): p is string => p !== null);
   if (parts.length === 0) return `${counted(rows.filter((r) => !isReady(r)).length, "is", "are")} not finished.`;
   const line = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
-  // Nothing can move the date once it has passed: a new letter is the way on.
-  if (parts.length === 1 && expired > 0) return `${line} — ${expired === 1 ? "send a new one if you still need it" : "send new ones if you still need them"}.`;
+  // Nothing can move the date once it has passed: a new letter is the way on,
+  // one for each person (two expired letters to one person need one new one).
+  if (parts.length === 1 && expired > 0 && canSend) {
+    const people = new Set(rows.filter((r) => r.status === "Expired" && !replaced.has(r)).map((r, i) => r.applicationId ?? r.id ?? `row ${i}`)).size;
+    return `${line} — ${people === 1 ? "send a new one if you still need it" : "send new ones if you still need them"}.`;
+  }
   return `${line}.`;
 }
 

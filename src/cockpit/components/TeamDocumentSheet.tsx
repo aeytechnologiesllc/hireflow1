@@ -104,12 +104,18 @@ function Mark({ value }: { value: string | null }) {
 export function TeamDocumentSheet({
   document,
   open,
+  canSend,
+  newerLetterSentAt = null,
   onClose,
   onWithdraw,
   onShowRecord,
 }: {
   document: DocumentWithApplication | null;
   open: boolean;
+  /** The owner, or a teammate with "Send documents": the only ones told to send a new letter. */
+  canSend: boolean;
+  /** When a later letter to the same person went out (laterLetter), if one did. */
+  newerLetterSentAt?: string | null;
   onClose: () => void;
   /** Opens the page's own Withdraw box for this document. */
   onWithdraw: (document: DocumentWithApplication) => void;
@@ -317,9 +323,19 @@ export function TeamDocumentSheet({
                   You {state === "withdrawn" ? "withdrew" : "voided"} this{document.voided_reason ? `: "${document.voided_reason}"` : "."}
                 </div>
               )}
+              {/* What to do about it: nothing once a later letter went out, and
+                  "send a new one" only to someone who can (the eleventh product
+                  review: it was said to a teammate without "Send documents",
+                  and beside a newer letter already signed). Offer letter lists
+                  hired people too, so it still works after the hire. */}
               {state === "expired" && (
-                <div className="mb-4 rounded-[12px] px-4 py-3 text-[13.5px]" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }}>
-                  {First} didn't sign by {signBy ?? "the date given"}. Send a new offer letter if you still want them.
+                <div className="mb-4 rounded-[12px] px-4 py-3 text-[13.5px]" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }} data-team-document-expired>
+                  {First} didn't sign by {signBy ?? "the date given"}.
+                  {newerLetterSentAt
+                    ? ` A newer offer letter went out on ${format(new Date(newerLetterSentAt), "MMMM d")}.`
+                    : isOffer && canSend
+                      ? " Send a new offer letter if you still want them."
+                      : ""}
                 </div>
               )}
 

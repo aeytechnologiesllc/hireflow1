@@ -593,12 +593,18 @@ export function offerDocumentBody(fields: OfferLetterFields, recipientEmail: str
   };
 }
 
-/** The dialog's words. */
-export function offerWords(fields: OfferLetterFields, sending: boolean, armed: boolean): { arm: string; confirm: string; note: string } {
+/**
+ * The dialog's words. `stage` is where the person stands: sending moves
+ * someone at interview or in review to Offer, and leaves someone already at
+ * Offer or hired where they are (the eleventh product review: Offer letter
+ * now lists hired people, who were told they would be moved to Offer).
+ */
+export function offerWords(fields: OfferLetterFields, sending: boolean, armed: boolean, stage?: string): { arm: string; confirm: string; note: string } {
   const who = firstName(cleanFields(fields).applicantName) || "them";
+  const after = stage === "hired" ? "; they stay hired" : stage === undefined || stage === "interview" || stage === "reviewing" ? ", and moves them to Offer" : "";
   return {
     arm: `Send to ${who}`,
     confirm: sending ? "Sending..." : "Yes, send it for signing",
-    note: armed ? `This emails ${who} the letter to sign, and moves them to Offer.` : "Nothing is sent until you confirm.",
+    note: armed ? `This emails ${who} the letter to sign${after}.` : "Nothing is sent until you confirm.",
   };
 }

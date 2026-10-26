@@ -153,6 +153,14 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "pdf-team-voided", group: "On-site jobs and files to sign", label: "Documents: uploaded PDF, voided after signing (the kept copy still opens)", role: "employer", path: "/documents?__previewDocs=pdf,voided" },
   { id: "offer-team-expired", group: "On-site jobs and files to sign", label: "Documents: offer letter past its date, never signed (its signing record)", role: "employer", path: "/documents?__previewDocs=offer,expired" },
   { id: "hire-offer-expired", group: "On-site jobs and files to sign", label: "Hire: the offer letter expired before it was signed", role: "employer", path: `/applicants/${APP_OFFERED_ID}?__previewHiring=offer,expired` },
+  // The eleventh product review: closed letters said as what happened, a
+  // replaced letter asks for nothing, and a teammate without "Send documents".
+  { id: "offer-team-resent", group: "On-site jobs and files to sign", label: "Documents: an expired offer letter, then a new one signed by both", role: "employer", path: "/documents?__previewDocs=offer,expired,resent" },
+  { id: "hire-offer-declined", group: "On-site jobs and files to sign", label: "Hire: the applicant declined the offer letter", role: "employer", path: `/applicants/${APP_OFFERED_ID}?__previewHiring=offer,declined` },
+  { id: "hire-offer-voided", group: "On-site jobs and files to sign", label: "Hire: the offer letter was voided after they signed", role: "employer", path: `/applicants/${APP_OFFERED_ID}?__previewHiring=offer,voided` },
+  { id: "hire-offer-withdrawn", group: "On-site jobs and files to sign", label: "Hire: the offer letter was withdrawn before they signed", role: "employer", path: `/applicants/${APP_OFFERED_ID}?__previewHiring=offer,withdrawn` },
+  { id: "offer-team-expired-no-send", group: "On-site jobs and files to sign", label: "Documents, a teammate without Send documents: offer letter past its date", role: "team_member", path: "/documents?__previewDocs=offer,expired,no-send" },
+  { id: "pdf-team-no-send", group: "On-site jobs and files to sign", label: "Documents, a teammate without Send documents: a PDF the applicant signed", role: "team_member", path: "/documents?__previewDocs=pdf,voided,no-send" },
 
   // -------------------------------------------------------------- extra states
   { id: "cand-app-offered", group: "Extra states", label: "Application detail — offered", role: "candidate", path: `/applications/${APP_OFFERED_ID}` },

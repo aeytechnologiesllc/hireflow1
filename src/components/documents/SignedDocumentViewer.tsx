@@ -61,6 +61,8 @@ import {
 import { candidateOrigin } from "@/lib/hosts";
 import { externalHref } from "@/lib/safeLink";
 import { generateV1Hash } from "@/lib/documentHash";
+import { refusedForRole } from "@/lib/documentSigningErrors";
+import { TEAM_PERMISSION_NAMES } from "@/lib/teamPermissions";
 
 interface AuditLog {
   id: string;
@@ -278,8 +280,10 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   const [shownPdf, setShownPdf] = useState<{ src: string; hash: string } | null>(null);
   // Why it could not be shown: the file is not a PDF ("not_pdf"), or it could
   // not be fetched just now ("unavailable"). Only the first is the file's
-  // fault (the tenth product review: a voided PDF was "not a PDF").
-  const [shownPdfFailed, setShownPdfFailed] = useState<"not_pdf" | "unavailable" | null>(null);
+  // fault (the tenth product review: a voided PDF was "not a PDF"). Or the
+  // signed copy is not this person's to open ("not_allowed": on the team, it
+  // is for those who may send documents; the eleventh product review).
+  const [shownPdfFailed, setShownPdfFailed] = useState<"not_pdf" | "unavailable" | "not_allowed" | null>(null);
   const [viewedHash, setViewedHash] = useState<string | null>(null);
   const [candidateSignature, setCandidateSignature] = useState<string | null>(null);
   const [employerSignature, setEmployerSignature] = useState<string | null>(null);
@@ -287,7 +291,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
   const [isDownloading, setIsDownloading] = useState(false);
   const qrRef = useRef<HTMLCanvasElement>(null);
   const { toast } = useToast();
-  const { role, user } = useAuth();
+  const { role, user, isTeamMember } = useAuth();
   const queryClient = useQueryClient();
 
   // A candidate may sign their own pending, not-yet-signed document; an
@@ -835,7 +839,13 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
         // (the fourth security review).
         let address = sent;
         if (signedByApplicant && document) {
-          const { data } = await supabase.functions.invoke("document-signing", { body: { documentId: document.id, action: "original" } });
+          const { data, error } = await supabase.functions.invoke("document-signing", { body: { documentId: document.id, action: "original" } });
+          // Not theirs to open (a teammate without "Send documents"): said
+          // as that, not as a failed load (the eleventh product review).
+          if (await refusedForRole(data, error)) {
+            if (!cancelled) setShownPdfFailed("not_allowed");
+            return;
+          }
           const kept = externalHref((data as { url?: string } | null)?.url);
           if (!kept) throw new Error("no signed copy");
           address = kept;
@@ -899,7 +909,9 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                 : "This file is not a PDF, so it can't be shown or signed here. Send it again as a PDF."
               : shownPdfFailed === "unavailable"
                 ? "This document could not be loaded just now. Close it and open it again."
-                : "Loading document..."}
+                : shownPdfFailed === "not_allowed"
+                  ? `On your team, only someone who may send documents can open the signed file.${isTeamMember ? ` Ask the owner to turn on ${TEAM_PERMISSION_NAMES.canSendDocuments} for you.` : ""}`
+                  : "Loading document..."}
           </span>
         );
       }
@@ -1305,8 +1317,13 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   {/* …and to the applicant only once it is finished, on any screen (the
                       fifth product review: before signing they saw Signed PDF,
-                      Certificate, Audit PDF and the audit trail). */}
-                  <div className={`flex-wrap items-center gap-2 [&>button]:whitespace-nowrap ${document.status === "signed" ? "flex" : role === "candidate" ? "hidden" : "hidden sm:flex"}`}>
+                      Certificate, Audit PDF and the audit trail). A closed
+                      document (declined, withdrawn, voided, expired) has no
+                      place to sign to make room for, so the team's phone gets
+                      its Audit PDF too; its Certificate is only ever for one
+                      signed by both (the eleventh product review: on a phone
+                      a closed letter's record had no copy to save). */}
+                  <div className={`flex-wrap items-center gap-2 [&>button]:whitespace-nowrap ${document.status === "signed" ? "flex" : role === "candidate" ? "hidden" : recordClosedUnfinished(record) ? "flex" : "hidden sm:flex"}`} data-viewer-copies>
                     {/* A signed copy only of what both have signed (the tenth
                         product review: the team's footer offered it on
                         declined, expired, voided and unsigned documents, and
@@ -1317,11 +1334,11 @@ export function SignedDocumentViewer({ document, open, onOpenChange }: SignedDoc
                         Signed PDF
                       </Button>
                     )}
-                    <Button variant="outline" size="sm" onClick={handleDownloadCertificate} disabled={!completionCert}>
+                    <Button variant="outline" size="sm" onClick={handleDownloadCertificate} disabled={!completionCert} className={record === "done" ? undefined : "hidden sm:inline-flex"} data-viewer-certificate>
                       <Award className="h-4 w-4 mr-2" />
                       Certificate
                     </Button>
-                    <Button variant="outline" size="sm" onClick={handleDownloadAuditPDF}>
+                    <Button variant="outline" size="sm" onClick={handleDownloadAuditPDF} data-viewer-audit-pdf>
                       <FileText className="h-4 w-4 mr-2" />
                       Audit PDF
                     </Button>

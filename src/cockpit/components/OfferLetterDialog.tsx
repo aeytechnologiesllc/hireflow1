@@ -56,7 +56,9 @@ import {
  * Portalled to <body> like the cockpit's other dialogs.
  */
 
-const STAGE_WORDS: Record<string, string> = { interview: "Interviewed", offered: "Offer already out", reviewing: "In review" };
+// "Hired": a new letter can go to someone already hired, after one expired
+// or was declined (the eleventh product review).
+const STAGE_WORDS: Record<string, string> = { interview: "Interviewed", offered: "Offer already out", reviewing: "In review", hired: "Hired" };
 
 /** What stays the same for everyone hired into a job, kept on this device per job as a convenience only. */
 interface Remembered {
@@ -356,7 +358,7 @@ export function OfferLetterDialog({
   };
   const problems = offerProblems(fields);
   const problemFor = (field: keyof OfferLetterFields) => (tried ? problems.find((p) => p.field === field)?.text : undefined);
-  const words = offerWords(fields, send.isPending, armed);
+  const words = offerWords(fields, send.isPending, armed, person?.status);
   const letter = offerLetterText(fields);
   const termsProblem = ["reportsTo"].map((f) => problemFor(f as keyof OfferLetterFields)).find(Boolean);
 
@@ -482,7 +484,7 @@ export function OfferLetterDialog({
                   )}
                   {!isLoading && !isError && matches.length === 0 && (
                     <li className="px-3 py-3 text-[13px]" style={{ color: "var(--ink-3)" }}>
-                      {search.trim() ? "Nobody by that name is in review or at interview." : "Nobody is in review or at interview yet."}
+                      {search.trim() ? "Nobody by that name is in review, at interview, at Offer or hired." : "Nobody is in review or at interview yet."}
                     </li>
                   )}
                   {matches.map((p, i) => (

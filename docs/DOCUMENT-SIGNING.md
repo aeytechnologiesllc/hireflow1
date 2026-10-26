@@ -158,6 +158,51 @@ buttons until both have signed. The full viewer
 
 Deploy: `document-signing`, `send-notification-email`.
 
+## The eleventh product review (2026-10-25)
+
+- **A letter a later one replaced asks for nothing.** The Documents line kept
+  saying "1 expired before it was signed — send a new one if you still need
+  it." after a new letter had been sent and signed, for good (no row is ever
+  removed). An expired or declined offer letter is replaced by a later offer
+  letter on the same application that is signed or still waiting
+  (`laterLetter` in `src/cockpit/lib/documentFilters.ts`); the line then
+  reads "1 was replaced by a newer letter.", and the old letter's sheet says
+  "A newer offer letter went out on {day}." A later one that also expired,
+  or was declined, withdrawn or voided, replaces nothing. Files to sign are
+  never replaced this way. "Send a new one" is one per person, and only to
+  someone who may send documents (`drawerCaption(rows, { canSend })`; the
+  sheet's `canSend`). Guard `replaced-letter-asks-for-nothing`.
+- **On a phone a closed document's record has its Audit PDF.** The team's
+  copies were hidden on a phone for anything not signed by both (to keep the
+  place to sign in view), so the tenth review's "Signing record" link for a
+  closed letter led to no copy there. A declined, withdrawn, voided or expired
+  document shows the Audit PDF on every screen; the Certificate stays for a
+  document signed by both (on a computer it shows, disabled, as before).
+  Guard `closed-document-audit-pdf-on-a-phone`.
+- **Who may open the signed copy is said, not blamed on the network.** A
+  teammate without "Send documents" can list documents (the documents SELECT
+  policy lets every active teammate on the job read the rows), but
+  document-signing answers them 403 for every action, `original` included
+  (`resolveDocumentRole`), and the viewer said the file "could not be loaded
+  just now". It now reads the refusal from the answer (`refusedForRole` in
+  `src/lib/documentSigningErrors.ts`) and says "On your team, only someone
+  who may send documents can open the signed file. Ask the owner to turn on
+  Send documents for you." Who may open it is unchanged, on purpose: the
+  record of what was signed and how is the hiring side's, which this project
+  defines as the job's owner or a teammate with "Send documents" on that job
+  in `resolveDocumentRole` (it mirrors the documents UPDATE policies), and
+  the same people plus the sender in `document_audit_log()`
+  (`20261011196000_signing_record_for_business.sql`): a teammate without
+  the switch gets no signing record either. The SELECT policy is broader
+  only so the list can be read. Serving the kept copy to every teammate
+  would widen that line and need a `document-signing` deploy; the database
+  would need no change for either. Guard
+  `viewer-tells-a-teammate-who-may-open-the-signed-copy`.
+- The Hire dialog's offer line and Offer letter for hired people:
+  docs/DOCUMENT-REQUESTS.md, "Hiring".
+
+No function changed: nothing to deploy.
+
 ## Revision log (2026-09-16)
 
 A pre-implementation review raised six must-change findings and nine

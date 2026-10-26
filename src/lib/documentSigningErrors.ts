@@ -29,6 +29,31 @@ export const DOCUMENT_SIGNING_ERROR_MESSAGES: Record<string, string> = {
 };
 
 /**
+ * The function refused the person asking (403, `role_mismatch`), not the
+ * document or the network: the caller is not the applicant, the job's owner,
+ * or a teammate with "Send documents" on that job (resolveDocumentRole in
+ * document-signing/stateMachine.ts). Read from the
+ * answer itself, since supabase.functions.invoke leaves a non-2xx body on
+ * `error.context` (the Response); the dev preview's stand-in may answer on
+ * `data`.
+ *
+ * The eleventh product review: a teammate without "Send documents" opening a
+ * PDF the applicant had signed was told it "could not be loaded just now"
+ * and to open it again, which never helps.
+ */
+export async function refusedForRole(data: unknown, error: unknown): Promise<boolean> {
+  if ((data as { error?: unknown } | null)?.error === "role_mismatch") return true;
+  const context = (error as { context?: { status?: unknown; clone?: () => { json: () => Promise<unknown> } } } | null)?.context;
+  if (!context) return false;
+  if (context.status === 403) return true;
+  try {
+    return ((await context.clone?.().json()) as { error?: unknown } | undefined)?.error === "role_mismatch";
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Calls the document-signing edge function and throws a human-readable
  * Error on any failure.
  *

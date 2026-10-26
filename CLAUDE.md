@@ -322,7 +322,9 @@ these either; each has a guard or a test that CI runs:
   `documents/<id>/original-<v1>.pdf`, which both sides view after the
   applicant signs (document-signing `original`; after a void too, the only
   action besides `view` a voided document answers: the tenth product
-  review). The prompt fence's markers
+  review; the team's side is the owner or a teammate with Send documents,
+  `resolveDocumentRole`, and any other teammate is told so: the eleventh).
+  The prompt fence's markers
   carry a word made when the function starts (`_shared/promptFence.ts`).
 - (Rounds 6–7.) Every function that reads or signs a stored file with the
   service key holds the path to `isPlainObjectPath` (applicant-file-url,

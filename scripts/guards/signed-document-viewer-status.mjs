@@ -163,7 +163,7 @@ export default [
       const viewer = await read("src/components/documents/SignedDocumentViewer.tsx");
       if (!viewer) return { ok: false, detail: ["SignedDocumentViewer.tsx is missing"] };
       const detail = [];
-      if (!/useState<"not_pdf" \| "unavailable" \| null>\(null\)/.test(viewer)) detail.push("shownPdfFailed must say why: \"not_pdf\" or \"unavailable\"");
+      if (!/useState<"not_pdf" \| "unavailable"(?: \| "[a-z_]+")* \| null>\(null\)/.test(viewer)) detail.push("shownPdfFailed must say why: \"not_pdf\" or \"unavailable\"");
       const loader = /const signedByApplicant = !!document\?\.candidate_signed_at;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
       if (!/!== "%PDF-"\) \{\s*if \(!cancelled\) setShownPdfFailed\("not_pdf"\);/.test(loader)) detail.push('only the "%PDF-" check may set "not_pdf"');
       if (!/\} catch \{[\s\S]*?setShownPdfFailed\("unavailable"\)/.test(loader) || /catch \{[^}]*not_pdf/.test(loader)) detail.push('a refused or failed fetch must set "unavailable", never "not_pdf"');
@@ -199,6 +199,49 @@ export default [
       if (!header) return { ok: false, detail: ["the audit trail's header (data-audit-header) is gone"] };
       const ok = /(^|\s)pr-14(\s|$)/.test(header) && !/(^|\s)p-6(\s|$)/.test(header);
       return { ok, detail: ok ? [] : [`the audit header's classes ("${header}") must keep pr-14 on a phone`] };
+    },
+  },
+  {
+    id: "closed-document-audit-pdf-on-a-phone",
+    why:
+      "The eleventh product review: on a phone the team's Certificate and Audit PDF were hidden for any document not " +
+      "signed by both (to keep the place to sign in view), so a declined, withdrawn, voided or expired document's " +
+      "record had no copy to save there. Fails if the team's copies go back to hidden on a phone for a closed " +
+      "document, if the applicant's show before both have signed, or if a phone offers the Certificate for a " +
+      "document not signed by both.",
+    run: async ({ read }) => {
+      const viewer = await read("src/components/documents/SignedDocumentViewer.tsx");
+      if (!viewer) return { ok: false, detail: ["SignedDocumentViewer.tsx is missing"] };
+      const detail = [];
+      const copies = /<div className=\{`flex-wrap items-center gap-2 \[&>button\]:whitespace-nowrap \$\{([^`]*)\}`\} data-viewer-copies>/.exec(viewer)?.[1] ?? "";
+      if (copies !== 'document.status === "signed" ? "flex" : role === "candidate" ? "hidden" : recordClosedUnfinished(record) ? "flex" : "hidden sm:flex"') {
+        detail.push(`the copies' classes ("${copies}") must show the team's on a phone for a closed document, and the applicant's only once signed by both`);
+      }
+      if (!/onClick=\{handleDownloadCertificate\} disabled=\{!completionCert\} className=\{record === "done" \? undefined : "hidden sm:inline-flex"\}/.test(viewer)) detail.push("the Certificate must stay off a phone unless the document is signed by both");
+      if (/onClick=\{handleDownloadAuditPDF\}[^>]*className=/.test(viewer)) detail.push("the Audit PDF must have no screen rule of its own (it goes with the copies)");
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "viewer-tells-a-teammate-who-may-open-the-signed-copy",
+    why:
+      "The eleventh product review: a teammate without \"Send documents\" can list documents (the documents SELECT " +
+      "policy is every active teammate on the job) but document-signing answers their `original` with a 403, and the " +
+      "viewer said the signed file \"could not be loaded just now. Close it and open it again.\", which never helps. " +
+      "Fails if the viewer stops reading a refusal from the answer before treating it as a failed load, or loses the " +
+      "words that say who may open it.",
+    run: async ({ read }) => {
+      const viewer = await read("src/components/documents/SignedDocumentViewer.tsx");
+      const errors = await read("src/lib/documentSigningErrors.ts");
+      if (!viewer || !errors) return { ok: false, detail: ["SignedDocumentViewer.tsx or src/lib/documentSigningErrors.ts is missing"] };
+      const detail = [];
+      const loader = /const signedByApplicant = !!document\?\.candidate_signed_at;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
+      const refusal = loader.indexOf("if (await refusedForRole(data, error)) {");
+      if (refusal === -1 || refusal > loader.indexOf("const kept = ") || !/if \(await refusedForRole\(data, error\)\) \{\s*if \(!cancelled\) setShownPdfFailed\("not_allowed"\);\s*return;/.test(loader)) detail.push("the viewer must read a refusal (refusedForRole) before it reads the kept copy's address, and say not_allowed");
+      if (!/shownPdfFailed === "not_allowed"\s*\? `On your team, only someone who may send documents can open the signed file\./.test(viewer)) detail.push("the viewer must say who may open the signed file");
+      const fn = /export async function refusedForRole\([\s\S]*?\n}/.exec(errors)?.[0] ?? "";
+      if (!/=== "role_mismatch"/.test(fn) || !/context\.status === 403/.test(fn)) detail.push("refusedForRole must read the function's 403 and role_mismatch");
+      return { ok: detail.length === 0, detail };
     },
   },
 ];

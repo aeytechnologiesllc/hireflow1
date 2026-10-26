@@ -181,6 +181,16 @@ check("the old way really does throw on that text, so this guard means something
 eq("the first press names the person", lib.offerWords(base, false, false).arm, "Send to Ana");
 eq("the second press says what it does", lib.offerWords(base, false, true).note, "This emails Ana the letter to sign, and moves them to Offer.");
 eq("before that, nothing is sent", lib.offerWords(base, false, false).note, "Nothing is sent until you confirm.");
+// The eleventh product review: Offer letter lists hired people too, and sending
+// leaves them hired (only interview and review move to Offer).
+eq("…to someone at interview: moved to Offer", lib.offerWords(base, false, true, "interview").note, "This emails Ana the letter to sign, and moves them to Offer.");
+eq("…in review: moved to Offer", lib.offerWords(base, false, true, "reviewing").note, "This emails Ana the letter to sign, and moves them to Offer.");
+eq("…already at Offer: not moved", lib.offerWords(base, false, true, "offered").note, "This emails Ana the letter to sign.");
+eq("…hired: they stay hired", lib.offerWords(base, false, true, "hired").note, "This emails Ana the letter to sign; they stay hired.");
+{
+  const { readFileSync } = await import("node:fs");
+  check("the dialog tells offerWords where the person stands", /offerWords\(fields, send\.isPending, armed, person\?\.status\)/.test(readFileSync(resolve(root, "src/cockpit/components/OfferLetterDialog.tsx"), "utf8")));
+}
 
 // The fifth product review: no currency is guessed, and "Where" is a place someone goes to.
 eq("the letter starts on no currency", lib.OFFER_DEFAULTS.payCurrency, "");

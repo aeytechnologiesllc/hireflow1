@@ -391,7 +391,7 @@ export default [
       const lib = await read("src/cockpit/lib/documentFilters.ts");
       if (!pageSrc || !lib) return { ok: false, detail: [`${COCKPIT_DOCS_PAGE} or src/cockpit/lib/documentFilters.ts not found`] };
       const page = stripTsComments(pageSrc);
-      if (!/const caption = drawerCaption\(rows\);/.test(page)) bad.push("the Documents page must take its caption from drawerCaption(rows)");
+      if (!/const caption = drawerCaption\(rows, \{ canSend \}\);/.test(page)) bad.push("the Documents page must take its caption from drawerCaption(rows, { canSend })");
       if (/Everything in here is done/.test(page)) bad.push("the Documents page writes its own \"done\" line again");
       const fn = /export function drawerCaption\([\s\S]*?\n}/.exec(stripTsComments(lib))?.[0] ?? "";
       const done = fn.indexOf('"Everything in here is done."');
@@ -401,6 +401,46 @@ export default [
         if (!fn.includes(`count("${status}")`)) bad.push(`drawerCaption must name ${status} rows`);
       }
       if (!/export function isReady\(row: Pick<DocRow, "status">\): boolean \{\s*return row\.status === "Signed" \|\| row\.status === "Submitted";\s*\}/.test(lib)) bad.push("isReady must mean signed or on file, nothing else");
+      return { ok: bad.length === 0, detail: bad };
+    },
+  },
+  {
+    id: "replaced-letter-asks-for-nothing",
+    why:
+      "The eleventh product review: the line beside the Documents meter kept asking for a new offer letter after one " +
+      "had been sent and signed (\"1 of 2 ready · 1 expired before it was signed — send a new one if you still need " +
+      "it.\"), for good, since nothing removes a row; and it, and the letter's sheet, told a teammate without \"Send " +
+      "documents\" to send one. Fails if drawerCaption stops setting aside a letter a later one replaced, if a later " +
+      "letter replaces one without being on the same application and signed or still waiting, if \"send a new one\" " +
+      "loses its canSend, or if the sheet asks for a new letter beside a newer one or from someone who cannot send.",
+    run: async ({ read }) => {
+      const bad = [];
+      const libSrc = await read("src/cockpit/lib/documentFilters.ts");
+      const pageSrc = await read(COCKPIT_DOCS_PAGE);
+      const sheetSrc = await read("src/cockpit/components/TeamDocumentSheet.tsx");
+      const mappers = await read(MAPPERS);
+      if (!libSrc || !pageSrc || !sheetSrc || !mappers) return { ok: false, detail: ["a file this guard reads is missing"] };
+      const lib = stripTsComments(libSrc);
+      const later = /export function laterLetter<[\s\S]*?\n}/.exec(lib)?.[0] ?? "";
+      if (!later) bad.push("documentFilters.ts must keep laterLetter");
+      else {
+        if (!/if \(row\.status !== "Expired" && row\.status !== "Declined"\) return null;/.test(later)) bad.push("laterLetter may replace only an expired or declined letter");
+        if (!/other\.applicationId === row\.applicationId/.test(later) || !/if \(!row\.applicationId \|\| made === null \|\| !isLetter\(row\)\) return null;/.test(later)) bad.push("laterLetter must match the same application, and only offer letters");
+        if (!/\(isReady\(other\) \|\| other\.status === "Pending"\)/.test(later)) bad.push("only a later letter signed or still waiting may replace one");
+        if (!/\(when\(other\.createdAt\) \?\? -Infinity\) > made/.test(later)) bad.push("only a later letter may replace one");
+      }
+      const fn = /export function drawerCaption\([\s\S]*?\n}/.exec(lib)?.[0] ?? "";
+      if (!/export function drawerCaption\(rows: CaptionRow\[\], \{ canSend \}: \{ canSend: boolean \}\): string/.test(fn)) bad.push("drawerCaption must be told whether the person can send (canSend)");
+      if (!/const replaced = new Set\(rows\.filter\(\(r\) => laterLetter\(r, rows\) !== null\)\);/.test(fn) || !/r\.status === status && !replaced\.has\(r\)/.test(fn)) bad.push("drawerCaption must leave a replaced letter out of what it counts");
+      const ask = fn.indexOf("send a new one if you still need it");
+      if (ask === -1 || !/if \(parts\.length === 1 && expired > 0 && canSend\) \{/.test(fn.slice(Math.max(0, ask - 400), ask))) bad.push("\"send a new one\" must be said only when canSend");
+      if (!/const caption = drawerCaption\(rows, \{ canSend \}\);/.test(stripTsComments(pageSrc))) bad.push("the Documents page must tell drawerCaption whether this person can send");
+      if (!/newerLetterSentAt=\{sheetNewer\?\.createdAt \?\? null\}/.test(pageSrc) || !/canSend=\{canSend\}/.test(pageSrc)) bad.push("the Documents page must tell the letter's sheet about a newer letter, and whether this person can send");
+      const expiredBlock = /\{state === "expired" && \([\s\S]*?\n\s*\)\}/.exec(sheetSrc)?.[0] ?? "";
+      const sendNew = expiredBlock.indexOf("Send a new offer letter");
+      if (sendNew === -1) bad.push("the sheet's expired letter must still say what to do");
+      else if (!/\{newerLetterSentAt\s*\?[\s\S]*?: isOffer && canSend\s*\?\s*" Send a new offer letter/.test(expiredBlock)) bad.push("the sheet may ask for a new letter only with no newer one, and only from someone who can send");
+      if (!/applicationId: doc\.application_id \?\? null,/.test(mappers)) bad.push("a document row must carry its application (mapDocumentRow)");
       return { ok: bad.length === 0, detail: bad };
     },
   },

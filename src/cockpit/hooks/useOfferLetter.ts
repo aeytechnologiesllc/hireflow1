@@ -42,7 +42,7 @@ export interface OfferPerson {
   candidateId: string;
   name: string;
   email: string;
-  /** "interview", "reviewing" or "offered". */
+  /** "interview", "reviewing", "offered" or "hired". */
   status: string;
   jobId: string;
   jobTitle: string;
@@ -64,12 +64,22 @@ export interface OfferPerson {
   jobPlace: JobPlaceParts;
 }
 
-/** The stages an offer can go out from, the likeliest first. */
-const OFFER_STAGES = ["interview", "offered", "reviewing"];
+/**
+ * The stages an offer can go out from, the likeliest first. Hired too (the
+ * eleventh product review): the Hire dialog, the letter's sheet and the
+ * Documents line all say a new letter can be sent from Documents once one
+ * expired, and after the hire Offer letter listed nobody already hired, so
+ * that step no longer worked. Sending to someone hired leaves them hired
+ * (only interview and review move to Offer, below). Hired comes before
+ * review: a search shows eight people, and someone already chosen is the
+ * likelier one to need a new letter.
+ */
+const OFFER_STAGES = ["interview", "offered", "hired", "reviewing"] as const;
 
 /**
- * Everyone an offer could go to: interviewed first, then people still in
- * review. Document requests also reach people already hired.
+ * Everyone an offer could go to: interviewed first, then people with an
+ * offer out or already hired, then people still in review. Document requests
+ * reach them all too.
  *
  * The business's jobs, not the signed-in person's: a team member's own id
  * owns no job, so the list was always empty for them and no offer, file to

@@ -34,8 +34,11 @@ The screens in front of the engine were wrong for him:
 from Documents by "Offer letter", by "Write an offer letter" on an empty
 drawer, and by the hire prompt's `/documents?action=create&applicant_id=`).
 
-- Who: the people he has interviewed are listed first; anyone in review can be
-  searched for.
+- Who: the people he has interviewed are listed first; anyone with an offer
+  out, already hired, or in review can be searched for. Hired people since
+  the eleventh product review: a letter that expired or was declined after
+  the hire had no way to be sent again. Sending to someone hired leaves them
+  Hired ("This emails {First} the letter to sign; they stay hired.").
 - Pay is filled in from the job when the job states one figure. Hours and
   shift are remembered on the device per job, as a convenience only.
 - The letter beside the boxes is the letter they will read, word for word
@@ -50,7 +53,7 @@ drawer, and by the hire prompt's `/documents?action=create&applicant_id=`).
 **Sending** (`src/cockpit/hooks/useOfferLetter.ts`) is the engine's own way in:
 a `documents` row (`offer_letter`, `pending`, expiring at the end of the
 reply-by day), the first audit line, a bell note, the `document_sent` email.
-One thing is added: the applicant moves to Offer.
+One thing is added: the applicant moves to Offer (from interview or review).
 
 **Characters.** The engine draws the final PDF in Helvetica, which has Western
 European letters only. `letterSafe` turns typographic quotes and dashes into

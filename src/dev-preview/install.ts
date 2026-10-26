@@ -778,6 +778,14 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
   documents.push = (...rows: FixtureRow[]) => Array.prototype.push.apply(documents, rows.map(dress));
   tables.documents = documents;
 
+  // `no-send` (with `__previewRole=team_member`): the team member's "Send
+  // documents" is off. They still see the list (the documents SELECT policy
+  // is every active teammate on the job), but document-signing answers them
+  // as it does live: not a party (the eleventh product review).
+  if (flags.includes("no-send")) {
+    for (const member of tables.team_members ?? []) if (member.user_id === user.id) member.can_send_documents = false;
+  }
+
   if (flags.includes("offer")) {
     const job = (tables.jobs ?? [])[0] ?? null;
     const mine = (tables.applications ?? []).find((a) => a.candidate_id === user.id);
@@ -788,7 +796,14 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
     const profile = (tables.profiles ?? []).find((p) => p.user_id === candidateId);
     const owner = (tables.profiles ?? []).find((p) => p.user_id === job?.employer_id);
     const name = String(profile?.full_name ?? user.user_metadata?.full_name ?? "Ana Maria Reyes");
-    const today = dayOf(new Date());
+    // `offer,expired`: its date to sign has passed, unsigned; with `signed`,
+    // signed before the date and the date passed since (the team may still
+    // countersign: the eighth product review). The letter was sent six days
+    // ago with yesterday as its last day, so what it says ("Sign this letter
+    // on or before …") and the date the sheet gives agree (the eleventh
+    // product review: the letter said one day and the sheet another).
+    const expired = flags.includes("expired");
+    const today = expired ? addDays(dayOf(new Date()), -6) : dayOf(new Date());
     const fields: OfferLetterFields = {
       applicantName: name,
       roleTitle: String(job?.title ?? "Chat Support Team Leader"),
@@ -806,13 +821,12 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
       extra: "",
       today,
     };
-    const signedAt = new Date(Date.now() - 40 * 60_000).toISOString();
+    const expiresAt = offerExpiry(fields.replyBy) ?? new Date(Date.now() + 5 * 24 * 3600_000);
+    // Signed in time: before the letter's last day ended.
+    const signedAt = new Date(expired ? expiresAt.getTime() - 3 * 3600_000 : Date.now() - 40 * 60_000).toISOString();
     const signed = flags.includes("signed") || flags.includes("done");
     const done = flags.includes("done");
-    // `offer,expired`: its date to sign has passed, unsigned; with `signed`,
-    // signed before the date and the date passed since (the team may still
-    // countersign: the eighth product review).
-    const expired = flags.includes("expired");
+    const sentAt = expired ? new Date(Date.now() - 6 * 24 * 3600_000) : new Date(Date.now() - 3 * 3600_000);
     documents.push({
       id: "d0c00000-0000-4000-8000-000000000001",
       application_id: application?.id ?? null,
@@ -823,9 +837,9 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
       status: done ? "signed" : "pending",
       sender_id: job?.employer_id ?? null,
       recipient_id: candidateId,
-      created_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
-      updated_at: new Date(Date.now() - 3 * 3600_000).toISOString(),
-      expires_at: expired ? new Date(Date.now() - (signed ? 20 : 120) * 60_000).toISOString() : offerExpiry(fields.replyBy)?.toISOString() ?? null,
+      created_at: sentAt.toISOString(),
+      updated_at: sentAt.toISOString(),
+      expires_at: expiresAt.toISOString(),
       viewed_at: signed ? signedAt : null,
       v1_hash: "preview".padEnd(64, "0"),
       v2_hash: signed ? PREVIEW_V2 : null,
@@ -841,6 +855,44 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
       is_locked: done,
     });
     seedRecord(documents[documents.length - 1], { name, userId: candidateId }, { name: fields.signerName, userId: job?.employer_id ?? null });
+
+    // `offer,expired,resent`: a new letter went to the same person after that
+    // one expired, and both have signed it. The expired one is history: the
+    // Documents line and its sheet ask for nothing (the eleventh product
+    // review: "1 of 2 ready · 1 expired … send a new one if you still need it").
+    if (flags.includes("resent")) {
+      const now = dayOf(new Date());
+      const again: OfferLetterFields = { ...fields, today: addDays(now, -1), replyBy: addDays(now, 4), startDate: addDays(now, 10) };
+      const at = (hoursAgo: number) => new Date(Date.now() - hoursAgo * 3600_000).toISOString();
+      documents.push({
+        id: "d0c00000-0000-4000-8000-000000000003",
+        application_id: application?.id ?? null,
+        applications: application ? { id: application.id, candidate_id: candidateId, jobs: job } : null,
+        name: offerLetterName(again),
+        document_type: "offer_letter",
+        file_url: encodeDocumentBody(offerDocumentBody(again, String(profile?.email ?? user.email ?? ""))),
+        status: "signed",
+        sender_id: job?.employer_id ?? null,
+        recipient_id: candidateId,
+        created_at: at(22),
+        updated_at: at(22),
+        expires_at: offerExpiry(again.replyBy)?.toISOString() ?? null,
+        viewed_at: at(20),
+        v1_hash: "preview".padEnd(64, "0"),
+        v2_hash: PREVIEW_V2,
+        v3_hash: PREVIEW_V3,
+        document_hash: PREVIEW_V3,
+        final_pdf_hash: PREVIEW_FINAL_PDF,
+        version_number: 1,
+        candidate_signature_data: JSON.stringify({ signatures: { recipient: name }, method: "typed", signerName: name, signerEmail: profile?.email ?? user.email }),
+        candidate_signed_at: at(20),
+        employer_signature_data: JSON.stringify({ signatures: { employer: fields.signerName }, method: "typed", signerName: fields.signerName }),
+        employer_signed_at: at(19),
+        signed_at: at(19),
+        is_locked: true,
+      });
+      seedRecord(documents[documents.length - 1], { name, userId: candidateId }, { name: fields.signerName, userId: job?.employer_id ?? null });
+    }
   }
 
   // `?__previewDocs=pdf`: a file the business uploaded to sign (house rules),
@@ -907,6 +959,18 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
     const row = documents.find((d) => d.id === body.documentId);
     await new Promise((resolve) => setTimeout(resolve, 250));
     if (!row) return { data: { error: "not_found", message: "Document not found." }, error: null };
+    // As resolveDocumentRole: a teammate is the hiring side only with "Send
+    // documents" on, and anyone else gets a 403 for every action, answered
+    // the way supabase.functions.invoke hands it back (the body on
+    // error.context). The stand-in let every teammate in before the eleventh
+    // product review, so their refusal could not be looked at offline.
+    if (role === "team_member") {
+      const member = (tables.team_members ?? []).find((m) => m.user_id === user.id && m.status === "active");
+      if (!member?.can_send_documents) {
+        const context = new Response(JSON.stringify({ error: "role_mismatch", message: "You are not a party to this document." }), { status: 403, headers: { "Content-Type": "application/json" } });
+        return { data: null, error: Object.assign(new Error("Edge Function returned a non-2xx status code"), { name: "FunctionsHttpError", context }) };
+      }
+    }
     // As the real function: a voided document answers only `view` and
     // `original` (refusedWhenVoided in document-signing/stateMachine.ts), and
     // the kept copy is there only once the applicant has signed an uploaded

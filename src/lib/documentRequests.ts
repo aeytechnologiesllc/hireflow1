@@ -244,20 +244,66 @@ export type OfferLetterState =
   | { kind: "unsigned"; sentAt: string }
   | { kind: "signed"; signedAt: string }
   | { kind: "expired" }
+  /** Declined by the applicant, or by the team on its turn (after they signed). */
+  | { kind: "declined"; by: "applicant" | "team" }
+  /** Voided by the team after the applicant signed. */
+  | { kind: "voided" }
+  /** Withdrawn by the team before the applicant signed. */
   | { kind: "withdrawn" };
 
 /**
  * Past its date and never signed, a letter is "expired", not "unsigned":
  * nobody can sign it any more, so the Hire dialog must not promise that the
  * email asks for it, and the email leaves it out by the same rule.
+ *
+ * The eleventh product review: a letter that went out and was declined, or
+ * voided after the applicant signed, read "No offer letter has gone out"
+ * (both were "withdrawn"), and one the team declined on its turn read
+ * "{First} signed the offer letter". Each now says what happened.
  */
 export function offerLetterState(letter: (OfferLetterFacts & { created_at: string }) | null | undefined, now = new Date()): OfferLetterState {
   if (!letter) return { kind: "none" };
-  if (letter.is_voided) return { kind: "withdrawn" };
+  if (letter.is_voided) return letter.candidate_signed_at ? { kind: "voided" } : { kind: "withdrawn" };
+  // Declined before they signed, it was theirs; after, it was the team's
+  // (document-signing lets the team decline only on its turn).
+  if (letter.status === "declined") return { kind: "declined", by: letter.candidate_signed_at ? "team" : "applicant" };
   if (letter.candidate_signed_at) return { kind: "signed", signedAt: letter.candidate_signed_at };
   if (offerLetterWaiting(letter, now)) return { kind: "unsigned", sentAt: letter.created_at };
   if (letter.status === "pending") return { kind: "expired" };
+  // Not reached: document_status is pending, signed or declined, and a signed
+  // letter always has the applicant's signature.
   return { kind: "withdrawn" };
+}
+
+/**
+ * The Hire dialog's line about the offer letter. `canSend` is whether the
+ * person hiring may send documents (the owner, or a teammate with "Send
+ * documents"): only they are pointed to Documents for a new letter, which
+ * lists hired people too (useOfferPeople), so the way it names still works
+ * after the hire. The eleventh product review: the line said "You can send a
+ * new one from Documents" to a teammate who cannot send anything, and Offer
+ * letter did not list anyone already hired.
+ */
+export function hireOfferLine(offer: OfferLetterState, first: string, canSend: boolean, signedOn = ""): string {
+  const again = canSend ? " You can send a new one from Documents." : "";
+  switch (offer.kind) {
+    case "unsigned":
+      return `${first} hasn't signed the offer letter yet, so the email asks for that too.`;
+    case "signed":
+      return `${first} signed the offer letter${signedOn ? ` on ${signedOn}` : ""}.`;
+    case "expired":
+      return `The offer letter expired before it was signed, so the email doesn't ask for it.${again}`;
+    case "declined":
+      return offer.by === "team"
+        ? `You declined the offer letter after ${first} signed it, so the email doesn't ask for it.${again}`
+        : `${first} declined the offer letter, so the email doesn't ask for it.${again}`;
+    case "voided":
+      return `You voided the offer letter after ${first} signed it, so the email doesn't ask for it.${again}`;
+    case "withdrawn":
+      return `You withdrew the offer letter before ${first} signed it, so the email doesn't ask for it.${again}`;
+    case "none":
+      return `No offer letter has gone out.${canSend ? " You can still send one from Documents." : ""}`;
+  }
 }
 
 const TODO_LINES: Record<string, string> = {

@@ -187,6 +187,16 @@ applicant as live, so the audit trail can be looked at offline. The offline
 but `view` and `original`), and gives the kept copy (`original`) only once
 the applicant has signed an uploaded file (the tenth product review: it gave
 it before looking at the void, so `pdf,voided` showed a file live refused).
+An expired offer letter was sent six days before with yesterday as its last
+day, so its text and the sheet give the same date. `offer,expired,resent`
+adds a newer offer letter to the same person, signed by both (the expired one
+asks for nothing). `no-send`, with `__previewRole=team_member`, turns the
+team member's "Send documents" off, and the offline `document-signing` then
+answers them as live does, a 403 for every action (the eleventh product
+review). `__previewHiring=offer,declined` (they declined),
+`offer,signed,declined` (the team declined on its turn), `offer,voided`
+(voided after they signed) and `offer,withdrawn` (withdrawn before) give the
+Hire box each closed letter.
 
 | Screen | URL |
 |---|---|
@@ -205,6 +215,12 @@ it before looking at the void, so `pdf,voided` showed a file live refused).
 | Uploaded PDF, voided after signing, as the team (the kept copy still opens) | `/documents?__preview=1&__previewRole=employer&__previewScenario=zulu&__previewDocs=pdf,voided` |
 | Offer letter past its date, never signed ("1 expired before it was signed", "Signing record" on the sheet) | `/documents?__preview=1&__previewRole=employer&__previewScenario=zulu&__previewDocs=offer,expired` |
 | Hire: the offer letter expired before it was signed (the email leaves it out) | `/applicants/30000000-0000-4000-8000-000000000010?__preview=1&__previewRole=employer&__previewHiring=offer,expired` |
+| An expired offer letter, then a new one signed by both ("1 was replaced by a newer letter.") | `/documents?__preview=1&__previewRole=employer&__previewScenario=zulu&__previewDocs=offer,expired,resent` |
+| Hire: the applicant declined the offer letter | `/applicants/30000000-0000-4000-8000-000000000010?__preview=1&__previewRole=employer&__previewHiring=offer,declined` |
+| Hire: the offer letter voided after they signed | `/applicants/30000000-0000-4000-8000-000000000010?__preview=1&__previewRole=employer&__previewHiring=offer,voided` |
+| Hire: the offer letter withdrawn before they signed | `/applicants/30000000-0000-4000-8000-000000000010?__preview=1&__previewRole=employer&__previewHiring=offer,withdrawn` |
+| A teammate without "Send documents": an expired letter (nothing asks them to send one) | `/documents?__preview=1&__previewRole=team_member&__previewScenario=zulu&__previewDocs=offer,expired,no-send` |
+| A teammate without "Send documents": a PDF the applicant signed (who may open it) | `/documents?__preview=1&__previewRole=team_member&__previewScenario=zulu&__previewDocs=pdf,voided,no-send` |
 
 The café's Barista job ($15 to $18 an hour) shows an hourly range's letter
 starting on "an hour".

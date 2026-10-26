@@ -149,8 +149,26 @@ mock-up.
   one from Documents." Proof: `scripts/document_requests.test.mjs`, the real
   function both ways in `scripts/notification_access.test.mjs`, guard
   `hire-email-leaves-out-an-expired-offer-letter`.
+- **The offer line says what happened to the letter** (the eleventh product
+  review: a letter that went out and was declined, or voided after the
+  applicant signed, read "No offer letter has gone out", and one the team
+  declined on its turn read "{First} signed the offer letter"). The line is
+  `hireOfferLine` (`src/lib/documentRequests.ts`), from `offerLetterState`:
+  declined by them, declined by the team after they signed, voided after
+  they signed, withdrawn before, expired, signed, waiting, or none. Only the
+  last says "No offer letter has gone out".
+- **"Send a new one from Documents" only where it works.** Offer letter lists
+  people already hired (`useOfferPeople`, after those with an offer out and
+  before those in review; sending one leaves them Hired), so the step still
+  works after the hire; and the dialog, the letter's sheet and the Documents
+  line say it only to someone who may send documents (the owner, or a
+  teammate with "Send documents"). The same review: after Hire, Offer letter
+  listed nobody hired, and the line was shown to teammates who cannot send.
+  Guards `hire-dialog-says-what-happened-to-the-letter`,
+  `send-a-new-letter-only-where-it-works`.
 - After the interview, "Set up interview" becomes "Another interview"; the
   decision card says "Interview done" with the day.
 - Offline: `?__previewHiring=done,offer` (the interview held yesterday; an
   unsigned offer letter on the applicant at Offer); `offer,expired` is that
-  letter past its date.
+  letter past its date; `offer,declined`, `offer,signed,declined`,
+  `offer,voided` and `offer,withdrawn` are the closed ones.

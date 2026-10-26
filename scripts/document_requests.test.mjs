@@ -218,8 +218,50 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
     eq("…one in time 'unsigned'", lib.offerLetterState(letters["in time"], at).kind, "unsigned");
     eq("…one signed in time 'signed', whatever the date says now", lib.offerLetterState(letters.signed, at).kind, "signed");
     eq("…one withdrawn 'withdrawn'", lib.offerLetterState(letters.withdrawn, at).kind, "withdrawn");
+    // Called through this, so the old code reports each check instead of stopping at the first.
+    const hireOfferLine = (...args) => (typeof lib.hireOfferLine === "function" ? lib.hireOfferLine(...args) : "no hireOfferLine");
     const dialog = read("src/cockpit/components/HireDialog.tsx");
-    check("the Hire dialog says an expired letter expired, leaves it off the email and points to a new one", /offer\.kind === "expired"\s*\? "The offer letter expired before it was signed, so the email doesn't ask for it\. You can send a new one from Documents\."/.test(dialog) && /const offerUnsigned = offer\?\.kind === "unsigned";/.test(dialog) && /\.\.\.\(offerUnsigned \? \[SIGN_OFFER_LINE\] : \[\]\)/.test(dialog));
+    eq("the Hire dialog says an expired letter expired, leaves it off the email and points to a new one", hireOfferLine(lib.offerLetterState(letters["past its date"], at), "Ana", true), "The offer letter expired before it was signed, so the email doesn't ask for it. You can send a new one from Documents.");
+    check("…through hireOfferLine, asking for a signature only for an unsigned letter", /hireOfferLine\(offer, first, canSendLetters,/.test(dialog) && /const offerUnsigned = offer\?\.kind === "unsigned";/.test(dialog) && /\.\.\.\(offerUnsigned \? \[SIGN_OFFER_LINE\] : \[\]\)/.test(dialog));
+
+    // The eleventh product review: a letter that went out and was declined,
+    // or voided after they signed, read "No offer letter has gone out"; one
+    // the team declined on its turn read "{First} signed the offer letter";
+    // and "You can send a new one from Documents" was said to a teammate
+    // without "Send documents", and after the hire, when Offer letter listed
+    // nobody already hired.
+    const signedThenVoided = { ...letters.signed, is_voided: true };
+    const declinedByTeam = { ...letters.signed, status: "declined" };
+    eq("declined by them: 'declined', theirs", JSON.stringify(lib.offerLetterState(letters.declined, at)), JSON.stringify({ kind: "declined", by: "applicant" }));
+    eq("declined by the team on its turn: 'declined', the team's (not 'signed')", JSON.stringify(lib.offerLetterState(declinedByTeam, at)), JSON.stringify({ kind: "declined", by: "team" }));
+    eq("voided after they signed: 'voided' (not 'withdrawn')", lib.offerLetterState(signedThenVoided, at).kind, "voided");
+    eq("no letter: 'none'", lib.offerLetterState(undefined, at).kind, "none");
+    const lines = {
+      declined: hireOfferLine(lib.offerLetterState(letters.declined, at), "Ana", true),
+      declinedByTeam: hireOfferLine(lib.offerLetterState(declinedByTeam, at), "Ana", true),
+      voided: hireOfferLine(lib.offerLetterState(signedThenVoided, at), "Ana", true),
+      withdrawn: hireOfferLine(lib.offerLetterState(letters.withdrawn, at), "Ana", true),
+      none: hireOfferLine({ kind: "none" }, "Ana", true),
+    };
+    eq("the dialog: declined by them", lines.declined, "Ana declined the offer letter, so the email doesn't ask for it. You can send a new one from Documents.");
+    eq("…declined by the team", lines.declinedByTeam, "You declined the offer letter after Ana signed it, so the email doesn't ask for it. You can send a new one from Documents.");
+    eq("…voided", lines.voided, "You voided the offer letter after Ana signed it, so the email doesn't ask for it. You can send a new one from Documents.");
+    eq("…withdrawn", lines.withdrawn, "You withdrew the offer letter before Ana signed it, so the email doesn't ask for it. You can send a new one from Documents.");
+    eq("…none", lines.none, "No offer letter has gone out. You can still send one from Documents.");
+    for (const [name, line] of Object.entries(lines)) {
+      if (name !== "none") check(`…${name}: never "No offer letter has gone out" for one that went out`, !/No offer letter has gone out/.test(line));
+    }
+    eq("…signed, with its day", hireOfferLine({ kind: "signed", signedAt: "2026-10-12T10:00:00Z" }, "Ana", true, "Monday, October 12, 2026"), "Ana signed the offer letter on Monday, October 12, 2026.");
+    eq("…unsigned", hireOfferLine({ kind: "unsigned", sentAt: "2026-10-10T10:00:00Z" }, "Ana", true), "Ana hasn't signed the offer letter yet, so the email asks for that too.");
+    for (const state of [{ kind: "none" }, { kind: "expired" }, { kind: "declined", by: "applicant" }, { kind: "declined", by: "team" }, { kind: "voided" }, { kind: "withdrawn" }]) {
+      check(`a teammate without "Send documents" is never pointed to Documents (${state.kind}${state.by ? `, ${state.by}` : ""})`, !/Documents/.test(hireOfferLine(state, "Ana", false)));
+    }
+    check("the dialog points to Documents only once a teammate's switches say they may send", /const canSendLetters = !isTeamMember \|\| teamPermissions\?\.canSendDocuments === true;/.test(dialog));
+    const offerHook = read("src/cockpit/hooks/useOfferLetter.ts");
+    check("Offer letter lists people already hired (before those still in review: a search shows eight), so 'send a new one from Documents' still works after the hire", /const OFFER_STAGES = \["interview", "offered", "hired", "reviewing"\] as const;/.test(offerHook) && /export function useOfferPeople\(enabled: boolean, stages: readonly string\[\] = OFFER_STAGES\)/.test(offerHook));
+    check("…and sending to someone hired leaves them hired (only interview and review move to Offer)", /if \(person\.status === "interview" \|\| person\.status === "reviewing"\) \{/.test(offerHook));
+    const offerDialog = read("src/cockpit/components/OfferLetterDialog.tsx");
+    check("…the picker calls them Hired", /hired: "Hired"/.test(offerDialog));
     const hook = read("src/cockpit/hooks/useHire.ts");
     check("…and its state reads the letter's date", /\.select\("status, candidate_signed_at, is_voided, expires_at, created_at"\)/.test(hook) && /return offerLetterState\(/.test(hook));
   }

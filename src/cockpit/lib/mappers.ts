@@ -647,6 +647,7 @@ export function mapDocumentRow(doc: DocumentWithApplication): DocRow {
     isVoided,
     createdAt: doc.created_at ?? null,
     expiresAt: doc.expires_at ?? null,
+    applicationId: doc.application_id ?? null,
   };
 }
 

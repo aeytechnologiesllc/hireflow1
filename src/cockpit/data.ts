@@ -183,6 +183,8 @@ export interface DocRow {
   /** Raw times, for the Documents filters' order and "expired". */
   createdAt?: string | null;
   expiresAt?: string | null;
+  /** The application it was sent on: a later letter to the same person replaces an older one that closed unfinished. */
+  applicationId?: string | null;
 }
 
 export interface TeamMember {

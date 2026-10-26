@@ -98,20 +98,52 @@ eq("the status words, as in the mock-up", Object.values(f.STATUS_WORDS), ["All",
 // withdrawn or voided one already did): "done" only when every row is.
 {
   const rows = (...statuses) => statuses.map((status) => ({ status }));
-  eq("the caption: waiting on a signature", f.drawerCaption(rows("Pending", "Signed")), "I’m still waiting on 1 signature.");
-  eq("…on two", f.drawerCaption(rows("Pending", "Pending", "Expired")), "I’m still waiting on 2 signatures.");
-  eq("…a declined one", f.drawerCaption(rows("Declined", "Signed", "Expired")), "1 came back declined — worth another look.");
-  eq("…done only when every one is signed or on file", f.drawerCaption(rows("Signed", "Submitted")), "Everything in here is done.");
-  eq("…an expired letter is never 'done'", f.drawerCaption(rows("Expired")), "1 expired before it was signed — send a new one if you still need it.");
-  eq("…nor beside a signed one", f.drawerCaption(rows("Expired", "Signed")), "1 expired before it was signed — send a new one if you still need it.");
-  eq("…two expired", f.drawerCaption(rows("Expired", "Expired")), "2 expired before they were signed — send new ones if you still need them.");
-  eq("…a withdrawn one", f.drawerCaption(rows("Withdrawn", "Signed")), "1 was withdrawn.");
-  eq("…a voided one", f.drawerCaption(rows("Voided")), "1 was voided.");
-  eq("…all three kinds at once", f.drawerCaption(rows("Expired", "Withdrawn", "Withdrawn", "Voided", "Signed")), "1 expired before it was signed, 2 were withdrawn and 1 was voided.");
+  const owner = { canSend: true };
+  eq("the caption: waiting on a signature", f.drawerCaption(rows("Pending", "Signed"), owner), "I’m still waiting on 1 signature.");
+  eq("…on two", f.drawerCaption(rows("Pending", "Pending", "Expired"), owner), "I’m still waiting on 2 signatures.");
+  eq("…a declined one", f.drawerCaption(rows("Declined", "Signed", "Expired"), owner), "1 came back declined — worth another look.");
+  eq("…done only when every one is signed or on file", f.drawerCaption(rows("Signed", "Submitted"), owner), "Everything in here is done.");
+  eq("…an expired letter is never 'done'", f.drawerCaption(rows("Expired"), owner), "1 expired before it was signed — send a new one if you still need it.");
+  eq("…nor beside someone else's signed one", f.drawerCaption(rows("Expired", "Signed"), owner), "1 expired before it was signed — send a new one if you still need it.");
+  eq("…two expired", f.drawerCaption(rows("Expired", "Expired"), owner), "2 expired before they were signed — send new ones if you still need them.");
+  eq("…a withdrawn one", f.drawerCaption(rows("Withdrawn", "Signed"), owner), "1 was withdrawn.");
+  eq("…a voided one", f.drawerCaption(rows("Voided"), owner), "1 was voided.");
+  eq("…all three kinds at once", f.drawerCaption(rows("Expired", "Withdrawn", "Withdrawn", "Voided", "Signed"), owner), "1 expired before it was signed, 2 were withdrawn and 1 was voided.");
   for (const closed of ["Expired", "Withdrawn", "Voided"]) {
-    check(`…"done" never with a ${closed} row in the drawer`, f.drawerCaption(rows(closed, "Signed", "Submitted")) !== "Everything in here is done.");
+    check(`…"done" never with a ${closed} row in the drawer`, f.drawerCaption(rows(closed, "Signed", "Submitted"), owner) !== "Everything in here is done.");
   }
-  check("the page takes its caption from drawerCaption", /const caption = drawerCaption\(rows\);/.test(read("src/cockpit/pages/Documents.tsx")) && !/Everything in here is done/.test(read("src/cockpit/pages/Documents.tsx")));
+  check("the page takes its caption from drawerCaption, told whether this person can send", /const caption = drawerCaption\(rows, \{ canSend \}\);/.test(read("src/cockpit/pages/Documents.tsx")) && !/Everything in here is done/.test(read("src/cockpit/pages/Documents.tsx")));
+  eq("a teammate without 'Send documents' is not told to send new ones", f.drawerCaption(rows("Expired", "Expired"), { canSend: false }), "2 expired before they were signed.");
+}
+
+// The eleventh product review: the line kept asking for a new letter after a
+// new one was sent and signed ("1 of 2 ready · 1 expired … send a new one"),
+// and told a teammate without "Send documents" to send one.
+{
+  const letter = (id, status, createdAt, applicationId = "app-1", type = "offer_letter") => ({ id, status, createdAt, applicationId, type });
+  // Called through this, so the old code reports each check instead of stopping at the first.
+  const laterLetter = (row, rows) => (typeof f.laterLetter === "function" ? f.laterLetter(row, rows) : "no laterLetter");
+  const owner = { canSend: true };
+  const old = letter("old", "Expired", "2026-10-01T10:00:00Z");
+  const signedNew = letter("new", "Signed", "2026-10-05T10:00:00Z");
+  eq("a letter signed after an expired one replaces it", laterLetter(old, [old, signedNew])?.id, "new");
+  eq("…so the line asks for nothing", f.drawerCaption([old, signedNew], owner), "1 was replaced by a newer letter.");
+  eq("…a later one still waiting replaces it too (and is what the line is about)", f.drawerCaption([old, letter("new", "Pending", "2026-10-05T10:00:00Z")], owner), "I’m still waiting on 1 signature.");
+  check("…as does one waiting on the team", laterLetter(old, [old, letter("new", "Pending", "2026-10-05T10:00:00Z")]) !== null);
+  eq("…and a declined one, replaced, is no longer 'worth another look'", f.drawerCaption([letter("old", "Declined", "2026-10-01T10:00:00Z"), signedNew], owner), "1 was replaced by a newer letter.");
+  eq("…two replaced", f.drawerCaption([old, letter("older", "Expired", "2026-09-20T10:00:00Z"), signedNew], owner), "2 were replaced by newer letters.");
+  eq("…beside one still closed", f.drawerCaption([old, signedNew, letter("x", "Withdrawn", "2026-10-02T10:00:00Z", "app-3")], owner), "1 was replaced by a newer letter and 1 was withdrawn.");
+  eq("an earlier letter replaces nothing", laterLetter(old, [old, letter("before", "Signed", "2026-09-01T10:00:00Z")]), null);
+  eq("another person's letter replaces nothing", f.drawerCaption([old, letter("theirs", "Signed", "2026-10-05T10:00:00Z", "app-2")], owner), "1 expired before it was signed — send a new one if you still need it.");
+  eq("a later letter withdrawn or voided replaces nothing (it was taken back)", f.drawerCaption([old, letter("new", "Withdrawn", "2026-10-05T10:00:00Z")], owner), "1 expired before it was signed and 1 was withdrawn.");
+  eq("…nor one that expired too: one new letter for that person", f.drawerCaption([old, letter("new", "Expired", "2026-10-05T10:00:00Z")], owner), "2 expired before they were signed — send a new one if you still need it.");
+  eq("…two people: new ones", f.drawerCaption([old, letter("theirs", "Expired", "2026-10-05T10:00:00Z", "app-2")], owner), "2 expired before they were signed — send new ones if you still need them.");
+  const file1 = letter("f1", "Expired", "2026-10-01T10:00:00Z", "app-1", "custom");
+  eq("a file to sign is never replaced by a later file", laterLetter(file1, [file1, letter("f2", "Signed", "2026-10-05T10:00:00Z", "app-1", "custom")]), null);
+  eq("…nor an offer letter by a later file", laterLetter(old, [old, letter("f2", "Signed", "2026-10-05T10:00:00Z", "app-1", "custom")]), null);
+  const loose = { ...old, applicationId: null };
+  eq("a letter on no application is never replaced", laterLetter(loose, [loose, letter("new", "Signed", "2026-10-05T10:00:00Z", null)]), null);
+  eq("a teammate without 'Send documents' is not told to send one", f.drawerCaption([old], { canSend: false }), "1 expired before it was signed.");
 }
 eq("the kinds", Object.values(f.KIND_WORDS), ["Everything", "Offer letters", "ID & papers", "Files to sign"]);
 

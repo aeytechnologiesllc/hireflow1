@@ -6,7 +6,7 @@ import { useProfile } from "@/hooks/useProfile";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
 import { useCompanyNames } from "@/hooks/useCompanyNames";
 import { requestLocks, useBusinessStanding } from "@/hooks/useBusinessStanding";
-import { DUE_CHOICES, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS, SIGN_OFFER_LINE, todoLine } from "@/lib/documentRequests";
+import { DUE_CHOICES, hireOfferLine, ID_DELETE_HOURS_AFTER_OPENED, REQUEST_KINDS, SIGN_OFFER_LINE, todoLine } from "@/lib/documentRequests";
 import { addDays, dayOf, longDate } from "../lib/offerLetter";
 import { useApplicantRequests, type NewRequest } from "../hooks/useApplicantRequests";
 import { useHireWithDocuments, useOfferLetterState } from "../hooks/useHire";
@@ -79,6 +79,10 @@ export function HireDialog({
   const { isTeamMember } = useAuth();
   const { data: teamPermissions } = useTeamMemberPermissions();
   const cantAsk = isTeamMember && teamPermissions !== undefined && !teamPermissions.canSendDocuments;
+  // Pointed to Documents for a new offer letter only when they can send one:
+  // a teammate's switches must have arrived and say so (the eleventh product
+  // review: a teammate without "Send documents" was told to send one).
+  const canSendLetters = !isTeamMember || teamPermissions?.canSendDocuments === true;
   const askLaterWhere = isTeamMember ? "Documents, Ask for ID or papers" : `${first}'s page`;
   const isLocked = (key: string) => cantAsk || allLocked || (idsLocked && !!REQUEST_KINDS.find((k) => k.key === key)?.idPaper);
 
@@ -264,16 +268,11 @@ export function HireDialog({
               data-hire-offer={offer?.kind ?? "loading"}
             >
               {/* An expired letter is nobody's to sign now (the tenth product
-                  review: the email asked them to sign one that had expired). */}
-              {!offer
-                ? "Checking the offer letter..."
-                : offer.kind === "unsigned"
-                  ? `${first} hasn't signed the offer letter yet, so the email asks for that too.`
-                  : offer.kind === "signed"
-                    ? `${first} signed the offer letter on ${longDate(dayOf(new Date(offer.signedAt)))}.`
-                    : offer.kind === "expired"
-                      ? "The offer letter expired before it was signed, so the email doesn't ask for it. You can send a new one from Documents."
-                      : "No offer letter has gone out. You can still send one from Documents."}
+                  review: the email asked them to sign one that had expired);
+                  a declined, voided or withdrawn one went out and says so,
+                  and only someone who can send a new one is told where (the
+                  eleventh product review): hireOfferLine. */}
+              {!offer ? "Checking the offer letter..." : hireOfferLine(offer, first, canSendLetters, offer.kind === "signed" ? longDate(dayOf(new Date(offer.signedAt))) : "")}
             </div>
           </div>
 

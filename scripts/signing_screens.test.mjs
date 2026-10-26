@@ -45,7 +45,7 @@ for (const [who, src] of [["applicant", applicant], ["team", team]]) {
 // finished copies and the audit trail only once it is signed, on any screen
 // (the fifth product review: on a computer they showed before signing).
 const viewer = read("src/components/documents/SignedDocumentViewer.tsx");
-check("PDF viewer: the applicant's copies only once signed", /\$\{document\.status === "signed" \? "flex" : role === "candidate" \? "hidden" : "hidden sm:flex"\}/.test(viewer));
+check("PDF viewer: the applicant's copies only once signed", /\$\{document\.status === "signed" \? "flex" : role === "candidate" \? "hidden" : recordClosedUnfinished\(record\) \? "flex" : "hidden sm:flex"\}/.test(viewer));
 // The sixth product review: the audit trail is the applicant's once THEY have
 // signed (it waited for the countersign, and was gone for good after a void),
 // and the footer shows only on a screen where it holds a button (it was an
@@ -97,6 +97,52 @@ check("team: a closed letter (declined, withdrawn, voided, expired) links its si
   check("dev preview: a voided document answers only view and original, as the function does", gate !== -1 && original !== -1 && gate < original && gate < handler.indexOf('if (body.action === "view")'));
   check("…and the kept copy only once the applicant has signed an uploaded file", /if \(!row\.candidate_signed_at \|\| !row\.v1_hash \|\| !uploaded\) return \{ data: \{ error: "not_pending"/.test(handler.slice(original, original + 900)));
 }
+// The eleventh product review.
+// On a phone a closed document's record had no copy to save: the team's
+// Certificate and Audit PDF were hidden there for anything not signed by both.
+{
+  const copies = /<div className=\{`flex-wrap items-center gap-2 \[&>button\]:whitespace-nowrap \$\{([^`]*)\}`\} data-viewer-copies>/.exec(viewer)?.[1] ?? "";
+  // The class each case gets, worked out from the source's own expression.
+  const classFor = (status, role, record) => (copies ? new Function("document", "role", "record", "recordClosedUnfinished", `return (${copies});`)({ status }, role, record, (s) => ["voided", "withdrawn", "declined", "expired"].includes(s)) : null);
+  check("PDF viewer: on a phone the team's copies show for a closed document (declined, withdrawn, voided, expired)", copies !== "" && ["declined", "withdrawn", "voided", "expired"].every((r) => classFor("pending", "employer", r) === "flex" && classFor("pending", "team_member", r) === "flex"));
+  check("…still not while it is being signed (the place to sign comes first on a phone)", classFor("pending", "employer", "waiting") === "hidden sm:flex" && classFor("pending", "employer", "pending") === "hidden sm:flex");
+  check("…and never the applicant's before both have signed", ["declined", "withdrawn", "voided", "expired", "waiting"].every((r) => classFor("pending", "candidate", r) === "hidden") && classFor("signed", "candidate", "done") === "flex");
+  const cert = /<Button variant="outline" size="sm" onClick=\{handleDownloadCertificate\} disabled=\{!completionCert\} className=\{([^}]*)\} data-viewer-certificate>/.exec(viewer)?.[1] ?? "";
+  check("…the Certificate on a phone only for a document signed by both", cert === 'record === "done" ? undefined : "hidden sm:inline-flex"');
+  check("…the Audit PDF with no screen rule of its own", /<Button variant="outline" size="sm" onClick=\{handleDownloadAuditPDF\} data-viewer-audit-pdf>/.test(viewer));
+}
+// A teammate without "Send documents" opening a PDF the applicant signed was
+// told it "could not be loaded just now… open it again" (document-signing
+// answers them 403, role_mismatch): now they are told why.
+{
+  const loader = /const signedByApplicant = !!document\?\.candidate_signed_at;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
+  const refusal = loader.indexOf("if (await refusedForRole(data, error)) {");
+  check("PDF viewer: a refused kept copy is told apart from a failed load, before anything else is read from the answer", refusal !== -1 && /const \{ data, error \} = await supabase\.functions\.invoke\("document-signing", \{ body: \{ documentId: document\.id, action: "original" \} \}\);/.test(loader) && refusal < loader.indexOf("const kept = ") && /if \(await refusedForRole\(data, error\)\) \{\s*if \(!cancelled\) setShownPdfFailed\("not_allowed"\);\s*return;\s*\}/.test(loader));
+  check("…and says plainly who may open it, naming the switch to a teammate", /shownPdfFailed === "not_allowed"\s*\? `On your team, only someone who may send documents can open the signed file\.\$\{isTeamMember \? ` Ask the owner to turn on \$\{TEAM_PERMISSION_NAMES\.canSendDocuments\} for you\.` : ""\}`/.test(viewer));
+  const { build } = await import("esbuild");
+  const out = await build({ entryPoints: [resolve(root, "src/lib/documentSigningErrors.ts")], bundle: true, write: false, format: "esm", platform: "node", logLevel: "silent" });
+  const loaded = await import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0].text).toString("base64")}`);
+  // Called through this, so the old code reports each check instead of stopping at the first.
+  const errors = { refusedForRole: async (...args) => (typeof loaded.refusedForRole === "function" ? loaded.refusedForRole(...args) : "no refusedForRole") };
+  const answer = (status, body) => ({ context: new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } }) });
+  check("refusedForRole: a 403 from the function is the person, not the file", (await errors.refusedForRole(null, answer(403, { error: "role_mismatch" }))) === true);
+  check("…role_mismatch in the body, whatever the status", (await errors.refusedForRole(null, answer(400, { error: "role_mismatch" }))) === true);
+  check("…the dev preview's stand-in answering on data", (await errors.refusedForRole({ error: "role_mismatch" }, null)) === true);
+  check("…a void, a missing copy or a broken network is not", (await errors.refusedForRole(null, answer(409, { error: "voided" }))) === false && (await errors.refusedForRole(null, answer(409, { error: "not_pending" }))) === false && (await errors.refusedForRole(null, answer(500, { error: "internal_error" }))) === false && (await errors.refusedForRole(null, new Error("Failed to fetch"))) === false && (await errors.refusedForRole({ url: "https://x/y.pdf" }, null)) === false);
+  check("…nor an answer with no readable body", (await errors.refusedForRole(null, { context: new Response("not json", { status: 502 }) })) === false);
+}
+// The letter's sheet: "Send a new offer letter" only to someone who can, and
+// not when a later letter already went out to them.
+check("team: an expired letter asks for a new one only from someone who may send, and not once a newer one went out", /\{newerLetterSentAt\s*\? ` A newer offer letter went out on \$\{format\(new Date\(newerLetterSentAt\), "MMMM d"\)\}\.`\s*: isOffer && canSend\s*\? " Send a new offer letter if you still want them\."\s*: ""\}/.test(team) && !/\. Send a new offer letter if you still want them\.\s*<\/div>/.test(team));
+check("…the page tells it both", /canSend=\{canSend\}/.test(docsPage) && /newerLetterSentAt=\{sheetNewer\?\.createdAt \?\? null\}/.test(docsPage) && /const sheetNewer = sheetRow \? laterLetter\(sheetRow, rows\) : null;/.test(docsPage));
+{
+  // The dev preview answers a teammate without "Send documents" as live does.
+  const install = read("src/dev-preview/install.ts");
+  const handler = install.slice(install.indexOf('if (name !== "document-signing") return null;'));
+  const roleGate = handler.indexOf('if (role === "team_member") {');
+  check("dev preview: a teammate without 'Send documents' gets the function's 403 for every action, before anything else", roleGate !== -1 && roleGate < handler.indexOf("if (row.is_voided && body.action") && /if \(!member\?\.can_send_documents\) \{[\s\S]{0,200}status: 403[\s\S]{0,300}error: Object\.assign\(new Error\("Edge Function returned a non-2xx status code"\), \{ name: "FunctionsHttpError", context \}\)/.test(handler.slice(roleGate, roleGate + 900)));
+}
+
 // …and My Documents keeps "To sign" for documents waiting on them.
 check("My Documents: 'To sign' lists only documents waiting on them; the rest (signed by them or both, declined, voided, withdrawn, expired) are under 'Signed or closed'", /const toSign = signDocuments\.filter\(\(d\) => waitingOnApplicant\(d, now\)\);/.test(myDocs) && /const closedDocuments = signDocuments\.filter\(\(d\) => !waitingOnApplicant\(d, now\)\);/.test(myDocs) && /data-documents-section="to-sign"[\s\S]*?To sign — \{toSign\.length\} waiting on you[\s\S]*?\{toSign\.map\(/.test(myDocs) && /data-documents-section="closed"[\s\S]*?Signed or closed[\s\S]*?\{closedDocuments\.map\(/.test(myDocs) && !/\{signDocuments\.map\(\(doc\) => \(\s*<SignDocumentRow/.test(myDocs));
 check("My Documents: an expired one wears an 'Expired' chip and 'View', never 'Read and sign'", /if \(state === "expired"\) return \{ label: "Expired"/.test(myDocs) && /const theirTurn = waitingOnApplicant\(doc, now\);/.test(myDocs) && /\{theirTurn \? "Read and sign" : "View"\}/.test(myDocs));

@@ -134,7 +134,10 @@ export function previewRequests(tables: FixtureTables, user: FixtureAuthUser, hi
  * offer letter waiting for their signature, so the Hire box says the welcome
  * email asks them to sign it. `offer,expired`: its date to sign passed before
  * they signed, so the Hire box says it expired and the email leaves it out
- * (the tenth product review).
+ * (the tenth product review). The eleventh product review's closed letters,
+ * each said as what happened: `offer,declined` (they declined it),
+ * `offer,signed,declined` (the team declined it on its turn), `offer,voided`
+ * (voided after they signed), `offer,withdrawn` (withdrawn before).
  */
 export function previewHiring(tables: FixtureTables, spec: string | null) {
   const flags = (spec ?? "").split(",").map((w) => w.trim()).filter(Boolean);
@@ -150,14 +153,15 @@ export function previewHiring(tables: FixtureTables, spec: string | null) {
   if (flags.includes("offer")) {
     const offered = (tables.applications ?? []).find((a) => a.status === "offered");
     if (offered) {
+      const signedAt = flags.includes("signed") || flags.includes("voided") ? new Date(Date.now() - DAY).toISOString() : null;
       (tables.documents ??= []).push({
         id: "d0c00000-0000-4000-8000-0000000000f1",
         application_id: offered.id,
         name: "Offer letter",
         document_type: "offer_letter",
-        status: "pending",
-        is_voided: false,
-        candidate_signed_at: null,
+        status: flags.includes("declined") ? "declined" : "pending",
+        is_voided: flags.includes("voided") || flags.includes("withdrawn"),
+        candidate_signed_at: signedAt,
         expires_at: new Date(Date.now() + (flags.includes("expired") ? -3 * 3600_000 : 5 * DAY)).toISOString(),
         recipient_id: offered.candidate_id,
         created_at: new Date(Date.now() - 2 * DAY).toISOString(),
