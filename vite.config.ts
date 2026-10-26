@@ -75,6 +75,15 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
   },
+  // The dev server's dependency scan reads the app's one page, not every HTML
+  // file in the repo: design/preview's mock-ups import packages the app does
+  // not install ("three"), so the scan failed and every dependency was found
+  // one page load at a time, which made a cold dev server too slow for the
+  // dev-preview smoke test on a busy machine (2026-10-26). Dev only; the build
+  // is unchanged.
+  optimizeDeps: {
+    entries: ["index.html"],
+  },
   plugins: [react()],
   build: {
     rollupOptions: {
