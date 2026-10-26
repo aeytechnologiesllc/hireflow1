@@ -310,7 +310,9 @@ seconds on 90 KB). In this order:
    interview, training or onboarding beside "in person" is read in its
    own sentence or line, in any wording; the twenty-fifth: only
    "experience in/with/at" or "experience working for" is the applicant's
-   past, a "guest experience for US hotels" is an account's; chat or
+   past, a "guest experience for US hotels" is an account's (the
+   twenty-sixth: any wording within 45 characters of "experience" is the
+   past, "experience as a front desk agent in US hotels" too); chat or
    email words count as a greeting "by phone" only within four words
    with no "and" between; only an interview's, training's or
    onboarding's own few words beside "in person" excuse it), their
@@ -625,7 +627,10 @@ the same things:
    Setup: Onsite" is the training's, and "Work location:" or "Work mode:"
    lines belong to no heading either; the twenty-fifth: an unbulleted
    "Setup:" line belongs to no heading too, a bulleted "- Setup:" stays
-   its section's); the words are
+   its section's; the twenty-sixth: bulleted means part of the list
+   there, -, • or *, or the same mark as the line before it or first under
+   the heading, so "✅ Setup: Onsite" under "Training:" is the training's);
+   the words are
    any of hiring, recruitment, application or selection with any of
    process, setup, mode, venue, site, location or steps), keeps its on-site line
    from the setup: under any other, "Work setup:\n- Onsite (Makati)\nAfter

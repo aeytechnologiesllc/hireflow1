@@ -1067,6 +1067,11 @@ const NOT_CS = [
   ["Guest Relations Officer", "We are hiring a Guest Relations Officer to assist guests in person and over the phone with their stay.", "admin"],
   ["Guest Relations Officer", "WE'RE HIRING! Assist guests face to face and by phone during their stay.", "admin"],
   ["Guest Relations Officer", "Assist guests in person and by phone with their stay (training provided).", "admin"],
+  // The twenty-sixth (M1): US or UK hotels within 45 characters of "experience", in any wording, are the applicant's past, so
+  // the desk stays a desk; only a "guest experience" or "customer experience" for them is an account's (above, in CS).
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments. At least 1 year experience as a front desk agent in US hotels.", "general"],
+  ["Guest Service Agent", "Handle check-ins and check-outs, answer phone calls and process payments. Experience of working in UK hotels is a plus.", "general"],
+  ["Front Desk Agent", "Handle check-ins and check-outs, answer phone calls and process payments. Hotel experience, preferably in UK hotels.", "general"],
 ];
 for (const [title, work, want] of NOT_CS) {
   const got = M.detectFamily(brief(title, work));
