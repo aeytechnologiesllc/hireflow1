@@ -1207,6 +1207,15 @@ for (const [title, work, want] of [
   ["Auto Mechanic", "Diagnose and repair customer vehicles. Report to the Shop Manager.", "general"],
   ["TikTok Shop Manager", "Manage our TikTok Shop listings, livestreams and affiliates.", "general"],
   ["Manager - Coffee Shop", "Run the shop and supervise the staff.", "cash"],
+  // The forty-first (H1): an IT entry or person word is a developer's only as the whole role; (H2) a trade's shop is no
+  // till.
+  ["IT Graduate Teacher", "Teach computer classes to our grade 7 students.", "general"],
+  ["IT Graduate Cashier", "Handle the till and daily deposits.", "cash"],
+  ["Encoder / IT Graduate", "Encode customer orders into our system.", "general"],
+  ["Fix-It Guy", "Repair doors, paint walls and fix leaks.", "general"],
+  ["IT OJT", "Help our IT team set up computers and printers.", "developer"],
+  ["Machine Shop Manager", "Run the machine shop and schedule the machinists.", "admin"],
+  ["Manager (Machine Shop)", "Run the shop floor and supervise the machinists.", "general"],
 ]) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is ${want}`, got === want, got);
@@ -1710,6 +1719,12 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Chat Support Agent - Telco Account", "Reply to customer chats on our website and app. Handle landline and fiber concerns via chat.", "chat"],
     ["Email Support Representative", "Reply to customer emails within 24 hours. Handle landline disconnection requests.", "email"],
     ["Receptionist", "Answer multiple phone lines and reply to emails.", "mixed"],
+    // The forty-first (H3): a place before the landline or main line, and "answer phone lines", are the receptionist's
+    // phone; a telco's landline before a product word is its product.
+    ["Medical Receptionist", "Answer phone lines and reply to patient emails.", "mixed"],
+    ["Receptionist", "Answer the clinic landline and reply to patient inquiries on our FB page.", "mixed"],
+    ["Receptionist", "Answer the company's main line and reply to emails.", "mixed"],
+    ["Chat Support Agent - Telco Account", "Handle our landline and fiber customers' concerns via chat.", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
