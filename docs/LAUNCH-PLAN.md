@@ -1257,8 +1257,16 @@ reached function deployed):
   regression left from round 41 ("of each clinic branch" took the
   receptionist's line); fixed by its narrowing in 7a11c669 (0 better, 7
   worse on every earlier set, its own made-up rows; 36,456 better on its
-  sweep). **Round 44 review running** (`p4r44_brief.md`); the phase closes on
-  a round that finds nothing MEDIUM or worse.
+  sweep). **Round 44** (`p4r44_report.md`) found **no HIGH and no MEDIUM
+  caused by round 43**: the customer-service side (the guess, the channel,
+  the work mode, the country, the currency) has nothing common left. It
+  names one old MEDIUM in effect: for a job that is not customer service,
+  the family is guessed from any word anywhere (a cashier's "Schedule:" line
+  reads office admin) and no chip changes it; ten rounds of word rules show
+  that narrowing never ends. As the fourth review did for customer service
+  or not, **a fixer is adding one question** (`p4r44_fix_brief.md`): under
+  "Another kind of job", "Which is closest?" starts on the guess and the
+  business's answer decides the family, so a wrong guess costs one click.
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
