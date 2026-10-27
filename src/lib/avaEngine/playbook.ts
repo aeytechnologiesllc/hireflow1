@@ -971,9 +971,11 @@ function otherFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employm
   // developer's, read from the title's role: the thirty-fifth found that any family in the title, a business part's
   // "Restaurant" or "Office" too, beat the words, so "Office Utility Staff / Clean and sanitize office areas" was office
   // admin and "IT Manager" was asked about the till. "Cleanliness" counts only when the title's role names no family, so
-  // "Admin Assistant / Maintain cleanliness of the office" stays the assistant's.)
-  const byTitle = familyOfWords(headPhrase((brief.roleTitle ?? "").toLowerCase()));
-  if (byTitle === "developer") return byTitle;
+  // "Admin Assistant / Maintain cleanliness of the office" stays the assistant's. An IT, MIS or ICT title is a
+  // developer's too: "IT Manager / Manage our IT team, servers and network" was asked about the till; the thirty-seventh.)
+  const head = headPhrase((brief.roleTitle ?? "").toLowerCase());
+  const byTitle = familyOfWords(head);
+  if (byTitle === "developer" || /\b(it|mis|ict)\b/.test(head)) return "developer";
   return familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase(), byTitle === "general");
 }
 function familyOfWords(s: string, cleanliness = true): Family {

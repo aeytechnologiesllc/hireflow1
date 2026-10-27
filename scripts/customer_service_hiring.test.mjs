@@ -1170,6 +1170,11 @@ for (const [title, work, want] of [
   ["IT Manager", "Manage our IT team, servers and software licences.", "developer"],
   ["Database Administrator", "Tune PostgreSQL queries and manage backups for our software platform.", "developer"],
   ["Admin Assistant", "Answer emails, manage calendars and maintain cleanliness of the office.", "admin"],
+  // The thirty-seventh (M2): an IT, MIS or ICT title is a developer's, whatever its business part.
+  ["IT Manager", "Manage our IT team, servers and network; plan the IT budget.", "developer"],
+  ["IT Staff", "Set up computers and printers and fix network problems.", "developer"],
+  ["MIS Officer", "Maintain our database and reports and support users.", "developer"],
+  ["IT Staff - Bank", "Maintain the branch's computers and network.", "developer"],
 ]) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is ${want}`, got === want, got);
@@ -1636,6 +1641,16 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Customer Service Representative", "Support customers through chat and phone, 0800-1700 Mon-Fri.", "mixed"],
     ["Customer Service Representative", "Provide phone and email support (0800-1700, Mon-Fri).", "mixed"],
     ["Chat Support Agent", "Provide chat and phone support from 2200-0700 PHT.", "mixed"],
+    // The thirty-seventh (H1): a duty verb before what it takes makes the pair a duty with no customer word; (M1) a job
+    // title's "customer relationship" and a team's members are no customer; "Inquiries: Call/Viber" with no verb is a
+    // contact line.
+    ["Customer Service Representative", "Answer inquiries (Call/Viber).", "mixed"],
+    ["Customer Service Staff", "Entertain inquiries thru FB page, call or Viber.", "mixed"],
+    ["Online Seller Assistant", "Follow up on unpaid orders (Call/Viber).", "mixed"],
+    ["Customer Service Representative", "Entertain inquiries (Call/Viber/Email).", "mixed"],
+    ["Chat Support Agent", "Answer customer chats on our website.\nInterested Customer Relationship Officer applicants may Call or Viber:\n0917 123 4567", "chat"],
+    ["Chat Support Agent", "Answer customer chats on our website.\nQuestions? Call/Viber any of our team members.", "chat"],
+    ["Chat Support Agent", "Answer customer chats on our website.\nInquiries: Call/Viber\n0917 123 4567", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
