@@ -883,8 +883,10 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
   // "Front Desk Associate / Handle check-ins and check-outs, process payments and update bookings on our reservation
   // platform". A clinic's patient check-ins stay the clinic's, clinicWork.)
   // (The thirty-third, M3: and the verb, the commonest US wording, which names no hotel: "Front Desk Agent - Hampton Inn /
-  // Check guests in and out, answer phone calls, make reservations", "Front Desk Associate / Check in guests, assign rooms".)
-  const checkIns = DESK_CHECK_INS.test(work) || /\bcheck(s|ing)?\s+((our|the|arriving|incoming|hotel)\s+)?guests\s+(in|out)\b|\bcheck(s|ing)?[- ]in\s+((our|the|arriving|incoming|hotel)\s+)?guests\b/.test(work);
+  // Check guests in and out, answer phone calls, make reservations", "Front Desk Associate / Check in guests, assign rooms".
+  // Never by phone, email or text before they arrive, which is a hotel account's: "Guest Services Agent / Check guests in
+  // by phone and email before arrival"; the thirty-fourth, LOW 1.)
+  const checkIns = DESK_CHECK_INS.test(work) || /(\bcheck(s|ing)?\s+((our|the|arriving|incoming|hotel)\s+)?guests\s+(in|out)\b|\bcheck(s|ing)?[- ]in\s+((our|the|arriving|incoming|hotel)\s+)?guests\b)(?!\s+((?!(and|or)\b)[\w-]+\s+){0,2}(via|by|over|through)\s+(the\s+|our\s+|a\s+)?(phones?|video|chats?|e-?mails?|calls?|texts?)\b)/.test(work);
   const lodgingDesk = GUEST_DESK_TITLE.test(title) || (/\bfront (desk|office)\b/.test(title) && (/\bguests?\b/.test(work) || checkIns));
   // (The seventeenth: a lodging desk's check-ins are the door too, as "at the front desk" is, so a phone word does not take
   // it off the floor: "Guest Relations Officer / Welcome guests, handle check-ins and check-outs and coordinate with
@@ -965,11 +967,18 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
 
 /** The families other than customer service, from the words (detectFamily). */
 function otherFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employmentType">): Family {
-  const s = `${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase();
+  // (The thirty-fourth review, M2: the title's family first, the words only when the title names none, so a developer's
+  // "Write clean, maintainable code" is no cleaning job.)
+  const byTitle = familyOfWords((brief.roleTitle ?? "").toLowerCase());
+  return byTitle !== "general" ? byTitle : familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase());
+}
+function familyOfWords(s: string): Family {
   // (The thirty-third review, M7: a word, never part of one, so a dental office's "cleanings" and a coder's "clean claims"
   // are no cleaning job and an encoder is no developer: "Treatment Coordinator / Schedule cleanings and present treatment
-  // plans", "Data Encoder / Encode customer orders"; nor a medical or billing coder.)
-  if (/(?<!\b(teeth|tooth|dental)\s)\bclean(s|ed|ers?|ing|-?ups?)?\b(?!\s+claims?\b)|janitor|housekeep|custodi|maid|porter/.test(s)) return "cleaner";
+  // plans", "Data Encoder / Encode customer orders"; nor a medical or billing coder. "Cleanliness" is one, the word of
+  // Philippine utility, janitorial and steward posts: "Janitress / Maintain cleanliness and orderliness of the office";
+  // the thirty-fourth, H2.)
+  if (/(?<!\b(teeth|tooth|dental)\s)\bclean(s|ed|ers?|ing|liness|-?ups?)?\b(?!\s+claims?\b)|janitor|housekeep|custodi|maid|porter/.test(s)) return "cleaner";
   if (/develop|engineer|programmer|(?<!\b(medical|billing|clinical|certified|inpatient|outpatient)\s)\bcoders?\b|software|frontend|front-end|back-?end|full-?stack|web dev|data scientist/.test(s))
     return "developer";
   if (/admin|secretar|reception|assistant|office|clerk|book-?keep|schedul|coordinat|data entry/.test(s)) return "admin";

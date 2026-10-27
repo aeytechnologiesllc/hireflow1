@@ -592,6 +592,8 @@ const CS = [
   ["Merchant Support - Non Voice", "Handle merchant concerns via chat and email for a food delivery account."],
   ["Seller Support", "Help our sellers with listings, payouts and order issues by chat and email."],
   ["Rider Support - Voice", "Answer calls from our riders about deliveries and payouts."],
+  // The thirty-fourth (LOW 1): guests checked in by phone or email before they arrive are a hotel account's, not the door.
+  ["Guest Services Agent", "Check guests in by phone and email before arrival."],
 ];
 for (const [title, work] of CS) {
   check(`"${title}${work ? ` — ${work}` : ""}" is customer service`, M.detectFamily(brief(title, work)) === "customer_service", M.detectFamily(brief(title, work)));
@@ -1145,6 +1147,16 @@ for (const [title, work, want] of [
   ["House cleaner", "Clean homes for our clients", "cleaner"],
   ["Room Attendant", "Cleans guest rooms and restocks supplies.", "cleaner"],
   ["Post-Construction Cleanup Crew", "Remove debris and sweep floors at job sites.", "cleaner"],
+  // The thirty-fourth (H2, M2): "cleanliness" is the cleaning word of Philippine utility and janitorial posts; and the
+  // title's family comes first, so a developer's "clean code" or an assistant's "keep the office clean" is no cleaning job.
+  ["Janitress", "Maintain cleanliness and orderliness of the office.", "cleaner"],
+  ["Utility Worker", "Maintain cleanliness of the building, sweep and mop floors, and empty trash bins.", "cleaner"],
+  ["Room Attendant", "Maintain cleanliness and orderliness of guest rooms and public areas according to hotel standards.", "cleaner"],
+  ["Kitchen Steward", "Maintain cleanliness of the kitchen, dishes and utensils.", "cleaner"],
+  ["Software Engineer", "Write clean, maintainable code.", "developer"],
+  ["Frontend Developer", "Build clean, responsive UIs.", "developer"],
+  ["Python Developer", "Write clean code and unit tests.", "developer"],
+  ["Admin Assistant", "Answer emails, manage calendars and keep the office clean.", "admin"],
 ]) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is ${want}`, got === want, got);
@@ -1570,6 +1582,18 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Hotline Officer", "Attend to customer concerns through the hotline, email and chat.", "mixed"],
     ["Hotline Agent", "Handle customer concerns through our hotline and email.", "mixed"],
     ["Hotline Agent", "Answer customer calls on our hotline.", "phone"],
+    // The thirty-fourth (H1): channels joined to a phone number are how to reach the business, never the agent's channels
+    // ("Call or Viber 0917 123 4567", "0917 123 4567 (Viber/Call)"); a count or "24/7" before a list still is one. (M1)
+    // Customers' concerns handed to the branch, riders or the doctor via Viber are no chats of the agent's.
+    ["Customer Service Representative (Voice)", "Handle inbound calls from US customers for a telco account. Night shift. Interested? Call or Viber 0917 123 4567.", "phone"],
+    ["Online Store CSR", "- Reply to customer messages on Shopee, Lazada and TikTok Shop\nContact: 0917 123 4567 (Viber/Call)", "chat"],
+    ["CSR", "Answer customer calls and take orders. Apply: Viber or call 0917 123 4567.", "phone"],
+    ["Customer Service Representative", "Answer customer inquiries via Facebook Messenger and Instagram. Interested applicants may send their resume to hr@shop.ph or Viber/call 0917 123 4567.", "chat"],
+    ["Customer Service Agent", "Handle 60 chats and calls a day.", "mixed"],
+    ["Customer Support Agent", "Provide 24/7 phone and email support.", "mixed"],
+    ["CSR", "Answer customer calls. Endorse customer concerns to the branch via Viber.", "phone"],
+    ["CSR", "Answer customer calls. Forward customer orders to our riders through Viber.", "phone"],
+    ["Receptionist", "Greet patients and schedule appointments. Forward patient concerns to the doctor via Viber.", "phone"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
