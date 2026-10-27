@@ -1242,8 +1242,13 @@ reached function deployed):
   HIGH and one MEDIUM, both in round 41's product-word list ("of the clinic",
   an order taker's "landline orders" lost their phone); fixed by its
   narrowing in 98e68280 (630 better, 36 worse, all its own made-up rows).
-  The findings now sit in one rule. **Round 43 review running**
-  (`p4r43_brief.md`), under the same rule.
+  The findings now sit in one rule. **Round 43** (`p4r43_report.md`) found
+  **no HIGH**, the first round since the thirty-third, and one MEDIUM
+  regression left from round 41 ("of each clinic branch" took the
+  receptionist's line); fixed by its narrowing in 7a11c669 (0 better, 7
+  worse on every earlier set, its own made-up rows; 36,456 better on its
+  sweep). **Round 44 review running** (`p4r44_brief.md`); the phase closes on
+  a round that finds nothing MEDIUM or worse.
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
