@@ -1177,7 +1177,15 @@ reached function deployed):
   (Call/Viber)" with no customer word lost its calls), one MEDIUM
   regression and one old MEDIUM (IT titles as admin or cash); fixed by its
   combined patch in e56b86c4, after which it advises to stop narrowing that
-  line. **Round 38 review running** (`p4r38_brief.md`).
+  line. **Round 38** (`p4r38_report.md`) found one HIGH regression of round
+  37 (every IT-prefixed title a developer: "IT Recruiter", "ICT Teacher"
+  asked for a core stack), one MEDIUM it made worse (the developer's setup
+  question started on "Fully remote" whatever the Type) and two old MEDIUM
+  (every manager read as cash; "reply to Viber inquiries" beside calls lost
+  its chat); fixed by its combined patch in 79758824 (cost 20 contrived
+  rows). Rounds 35 and 38 each broke on a new rule reaching outside its own
+  class, so **round 39's review** (running, `p4r39_brief.md`) sweeps every
+  new rule against the classes it was not made for.
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
