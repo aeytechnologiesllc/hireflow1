@@ -1141,8 +1141,14 @@ reached function deployed):
   line; a phone number has seven digits; a 96 KB run of channel words 7 s →
   16 ms). Its M3 (a cook's "maintain cleanliness of the kitchen" is a
   cleaner, as in round 32) has no narrowing without a cost and stays.
-  **Round 36 review running** (`p4r36_brief.md`), told to sweep the family
-  too.
+  **Round 36** (`p4r36_report.md`) found the family sweeps clean and one
+  HIGH regression of round 35 (its contact-line rule took the agent's own
+  "Handles customer inquiries (Call/Viber/Email)" duties) and two MEDIUM
+  ("with our riders via Viber" as chat; "0800-1700" as a phone number);
+  fixed by its combined narrowing in 4d15d554 (random posts 4,375 → 0
+  wrong; cost 5 rows). Rounds 34–36 each found a HIGH in the Viber and
+  contact-line reading round 33 began, so **round 37's review** (running,
+  `p4r37_brief.md`) also weighs undoing that line back to round 32's.
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
