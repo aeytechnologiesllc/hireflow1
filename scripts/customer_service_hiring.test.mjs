@@ -1197,6 +1197,16 @@ for (const [title, work, want] of [
   ["Fix-It Handyman", "Repair doors, paint walls and fix leaks.", "general"],
   ["IT/Network Administrator", "Maintain our network and servers.", "developer"],
   ["Head of IT", "Lead our IT team and plan our systems.", "developer"],
+  // The fortieth (H2): the IT department's own team leads and graduates are developers too; (H3) the till's places'
+  // managers only in the title, never a reporting line, and an online shop is no till.
+  ["IT Team Leader", "Lead our IT team, plan projects and manage the department budget.", "developer"],
+  ["IT Fresh Graduate", "Install and troubleshoot computers, printers and the office network.", "developer"],
+  ["IT Section Head", "Lead the section and plan its projects.", "developer"],
+  ["Security Guard", "Secure the premises and check bags at the entrance. Report incidents to the Manager on Duty.", "general"],
+  ["Line Cook", "Prepare dishes according to standard recipes. Report to the Food and Beverage Manager.", "general"],
+  ["Auto Mechanic", "Diagnose and repair customer vehicles. Report to the Shop Manager.", "general"],
+  ["TikTok Shop Manager", "Manage our TikTok Shop listings, livestreams and affiliates.", "general"],
+  ["Manager - Coffee Shop", "Run the shop and supervise the staff.", "cash"],
 ]) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is ${want}`, got === want, got);
@@ -1691,6 +1701,15 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Receptionist", "Answer the office phone and reply to emails.", "mixed"],
     ["Dental Receptionist", "Answer the clinic phone, book appointments and reply to patient Viber inquiries.", "mixed"],
     ["Receptionist", "Greet visitors, answer the landline and reply to emails.", "mixed"],
+    // The fortieth (H1): the reader's own closing line on Viber is no chat for a title that names a channel; (H4) a telco's
+    // landline is its product, not the agent's phone.
+    ["Call Center Agent", "Answer inbound calls from customers about their accounts. For any inquiries, message us on Viber 0917 123 4567.", "phone"],
+    ["Hotline Officer", "Answer the customer hotline. For any questions, reach us thru Viber 0917 123 4567.", "phone"],
+    ["Email Support Specialist", "Reply to customer emails within 24 hours. For further inquiries, message us on Viber.", "email"],
+    ["Ticket Support Agent", "Resolve support tickets in Zendesk. For further inquiries, PM us on our Facebook page.", "email"],
+    ["Chat Support Agent - Telco Account", "Reply to customer chats on our website and app. Handle landline and fiber concerns via chat.", "chat"],
+    ["Email Support Representative", "Reply to customer emails within 24 hours. Handle landline disconnection requests.", "email"],
+    ["Receptionist", "Answer multiple phone lines and reply to emails.", "mixed"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
