@@ -1,6 +1,6 @@
 /**
  * No age, birth date or marital status in what the job writers produce
- * (2026-10-25; the second to twenty-fifth Phase 6 reviews).
+ * (2026-10-25; the second to twenty-sixth Phase 6 reviews).
  *
  * Every application already starts with HireFlow's own "Are you 18 or
  * older?" (src/lib/ageCheck.ts), and RA 10911 Section 5(a) makes it unlawful
@@ -132,9 +132,13 @@
  * something or tells her trouble ('"Hello, my name is Harold, I'm 81 years
  * old and I can't read the label on my medication."', "…and I want to
  * switch to the senior plan."), there and after "using the information
- * below:", and the questions of a quote around the one that asks ('"Tell us
- * about your last job. How old are you? Which shifts can you work?"' keeps
- * the other two), and a line's inch marks.
+ * below:", and a line's inch marks, and since the twenty-sixth her name and
+ * age before her own results, portal or account in the twenty-third round's
+ * wording ('"Hi, I'm Harold, 81 years old. I need my test results from last
+ * week."') beside a practice step, a customer's words about whom she or the
+ * business serves ("You keep making customers like me wait", "I serve
+ * customers all day"), her own status "since 2020" or "married to a
+ * veteran", and the plain sentence after a quote on a line with an inch mark.
  * The same words put to the applicant go ('Ask the candidate: "How old are
  * you?"', "Number of dependents:", 'Ask:
  * "Are you married? Just for our records."', and since the tenth an unquoted
@@ -197,8 +201,10 @@
  * "per shift" before an age question, and the agent's own "Let me check with
  * my billing team." under "Her chat:"; since the twenty-fifth her own
  * introduction that names whom she serves ("…, from Cebu, and I love helping
- * customers.") and her status before her children, "married to", years or a
- * year ("single (no kids)", "married to a seaman", "divorced for 3 years")),
+ * customers."); since the twenty-sixth one that says what she has not done
+ * in her work or study yet ("I haven't worked in a call center yet", "I
+ * didn't finish college"), and an ask's own follow-ups in its quote ('"Are you
+ * a fresh graduate? What year did you finish?"' goes whole)),
  * and so does an
  * age in a hiring sentence however it is attached ("We want a 25-year-old
  * go-getter", "We hire students aged 18-24", "Retirees aged 55-70 wanted",
@@ -982,7 +988,22 @@ const setsUpAPractice = (text: string) => ROLE_PLAY.test(text) || PRACTICE_STEP.
 // in insurance" and "I'd like to apply for the role" ask for no plan).
 const A_SELF_INTRO = /\b([Ii]['’]?m|[Ii] am|[Mm]y name is)\s+[A-Z][\w'’.-]*(\s+[A-Z][\w'’.-]*)?\s*,\s*\d{2}\b/;
 const THE_NAME_THEN_HER_AGE = /\b([Ii]['’]?m|[Ii] am|[Mm]y name is)\s+[A-Z][\w'’.-]*(\s+([A-Z][\w'’.-]*|de|del|dela|delos|de\s+la|de\s+los)){0,3}\s*(,|[.!]|,?\s+and\b)\s*((and\s+)?([Ii]['’]?m|[Ii] am)\s+)?\d{2}\b/;
-const A_CUSTOMERS_TROUBLE = /\?|\b(can['’]?t(?!\s+wait)|cannot|won['’]?t(?!\s+let)|didn['’]?t|doesn['’]?t|isn['’]?t|wasn['’]?t|haven['’]?t|hasn['’]?t|don['’]?t\s+(know|understand)|never\s+(got|came|arrived|received|called)|nobody|forgot|locked|cancel+ed|charged|broken|wrong|stuck|confused|has\s+been\s+down)\b|\b(want|need|would\s+like|['’]d\s+like)\s+(to\s+(enrol\w*|sign\s+up)\b|(to\s+(switch|change|move|upgrade|downgrade|cancel|get|book|buy|claim|renew|add)\s+((to|for|on|onto|from|into)\s+)?)?((the|a|an|my|our|this|that|your|some)\s+)?((?!(in|at|of|with|to|for|as|on|and)\b)[\w'’-]+\s+){0,2}?(plans?|fares?|rates?|discounts?|polic(y|ies)|subscriptions?|memberships?|packages?|tiers?|coverage|insurance)\b)/i;
+// The twenty-sixth review: every negative was trouble, so an applicant's own introduction that says what she has not done
+// yet was a customer's message ('Interested candidates, please send your resume. Then reply to this email: "Hello, my name
+// is Ana, I'm 24 years old, from Cebu. I haven't worked in a call center yet, but I learn fast."', "I didn't finish
+// college", "My English isn't perfect"; 252 of the review's 252 descriptions showed her age, none in the twenty-fourth
+// round). A negative (A_NEGATIVE) is no trouble where it is her own about her own work or study (HER_OWN_WORK, the review's
+// tested fix, read as four of its seven closings give it: "I haven't worked in", "I haven't had a BPO job", "I didn't
+// finish college", "I wasn't able to finish my degree"); a question, "don't know", "never got" and the rest are trouble
+// whatever the message names. The review's wider reading of any work word anywhere in the message read a customer's own trouble
+// too ("…and the discount code doesn't work for me.", "…and the coupon isn't working at checkout.", "…and my English isn't
+// good, so please write simply.", "…and I can't learn this new app.": 96 of 144 such lines beside a practice step, which
+// the twenty-fifth round kept), so "My English isn't perfect", "I haven't missed a day of work" and "I can't work Sundays"
+// are known items.
+const A_CUSTOMERS_TROUBLE = /\?|\b(don['’]?t\s+(know|understand)|never\s+(got|came|arrived|received|called)|nobody|forgot|locked|cancel+ed|charged|broken|wrong|stuck|confused|has\s+been\s+down)\b|\b(want|need|would\s+like|['’]d\s+like)\s+(to\s+(enrol\w*|sign\s+up)\b|(to\s+(switch|change|move|upgrade|downgrade|cancel|get|book|buy|claim|renew|add)\s+((to|for|on|onto|from|into)\s+)?)?((the|a|an|my|our|this|that|your|some)\s+)?((?!(in|at|of|with|to|for|as|on|and)\b)[\w'’-]+\s+){0,2}?(plans?|fares?|rates?|discounts?|polic(y|ies)|subscriptions?|memberships?|packages?|tiers?|coverage|insurance)\b)/i;
+const A_NEGATIVE = /\b(can['’]?t(?!\s+wait)|cannot|won['’]?t(?!\s+let)|didn['’]?t|doesn['’]?t|isn['’]?t|wasn['’]?t|haven['’]?t|hasn['’]?t)\b/i;
+const HER_OWN_WORK = /\bI\s+(haven['’]?t|didn['’]?t|wasn['’]?t|can['’]?t|cannot|won['’]?t)\s+([\w'’-]+\s+){0,3}?(worked\s+(in|at|as|for)|bpo|finish(ed)?\s+(my\s+)?(college|degree))\b/gi;
+const tellsHerTrouble = (quote: string) => A_CUSTOMERS_TROUBLE.test(quote) || A_NEGATIVE.test(quote.replace(HER_OWN_WORK, "her work"));
 // The twenty-fifth review: the status's end of clause left the commonest other wordings of an applicant's own out ('To apply,
 // complete a practice email, then reply to this email: "Hi, I'm 23 years old, married to a seaman, from Cebu."', "single (no
 // kids)", "single/no kids", "single - no kids", "married w/ 2 kids", "divorced for 3 years", "widowed since 2019"; the
@@ -990,8 +1011,15 @@ const A_CUSTOMERS_TROUBLE = /\?|\b(can['’]?t(?!\s+wait)|cannot|won['’]?t(?!\
 // kids)", "/ 1 child", "- no kids", "w/ 2 kids"), "married to", a number of years or a year (18 of the 20; "single too" is
 // a known item). Never a ticket's or a room's after a mark ("single (one way)", "single/double", "single - 2 nights",
 // "single w/ breakfast", "single for two nights"), as the twenty-fourth round left them.
-const A_CIVIL_STATUS_GIVEN = /(,|\band|\bi['’]?m|\bi am)\s+(single|married|separated|widowed|divorced)\b(?!-)(?=\s*([,.;:!?"”)]|$|(and|with|from|but|no|mother|mom|father|dad|parent)\b)|(\s*[(/]|\s+[-–—]|\s+w\/)\s*((no|\d+|one|two|three|four|five|a|an)\s+)?(kids?|child(ren)?|sons?|daughters?|bab(y|ies)|dependents?)\b|(?<=married)\s+to\b|\s+for\s+(\d+|a|an|one|two|three|four|five|six|seven|eight|nine|ten|many|several)\s+(years?|yrs?)\b|\s+since\s+(19|20)\d{2}\b)/i;
-const selfIntroduction = (quote: string) => (A_SELF_INTRO.test(quote) || (THE_NAME_THEN_HER_AGE.test(quote) && !A_CUSTOMERS_TROUBLE.test(quote)) || A_CIVIL_STATUS_GIVEN.test(quote)) && !A_CUSTOMERS_OWN.test(quote);
+// The twenty-sixth review: a customer gives her own status in the same words, in a benefits, insurance, tax or travel
+// message ('Reply to this chat using the information below: "I'm 69 years old and separated since 2020. Can I file as head
+// of household?"', "…, widowed since 2019, and I need to update the beneficiary on the policy.", "…married to a veteran.
+// Is my husband covered under the plan?", "…married for 60 years, and we want to book the anniversary package."; 11 of
+// the review's 12 after the owner's label, which the twenty-fourth round kept), and no reading tells her status from the
+// applicant's there without a new one. The status's end of clause is the twenty-fourth round's again, as it was; the
+// twenty-fifth review's introductions with no name that give a status so are known items.
+const A_CIVIL_STATUS_GIVEN = /(,|\band|\bi['’]?m|\bi am)\s+(single|married|separated|widowed|divorced)\b(?!-)(?=\s*([,.;:!?"”)]|$|(and|with|from|but|no|mother|mom|father|dad|parent)\b))/i;
+const selfIntroduction = (quote: string) => (A_SELF_INTRO.test(quote) || (THE_NAME_THEN_HER_AGE.test(quote) && !tellsHerTrouble(quote)) || A_CIVIL_STATUS_GIVEN.test(quote)) && !A_CUSTOMERS_OWN.test(quote);
 // A label that answers someone's message: the quote is that message, never the speaker's own words ("Reply to: …", "Reply to
 // this chat: …", "Respond to this email: …", "Answer the chat: …"; OWN_AGE, the seventeenth review). The nineteenth review:
 // "reply", "answer" and "responding" also name what someone wrote, and in a reviewer's note that is the applicant's own reply
@@ -1079,10 +1107,16 @@ const ASKS_TO_APPLY = new RegExp(String.raw`${TO_APPLY}(?=\s+(for|to)\s+((the|th
 const ASKS_TO_APPLY_BARE = new RegExp(String.raw`${TO_APPLY}(?=\s*([.,!?;:)]|$))`, "i");
 const NAMES_A_BENEFIT = new RegExp(String.raw`\b(${APPLYING_FOR_A_BENEFIT})\b`, "i");
 // The people a self-introduction says she serves, after the work she does for them ("I love helping customers", "I enjoy
-// serving patients", "I love talking to customers", "making our customers happy", "I am good at fixing problems for
-// customers"; customersQuote, the twenty-fifth review), never the customers a customer names ("other customers got the
-// senior fare", "a customer for 20 years").
-const WHOM_SHE_SERVES = new RegExp(String.raw`\b((help(s|ing|ed)?|serv(e|es|ing|ed)|assist(s|ing|ed)?|support(s|ing|ed)?|handl(e|es|ing|ed)|(talk|speak|chat|work|deal|connect)(s|ing|ed|ted|t)?\s+(to|with)|car(e|es|ing|ed)\s+for|mak(e|es|ing))\s+|(problems?|issues?|solutions?|service|support|care|help|assistance|answers?)\s+(for|to)\s+)([\w'’-]+\s+){0,2}?(${CUSTOMER_PEOPLE})\b`, "gi");
+// serving patients", "I love talking to customers", "I am good at fixing problems for customers"; customersQuote, the
+// twenty-fifth review), never the customers a customer names ("other customers got the senior fare", "a customer for 20
+// years"). The twenty-sixth review: any form of the verb read a customer's own words about whom she or the business serves
+// ("You keep making customers like me wait on hold.", "I care for patients at home as a nurse, and the gloves I ordered
+// never came.", "I run a small store and serve customers all day, but the card reader stopped working."), and her
+// message was the applicant's beside a practice step, which neither earlier round read. The work is read as every one of the twenty-fifth review's introductions gave it, a word
+// ending in "-ing" ("helping", "serving", "talking to") or what she fixes for them ("problems for customers"); "making",
+// and the care, help, support, service or assistance a customer asks for or gets ("I care for patients", "Is there help
+// for senior members?"), which none of them used, are not read.
+const WHOM_SHE_SERVES = new RegExp(String.raw`\b((helping|serving|assisting|supporting|handling|(talking|speaking|chatting|working|dealing|connecting)\s+(to|with)|caring\s+for)\s+|(problems?|issues?|solutions?|answers?)\s+(for|to)\s+)([\w'’-]+\s+){0,2}?(${CUSTOMER_PEOPLE})\b`, "gi");
 const asksToApply = (quote: string) => ASKS_TO_APPLY.test(quote) || (ASKS_TO_APPLY_BARE.test(quote) && !NAMES_A_BENEFIT.test(quote));
 
 /**
@@ -1198,9 +1232,20 @@ function customersQuote(names: RegExp, before: string, quote: string, after: str
   // "Hi, I'm Rosa, 70 years old, and other customers got the senior fare." beside a practice step stays, as in every round),
   // and only after a customer named outside the quote, who makes it speech to her as in every round ('Greet the caller and
   // ask, "…"').
+  // The twenty-sixth review: that read every introduction that names no customer, not only the ones that name whom she
+  // serves, so a customer's own message in the twenty-third round's wording, or in the twenty-fourth round's with no
+  // trouble word, went before the readings that kept it in both earlier rounds (her account, portal, results or security,
+  // A_CHECK; the case's customer named earlier, namedBefore): 'How to apply: answer a practice email: "Hi, I'm Harold, 81
+  // years old. I need my test results from last week."' was dropped (464 of the review's 512 messages in each of seven
+  // contexts), and generate-flow kept none of its 8 practice cases. It is read only where the quote names whom she serves
+  // (the review's tested fix); every other quote goes on to those readings as before.
   if (!names.test(`${before}${quote}${after}`) && !namedBefore()) return false;
   if (NAMES_A_CUSTOMER.test(outsideTheQuote(`${before}${after}`))) return true;
-  if (ownAge && OWN_AGE_GIVEN.test(quote) && selfIntroduction(quote) && !NAMES_A_CUSTOMER.test(setAside(quote).replace(WHOM_SHE_SERVES, "the work")) && toSomeoneApplying()) return false;
+  if (ownAge && OWN_AGE_GIVEN.test(quote) && selfIntroduction(quote)) {
+    const aside = setAside(quote);
+    const withoutTheWork = aside.replace(WHOM_SHE_SERVES, "the work");
+    if (withoutTheWork !== aside && !NAMES_A_CUSTOMER.test(withoutTheWork) && toSomeoneApplying()) return false;
+  }
   if (ownAge && !A_CUSTOMERS_OWN.test(quote) && !(A_REPLY_LABEL.test(before) && !notHers() && OWN_AGE_GIVEN.test(quote)) && !namedBefore()) return false;
   const checked = A_CHECK.test(frame);
   const applying = applyingForAJob(upToTheAsk(quote));
@@ -1570,7 +1615,30 @@ const marksOne = (text: string) => saysAnAge(text) || sentencesOf(text).some((se
 // mark right after a digit opens no quote, as an inch mark does ('a 27" monitor', 'a 15" laptop'); it still closes one
 // ("…order 12345"). And a curly quote inside a straight one, or the other way round, is its own: the inner one's closing
 // mark never ends the outer quote.
+// The twenty-sixth review: asksAgeOrStatus still pairs an inch mark with the next mark, so beside a real quote the window
+// read the quote's sentences joined here and cut them together, with the plain sentence after it ('Agents use a 24"
+// monitor and a headset. Ask the caller: "Are you 65 or older? I can then apply the senior fare." Night shift, Monday to
+// Friday.' kept only its first sentence, where both earlier rounds kept the last two). Both of that round's readings are
+// read only as on its own lines: the inch mark on a line whose straight marks all follow a digit ('Use a 27" monitor. Must
+// be 21-35 years old. Bring your own 15" laptop.'), the curly quote inside a straight one on a line with no inch mark ('Reply
+// to this chat: "She wrote, “I'm 70 years old.” Help her." Must be 21-35 years old. Night shift.'). A line with an inch mark
+// beside a real quote is read as the twenty-fourth round read it (read with the curly rule there, a line's inch marks and
+// quotes joined into one: 'Use a 27" monitor. “Are you 18 or older?” is on every application. The customer says: "My 32"
+// screen arrived cracked. I'm 81 years old."' went whole, where every earlier round kept 'The customer says: "My 32"
+// screen arrived cracked.').
 function quoteGroups(pieces: string[]): string[][] {
+  if (pieces.some((piece) => /\d"/.test(piece)) && pieces.some((piece) => /(^|[^\d])"/.test(piece))) {
+    const line = pieces.join(" ");
+    const pairs = (line.match(/"/g) ?? []).length % 2 === 0 && (line.match(/“/g) ?? []).length === (line.match(/”/g) ?? []).length;
+    const asBefore: string[][] = [];
+    let inQuote = false;
+    for (const piece of pieces) {
+      if (inQuote && pairs) asBefore[asBefore.length - 1].push(piece);
+      else asBefore.push([piece]);
+      for (const ch of piece) if (ch === '"') inQuote = !inQuote; else if (ch === "“") inQuote = true; else if (ch === "”") inQuote = false;
+    }
+    return asBefore;
+  }
   let straight = false;
   let curly = 0;
   let balanced = true;
@@ -1591,38 +1659,6 @@ function quoteGroups(pieces: string[]): string[][] {
   const groups: string[][] = [];
   pieces.forEach((piece, at) => (paired && at > 0 && open[at - 1] ? groups[groups.length - 1].push(piece) : groups.push([piece])));
   return groups;
-}
-
-// A quote of several sentences that drops, without the sentences that drop alone (textWithout's window; the twenty-fifth
-// review): 'In the phone screen we ask: "Tell us about your last job. How old are you? Which shifts can you work?"' keeps
-// the other two questions, 'Ask: "How old are you? Which shifts can you work?"' the second. The words before the opening
-// mark and the closing mark stay where the first and last sentences hold one mark each (else those sentences must stay
-// whole). Only one quote is read so: a sentence between that holds a mark is where one quote ends and the next begins
-// ('Reply to this chat: "I'm 70 years old. My refill is late." Then ask the applicant: "How old are you? …"' would join the
-// customer's label to the applicant's question). And a quote that gives the speaker's own age (OWN_AGE, selfIntroduction)
-// is her introduction or its template, which goes whole, as the twenty-fourth round made it ('Then reply to this email:
-// "Hi, I'm Ana. I'm 24 years old and from Cebu."' never leaves '"Hi, I'm Ana."', nor "I am Maria Clara Santos, 23 years
-// old" or "I am Ma. Theresa Reyes, 22 years old" its "Good day!"). And so does a quote where what is left still names an
-// age, a birth date, a family or a status, in the label or a sentence kept ('Ask the applicant for her birth date: "Thanks
-// for applying. When were you born? We need it."' never leaves the label, nor 'Ask: "Can you confirm your filing status on
-// your W-4? Are you married?"' its first question): what is left need not drop by itself to be the same ask. "" when
-// nothing is left of the quote, when no sentence drops alone, or when what is left still drops.
-const AGE_OR_FAMILY_WORD = /\b(ages?|aged|old|older|younger|born|birth\w*|dob|graduat\w*|married|marital|civil|single|widowed|divorced|separated|status|spouse|husband|wife|child(ren)?|kids?|dependents?|household|pregnan\w*|famil(y|ies))\b/i;
-function questionsLeft(group: string[], drops: (said: string) => boolean): string {
-  const marks = (piece: string) => (piece.match(/["“”]/g) ?? []).length;
-  if (group.slice(1, -1).some((piece) => marks(piece) > 0)) return "";
-  const first = group[0];
-  const last = group[group.length - 1];
-  const open = marks(first) === 1 ? first.search(/["“”]/) + 1 : 0;
-  const close = marks(last) === 1 ? last.search(/["“”]/) : last.length;
-  const said = [first.slice(open), ...group.slice(1, -1), last.slice(0, close)];
-  const quote = said.join(" ");
-  if (OWN_AGE.test(quote) || selfIntroduction(quote)) return "";
-  const goes = said.map((sentence) => sentence.trim() !== "" && drops(sentence));
-  const stays = said.filter((sentence, at) => !goes[at] && sentence.trim() !== "");
-  if (!goes.some(Boolean) || stays.length === 0 || (open === 0 && goes[0]) || (close === last.length && goes[goes.length - 1])) return "";
-  const left = `${first.slice(0, open)}${stays.join(" ")}${last.slice(close)}`;
-  return AGE_OR_FAMILY_WORD.test(left) || drops(left) ? "" : left;
 }
 
 function textWithout(text: unknown, drops: (text: unknown) => boolean, saysItself: (text: string) => boolean, headed = false): unknown {
@@ -1703,15 +1739,15 @@ function textWithout(text: unknown, drops: (text: unknown) => boolean, saysItsel
     // between them ('Use a 27" monitor. Must be 21-35 years old. Bring your own 15" laptop.' lost all three sentences), and
     // a curly quote inside a straight one closed it ('Reply to this chat: "She wrote, “I'm 70 years old.” Help her." Must
     // be 21-35 years old. Night shift.' joined the rest of the line to it): quoteGroups reads neither as a quote.
-    const groups = quoteGroups(line.split(/(?<=[.!?;])\s+|\s+(?=[•·]\s)/));
-    const sentences = groups.map((group) => group.join(" "));
+    // The twenty-sixth review: read one sentence at a time, the sentences kept were the ask's own follow-ups as often ('Ask:
+    // "Are you a fresh graduate? What year did you finish?"' left 'Ask: "What year did you finish?"', 'Say: "Hi, thanks for
+    // applying! What is your age? We are hiring 18 to 25 only."' its age limit, "Do you have kids? Who takes care of them
+    // while you work nights?" its second question, "Verify the applicant is under 35:" its label), which the twenty-fourth
+    // round removed with the quote, and nothing but what they ask tells a follow-up from the interviewer's other questions.
+    // A quote that drops goes whole again, as in the twenty-fourth round (questionsLeft is gone; the twenty-fifth review's
+    // question lists are known items).
+    const sentences = quoteGroups(line.split(/(?<=[.!?;])\s+|\s+(?=[•·]\s)/)).map((group) => group.join(" "));
     const cut = sentences.map((sentence, at) => drops(`${under}${sentence}`) && !(under && aSample(`${practice}${sentences.slice(Math.max(0, at - 4), at).join(" ")}`, sentence)));
-    groups.forEach((group, at) => {
-      const left = cut[at] && group.length > 1 ? questionsLeft(group, (said) => drops(`${under}${said}`)) : "";
-      if (!left) return;
-      sentences[at] = left;
-      cut[at] = false;
-    });
     for (let at = 1; at < sentences.length; at++) {
       const sentence = sentences[at];
       if (cut[at]) continue;

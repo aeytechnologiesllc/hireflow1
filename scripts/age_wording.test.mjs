@@ -67,8 +67,13 @@
  * literals and whole files, every function on every one of them, and the
  * same 212 items, against the twenty-second, twenty-third and twenty-fourth
  * rounds, in the twenty-fifth, where no item and no text changes but the
- * twenty-fourth round's own) to see what the new rules drop that the old ones
- * kept; the seventh to twenty-fifth reviews' fixes drop none of them.
+ * twenty-fourth round's own; 210,595 from the trees at the last five rounds,
+ * this one and the main working tree, and 8,424 multi-line literals and whole
+ * files, every function on every one of them, and the same 212 items, against
+ * the twenty-third, twenty-fourth and twenty-fifth rounds, in the
+ * twenty-sixth, where again no item and no text changes but the twenty-fourth
+ * round's own) to see what the new rules drop that the old ones kept; the
+ * seventh to twenty-sixth reviews' fixes drop none of them.
  *
  * Run with: node scripts/age_wording.test.mjs
  */
@@ -2833,16 +2838,10 @@ console.log("\nThe twenty-fifth review's cases\n");
     check(`(25th review) asks for age or marks it: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line) && A.marksAgeOrFamily(line) && A.textWithoutAgeAsks(line) === "");
 }
 {
-  // Finding 3: a status also ends its clause before her children, "married to", a number of years or a year (9 of the
-  // review's 10 wordings × 2 contexts), as an item, as a mark and in a job post's description; a ticket's or a room's after
-  // the same marks stays (the twenty-fourth round's three and the like).
-  const st = ["single (no kids)", "married to a seaman", "widowed since 2019", "divorced for 3 years", "married w/ 2 kids", "single - no kids", "married for 5 years", "separated w/ 1 child", "single/no kids"];
-  const lines = st.flatMap((s) => [`To apply, complete a practice email, then reply to this email: "Hi, I'm 23 years old, ${s}, from Cebu."`, `Reply to this email with a short bio: "Good day! I'm 24 years old, ${s}, and I have 2 years of BPO experience."`]);
-  const kept = lines.filter((line) => !A.asksAgeOrStatus(line) || !A.marksAgeOrFamily(line));
-  check(`(25th review) an applicant's status before her children, "married to", years or a year, beside a practice step or in a short bio, asks or marks it (${lines.length} lines)`, lines.length === 18 && kept.length === 0, kept.join(" | "));
-  const post = (l) => ["We are hiring a Chat Support Agent.", "", l, "", "We review every application within 3 days."].join("\n");
-  const shown = lines.filter((_, at) => at % 2 === 0).filter((l) => /years old/.test(A.textWithoutAgeAsks(post(l))));
-  check("(25th review) …and a job post's description loses it beside the practice step (9 descriptions)", shown.length === 0, shown.join(" | "));
+  // Finding 3: a status also ended its clause before her children, "married to", a number of years or a year. The
+  // twenty-sixth review found a customer's own status read so (its finding 5), and the twenty-fourth round's end of clause
+  // is back: the review's 18 lines are a known item of the twenty-sixth review's, below. A ticket's or a room's after the
+  // same marks stays (the twenty-fourth round's three and the like).
   for (const line of ['How to apply: answer a practice email: "I\'m 70 years old and need a ticket, single (one way), at the senior fare."', 'How to apply: answer a practice email: "I\'m 70 years old and want a room, single/double, at the senior rate."',
     'How to apply: answer a practice email: "I\'m 70 years old and want a room, single - 2 nights, at the senior rate."', 'How to apply: answer a practice email: "I\'m 70 years old and want a room, single w/ breakfast, at the senior rate."',
     'How to apply: answer a practice email: "I\'m 70 years old and need a room, single for two nights, at the senior rate."', 'How to apply: answer a practice email: "I\'m 70 years old and want two tickets, single to Manila, at the senior fare."',
@@ -2851,22 +2850,16 @@ console.log("\nThe twenty-fifth review's cases\n");
     check(`(25th review, guard) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line) && A.textWithoutAgeAsks(line) === line);
 }
 {
-  // Finding 4: a quote that drops is read again one sentence at a time, so an interviewer's other questions stay, wherever
-  // the one that asks stands, in both texts; the inch marks open no quote; a curly quote inside a straight one is its own.
+  // Finding 4: the inch marks open no quote; a curly quote inside a straight one is its own. A quote that drops was read
+  // again one sentence at a time, so an interviewer's other questions stayed; the twenty-sixth review found the ask's own
+  // follow-ups kept so (its finding 6), and the quote goes whole again: the review's question lists are known items of the
+  // twenty-sixth review's, below.
   for (const [input, output, fn = "textWithoutAgeAsks"] of [
-    ['In the phone screen we ask: "Tell us about your last job. How old are you? Which shifts can you work?"', 'In the phone screen we ask: "Tell us about your last job. Which shifts can you work?"'],
-    ['In the phone screen we ask: “Tell us about your last job. How old are you? Which shifts can you work?”', 'In the phone screen we ask: “Tell us about your last job. Which shifts can you work?”'],
-    ['Interview questions: "Why do you want this job? What is your age? How would you calm an angry caller?"', 'Interview questions: "Why do you want this job? How would you calm an angry caller?"'],
-    ['Sample screening message: "Thanks for applying! Please send your resume. Also, are you married or single? We reply in 3 days."', 'Sample screening message: "Thanks for applying! Please send your resume. We reply in 3 days."'],
-    ['Ask: "How old are you? Which shifts can you work?"', 'Ask: "Which shifts can you work?"'],
-    ['Ask: "Which shifts can you work? How old are you?"', 'Ask: "Which shifts can you work?"'],
-    ['Say: "Thanks, Mr. Cruz. I have your date of birth as [DOB]. Is that right?"', 'Say: "Thanks, Mr. Cruz. Is that right?"'],
     ['Use a 27" monitor. Must be 21-35 years old. Bring your own 15" laptop.', 'Use a 27" monitor. Bring your own 15" laptop.'],
     ['You get a 24" monitor. Ages 21-35 only. A 2" foam headset is provided.', 'You get a 24" monitor. A 2" foam headset is provided.'],
     ['Must be 21-35 years old with a 27" monitor. Two years in a call center. Bring your own 15" laptop.', 'Two years in a call center. Bring your own 15" laptop.'],
     ['Reply to this chat: "She wrote, “I\'m 70 years old.” Help her." Must be 21-35 years old. Night shift.', "Night shift."],
-    ['Her answer: "I led six agents. As a mother of three I stay calm. I hit my targets."', 'Her answer: "I led six agents. I hit my targets."', "textWithoutAgeMarks"],
-  ]) check(`(25th review) ${fn} keeps the quote's other sentences: ${JSON.stringify(input)}`, A[fn](input) === output, JSON.stringify(A[fn](input)));
+  ]) check(`(25th review) ${fn} keeps the line's other sentences: ${JSON.stringify(input)}`, A[fn](input) === output, JSON.stringify(A[fn](input)));
   // …and after a curly quote inside a straight one the line's own sentences stay, no mark left open.
   const nested = 'Candidates do a short chat practice. Reply to this chat: "The app says “Error 42” when I log in. I\'m 70 years old and can\'t fix it." Must be 21-35 years old. Night shift.';
   const nestedOut = A.textWithoutAgeAsks(nested);
@@ -2902,6 +2895,195 @@ for (const [line, drops, why, fn = "asksAgeOrStatus"] of [
 ]) {
   const got = fn === "textWithoutAgeAsks" ? A.textWithoutAgeAsks(line) !== line : A[fn](line);
   check(`(25th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, got === drops);
+}
+
+// The twenty-sixth review (2e225392): the twenty-fifth round's line for an introduction that names whom she serves read
+// every introduction that named no customer, so a customer's own message in the twenty-third round's wording went before
+// the readings that kept it (MEDIUM, against both); its trouble gate read an applicant's own negative as a customer's
+// trouble (MEDIUM, against 6dc16df7); its status's end of clause read a customer's own status (LOW-MEDIUM, against
+// 6dc16df7); questionsLeft kept the ask's own follow-ups (LOW, against 6dc16df7); the inch-mark rule cut the plain sentence
+// after a quote (LOW, against both); and six weakenings passed every check. Every check in this list but the guards and the
+// known items fails on the twenty-fifth round's module, and those for X1, X3, X14, X17 and X18 on the weakened modules.
+console.log("\nThe twenty-sixth review's cases\n");
+{
+  // Finding 1: the review's grid of a customer's own message that gives her name and her age and names her results, her
+  // portal or her account (4 names × 4 ages × 4 wordings × 8 bodies), in the four item contexts and three job-post contexts
+  // where the twenty-fifth round dropped 464 of 512 (generate-flow's practice cases, ai-generate-workflow's step prompts,
+  // ai-generate-job-content's How to apply).
+  const names = ["Harold", "Margaret", "Linda Park", "Mrs. Cruz"];
+  const ages = ["81", "72", "67", "15"];
+  const forms = [(n, a) => `Hi, I'm ${n}, ${a} years old.`, (n, a) => `Hello, my name is ${n}, ${a} years old,`, (n, a) => `Hello, my name is ${n}, I'm ${a} years old`, (n, a) => `Hi, I'm ${n} and I'm ${a} years old.`];
+  const bodies = ["I need my test results from last week.", "I need help logging in to the patient portal.", "The account says I owe $40 but I paid in full.", "Someone changed the password on the account.",
+    "My daughter set up the online account for me.", "I would like my lab results sent to my new doctor.", "Please send me the results of my blood test.", "I need to update the address on the account."];
+  const msgs = names.flatMap((n) => ages.flatMap((a) => forms.flatMap((f) => bodies.map((b) => `${f(n, a)} ${b}`))));
+  const items = [(m) => `To apply, do a short chat practice, then reply to this chat: "${m}"`, (m) => `How to apply: answer a practice email: "${m}"`, (m) => `Candidates do a short chat practice. Reply to this chat: "${m}"`,
+    (m) => `In this step, each candidate handles a live chat with a patient. Reply to this chat: "${m}"`].flatMap((f) => msgs.map(f));
+  const dropped = items.filter((line) => A.asksAgeOrStatus(line));
+  check(`(26th review) a customer's own name and age before her results, portal or account, beside a practice step or a sentence naming candidates, is hers (${items.length} lines)`, items.length === 2048 && dropped.length === 0, dropped.slice(0, 2).join(" | "));
+  const texts = [(m) => ["We are hiring a Patient Support Chat Agent for Bright Clinic.", "", `How to apply: send your resume and answer a practice email: "${m}"`, "", "We review every application within 3 days."].join("\n"),
+    (m) => `We are hiring a Patient Support Chat Agent.\n\nHOW TO APPLY\nApply on our site and complete a practice email.\nSample: reply to this email: "${m}"\n\nWe review every application within 3 days.`,
+    (m) => `HOW TO APPLY\nCandidates do a short chat practice.\nSample: reply to this chat: "${m}"`].flatMap((f) => msgs.map((m) => [f(m), m]));
+  const lost = texts.filter(([t, m]) => !A.textWithoutAgeAsks(t).includes(m));
+  check(`(26th review) …and a job post keeps it as the practice's sample, its How to apply line too (${texts.length} posts)`, texts.length === 1536 && lost.length === 0, lost.slice(0, 2).map(([t]) => JSON.stringify(A.textWithoutAgeAsks(t))).join(" | "));
+  // …in the real paths (the review's four messages): generate-flow's practice filter (:252) keeps its 8 cases,
+  // ai-generate-workflow deletes no step prompt (:607) and drops no scenario (:616), ai-generate-job-content's description
+  // (:387) keeps its 4 How to apply lines, and the interview guide's question filter (guideMaterial.ts:402) its 4 questions.
+  const four = ["Hi, I'm Harold, 81 years old. I need my test results from last week.", "Hello, my name is Margaret, 72 years old. I need help logging in to the patient portal.", "Hi, I'm Mrs. Cruz, 67 years old. The account says I owe $40 but I paid in full.", "Hi, I'm Linda Park and I'm 67 years old. Someone changed the password on the account."];
+  const sims = [...four.map((m) => ({ title: "Patient portal", prompt: `Candidates do a short chat practice. Reply to this chat: "${m}"` })), ...four.map((m) => ({ title: "Chat interview practice", prompt: `Reply to this chat: "${m}"` }))];
+  const flowKept = A.withoutAgeAsks(sims, (s) => `${s?.title ?? ""}. ${s?.prompt ?? ""}`).length;
+  const promptsKept = four.filter((m) => !A.asksAgeOrStatus(`In this step, each candidate handles a live chat with a patient. Reply to this chat: "${m}"`)).length;
+  const scenariosKept = A.withoutAgeAsks(four.map((m) => ({ title: "Senior patient", scenario: `Each applicant replies to the same chat. Reply to this chat: "${m}"` })), (s) => ["title", "scenario", "prompt"].map((k) => s[k]).filter((x) => typeof x === "string").join(". ")).length;
+  const howToApply = four.filter((m) => A.textWithoutAgeAsks(["We are hiring a Patient Support Chat Agent for Bright Clinic.", "", `How to apply: send your resume and answer a practice email: "${m}"`, "", "We review every application within 3 days."].join("\n")).includes(`How to apply: send your resume and answer a practice email: "${m}"`)).length;
+  const guideKept = four.filter((m) => !A.marksAgeOrFamily(`Interview question. Reply to this chat: "${m}" What would you say first?`)).length;
+  check("(26th review) …generate-flow keeps its 8 practice cases, ai-generate-workflow its 4 step prompts and 4 scenarios, the job post its 4 How to apply lines, the interview guide its 4 questions", flowKept === 8 && promptsKept === 4 && scenariosKept === 4 && howToApply === 4 && guideKept === 4, JSON.stringify({ flowKept, promptsKept, scenariosKept, howToApply, guideKept }));
+  // …and a customer who says whom she or the business serves in any other form than the twenty-fifth review's ("making",
+  // "care for", "serve", "help for"), beside a practice step, after "Candidates …" and after the case's customer.
+  for (const line of ['How to apply: answer a practice email: "Hi, I\'m Harold, 81 years old. You keep making customers like me wait on hold. Can I still get the senior discount?"',
+    'To apply, do a short chat practice, then reply to this chat: "Hi, I\'m Mrs. Cruz, 67 years old. I care for patients at home as a nurse, and the gloves I ordered never came."',
+    'Candidates do a short chat practice. Reply to this chat: "Hello, my name is Margaret, 72 years old. I run a small store and serve customers all day, but the card reader stopped working."',
+    'To apply, complete a practice email. A senior member writes in. Reply to this email: "Hello, my name is Margaret, 72 years old. I care for patients at home as a nurse, and the gloves I ordered never came."',
+    'How to apply: answer a practice email: "Hi, I\'m Rosa, 70 years old. Is there help for senior members who live alone?"'])
+    check(`(26th review) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line) && A.textWithoutAgeAsks(line) === line);
+  // The other way: an applicant's introduction that names whom she serves in the twenty-fifth review's words still goes,
+  // with a word of her BPO account in it (X1: a check word excusing it passed every check), and after a sentence naming
+  // the practice's customer (X18: the case's customer read first passed every check).
+  for (const line of ['To apply, complete a practice email, then reply to this email: "Hi, I\'m Ana and I\'m 24 years old, from Cebu. My last account was a US telco, and I love helping customers."',
+    'To apply, reply to this email: "Hi, I\'m Ana, 24 years old, from Cebu. I handled accounts for a US telco and I love helping customers."',
+    'The practice email: a customer asks about a late refund. To apply, complete it, then reply to this email: "Hi, I\'m Ana and I\'m 24 years old, from Cebu, and I love helping customers."',
+    'Practice chat: a member writes in about a refill. To apply, do the practice, then reply to this email: "Hi, I\'m Ana, 24 years old, from Cebu, and I love helping patients."',
+    'To apply, complete a practice email, then reply to this email: "Hi, I\'m Ana and I\'m 24 years old. I am good at fixing problems for customers."',
+    'To apply, complete a practice email, then reply to this email: "Hi, I\'m Ana, 24 years old, from Cebu, and I enjoy caring for patients."'])
+    check(`(26th review) asks for age or marks it: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line) && A.marksAgeOrFamily(line));
+  // …and a customer's words between the work and the customers she names are read up to two (X3: five passed every check),
+  // and a customer's message in no self-introduction's shape that says whom she serves stays hers (X2: the line without
+  // selfIntroduction passed every check once the twenty-fifth round's guard, "I help customers at my shop", was no longer
+  // read).
+  for (const line of ['How to apply: answer a practice email: "Hi, I\'m Harold, 81 years old. Thanks for helping me and the other senior customers at the clinic."', 'How to apply: answer a practice email: "Hi, I\'m Harold, 81 years old, and my wife and I have been helping my son and his customers at the store."',
+    'Candidates do a short chat practice. Reply to this chat: "I\'m 70 years old and I\'ve been helping customers at my shop for 40 years. My card reader is broken."'])
+    check(`(26th review, guard) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line) && A.textWithoutAgeAsks(line) === line);
+}
+{
+  // Finding 2: an applicant's own introduction that says what she has not done in her work or study yet (the review's 9
+  // contexts × 4 introductions × 4 such closings) goes, in a job post's description and as an item; the review's other
+  // three closings are known items, below.
+  const intros = ["Hello, my name is Ana, I'm 24 years old, from Cebu.", "Hi, my name is Ana and I am 24 years old, from Cebu.", "Hi, I'm Ana and I'm 24 years old, from Cebu.", "Hi, I'm Ana. I'm 24 years old and from Cebu."];
+  const tails = ["I haven't worked in a call center yet, but I learn fast.", "I didn't finish college, but I have 2 years in retail.", "I wasn't able to finish my degree, but I work hard.", "I'm a fresh graduate and I haven't had a BPO job yet."];
+  const contexts = [(t) => `To apply, complete a practice email, then reply to this email: ${t}`, (t) => `How to apply: send your resume and do a short chat practice. Then reply to this email: ${t}`,
+    (t) => `Reply to this email with a short intro, for example: ${t}`, (t) => `Reply to this email with a short bio: ${t}`, (t) => `Reply to this message with the following details: ${t}`,
+    (t) => `Reply to this email: ${t} Applicants must reply in this exact format.`, (t) => `Interested candidates, please send your resume. Then reply to this email: ${t}`,
+    (t) => `Qualified applicants will be contacted within 3 days. Reply to this email: ${t}`, (t) => `HOW TO APPLY\nApply on our site and complete a practice email.\nThen reply to this email: ${t}`];
+  const post = (body) => ["We are hiring a Chat Support Agent for Bright Pharmacy, a US online pharmacy.", "", body, "", "We review every application within 3 days."].join("\n");
+  const descs = contexts.flatMap((f) => intros.flatMap((i) => tails.map((tl) => post(f(`"${i} ${tl}"`)))));
+  const shown = descs.filter((d) => /years old/.test(A.textWithoutAgeAsks(d)));
+  check(`(26th review) a job post's description shows no applicant's introduction that says what she has not done in her work or study yet (${descs.length} descriptions)`, descs.length === 144 && shown.length === 0, shown.slice(0, 2).map((d) => JSON.stringify(A.textWithoutAgeAsks(d))).join(" | "));
+  const lines = contexts.slice(0, 6).flatMap((f) => intros.flatMap((i) => tails.map((tl) => f(`"${i} ${tl}"`))));
+  const kept = lines.filter((line) => !A.asksAgeOrStatus(line) || !A.marksAgeOrFamily(line));
+  check(`(26th review) …and each such line drops as an item and marks its age (${lines.length} lines)`, lines.length === 96 && kept.length === 0, kept.slice(0, 2).join(" | "));
+  // The other way: a customer's own negative is her trouble whatever work or study it names, in the twenty-fourth round's
+  // wordings beside a practice step and after "using the information below:" (the review's tested fix read any work word
+  // anywhere: 96 of 144 such lines beside a practice step were the applicant's); only "I" and her negative before her own
+  // work or study are hers (never her son's "wasn't able to finish college", never "worked out"), and a question is trouble
+  // whatever she says of her work.
+  for (const line of ['How to apply: answer a practice email: "Hello, my name is Harold, I\'m 81 years old and the discount code doesn\'t work for me."',
+    'How to apply: answer a practice email: "Hi, I\'m Margaret and I\'m 81 years old and my English isn\'t good, so please write simply."',
+    'To apply, do a short chat practice, then reply to this chat: "Hi, I\'m Harold. I\'m 81 years old and I can\'t learn this new app."',
+    'Reply to this chat using the information below: "Hi, my name is Margaret and I am 81 years old and the call center didn\'t call me back."',
+    'How to apply: answer a practice email: "Hi, I\'m Mark and I\'m 22 years old. I graduated in May and my degree certificate hasn\'t arrived."',
+    'How to apply: answer a practice email: "Hi, I\'m Harold and I\'m 81 years old. I haven\'t worked out how to use the new remote."',
+    'How to apply: answer a practice email: "Hi, I\'m Rosa and I\'m 70 years old. My son wasn\'t able to finish college and the loan office keeps calling me."',
+    'How to apply: answer a practice email: "Hi, I\'m Rosa and I\'m 70 years old. I haven\'t worked in an office for 20 years. Can you help me fill in the claim form?"'])
+    check(`(26th review, guard) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line) && A.textWithoutAgeAsks(line) === line);
+  // …and "don't" is trouble only before "know" or "understand" (X14: any "don't" passed every check).
+  for (const line of ['To apply, complete a practice email, then reply to this email: "Hi, I\'m Ana and I\'m 24 years old, from Cebu. I don\'t mind night shifts."', 'To apply, complete a practice email, then reply to this email: "Hi, I\'m Ana and I\'m 24 years old, from Cebu. I don\'t mind working weekends."'])
+    check(`(26th review) asks for age or marks it: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line) && A.marksAgeOrFamily(line));
+  // …and a name of three words before a comma is no self-introduction of the twenty-third round's (X17: four words passed
+  // every check): a customer who gives one and her age again with her trouble keeps her message.
+  const x17 = 'To apply, do a short chat practice, then reply to this chat: "Hello, my name is Mary Ann Cruz, 67. I am 67 years old and nobody calls me back."';
+  check(`(26th review) left as written: ${JSON.stringify(x17)}`, !A.asksAgeOrStatus(x17) && A.textWithoutAgeAsks(x17) === x17);
+}
+{
+  // Finding 5: a customer's own status before "since", "to", years or her children is hers again, after the owner's label
+  // and beside a practice step (the review's 12 messages; 11 of 12 were dropped after the label).
+  const msgs = ["I'm 70 years old, widowed since 2019, and I need to update the beneficiary on the policy.", "I'm 68, widowed since 2021. The pension office says I need a new form for the survivor benefit.",
+    "I'm 66 years old and married to a veteran. Is my husband covered under the plan?", "I'm 72 years old and married to a retired teacher. We want the couples rate for the cruise.",
+    "I'm 64, divorced for 3 years, and I need my ex removed from the account.", "I'm 67 years old, divorced for two years, and still getting my ex-husband's mail on the account.",
+    "I'm 81 years old, married for 60 years, and we want to book the anniversary package.", "I'm 70 and single (no kids), so who do I name as my emergency contact?",
+    "I'm 75 years old and widowed - no kids nearby - and I need help setting up the online portal.", "I'm 65, married w/ 2 kids on the plan, and the premium went up again.",
+    "I'm 69 years old and separated since 2020. Can I file as head of household?", "I'm 70 years old, widowed since 2019, and the bank still lists my late husband on the account."];
+  const lines = [(m) => `Reply to this chat using the information below: "${m}"`, (m) => `How to apply: answer a practice email: "${m}"`, (m) => `To apply, do a short chat practice, then reply to this chat: "${m}"`].flatMap((f) => msgs.map(f));
+  const dropped = lines.filter((line) => A.asksAgeOrStatus(line));
+  check(`(26th review) a customer's own status before "since", "to", years or her children is hers, after "using the information below:" and beside a practice step (${lines.length} lines)`, lines.length === 36 && dropped.length === 0, dropped.slice(0, 2).join(" | "));
+  const posts = msgs.map((m) => [`HOW TO APPLY\nApply on our site and complete a practice email.\nSample: reply to this email: "${m}"`, m]);
+  const lost = posts.filter(([t, m]) => !A.textWithoutAgeAsks(t).includes(m));
+  check(`(26th review) …and a job post keeps it as the practice's sample (${posts.length} posts)`, lost.length === 0, lost.slice(0, 2).map(([t]) => JSON.stringify(A.textWithoutAgeAsks(t))).join(" | "));
+  // The other way: an applicant's own status where it ends its clause still goes, as the twenty-fourth round read it.
+  for (const line of ['To apply, complete a practice email, then reply to this email: "Hi, I\'m 23 years old, single, from Cebu."', 'Reply to this email with a short bio: "Good day! I\'m 24 years old, married with two kids, and I have 2 years of BPO experience."', 'To apply, complete a practice email, then reply to this email: "Hi, I\'m 23 years old and married."'])
+    check(`(26th review, guard) asks for age or marks it: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line) && A.marksAgeOrFamily(line));
+}
+{
+  // Finding 6: a quote that drops goes whole, its follow-ups and its label with it, as in the twenty-fourth round.
+  for (const input of ['Ask: "Are you a fresh graduate? What year did you finish?"', 'Say: "Hi, thanks for applying! What is your age? We are hiring 18 to 25 only."', 'Ask: "Do you have kids? Who takes care of them while you work nights?"',
+    'Ask: "Are you married? If not, are you planning to settle down soon?"', 'Verify the applicant is under 35: "Thanks for applying. What year were you born?"', 'Ask the candidate: "What is your birth date? Please use MM/DD/YYYY."'])
+    check(`(26th review) textWithoutAgeAsks leaves nothing of: ${JSON.stringify(input)}`, A.textWithoutAgeAsks(input) === "", JSON.stringify(A.textWithoutAgeAsks(input)));
+  // Finding 7: beside a real quote an inch mark pairs as in the twenty-fourth round, so the plain sentence after the quote
+  // stays; an inch mark on a line of its own kind still opens no quote (the twenty-fifth round's checks, above).
+  for (const [input, output] of [
+    ['Agents use a 24" monitor and a headset. Ask the caller: "Are you 65 or older? I can then apply the senior fare." Night shift, Monday to Friday.', 'Agents use a 24" monitor and a headset. I can then apply the senior fare." Night shift, Monday to Friday.'],
+    ['Use a 27" monitor. Ask the caller: "Are you 65 or older? Then I can apply the senior fare." Night shift.', 'Use a 27" monitor. Then I can apply the senior fare." Night shift.'],
+  ]) check(`(26th review) textWithoutAgeAsks: ${JSON.stringify(input)} → ${JSON.stringify(output)}`, A.textWithoutAgeAsks(input) === output, JSON.stringify(A.textWithoutAgeAsks(input)));
+  const mixed = 'Use a 27" monitor. “Are you 18 or older?” is on every application. The customer says: "My 32" screen arrived cracked. I\'m 81 years old."';
+  check(`(26th review, guard) …and an inch mark beside a curly and a straight quote joins no sentence across them: ${JSON.stringify(mixed)}`, A.textWithoutAgeAsks(mixed).includes('The customer says: "My 32" screen arrived cracked.'), JSON.stringify(A.textWithoutAgeAsks(mixed)));
+}
+// Known, and left (the twenty-sixth review): each is read as shown for the reason given, so the next review need not report it.
+{
+  // The twenty-fifth review's finding 3, now that the status's end of clause is the twenty-fourth round's again: an
+  // applicant's status with no name before her children, "married to", years or a year is not read (the review's 18 lines:
+  // 0 drop; its 9 descriptions: 9 show the age), as the twenty-fourth round left it.
+  const st = ["single (no kids)", "married to a seaman", "widowed since 2019", "divorced for 3 years", "married w/ 2 kids", "single - no kids", "married for 5 years", "separated w/ 1 child", "single/no kids"];
+  const lines = st.flatMap((s) => [`To apply, complete a practice email, then reply to this email: "Hi, I'm 23 years old, ${s}, from Cebu."`, `Reply to this email with a short bio: "Good day! I'm 24 years old, ${s}, and I have 2 years of BPO experience."`]);
+  const dropped = lines.filter((line) => A.asksAgeOrStatus(line));
+  const post = (l) => ["We are hiring a Chat Support Agent.", "", l, "", "We review every application within 3 days."].join("\n");
+  const shown = lines.filter((_, at) => at % 2 === 0).filter((l) => /years old/.test(A.textWithoutAgeAsks(post(l))));
+  check(`(26th review, known) kept: an applicant's status with no name before her children, "married to", years or a year (${dropped.length} of ${lines.length} lines dropped, ${shown.length} of 9 descriptions show the age): a customer's own status reads the same (finding 5: "…separated since 2020. Can I file as head of household?"), so the twenty-fifth round's end of clause is reverted; with her name it still goes (A_SELF_INTRO), and the twenty-fourth round keeps these too`, lines.length === 18 && dropped.length === 0 && shown.length === 9);
+  // Finding 2's other three closings: a negative that names no work or study of hers, or names it without "I".
+  const intros = ["Hello, my name is Ana, I'm 24 years old, from Cebu.", "Hi, my name is Ana and I am 24 years old, from Cebu.", "Hi, I'm Ana and I'm 24 years old, from Cebu.", "Hi, I'm Ana. I'm 24 years old and from Cebu."];
+  const tails = ["My English isn't perfect, but I practice every day.", "I haven't missed a day of work in two years.", "I can't work Sundays because of church, but any other day is fine."];
+  const contexts = [(t) => `To apply, complete a practice email, then reply to this email: ${t}`, (t) => `How to apply: send your resume and do a short chat practice. Then reply to this email: ${t}`,
+    (t) => `Reply to this email with a short intro, for example: ${t}`, (t) => `Reply to this email with a short bio: ${t}`, (t) => `Reply to this message with the following details: ${t}`,
+    (t) => `Reply to this email: ${t} Applicants must reply in this exact format.`, (t) => `Interested candidates, please send your resume. Then reply to this email: ${t}`,
+    (t) => `Qualified applicants will be contacted within 3 days. Reply to this email: ${t}`, (t) => `HOW TO APPLY\nApply on our site and complete a practice email.\nThen reply to this email: ${t}`];
+  const jobPost = (body) => ["We are hiring a Chat Support Agent for Bright Pharmacy, a US online pharmacy.", "", body, "", "We review every application within 3 days."].join("\n");
+  const descs = contexts.flatMap((f) => intros.flatMap((i) => tails.map((tl) => jobPost(f(`"${i} ${tl}"`)))));
+  const shownTails = descs.filter((d) => /years old/.test(A.textWithoutAgeAsks(d)));
+  check(`(26th review, known) shown: an applicant's introduction in the twenty-fourth round's wordings whose negative names no work or study of hers ("My English isn't perfect", "I haven't missed a day of work", "I can't work Sundays"; ${shownTails.length} of ${descs.length} descriptions): a customer's "my English isn't good, so please write simply" and "the discount code doesn't work for me" read the same, and the review's tested fix dropped 96 of 144 such customer lines beside a practice step; the twenty-fifth round shows them too`, descs.length === 108 && shownTails.length === 108);
+}
+for (const [input, output, why, fn = "textWithoutAgeAsks"] of [
+  // The twenty-fifth review's finding 4, now that questionsLeft is gone.
+  ['In the phone screen we ask: "Tell us about your last job. How old are you? Which shifts can you work?"', "", "a quote that drops goes whole, as in the twenty-fourth round: read again one sentence at a time, the sentences kept were the ask's own follow-ups as often (finding 6: \"What year did you finish?\", \"We are hiring 18 to 25 only.\"), and only what they ask tells them apart; the twenty-third round keeps the other questions with an open mark"],
+  ['In the phone screen we ask: “Tell us about your last job. How old are you? Which shifts can you work?”', "", "the same with curly marks"],
+  ['Interview questions: "Why do you want this job? What is your age? How would you calm an angry caller?"', "", "the same"],
+  ['Sample screening message: "Thanks for applying! Please send your resume. Also, are you married or single? We reply in 3 days."', "", "the same"],
+  ['Ask: "How old are you? Which shifts can you work?"', "", "the same, the ask first"],
+  ['Ask: "Which shifts can you work? How old are you?"', "", "the same, the ask last"],
+  ['Say: "Thanks, Mr. Cruz. I have your date of birth as [DOB]. Is that right?"', "", "the same"],
+  ['Her answer: "I led six agents. As a mother of three I stay calm. I hit my targets."', "", "the same in a reviewer's text", "textWithoutAgeMarks"],
+  ['In the phone screen we ask: "Tell us about a time a customer said “I want a refund”. How old are you? Which shifts can you work?"', "", "the same: the twenty-fifth round reads the curly quote inside the straight one as its own, so the straight quote is one, and every earlier round's \"Which shifts can you work?\" (the twenty-third and twenty-fourth rounds' because the curly closing mark ended the straight quote) goes with it"],
+]) check(`(26th review, known) ${fn}: ${JSON.stringify(input)} → ${JSON.stringify(output)}: ${why}`, A[fn](input) === output, JSON.stringify(A[fn](input)));
+for (const [line, drops, why, fn = "asksAgeOrStatus"] of [
+  // Finding 3: closings that name a customer in words WHOM_SHE_SERVES does not read (every round keeps them).
+  ['To apply, complete a practice email, then reply to this email: "Hi, I\'m Ana, 24 years old, from Cebu. I am patient and hardworking."', false, "\"patient\" after \"am\" is the customer word in \"I am patient, but this is the third time I have asked for my results\" as often (the review's trial dropped that customer); every round keeps it, and \"I'm patient and a fast learner\", \"a patient and hardworking person\", \"customer-oriented\", \"a customer-first attitude\", \"good with customers\", \"very patient with customers\", \"I love customers\", \"Customers say I have a calm voice\", \"I treat every customer like family\" and \"I enjoy solving customers' problems\" too (15 of 15 descriptions each)"],
+  ['To apply, complete a practice email, then reply to this email: "Hi, I\'m Ana, 24 years old, from Cebu. I have handled US customers for 2 years."', false, "the work is read as a word ending in \"-ing\", as the twenty-fifth review's introductions gave it; any form of the verb read a customer's own \"I serve customers all day\" (finding 1), and the twenty-third and twenty-fourth rounds keep this too"],
+  ['To apply, complete a practice email, then reply to this email: "Hi, I\'m Ana, 24 years old, from Cebu. I love making customers happy."', false, "\"making\" read a customer's \"You keep making customers like me wait on hold\" (finding 1), and none of the twenty-fifth review's introductions used it; the twenty-third and twenty-fourth rounds keep this too"],
+  // Finding 4: a customer's plain request in the twenty-fourth round's wordings, and her comma wording.
+  ['How to apply: answer a practice email: "Hi, I\'m Harold and I\'m 81 years old and I need a new hearing aid battery sent to me."', true, "a request with no question, no trouble word and nothing of hers that A_CUSTOMERS_OWN lists reads as an introduction does (256 of the review's 256 beside a practice step, either wording, and after \"using the information below:\"); telling them apart is a new reading. The twenty-fourth round drops it too"],
+  ['Reply to this chat using the information below: "Hi, I\'m Harold and I\'m 81 years old and I need my test results from last week."', true, "the same after the owner's label with a check word (256 of 256); the twenty-fourth round drops it too"],
+  ['Reply to this chat using the information below: "Hi, I\'m Harold, 81 years old. I need a new hearing aid battery sent to me."', true, "the twenty-third round's comma wording with a plain body (48 of 48 in each of the review's three contexts); every round drops it"],
+  // Finding 8: hiring age limits no round reads.
+  ["Make sure the candidate is 21 to 30.", false, "an age range with no age word, after a verb of checking (\"Screen out anyone over 40.\", \"Verify the applicant is under 35.\", \"We are hiring 18 to 25 only.\" too) is a new reading; every round keeps them, and each needs the model to break AGE_RULE by name"],
+  ['Ask: "How old are you? Our client requires agents aged 21 to 35."', false, "a BPO's \"client\" inside the quote makes it a customer's, as in every round ('Ask: \"What is your age? Our US client prefers agents in their 20s.\"', 'Ask: \"Are you married? The client prefers single agents for night shift.\"' too)"],
+]) {
+  const got = fn === "textWithoutAgeAsks" ? A.textWithoutAgeAsks(line) !== line : A[fn](line);
+  check(`(26th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, got === drops);
 }
 
 console.log("\nThe three job writers\n");
