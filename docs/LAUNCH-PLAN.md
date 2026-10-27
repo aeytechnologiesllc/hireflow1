@@ -1017,7 +1017,11 @@ reached function deployed):
   f5b5ac17. **Round 17** (`sec17_report.md`) found the snapshot, the decline
   marks, the move trigger and the caller checks clean, and one MEDIUM left
   over (the decline's link opens pages showing today's names); it goes to
-  the Phase 5 round 18 fixer.
+  the Phase 5 round 18 fixer, live in 61cf66fb. **Round 18** (`sec18_report.md`)
+  found no regression and the applicant's own emails, the steps lookup and
+  the caller checks clean; one MEDIUM left over (the job's location, type
+  and step titles, the Messages page and the Improvement Report still show
+  today's text after a decline), added to the Phase 5 round 19 fixer.
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID

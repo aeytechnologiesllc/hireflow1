@@ -1725,6 +1725,10 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Receptionist", "Answer the clinic landline and reply to patient inquiries on our FB page.", "mixed"],
     ["Receptionist", "Answer the company's main line and reply to emails.", "mixed"],
     ["Chat Support Agent - Telco Account", "Handle our landline and fiber customers' concerns via chat.", "chat"],
+    // The forty-second (H1): "of the clinic" is the receptionist's own line; (M1) an order taker's landline orders are calls.
+    ["Medical Receptionist", "Answer the main line of the clinic and reply to patient emails.", "mixed"],
+    ["Receptionist", "Answer all phone lines of the office and reply to emails.", "mixed"],
+    ["Order Taker", "Answer the landline orders.", "phone"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
