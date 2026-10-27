@@ -14,6 +14,9 @@ export interface DocumentWithApplication extends Document {
     candidate_id: string;
     /** Where the application stands (the team's sheet: an already-hired person has no Hire to press). */
     status?: string | null;
+    /** The job's title and the business's name when they applied (the applicant's Documents page names these). */
+    applied_job_title?: string | null;
+    applied_company_name?: string | null;
     jobs: Tables<"jobs"> | null;
     profiles: Tables<"profiles"> | null;
   } | null;
@@ -35,7 +38,9 @@ export function useDocuments() {
             id,
             candidate_id,
             status,
-            jobs(*)
+            jobs(*),
+            applied_job_title,
+            applied_company_name
           )
         `)
         .order("created_at", { ascending: false });

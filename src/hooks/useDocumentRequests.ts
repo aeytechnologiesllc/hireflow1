@@ -38,6 +38,9 @@ export interface DocumentRequestWithDetails extends DocumentRequest {
   applications: {
     id: string;
     candidate_id: string;
+    /** The job's title and the business's name when they applied (the applicant's Documents page names these). */
+    applied_job_title?: string | null;
+    applied_company_name?: string | null;
     jobs: {
       id: string;
       title: string;
@@ -71,6 +74,8 @@ export function useDocumentRequests(statusFilter?: string) {
           applications(
             id,
             candidate_id,
+            applied_job_title,
+            applied_company_name,
             jobs(id, title, employer_id)
           )
         `)

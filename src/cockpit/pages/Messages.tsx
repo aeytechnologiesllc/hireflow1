@@ -6,6 +6,7 @@ import AvaSeal from "@/components/ava/AvaSeal";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessageableEmployers, type MessageableEmployer } from "@/hooks/useMessages";
 import { ReportJobDialog } from "@/components/trust/ReportJobDialog";
+import { ReportBusinessNote } from "@/components/trust/ReportBusinessNote";
 import { resolveCandidateMediaUrls } from "@/utils/candidateMediaUrl";
 import { ActionDialog } from "../components/ActionDialog";
 import { StatusChip } from "../components/ApplicantRow";
@@ -882,6 +883,11 @@ export default function CockpitMessages() {
                 </div>
               </>
             )}
+            {/* A business that reached them some other way than a message
+                (an email, papers, an interview, a move) and then deleted its
+                job left no chat here to report it from: report_choices()
+                still lists it (the twentieth Phase 5 review, finding 3). */}
+            <ReportBusinessNote place="anywhere" className="mt-5 max-w-[520px]" />
           </section>
         </div>
       );

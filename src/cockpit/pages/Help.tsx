@@ -7,6 +7,7 @@ import { CockpitErrorCard } from "../components/ErrorCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { trustApi, trustErrorWords, type HelpMessage } from "@/lib/trustApi";
+import { ReportBusinessNote } from "@/components/trust/ReportBusinessNote";
 
 /**
  * Help (the 2026-10-11 mock-ups, #6): a business writes to HireFlow and
@@ -19,7 +20,10 @@ import { trustApi, trustErrorWords, type HelpMessage } from "@/lib/trustApi";
  * account menu, at /contact: /help is staff-only on the staff host) (2026-10-25,
  * 20261025200000_help_for_applicants.sql): the Privacy Policy sends them
  * here to ask the company for a copy of their information, a correction or
- * a deletion. The hiring business never sees it.
+ * a deletion. The hiring business never sees it. It also offers "Report a
+ * business you were in touch with" (report_choices()): the Privacy Policy and
+ * the Terms send someone whose job is gone here to report its business (the
+ * twentieth Phase 5 review, finding 3).
  */
 
 const APPLICANT_QUICK_ANSWERS: ReadonlyArray<{ q: string; a: string }> = [
@@ -181,6 +185,7 @@ export default function CockpitHelp() {
               <div className="mt-0.5 text-[12.5px] leading-[1.5]" style={{ color: "var(--hf-text-muted)" }}>{item.a}</div>
             </div>
           ))}
+          {applicant && <ReportBusinessNote place="anywhere" />}
         </aside>
       </div>
     </div>

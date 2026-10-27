@@ -25,9 +25,11 @@
  *
  * Widened by the nineteenth Phase 5 review and the eighteenth security
  * review (2026-10-27): applicant-pages-name-the-job-as-applied also holds
- *   - the two pages' location, type and steps' titles (the job's own words
- *     only for someone still waiting on it, or while it is on its public
- *     page: src/lib/liveJobText.ts; the security review's s1_residual);
+ *   - the two pages' location and type (since the twentieth Phase 5 review
+ *     the application's own applied_location and applied_job_type, through
+ *     appliedNames; the security review's s1_residual) and steps' titles (the
+ *     job's own, which no browser can change once anyone has applied:
+ *     jobs_applicant_words_fixed);
  *   - the applicant's Messages page (src/hooks/useMessages.ts: each business
  *     and role from their own application; the Phase 5 review's finding 1,
  *     probe p2_messages);
@@ -37,7 +39,7 @@
  *     (ai-generate-performance-report, _shared/performanceReportJob.ts,
  *     src/hooks/useImprovementBlueprint.ts).
  * The step pages have their own guard, step-pages-name-the-job-as-applied
- * (text-a-business-changes-is-contact.mjs).
+ * (applicant-words-stay-as-applied.mjs).
  *
  * Proved by behaviour too: scripts/notification_access.test.mjs (section 4),
  * scripts/continue_link_email.test.mjs (section 4) and
@@ -127,27 +129,25 @@ export default [
         detail.push("src/hooks/useApplications.ts: the applicant's list must read the whole application row (applied_job_title and applied_company_name with it)");
       if (!/\.from\("applications"\) \.select\("\*, jobs\(\*\)"\) \.eq\("id", id!\)/.test(code(await read("src/pages/CandidateApplicationDetail.tsx"))))
         detail.push("src/pages/CandidateApplicationDetail.tsx: the application page must read the whole application row (applied_job_title and applied_company_name with it)");
-      // The job's own location, type and steps' titles: only through
-      // liveJobWords (still waiting on it, or on its public page).
+      // The job's location and type as they were when they applied (the
+      // application's own applied_location and applied_job_type, since the
+      // twentieth Phase 5 review), never the job's today: a closed job's
+      // location can say anything (the eighteenth security review's
+      // s1_residual). Its steps are the job's own: no browser can change a
+      // word of them once anyone has applied (jobs_applicant_words_fixed).
       for (const rel of ["src/pages/CandidateApplicationDetail.tsx", "src/pages/Applications.tsx"]) {
         const page = code(await read(rel));
-        if (/\bjob\s*\??\.\s*(location|job_type)\b/.test(page))
-          detail.push(`${rel}: shows the job's location or type today directly; show liveJobWords(application, job)'s, which the page shows only for someone still waiting on the job or while it is on its public page`);
-        if (!page.includes('import { liveJobWords } from "@/lib/liveJobText";') || !/liveJobWords\(application, (application\?\.jobs|job)\)/.test(page))
-          detail.push(`${rel}: must read the job's location, type and steps through liveJobWords (src/lib/liveJobText.ts)`);
+        if (/\bjobs?\s*\??\.\s*(location|job_type)\b/.test(page))
+          detail.push(`${rel}: shows the job's location or type today; show the application's own (appliedNames(application).location / .jobType)`);
+        if (/liveJobWords|liveJobText/.test(page)) detail.push(`${rel}: still reads src/lib/liveJobText.ts (gone since the twentieth Phase 5 review)`);
+        if (!/\{words\.location && \(/.test(page) || !/\{words\.jobType && \(/.test(page)) detail.push(`${rel}: must show the location and type the application kept (words = appliedNames(application))`);
       }
-      if (!/const workflowSteps = liveJobWords\(application, application\?\.jobs\)\.workflowSteps as WorkflowStep\[\];/.test(code(await read("src/pages/CandidateApplicationDetail.tsx"))))
-        detail.push("src/pages/CandidateApplicationDetail.tsx: \"Your steps\" must be built from liveJobWords(...).workflowSteps");
-      if (!/const workflowSteps = liveJobWords\(application, job\)\.workflowSteps;/.test(code(await read("src/pages/Applications.tsx"))))
-        detail.push("src/pages/Applications.tsx: the card's steps must be built from liveJobWords(...).workflowSteps");
-      const live = code(await read("src/lib/liveJobText.ts"));
-      if (
-        !/if \(stillWaiting\(application\) \|\| jobOnItsPublicPage\(job, now\)\) \{ return \{ location: plain\(job\?\.location\), jobType: plain\(job\?\.job_type\), workflowSteps: steps \}; \}/.test(live) ||
-        !/return \{ location: null, jobType: null, workflowSteps: steps\.map\(\(s\) => \(\{ \.\.\.s, title: titleFor\(s\.type\) === s\.type \? "Step" : null, description: null \}\)\), \};/.test(live) ||
-        !/return !!application && application\.status !== "rejected" && application\.status !== "hired";/.test(live) ||
-        !/if \(!job \|\| job\.status !== "published" \|\| job\.exclude_from_feed === true\) return false;/.test(live)
-      )
-        detail.push("src/lib/liveJobText.ts: the job's own words only for someone still waiting on it (not turned down or hired) or while it is on its public page; otherwise none, and each step by its kind");
+      if (!/const words = named;/.test(code(await read("src/pages/CandidateApplicationDetail.tsx"))) || !/const named = appliedNames\(application\);/.test(code(await read("src/pages/CandidateApplicationDetail.tsx"))))
+        detail.push("src/pages/CandidateApplicationDetail.tsx: the location and type must be the application's own (named = appliedNames(application))");
+      if (!/const words = appliedNames\(application\); const \{ jobTitle, companyName \} = words;/.test(code(await read("src/pages/Applications.tsx"))))
+        detail.push("src/pages/Applications.tsx: the card's location and type must be the application's own (appliedNames(application))");
+      const live = await read("src/lib/liveJobText.ts").catch(() => null);
+      if (live) detail.push("src/lib/liveJobText.ts: is back; the overview pages show the application's own location and type (appliedNames)");
       // Messages: each business and role from the applicant's own application.
       const messages = code(await read("src/hooks/useMessages.ts"));
       const employersAt = messages.indexOf("export function useMessageableEmployers(");

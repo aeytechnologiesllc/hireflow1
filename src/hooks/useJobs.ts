@@ -147,6 +147,32 @@ export function useJob(id: string | undefined) {
   });
 }
 
+/**
+ * Whether anyone has applied to this job yet, a draft included. Then its
+ * application questions, quiz and steps stay as they are: the database
+ * refuses a browser's change of a word of them (jobs_applicant_words_fixed,
+ * 20261025730000; src/lib/jobStepsFixed.ts), and the editor shows them
+ * read-only. Counted under the reader's own access (the job's owner, or a
+ * teammate on the job, sees every application to it).
+ */
+export function useJobHasApplications(id: string | undefined) {
+  const { user } = useAuth();
+  const { data: mode } = useSchemaMode();
+
+  return useQuery({
+    queryKey: ["jobs", "has-applications", id],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("applications")
+        .select("id", { count: "exact", head: true })
+        .eq("job_id", id!);
+      if (error) throw error;
+      return (count ?? 0) > 0;
+    },
+    enabled: !!user && !!id && mode === "hireflow1",
+  });
+}
+
 export function usePublishedJobs() {
   return useQuery({
     queryKey: ["jobs", "published"],

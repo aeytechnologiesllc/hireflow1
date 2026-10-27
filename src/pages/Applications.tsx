@@ -55,13 +55,12 @@ import {
 } from "@/utils/getApplicationDisplayState";
 import { phaseDurationEstimates } from "@/lib/phaseDurations";
 import { GlyphJourney, GlyphLetter } from "@/components/candidate/glyphs";
-import { buildCandidateJourney, positionFor } from "@/lib/candidateJourney";
+import { buildCandidateJourney, positionFor, type WorkflowStepLike } from "@/lib/candidateJourney";
 import { stepRoute } from "@/lib/journeyProgress";
 import { thisDeviceKind } from "@/lib/deviceGate";
 import { isFreshArrival, stepWaitingOnComputer } from "@/lib/resumeOnComputer";
 import { candidateInterviewWords, type CandidateInterviewWords } from "@/lib/candidateInterview";
 import { appliedNames } from "@/lib/appliedNames";
-import { liveJobWords } from "@/lib/liveJobText";
 import {
   InterviewSeal,
   InterviewSelectedMoment,
@@ -88,9 +87,9 @@ interface ApplicationCardProps {
 
 function journeyForCard(application: ApplicationWithJob) {
   const job = application.jobs;
-  // Its own titles only for someone still waiting on it, or while it is on
-  // its public page (src/lib/liveJobText.ts).
-  const workflowSteps = liveJobWords(application, job).workflowSteps;
+  // The job's own steps: once anyone has applied, no browser can change a
+  // word of them (jobs_applicant_words_fixed; the twentieth Phase 5 review).
+  const workflowSteps = (Array.isArray(job?.workflow_steps) ? job.workflow_steps : []) as unknown as WorkflowStepLike[];
   const quizQuestions = job?.quiz_questions;
   const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
   const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
@@ -279,16 +278,14 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmWithdrawOpen, setConfirmWithdrawOpen] = useState(false);
-  const job = application.jobs;
   // The job and the business as they were when they applied, never as they
   // are now (src/lib/appliedNames.ts; the seventeenth security review,
   // finding 1). Absent, not a placeholder, when the application has none.
-  const { jobTitle, companyName } = appliedNames(application);
-  // The job's location and type today: for someone still waiting on it (a
-  // change of them is contact with them), or while it is on its public page;
-  // never for someone turned down or hired once nobody else can see it (the
-  // eighteenth security review, finding 1; src/lib/liveJobText.ts).
-  const words = liveJobWords(application, job);
+  // The job's location and type too, as they were when they applied: a
+  // business can change a closed job's to anything (the eighteenth security
+  // review's s1_residual; the twentieth Phase 5 review).
+  const words = appliedNames(application);
+  const { jobTitle, companyName } = words;
 
   // Use shared display state utility - SINGLE SOURCE OF TRUTH
   const displayState = getApplicationDisplayState(application);

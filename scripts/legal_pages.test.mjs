@@ -190,7 +190,10 @@ check("it tells people how to delete their account, by the button's own name", /
   })();
   check(
     "it names the note of how each business was in touch, kept for reports, and says it goes with the account, as the record's keys make it",
-    /So is a note of each business you applied to and of how it was in touch with you \(a message, an email, moving your application forward, changing what its job or its own name says to you, a request for papers, a document or an interview\), with when each kind first and last happened\. It is kept so that a report you make about a business still counts if the business deletes them/.test(privacy) &&
+    /So is a note of each business you applied to and of how it was in touch with you \(a message, an email, moving your application forward, a request for papers, a document or an interview\), with when each kind first and last happened\. It is kept so that a report you make about a business still counts if the business deletes them/.test(privacy) &&
+      // Since the twentieth Phase 5 review a change of the job's words or the
+      // business's name is no contact (20261025730000 drops the two triggers).
+      !/changing what its job/.test(privacy) &&
       /employer_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/.test(contacts) && /person_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/.test(contacts),
   );
   // The sixteenth Phase 5 review (finding 4): since round 15 the note also
@@ -286,7 +289,8 @@ check("it names no governing law or court (there is no company named to hang one
   })();
   check(
     "the pause rule says a report already looked at counts again only after the business is in touch again, as employer_reports_auto_pause reads it",
-    /When three different people the business has been in touch with report it, it pauses by itself while we look\. A business is in touch with someone by message, by an email its hiring team sends them other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview\. So it is when it changes what its job, its steps or its own name say to them where the public cannot read it\./.test(terms) &&
+    /When three different people the business has been in touch with report it, it pauses by itself while we look\. A business is in touch with someone by message, by an email its hiring team sends them other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview\. Once anyone has applied to a job, its business can no longer change the job's application questions, quiz or steps, and an applicant's own pages name the job, its place and type and the business as they were when they applied\./.test(terms) &&
+      !/where the public cannot read it/.test(terms) &&
       /Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that\./.test(terms) &&
       /AND NOT public\.report_already_heard\(NEW\.employer_id, r\.reporter_id\)/.test(heard) && /AND since\.last_at > done\.closed_at/.test(heard) &&
       // "by an email": the hiring team's emails are contact, but a decline (the sixteenth Phase 5 review).
@@ -320,6 +324,47 @@ check("it names no governing law or court (there is no company named to hang one
     /by an email its hiring team sends them other than turning them down/.test(terms) && !/by an email other than turning them down/.test(terms) &&
       !/contactFor/.test(self) && /job_title: plainLine\(about\.applied_job_title, 200\),/.test(self) &&
       /line\(application!\.applied_job_title, 200\)/.test(read("supabase/functions/_shared/continueOnComputerEmail.ts")),
+  );
+}
+
+// The twentieth Phase 5 review (finding 1): the Terms promised that a change
+// of "what its job, its steps or its own name say to them where the public
+// cannot read it" was contact. That broadcast is undone (20261025730000); what
+// is true now is that a job's questions, quiz and steps stay as they were once
+// anyone applied, and the applicant's pages name the job as they applied.
+{
+  const fixed = (() => {
+    try {
+      return read("supabase/migrations/20261025730000_applicants_words_stay_as_applied.sql");
+    } catch {
+      return "";
+    }
+  })();
+  check(
+    "the Terms say a job's questions, quiz and steps stay as they were once anyone applied, as the database holds them",
+    /its business can no longer change the job's application questions, quiz or steps/.test(terms) &&
+      /CREATE TRIGGER jobs_applicant_words_fixed\s+BEFORE UPDATE OF application_questions, quiz_questions, workflow_steps ON public\.jobs/.test(fixed) &&
+      /DROP TRIGGER IF EXISTS business_contacts_remember_text ON public\.jobs;/.test(fixed) && /DROP TRIGGER IF EXISTS business_contacts_remember_name ON public\.profiles;/.test(fixed) &&
+      /NEW\.applied_location := OLD\.applied_location;/.test(fixed) && /NEW\.applied_job_type := OLD\.applied_job_type;/.test(fixed),
+  );
+}
+
+// The twentieth Phase 5 review (finding 3): both pages sent someone whose job
+// is gone to "Report in your chat with the business in Messages", a chat that
+// is there only if the business messaged them. Both name the way that is
+// always there now: Report a business you were in touch with, on Contact us
+// and on Messages when it has no chat (report_choices()).
+{
+  const ways = /Once the job is gone, use Report a business you were in touch with: it is on Contact us, and on Messages when you have no chat there \(a chat with the business has its own Report\)\./;
+  const help = read("src/cockpit/pages/Help.tsx");
+  const messages = read("src/cockpit/pages/Messages.tsx");
+  const note = read("src/components/trust/ReportBusinessNote.tsx");
+  check(
+    "both pages send someone whose job is gone to Report a business on Contact us or Messages, where it is offered",
+    ways.test(privacy) && ways.test(terms) && !/once the job is gone, use Report in your chat/i.test(privacy + terms) &&
+      /\{applicant && <ReportBusinessNote place="anywhere" \/>\}/.test(help) &&
+      /<ReportBusinessNote place="anywhere" className="mt-5 max-w-\[520px\]" \/>/.test(messages) &&
+      /report a business you were in touch with/.test(note) && /supabase\.rpc\("report_choices" as never\)/.test(note),
   );
 }
 

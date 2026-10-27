@@ -4,7 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
-import { useCreateJob, useUpdateJob, useJob } from "@/hooks/useJobs";
+import { useCreateJob, useUpdateJob, useJob, useJobHasApplications } from "@/hooks/useJobs";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -116,6 +116,7 @@ import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvent
 import { JobPublishedDialog } from "@/components/JobPublishedDialog";
 import { EmailCheckDialog } from "@/components/business/EmailCheckDialog";
 import { isEmailNotVerifiedError, OWNER_MUST_CONFIRM_EMAIL } from "@/lib/emailCheck";
+import { isJobStepsFixedError, JOB_STEPS_FIXED_MESSAGE, JOB_STEPS_FIXED_NOTE } from "@/lib/jobStepsFixed";
 import { SLUG_MESSAGES, slugCandidates, slugProblem, slugSaveProblem, suggestJobSlug, tidySlugInput } from "@/lib/jobSlug";
 import { claimSuggestedSlug, firstFreeSlug, takenSlugs } from "@/lib/jobSlugAvailability";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
@@ -883,6 +884,11 @@ export default function CreateJob() {
   const updateJob = useUpdateJob();
   const queryClient = useQueryClient();
   const { data: existingJob, isLoading: isLoadingJob } = useJob(id);
+  // Once anyone has applied (a draft included), the application questions,
+  // quiz and steps stay as they are: the database refuses a change of a word
+  // of them (jobs_applicant_words_fixed; the twentieth Phase 5 review), so
+  // the questions are shown read-only too. src/lib/jobStepsFixed.ts.
+  const { data: stepsFixed = false } = useJobHasApplications(isEditMode ? id : undefined);
   // Text-only screening (owner decision, 2026-10-04): the generated plan keeps
   // its written interview and never swaps in a voice interview.
   const hasVoiceInterviewAccess = false;
@@ -1832,6 +1838,13 @@ export default function CreateJob() {
         else setEmailCheckRetry({ status, companyNameOverride });
         return;
       }
+      // People applied while the page was open: the questions, quiz and steps
+      // stay as they were (jobs_applicant_words_fixed, HINT job_steps_fixed).
+      if (isJobStepsFixedError(error)) {
+        toast.error(JOB_STEPS_FIXED_MESSAGE);
+        void queryClient.invalidateQueries({ queryKey: ["jobs", "has-applications", id] });
+        return;
+      }
       // A team role without "Create jobs" (or a job that's gone) says so (useJobs).
       if (error instanceof Error && /^Your team role|isn't there any more/.test(error.message)) {
         toast.error(error.message);
@@ -2311,10 +2324,16 @@ export default function CreateJob() {
   } as const;
   const currentRiskStyles = screeningRiskAlertStyles[screeningPlanRisk.level];
 
-  // The application questions card. Shown on create AND on edit: unlike the
-  // tests, a question can be reworded or turned into a "Pick several" after the
-  // job is live (2026-10-05, the Zulu shift question), because answers already
-  // sent are stored with their own copy of the question.
+  // The application questions card. Shown on create AND on edit. Until
+  // anyone applies, a question can be reworded or turned into a "Pick
+  // several" after the job is live (2026-10-05, the Zulu shift question).
+  // Once someone has applied (a draft included) the questions stay as they
+  // are, read-only here: the database refuses a change of a word of them
+  // (jobs_applicant_words_fixed; the twentieth Phase 5 review: a live job's
+  // question rewritten into a GCash fee ask reached a draft, and counting
+  // every edit as contact let three throwaway drafts pause a business that
+  // added a "Weekend" choice).
+  const questionsLocked = isEditMode && stepsFixed;
   const applicationQuestionsSection = (
     <div className="space-y-2">
       <span className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground/60">Application</span>
@@ -2322,15 +2341,22 @@ export default function CreateJob() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Application Questions</CardTitle>
-          <Button variant="outline" size="sm" onClick={addNewQuestion} className="gap-1">
-            <Plus className="h-4 w-4" />
-            Add Question
-          </Button>
+          {!questionsLocked && (
+            <Button variant="outline" size="sm" onClick={addNewQuestion} className="gap-1">
+              <Plus className="h-4 w-4" />
+              Add Question
+            </Button>
+          )}
         </div>
         <CardDescription>
           {applicationQuestions.length} questions for the initial application
-          {isEditMode && ". Changes apply to anyone who has not sent the form yet."}
+          {isEditMode && !questionsLocked && ". Once someone applies, they stay as they are."}
         </CardDescription>
+        {questionsLocked && (
+          <p className="text-sm text-muted-foreground" data-steps-fixed>
+            {JOB_STEPS_FIXED_NOTE}
+          </p>
+        )}
       </CardHeader>
       <CardContent>
         <div className="space-y-3 sm:space-y-2">
@@ -2343,6 +2369,7 @@ export default function CreateJob() {
               >
                 <div className="flex min-w-0 items-center gap-3 sm:gap-4">
                   {/* Like Edit/Delete: shown on a phone, hover-revealed from sm up. */}
+                  {!questionsLocked && (
                   <div className="flex shrink-0 flex-col gap-1">
                     <Button
                       variant="ghost"
@@ -2365,6 +2392,7 @@ export default function CreateJob() {
                       <ChevronDown className="h-3 w-3" />
                     </Button>
                   </div>
+                  )}
                   {/* Decorative (the badge names the type); dropped on a phone to give the question room. */}
                   <div className="hidden h-10 w-10 rounded-lg bg-primary/10 sm:flex items-center justify-center shrink-0">
                     <QuestionIcon className="h-5 w-5 text-primary" />
@@ -2387,6 +2415,7 @@ export default function CreateJob() {
                   </div>
                 </div>
                 {/* Always visible on a phone (no hover there); hover-revealed from sm up. */}
+                {!questionsLocked && (
                 <div className="flex shrink-0 gap-1 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
                   <TooltipProvider>
                     <Tooltip>
@@ -2421,6 +2450,7 @@ export default function CreateJob() {
                     </Tooltip>
                   </TooltipProvider>
                 </div>
+                )}
               </div>
             );
           })}
@@ -3252,7 +3282,7 @@ export default function CreateJob() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
-              {/* Edit Mode: the tests stay read-only; the application questions stay editable */}
+              {/* Edit Mode: the tests stay read-only; the application questions stay editable until someone applies */}
               {isEditMode ? (
                 <>
                 <Card className="bg-card border-border">
@@ -3262,8 +3292,12 @@ export default function CreateJob() {
                       Screening Plan (Read Only)
                       </CardTitle>
                     <CardDescription>
-                      The tests and their order cannot be changed after the job is created. You can still edit the application questions below
-                      {workflowSteps.some((step) => step.type === 'equipment_check') ? ", and the connection the computer and connection check asks for." : "."}
+                      The tests and their order cannot be changed after the job is created.
+                      {questionsLocked
+                        ? workflowSteps.some((step) => step.type === 'equipment_check')
+                          ? " People have applied, so the application questions stay as they are too. You can still change the connection the computer and connection check asks for."
+                          : " People have applied, so the application questions stay as they are too."
+                        : ` You can still edit the application questions below${workflowSteps.some((step) => step.type === 'equipment_check') ? ", and the connection the computer and connection check asks for." : "."}`}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>

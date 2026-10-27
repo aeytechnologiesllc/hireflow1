@@ -14,7 +14,8 @@ import { format } from "date-fns";
 import { Eye, FileSignature } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { GlyphLetter } from "@/components/candidate/glyphs";
-import { businessJobLine, useCompanyNames } from "@/hooks/useCompanyNames";
+import { businessJobLine } from "@/hooks/useCompanyNames";
+import { appliedNames } from "@/lib/appliedNames";
 
 const LetterIdentityGlyph = GlyphLetter as unknown as LucideIcon;
 
@@ -85,11 +86,15 @@ export default function MyDocuments() {
   } = useDocumentRequests();
   const { data: signDocuments = [], isLoading: signLoading } = useDocuments();
   useDocumentsLive();
-  // Which business asks for each paper (someone in two hiring processes).
-  const companies = useCompanyNames([
-    ...signDocuments.map((d) => d.applications?.jobs?.employer_id),
-    ...documentRequests.map((r) => r.applications?.jobs?.employer_id ?? r.employer_id),
-  ]);
+  // Which business asks for each paper (someone in two hiring processes),
+  // and for which job: as they were when they applied (the application's own
+  // applied_company_name and applied_job_title), never today's. A business
+  // can close its job and rename it, or itself, to anything (the twentieth
+  // Phase 5 review; src/lib/appliedNames.ts).
+  const askedByLine = (application: { applied_company_name?: string | null; applied_job_title?: string | null } | null | undefined) => {
+    const named = appliedNames(application);
+    return businessJobLine(named.companyName, named.jobTitle);
+  };
 
   const [uploadDialogRequest, setUploadDialogRequest] = useState<DocumentRequestWithDetails | null>(null);
   // A written document (an offer letter) opens the applicant's signing
@@ -168,7 +173,7 @@ export default function MyDocuments() {
                     doc={doc}
                     now={now}
                     onView={() => openDocument(doc)}
-                    askedBy={businessJobLine(companies.get(doc.applications?.jobs?.employer_id ?? ""), doc.applications?.jobs?.title)}
+                    askedBy={askedByLine(doc.applications)}
                   />
                 ))}
               </div>
@@ -187,7 +192,7 @@ export default function MyDocuments() {
                     request={request}
                     isEmployer={false}
                     onUpload={() => setUploadDialogRequest(request)}
-                    askedBy={businessJobLine(companies.get(request.applications?.jobs?.employer_id ?? request.employer_id), request.applications?.jobs?.title)}
+                    askedBy={askedByLine(request.applications)}
                   />
                 ))}
               </div>
@@ -206,7 +211,7 @@ export default function MyDocuments() {
                     doc={doc}
                     now={now}
                     onView={() => openDocument(doc)}
-                    askedBy={businessJobLine(companies.get(doc.applications?.jobs?.employer_id ?? ""), doc.applications?.jobs?.title)}
+                    askedBy={askedByLine(doc.applications)}
                   />
                 ))}
               </div>

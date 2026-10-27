@@ -569,30 +569,11 @@ these either; each has a guard or a test that CI runs:
   `product-audit-fixes-hold`; notification_access section 4,
   continue_link_email section 4, launch_locks_behaviour section 27.
   (The nineteenth Phase 5 review and the eighteenth security review,
-  `20261025720000`.) The class closed: a business's browser edit of the
-  words its applicants read, while they can read it and the public cannot,
-  is contact. A browser change of a job's title, description, requirements,
-  responsibilities, benefits, skills, experience level, location, type, form
-  questions, quiz or any step's title, description or settings is a
-  `message` for everyone still waiting on the job (not turned down or hired)
-  when the job is off its public page (`job_text_public`:
-  published_jobs_public's rule with the deadline a day away), or the words
-  are ones that page never shows (a step's prompt, a question's options),
-  or the job leaves its public page within a day of a public change
-  (`private.job_public_text_edits`); only words count, never a number or a
-  switch (`business_contacts_remember_text`, AFTER UPDATE on jobs, `WHEN
-  (current_user = 'authenticated')`, the owner or an active teammate). A
-  public change that stays public a day is not contact (any three throwaway
-  applicants could otherwise pause a business that fixes a typo). A
-  business's browser rename of itself is a `message` for everyone still
-  waiting on any of its jobs (`business_contacts_remember_name`). Where the
-  snapshot covers a page it is shown: the nine step pages, the step gate and
-  "Continue on your computer" name `applied_job_title`; the applicant's
-  Messages names each business and role from their own newest application
-  (`useMessageableEmployers`, no `employer_public_branding`); the two
-  overview pages show the job's location, type and step titles only for
-  someone still waiting or while the job is public (`src/lib/liveJobText.ts`;
-  otherwise none, and each step by its kind); the Improvement Report names
+  `20261025720000`.) Where the snapshot covers a page it is shown: the nine
+  step pages, the step gate and "Continue on your computer" name
+  `applied_job_title`; the applicant's Messages names each business and
+  role from their own newest application (`useMessageableEmployers`, no
+  `employer_public_branding`); the Improvement Report names
   `applied_job_title` and takes the job's description, requirements and
   skills into its prompt only while the job is public
   (`_shared/performanceReportJob.ts`). A report can name the business:
@@ -604,11 +585,40 @@ these either; each has a guard or a test that CI runs:
   Report is on the applicant's Messages chat and on the "can't find that
   application" screens. "Not finished yet" goes only on an auto-mode job
   (`stepsAfterForm`, the form page's mark). Guards
-  `step-pages-name-the-job-as-applied`, `job-text-edit-is-contact`,
-  `business-rename-is-contact`, `report-names-the-business`, the widened
-  `applicant-pages-name-the-job-as-applied`, `product-audit-fixes-hold`;
-  launch_locks_behaviour section 28, `scripts/applicant_job_words.test.mjs`,
-  notification_access section 4.
+  `step-pages-name-the-job-as-applied`, `report-names-the-business`, the
+  widened `applicant-pages-name-the-job-as-applied`,
+  `product-audit-fixes-hold`; launch_locks_behaviour section 28,
+  `scripts/applicant_job_words.test.mjs`, notification_access section 4.
+  (The twentieth Phase 5 review, `20261025730000`.) An edit is no contact:
+  round 19 had also counted a browser's edit of a job's words, or a rename,
+  as a `message` for everyone still waiting (`business_contacts_remember_text`,
+  `business_contacts_remember_name`), and one ordinary edit (a "Weekend"
+  choice, "LLC" in the name, a typo fixed on a job that closes the same
+  day) then let three throwaway drafts pause a real business, again after
+  every reopen. Both triggers and their helpers (`job_applicant_words`,
+  `job_text_public`, `private.job_public_text_edits`) are dropped; their
+  rows stay. Instead what an applicant relies on stops changing under them:
+  once a job has any application, a draft included, a browser cannot change
+  a word of its form questions (text and options), quiz or steps, add,
+  remove or move one, or change the quiz's answer key
+  (`jobs_applicant_words_fixed`, BEFORE UPDATE OF application_questions,
+  quiz_questions, workflow_steps, `WHEN (current_user IN ('anon',
+  'authenticated'))`, sorted before `extract_quiz_answer_keys`; HINT
+  `job_steps_fixed`); a number or a switch (a time limit, "required", the
+  connection check's bars), the same words again and the server's writes
+  are taken. The editor shows the questions read-only then, with "use Copy
+  to drafts" (`useJobHasApplications`, `src/lib/jobStepsFixed.ts`). An
+  application keeps the job's location and type too (`applied_location`,
+  `applied_job_type`, `applications_as_applied`), and the overview pages,
+  the voice interview and the applicant's Documents page name the job as
+  applied (`src/lib/liveJobText.ts` is gone). The job's title, description
+  and the rest stay editable: public on a live job, shown to no applicant on
+  a closed one (the interviewers' context still reads them: BUSINESS-TRUST.md,
+  "What is left"). "Report a business you were in touch with" is on Contact
+  us and on Messages with no chat, and the Privacy Policy and the Terms say
+  so. Guards `edits-are-no-broadcast-contact`, `step-words-fixed-once-applied`,
+  `applications-keep-place-and-type`; launch_locks_behaviour section 29,
+  `scripts/job_steps_fixed.test.mjs`.
 - HireFlow's own jobs have their own AI day
   (`ai_platform_business_daily_call_cap`, 6,000 of the platform's 10,000;
   `20261025300000_ai_budget_own_jobs.sql`): they were uncounted, so one

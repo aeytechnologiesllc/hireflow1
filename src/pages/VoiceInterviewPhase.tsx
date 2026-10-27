@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Loader2, Mic, Phone, PhoneOff, Volume2, CheckCircle, Clock, Wifi, WifiOff, Camera, RefreshCw, AlertTriangle, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhaseAlreadySubmitted } from "@/components/PhaseAlreadySubmitted";
+import { appliedNames } from "@/lib/appliedNames";
 
 import { useJourneyPosition } from "@/hooks/useJourneyPosition";
 import { triggerAvaAnalysis } from "@/utils/triggerAvaAnalysis";
@@ -461,14 +462,6 @@ export default function VoiceInterviewPhase() {
         return;
       }
 
-      // Get employer profile for company name — a profile row may legitimately
-      // not exist yet, so this can't be a hard .single() failure.
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("company_name")
-        .eq("user_id", app.jobs.employer_id)
-        .maybeSingle();
-
       // Get candidate profile — same: no row yet is a normal state, not an error.
       const { data: candidateProfile } = await supabase
         .from("profiles")
@@ -476,11 +469,17 @@ export default function VoiceInterviewPhase() {
         .eq("user_id", app.candidate_id)
         .maybeSingle();
 
+      // The job and the business as they were when they applied (the
+      // application's own applied_job_title and applied_company_name), never
+      // today's: a business can close its job and rename it, or itself, to a
+      // fee ask, and nobody else sees it (the twentieth Phase 5 review; the
+      // other step pages since the nineteenth, src/lib/appliedNames.ts).
+      const named = appliedNames(app);
       setJob({
-        title: app.jobs.title,
+        title: named.jobTitle ?? "",
         description: app.jobs.description,
         requirements: app.jobs.requirements,
-        company_name: profile?.company_name,
+        company_name: named.companyName ?? undefined,
         workflow_steps: (app.jobs.workflow_steps as unknown[] | null) || [],
         quiz_questions: (app.jobs.quiz_questions as unknown[] | null) || [],
       });

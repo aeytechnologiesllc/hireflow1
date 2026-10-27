@@ -20,6 +20,13 @@ import { ReportJobDialog, type ReportTarget } from "./ReportJobDialog";
  * still there; otherwise by when it was last in touch, never by its name
  * today (a business can rename itself to anything). Shown only to someone
  * signed in with at least one.
+ *
+ * Also on Contact us and on Messages when it has no chat ("Report a business
+ * you were in touch with", place="anywhere"): the twentieth Phase 5 review,
+ * finding 3. The Privacy Policy and the Terms sent someone whose job is gone
+ * to "Report in your chat with the business in Messages", and that chat is
+ * there only if the business messaged them; one that reached them by email,
+ * papers, an interview or a move, then deleted its job, left no Report there.
  */
 
 interface ReportChoice {
@@ -41,7 +48,7 @@ function labelFor(choice: ReportChoice): string {
     : "A business whose job is gone";
 }
 
-export function ReportBusinessNote() {
+export function ReportBusinessNote({ place = "gone", className = "" }: { place?: "gone" | "anywhere"; className?: string } = {}) {
   const { user } = useAuth();
   const [targets, setTargets] = useState<ReportTarget[]>([]);
   const [open, setOpen] = useState(false);
@@ -63,16 +70,26 @@ export function ReportBusinessNote() {
 
   if (!user || targets.length === 0) return null;
   return (
-    <div className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-left text-sm" data-report-business>
+    <div className={`rounded-xl border border-border bg-muted/40 px-4 py-3 text-left text-sm ${className}`.trim()} data-report-business={place}>
       <div className="flex gap-2.5">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        <p className="text-muted-foreground">
-          <strong className="font-semibold text-foreground">Stay safe.</strong> A real job never asks you to pay. If a business did, you can still{" "}
-          <button type="button" className="font-medium text-foreground underline underline-offset-2" onClick={() => setOpen(true)} data-report-business-open>
-            report it
-          </button>
-          .
-        </p>
+        {place === "anywhere" ? (
+          <p className="text-muted-foreground">
+            <strong className="font-semibold text-foreground">A real job never asks you to pay.</strong> If a business did, even one whose job is gone,{" "}
+            <button type="button" className="font-medium text-foreground underline underline-offset-2" onClick={() => setOpen(true)} data-report-business-open>
+              report a business you were in touch with
+            </button>
+            .
+          </p>
+        ) : (
+          <p className="text-muted-foreground">
+            <strong className="font-semibold text-foreground">Stay safe.</strong> A real job never asks you to pay. If a business did, you can still{" "}
+            <button type="button" className="font-medium text-foreground underline underline-offset-2" onClick={() => setOpen(true)} data-report-business-open>
+              report it
+            </button>
+            .
+          </p>
+        )}
       </div>
       <ReportJobDialog open={open} onClose={() => setOpen(false)} targets={targets} about="business" />
     </div>

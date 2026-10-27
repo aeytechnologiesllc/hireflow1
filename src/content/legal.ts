@@ -184,7 +184,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         "The one exception is identity papers. A government ID, NBI clearance or proof of address you send when the hiring team asks for it is deleted 24 hours after someone on the hiring team first opens it, or 7 days after you send it if nobody opens it. Any other paper the team asks for by its own name is kept until the application or your account is deleted.",
         "In that time the hiring team may download a copy. A copy they keep is theirs to look after, under their own duties to protect it.",
         "When you delete your account, your profile, your applications, your messages, your reports, your Contact us thread, your test records and your files are deleted with it. On a hiring team, your chats with applicants and the documents you sent them stay with the business, under its owner's name.",
-        "A few records stay behind. The record of each document you signed (your name, email address, the time, your IP address, browser, device and approximate place) is kept as proof of the signature, even after you delete your account. So are a count of your test attempts, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), how many minutes a spoken interview used, and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account. So is a note of each business you applied to and of how it was in touch with you (a message, an email, moving your application forward, changing what its job or its own name says to you, a request for papers, a document or an interview), with when each kind first and last happened. It is kept so that a report you make about a business still counts if the business deletes them, and it decides when a report does not count: once we have looked at a report of yours, a new one about that business counts again only if it is in touch with you after that.",
+        "A few records stay behind. The record of each document you signed (your name, email address, the time, your IP address, browser, device and approximate place) is kept as proof of the signature, even after you delete your account. So are a count of your test attempts, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), how many minutes a spoken interview used, and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account. So is a note of each business you applied to and of how it was in touch with you (a message, an email, moving your application forward, a request for papers, a document or an interview), with when each kind first and last happened. It is kept so that a report you make about a business still counts if the business deletes them, and it decides when a report does not count: once we have looked at a report of yours, a new one about that business counts again only if it is in touch with you after that.",
       ],
     },
     {
@@ -235,7 +235,7 @@ export const PRIVACY_POLICY: LegalDocument = {
       title: "How to reach us",
       body: [
         "Write to us, Southern Digital Technologies LLC, from your account: an applicant opens the account menu and chooses Contact us; a hiring team opens Help. It reaches the people who run this site, not the hiring team of a job you applied to (unless that job is one of ours). We usually reply within a day.",
-        "To ask a hiring business something about your application, use Messages. To report a job, use Report on its page; once the job is gone, use Report in your chat with the business in Messages. We do not read replies to the emails the site sends.",
+        "To ask a hiring business something about your application, use Messages. To report a job, use Report on its page. Once the job is gone, use Report a business you were in touch with: it is on Contact us, and on Messages when you have no chat there (a chat with the business has its own Report). We do not read replies to the emails the site sends.",
       ],
     },
   ],
@@ -305,7 +305,7 @@ export const TERMS: LegalDocument = {
           ],
         },
         { sub: "Reports and pausing" },
-        "Applicants can report a job, or its business once the job is gone. We read every report, and the business never learns who sent it. When three different people the business has been in touch with report it, it pauses by itself while we look. A business is in touch with someone by message, by an email its hiring team sends them other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview. So it is when it changes what its job, its steps or its own name say to them where the public cannot read it. We may also pause a business ourselves. A paused business's jobs close until it is open again. Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that.",
+        "Applicants can report a job, or its business once the job is gone. We read every report, and the business never learns who sent it. When three different people the business has been in touch with report it, it pauses by itself while we look. A business is in touch with someone by message, by an email its hiring team sends them other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview. Once anyone has applied to a job, its business can no longer change the job's application questions, quiz or steps, and an applicant's own pages name the job, its place and type and the business as they were when they applied. We may also pause a business ourselves. A paused business's jobs close until it is open again. Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that.",
         { sub: "Price" },
         "Using the site is free at the moment. If that changes we will tell you first, and nothing will be charged without your agreement.",
       ],
@@ -386,7 +386,7 @@ export const TERMS: LegalDocument = {
       title: "How to reach us",
       body: [
         "Write to us, Southern Digital Technologies LLC, from your account: an applicant opens the account menu and chooses Contact us; a hiring team opens Help.",
-        "To ask a hiring business about your application, use Messages. To report a job, use Report on its page; once the job is gone, use Report in your chat with the business in Messages.",
+        "To ask a hiring business about your application, use Messages. To report a job, use Report on its page. Once the job is gone, use Report a business you were in touch with: it is on Contact us, and on Messages when you have no chat there (a chat with the business has its own Report).",
       ],
     },
   ],

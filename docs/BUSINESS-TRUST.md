@@ -118,11 +118,13 @@ interview on it (and, since the fifteenth Phase 5 review, a card the
 business or its team wrote into their bell; since the sixteenth, an email
 the hiring team sent them and a new time, link or notes on their
 interview; since the seventeenth, the hiring team moving their application
-forward; since the nineteenth, a change of the words they read on a job of
-theirs where the public cannot read them, and the business renaming
-itself). Only the business can make any of these, so a stranger
-cannot manufacture them; Ava never messages, sends papers or books
-interviews. Before, three people who had merely applied were enough, and
+forward). Each is the business reaching that one person. Only the business
+can make any of these, so a stranger cannot manufacture them; Ava never
+messages, sends papers or books interviews. (The nineteenth review also
+counted a change of a job's words, and the business renaming itself, as
+contact with everyone still waiting; the twentieth undid it: one ordinary
+edit gave three throwaway accounts that only started an application the
+contact they need. Below.) Before, three people who had merely applied were enough, and
 applying costs nothing (no email confirmation, no bot check yet): three
 throwaway accounts could close every job of any business, again after each
 reopen. Three reports from people who applied but were never contacted keep
@@ -158,8 +160,11 @@ A report can name the business since: below.)
 | `document_request` | papers are asked for | the application's job's owner |
 | `document` | a document is sent | the application's job's owner |
 | `interview` | an interview is booked, or a browser changes its time, its offered times, its link or its notes (since the sixteenth review) | the application's job's owner |
-| `message` | a browser changes the words a job's applicants read (its title, description, requirements, responsibilities, benefits, skills, experience level, location, type, form questions, quiz, or any step's title, description or settings) where the public cannot read them (since the nineteenth review), for each person still waiting on it | the job's owner |
-| `message` | a business renames itself from its browser (since the nineteenth review), for each person still waiting on any of its jobs | the business |
+
+(From the nineteenth review to the twentieth, a browser's change of a job's
+words where the public could not read them, and a business's rename of
+itself, also wrote a `message` for everyone still waiting. The rows written
+then stay, like every row; nothing writes more of them.)
 
 - The rows are written by `business_contacts_remember`, an AFTER INSERT
   trigger for each row on `applications`, `messages`, `document_requests`,
@@ -485,9 +490,9 @@ nineteenth review closed the class: below.)
 - Left, the same class: the job's location, its type (shown as written when
   it is not one of the known kinds) and its steps' titles on those pages are
   still the job's today (no application keeps them), and a business can
-  change them on a closed job too. (Closed by the nineteenth review: such a
-  change is contact with everyone still waiting on the job, and someone
-  turned down or hired sees none of them once nobody else can. Below.)
+  change them on a closed job too. (The nineteenth review counted such a
+  change as contact; since the twentieth, an application keeps the location
+  and type too, and the steps cannot change once anyone has applied. Below.)
 - Proof: `scripts/notification_access.test.mjs` section 4 (the review's
   probes pq_submit_closed and pr_received, the cut, none on file, "not
   finished yet" from the job's steps, the button never another's
@@ -498,18 +503,21 @@ nineteenth review closed the class: below.)
   `applicant-pages-name-the-job-as-applied`, `decline-card-says-team-once`
   and `product-audit-fixes-hold` (now the decision too).
 
-**What a business changes of its applicants' words is contact; a report can
-name the business when its job is gone (the nineteenth Phase 5 review and
-the eighteenth security review, 2026-10-27;
-`20261025720000_text_a_business_changes_is_contact.sql`).**
+**What a business changes of its applicants' words; a report can name the
+business when its job is gone (the nineteenth Phase 5 review and the
+eighteenth security review, 2026-10-27;
+`20261025720000_text_a_business_changes_is_contact.sql`; the broadcast part
+undone by the twentieth review, below).**
 
 Rounds 15 to 19 each found one more place where a business shows its
 applicants words it can change after they applied, with nothing recorded as
-contact. This closes the class rather than the next instance: a business's
-browser edit of the words an applicant reads (a job's title, description and
-step text, or the business's own name), while those applicants can still read
-it and the public cannot, is contact with them. Where the application's own
-snapshot covers a page cheaply, the page shows it as well.
+contact. Round 19 closed the class by counting a business's browser edit of
+the words an applicant reads (a job's title, description and step text, or
+the business's own name), while the public could not read it, as contact
+with everyone still waiting. The twentieth review showed that counting
+broke the rule reports rest on, and closed the class the other way
+(`20261025730000`, below): what an applicant already relies on stops
+changing under them.
 
 - A job's words. The Phase 5 review's probe p1_steps_closed closed a job,
   renamed it "PAY 500 PHP GCASH 0917 000 0000 FIRST - Chat support agent",
@@ -518,42 +526,10 @@ snapshot covers a page cheaply, the page shows it as well.
   a GCash reference; the security review's s1_residual set a closed job's
   location to "Remote. To be reconsidered, send the 500 PHP review fee to
   GCash 0917 000 0000 ..." and added a step titled the same. Every step page,
-  and the overview pages, showed it; the record held "applied" only. Now a
-  browser's change of a job's title, description, requirements,
-  responsibilities, benefits, skills, experience level, location, type, form
-  questions, quiz or any step's title, description or settings records a
-  `message` for everyone still waiting on the job (not turned down or hired)
-  (`business_contacts_remember_text`, AFTER UPDATE on jobs, `WHEN
-  (current_user = 'authenticated')`, the job's owner or an active teammate on
-  it), when:
-  - the job is off its public page before or after the change
-    (`job_text_public`: published, not kept off the list, its business not
-    paused, and its deadline at least a day away); or
-  - the words are ones the public page never shows, whatever the job's
-    status: a step's settings (its prompt, its scenario) or a question's
-    options (`published_jobs_public` carries a step's id, type, title,
-    description and required, and a question's id, type, question, required,
-    placeholder, time limit and category); or
-  - the change was made while the job was public, and the job leaves its
-    public page within a day of it (closed, kept off the list, or a deadline
-    set inside the day; `private.job_public_text_edits` keeps when each job's
-    public words last changed): a fee ask made public for a moment and then
-    closed away was no change the public saw.
-  Only words count (every string in those columns, before and after): a time
-  limit, a passing score, "required" or the same words saved again are not
-  contact. Neither is the server's write (Ava's builder through the service
-  role, a pause, a reopen).
-- Why a change the public page shows, and that stays public for a day, is
-  not contact: anyone can read it there, HireFlow's admins included, and
-  anyone can report it there; counted, any three throwaway applicants could
-  pause any real business that fixes a typo in its live job, what the Phase
-  7 audit's "reports need contact" closed. What the public page never shows (a step's
-  prompt) was a hole on a live job too: it counts.
-- The business's own name. A business's rename of itself from its browser
-  (`profiles.company_name`, a changed value) records a `message` for everyone
-  still waiting on any of its jobs (`business_contacts_remember_name`). A
-  real business renames itself rarely; the cost is that three of its
-  applicants could then pause it by reporting, as after any message.
+  and the overview pages, showed it; the record held "applied" only. Since
+  the twentieth review the steps and the question are refused once anyone
+  has applied, and the title, location and type reach nobody who applied:
+  every applicant surface names them as they applied.
 - What the pages show. Where the snapshot covers a page it is shown,
   always: the nine step pages' top line, the step gate and "Continue on your
   computer" (beside "Email me the link") name the application's
@@ -565,12 +541,7 @@ snapshot covers a page cheaply, the page shows it as well.
   page's row, and every applicant email, the decline included, links there);
   the Improvement Report, a turned-down card's one action, names
   `applied_job_title` in its heading and PDF (a report kept from before is
-  named so too). What no application keeps, the job's location, type and
-  steps' titles, the overview pages show only for someone still waiting on
-  the job (their record covers a change) or while the job is on its public
-  page; for someone turned down or hired, once nobody else can see the job,
-  none of them, and each step by its kind's own name
-  (`src/lib/liveJobText.ts`). The Improvement Report's prompt takes the job's
+  named so too). The Improvement Report's prompt takes the job's
   description, requirements and skills only while the job is on its public
   page, and its steps only by the kinds HireFlow knows otherwise
   (`_shared/performanceReportJob.ts`).
@@ -595,32 +566,138 @@ snapshot covers a page cheaply, the page shows it as well.
   day, all by business as before. Report is offered on the applicant's
   Messages chat with a business and on the screens of an application that is
   gone ("We can't find that application", the step gate's "Application not
-  found").
+  found"); since the twentieth review on Contact us and on Messages with no
+  chat too.
 - "Not finished yet" only on an auto-mode job. On a manual-mode job only the
   team opens the next step, so the email said "they are waiting for you ...
   please finish them soon" untruly (the Phase 5 review's finding 4); it is the
   plain "Application Submitted" there (`stepsAfterForm` and the form page's
   mark read `processing_mode`).
-- Left: the voice interview's page still names the job's title today (voice
-  is HireFlow's own account's only, and that account is never paused); the
-  step pages still send the job's title and description today to the
-  practice and interview functions, which read the job themselves (a change
-  of them is contact with everyone still waiting, who are the only people
-  those steps reach); the applicant's Documents page names the business and
-  the job today beside each paper (each paper is contact itself, recorded
-  when it was sent); a business's name on its public pages (its careers
-  page, its live jobs) is its name today, for everyone. A chat whose
-  teammate the business has taken off its team (the row deleted) names no
-  business any more, so its Report is refused; the "can't find that
-  application" screens still list the business from the record.
 - Proof: `scripts/launch_locks_behaviour.pglite.test.mjs` section 28 (probes
-  p1_steps_closed, s1_residual, p2_messages and p3_nowhere_to_report, and
-  what is not contact), `scripts/applicant_job_words.test.mjs` (the pages'
-  and the report's words), `scripts/notification_access.test.mjs` section 4
-  (manual mode); guards `step-pages-name-the-job-as-applied`,
-  `job-text-edit-is-contact`, `business-rename-is-contact`,
+  p1_steps_closed, s1_residual, p2_messages and p3_nowhere_to_report, as they
+  end since the twentieth review), `scripts/applicant_job_words.test.mjs`
+  (the pages' and the report's words), `scripts/notification_access.test.mjs`
+  section 4 (manual mode); guards `step-pages-name-the-job-as-applied`,
   `report-names-the-business`, the widened
   `applicant-pages-name-the-job-as-applied` and `product-audit-fixes-hold`.
+
+**What an applicant relies on stays as it was; an ordinary edit is no
+contact (the twentieth Phase 5 review, 2026-10-27;
+`20261025730000_applicants_words_stay_as_applied.sql`).**
+
+Contact is the business reaching that person: a message, an email, papers,
+an interview, a move of their application. Round 19 also counted a
+broadcast, an edit of a job's words or a rename, as contact with everyone
+waiting. The review showed both sides of that:
+
+- Finding 2 (MEDIUM, a regression; probe q3_blanket). Three throwaway
+  accounts each start an application on a confirmed business's live job,
+  none sends the form, and each files one report ("fake_job"). Then the
+  business does one ordinary thing through the app: (i) adds a third
+  choice, "Weekend", to "Which shift can you work?" (options were not in
+  `published_jobs_public`); (ii) adds "LLC" to its name in Settings; (iii)
+  publishes a closed job again with one more line of description, in one
+  save (the editor sends the status with every edit); (iv) fixes a typo in
+  the live job's title and closes it the same day; (v) fixes a typo on a
+  live job whose deadline is tonight. After each, all three had
+  `applied,message`, and the next word each added to their report paused
+  the business, and again after every reopen with its next such edit: the
+  hole the Phase 7 audit's "reports need contact" closed.
+- Finding 1 (MEDIUM; probe q2_live_unshown). On a live job the form's
+  questions, every step's title and description and the quiz counted as
+  public because `published_jobs_public` carries them, but no public page
+  shows them (the job page shows the title, place, type, level,
+  description, responsibilities, requirements, skills and benefits). A
+  business rewrote all three into a GCash fee ask ("Paste your GCash
+  reference number for the 500 PHP processing fee (GCash 0917 000 0000).
+  Forms without one are not reviewed."), a draft sent "GCash ref
+  1234567890", nothing was recorded, and three reports left it open.
+
+So the broadcast is undone, and the class is closed the other way:
+
+- Undone. `business_contacts_remember_text` (on jobs) and
+  `business_contacts_remember_name` (on profiles) are dropped, with
+  `job_applicant_words`, `job_text_public` and
+  `private.job_public_text_edits`. The `message` rows they wrote stay (live,
+  the one job is HireFlow's own, and a platform admin's business is never
+  paused). An edit of a job's words, or a rename, is no contact.
+- The job's place and type, as applied. Every application keeps the job's
+  location and type as they were when it was made (`applied_location`,
+  `applied_job_type`), as it keeps the title and the business's name: set by
+  `applications_as_applied` on every insert, whatever was sent, kept from
+  every browser after, filled for the applications already there with the
+  `updated_at` stamp held off. The two overview pages show those
+  (`src/lib/appliedNames.ts`; `src/lib/liveJobText.ts` is gone).
+- The steps, fixed once anyone has applied. Once a job has any application,
+  a draft included, a browser cannot change a word of its form's questions
+  (their text and options), its quiz or any step (title, description,
+  prompt, scenario, every setting written in words), add, remove or move a
+  step or a question, or change the quiz's answer key
+  (`jobs_applicant_words_fixed`, BEFORE UPDATE OF `application_questions`,
+  `quiz_questions`, `workflow_steps`, `WHEN (current_user IN ('anon',
+  'authenticated'))`, named to run before `extract_quiz_answer_keys` so it
+  sees the keys a browser sends; HINT `job_steps_fixed`: "People have
+  applied to this job, so its application questions, quiz and steps stay as
+  they were. To ask something different, use Copy to drafts on the Jobs page
+  and post the copy."). A number or a switch is not words: a time limit,
+  "required", and the connection check's bars (the one setting the editor
+  lets a business change on a live job; docs/EQUIPMENT-CHECK.md) stay the
+  business's, and the same words saved again are taken (the editor sends
+  only the columns whose fields changed, with the status: closing and
+  publishing again work as before). The server's own writes (Ava's builder,
+  an edge function's service role, the database's own functions) are not
+  held; nothing real writes these columns after applications exist (the job
+  editor is the only writer: Ava's builder makes a new job, and Copy to
+  drafts makes a new draft). Until anyone applies the job is the business's
+  to shape, and it is again if nobody is on it any more.
+- The editor. Once the job has applications the edit screen shows the
+  questions read-only (no Add, no move, no Edit, no Delete), with one line:
+  "People have applied, so these questions stay as they are. To ask
+  different ones, use Copy to drafts on the Jobs page and edit the copy."
+  The tests were already read-only after a job is made. A save the database
+  refuses (someone applied while the page was open) says the same
+  (`src/lib/jobStepsFixed.ts`, `useJobHasApplications`).
+- What stays editable. The job's title, description, responsibilities,
+  requirements, benefits and skills, its location and type: on a live job
+  they are on its public page, where anyone can read and report them, and
+  on a closed one no applicant surface shows them. Every applicant page,
+  email and card names the job by the application's own snapshot; since this
+  review the voice interview's page and transcript and the applicant's
+  Documents page do too (they read the job's title and the business's name
+  today).
+- What is left, the same class. The interviews and practices an applicant
+  takes (ai-chat-interview, ava-voice-session) read the job's own
+  description, requirements, responsibilities, benefits and skills into the
+  interviewer's context, closed job or not; a closed job's words can reach
+  someone still waiting through what the interviewer says. Voice is
+  HireFlow's own account's only (never paused). The emails and cards of an
+  interview (`interview_confirmed`, `interview_reminder`, the interview
+  bell) name the job's title today; each follows an interview, which is
+  contact. Any applicant can read every column of a job they applied to
+  through the API ("Candidates can view jobs they applied to"); no page
+  shows the ones above.
+- Not counted either way: a job published with a fee ask already in a
+  step's prompt, before anyone applied (the review's q2, second part). No
+  edit reached anyone; the reports ring "reported 3 times" and an admin
+  looks, as for any job.
+- Report a business, wherever the job is gone (finding 3, LOW). The Privacy
+  Policy and the Terms sent someone whose job is gone to "Report in your
+  chat with the business in Messages", and that chat is there only if the
+  business messaged them: one that reached them by email, papers, an
+  interview or a move and then deleted its job left no Report there. "Report
+  a business you were in touch with" (`ReportBusinessNote`,
+  `report_choices()`) is now on Contact us and on Messages when it has no
+  chat, and both pages say so.
+- Proof: `scripts/launch_locks_behaviour.pglite.test.mjs` section 29 (probe
+  q3_blanket's five edits and a rename, probe q2_live_unshown's rewrites,
+  what stays the business's, the place and type kept, the heard rule with
+  reports naming the business and with a teammate's chat) and section 28 as
+  the earlier probes end now; `scripts/job_steps_fixed.test.mjs` (the
+  editor), `scripts/applicant_job_words.test.mjs`,
+  `scripts/legal_pages.test.mjs`; guards `edits-are-no-broadcast-contact`,
+  `step-words-fixed-once-applied`, `applications-keep-place-and-type`,
+  `step-pages-name-the-job-as-applied` (the voice page and Documents too)
+  and `report-names-the-business`.
 
 ## Admins
 

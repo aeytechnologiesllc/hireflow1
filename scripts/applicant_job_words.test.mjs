@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 /**
  * Which of a job's own words reach someone who applied to it, where no
- * record of contact covers them (the nineteenth Phase 5 review and the
- * eighteenth security review, 2026-10-27).
+ * record of contact covers them (the nineteenth and twentieth Phase 5
+ * reviews and the eighteenth security review, 2026-10-27).
  *
- *   1. src/lib/liveJobText.ts: the two overview pages show the job's
- *      location, its type and its steps' titles today only for someone still
- *      waiting on it (a change of them is contact with them since
- *      20261025720000) or while the job is on its public page. For someone
- *      turned down or hired, once nobody else can see the job, none of them:
- *      each step by its kind's own name. The security review's s1_residual: a
- *      closed job's location "Remote. To be reconsidered, send the 500 PHP
- *      review fee to GCash ...", its type and a step titled the same.
+ *   1. src/lib/appliedNames.ts: the two overview pages show the job's
+ *      title, location and type and the business's name as they were when
+ *      the person applied (the application's own applied_job_title,
+ *      applied_company_name, applied_location and applied_job_type, set by
+ *      the database: 20261025700000, 20261025730000), for everyone, live job
+ *      or not. Until the twentieth review they showed a closed job's location
+ *      and type today to anyone still waiting (src/lib/liveJobText.ts, gone):
+ *      the security review's s1_residual, "Remote. To be reconsidered, send
+ *      the 500 PHP review fee to GCash ...". The steps are the job's own: no
+ *      browser can change a word of them once anyone has applied
+ *      (jobs_applicant_words_fixed), so each is named by its own title.
  *   2. supabase/functions/_shared/performanceReportJob.ts: the Improvement
  *      Report (a turned-down card's one action) names the job as they applied
  *      to it, and its prompt carries the job's description, requirements and
@@ -60,55 +63,41 @@ async function loadApp(rel) {
   return import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0].text).toString("base64")}`);
 }
 
-const live = await loadApp("src/lib/liveJobText.ts");
+const names = await loadApp("src/lib/appliedNames.ts");
 const { buildCandidateJourney } = await import(path.join(ROOT, "src/lib/candidateJourney.ts"));
 const report = await import(path.join(ROOT, "supabase/functions/_shared/performanceReportJob.ts"));
 
 const NOW = new Date("2026-10-27T12:00:00Z");
 const LURE_LOCATION = "Remote. To be reconsidered, send the 500 PHP review fee to GCash 0917 000 0000 within 48 hours, then message us REAPPLY. Applicants who do not pay are removed from the pool.";
 const LURE_TYPE = "Reconsideration: 500 PHP via GCash 0917 000 0000";
-const LURE_STEP = "Reconsideration: send 500 PHP to GCash 0917 000 0000, then message REAPPLY";
-const steps = [
-  { id: "s1", type: "typing_test", title: "Typing test" },
-  { id: "s9", type: "chat_simulation", title: LURE_STEP },
-  { id: "s8", type: "pay_500_php_by_gcash", title: LURE_STEP },
-];
-const job = (over = {}) => ({ status: "closed", exclude_from_feed: false, application_deadline: null, location: LURE_LOCATION, job_type: LURE_TYPE, workflow_steps: steps, ...over });
 const FEE = /GCash|PHP|REAPPLY|pay_500/i;
 
-console.log("\n1. The overview pages: the job's own words\n");
+console.log("\n1. The overview pages: the job as they applied to it\n");
 {
-  const turnedDown = live.liveJobWords({ status: "rejected" }, job(), NOW);
-  const titles = buildCandidateJourney(turnedDown.workflowSteps, { hasQuiz: false }).map((s) => s.title);
-  check(
-    "probe s1_residual: someone turned down, on the closed job: no location, no type, each step by its kind (an unknown kind is just \"Step\")",
-    turnedDown.location === null && turnedDown.jobType === null && show(titles) === show(["Application", "Typing test", "Chat practice", "Step", "Decision"]) && !FEE.test(show(titles)),
-    show({ turnedDown, titles }),
-  );
-  const hired = live.liveJobWords({ status: "hired" }, job(), NOW);
-  check("…the same for someone hired", hired.location === null && hired.jobType === null && !FEE.test(show(buildCandidateJourney(hired.workflowSteps).map((s) => s.title))), show(hired));
-  for (const [label, over] of [
-    ["kept off the list", { status: "published", exclude_from_feed: true }],
-    ["past its deadline", { status: "published", application_deadline: "2026-10-27T11:00:00Z" }],
-    ["a draft", { status: "draft" }],
-    ["archived", { status: "archived" }],
-  ]) {
-    const w = live.liveJobWords({ status: "rejected" }, job(over), NOW);
-    check(`…and on a job ${label}`, w.location === null && w.jobType === null && w.workflowSteps.every((s) => s.title === null || s.title === "Step"), show(w));
-  }
-  for (const status of ["in_progress", "pending", "reviewing", "interview", "offered"]) {
-    const w = live.liveJobWords({ status }, job(), NOW);
+  const applied = { applied_job_title: "Chat support agent", applied_company_name: "Clinic One", applied_location: "Makati, Philippines", applied_job_type: "full-time" };
+  // The job as it is now: closed and relabelled (s1_residual). The pages read
+  // only the application's own columns.
+  const job = { status: "closed", title: "PAY 500 PHP FIRST", location: LURE_LOCATION, job_type: LURE_TYPE };
+  for (const status of ["rejected", "hired", "in_progress", "pending", "reviewing", "interview", "offered"]) {
+    const w = names.appliedNames({ ...applied, status, jobs: job });
     check(
-      `someone still waiting (${status}) reads the job's own words: a change of them is contact with them`,
-      w.location === LURE_LOCATION && w.jobType === LURE_TYPE && show(w.workflowSteps) === show(steps),
+      `probe s1_residual, ${status}: the location and type they applied to, never the closed job's new ones`,
+      show(w) === show({ jobTitle: "Chat support agent", companyName: "Clinic One", location: "Makati, Philippines", jobType: "full-time" }) && !FEE.test(show(w)),
       show(w),
     );
   }
-  const onPage = live.liveJobWords({ status: "rejected" }, job({ status: "published", application_deadline: "2026-10-28T12:00:00Z" }), NOW);
-  check("…and anyone reads them while the job is on its public page, where everyone can", onPage.location === LURE_LOCATION && onPage.jobType === LURE_TYPE && show(onPage.workflowSteps) === show(steps), show(onPage));
-  const blank = live.liveJobWords({ status: "pending" }, job({ location: "  ", job_type: null, workflow_steps: "not a list" }), NOW);
-  check("a blank location, no type and no list of steps show nothing", blank.location === null && blank.jobType === null && blank.workflowSteps.length === 0, show(blank));
-  check("no application and no job: nothing", show(live.liveJobWords(null, null, NOW)) === show({ location: null, jobType: null, workflowSteps: [] }));
+  const blank = names.appliedNames({ applied_location: "  ", applied_job_type: null });
+  check("a blank location and no type show nothing", blank.location === null && blank.jobType === null, show(blank));
+  check("no application: nothing", show(names.appliedNames(null)) === show({ jobTitle: null, companyName: null, location: null, jobType: null }));
+  check("a location over several lines is one line", names.appliedNames({ applied_location: "Makati,\n  Philippines" }).location === "Makati, Philippines");
+  const steps = [
+    { id: "s1", type: "typing_test", title: "Typing test" },
+    { id: "s2", type: "chat_simulation", title: "Patient chat practice" },
+  ];
+  check(
+    "the steps are the job's own, by their own titles (no browser can change a word of them once anyone has applied)",
+    show(buildCandidateJourney(steps, { hasQuiz: false }).map((s) => s.title)) === show(["Application", "Typing test", "Patient chat practice", "Decision"]),
+  );
 }
 
 console.log("\n2. The Improvement Report\n");

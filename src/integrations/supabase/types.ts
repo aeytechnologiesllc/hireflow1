@@ -233,6 +233,8 @@ export type Database = {
           ai_scorecard: Json | null
           applied_company_name: string | null
           applied_job_title: string | null
+          applied_job_type: string | null
+          applied_location: string | null
           candidate_id: string
           cover_letter: string | null
           created_at: string
@@ -265,6 +267,8 @@ export type Database = {
           ai_scorecard?: Json | null
           applied_company_name?: string | null
           applied_job_title?: string | null
+          applied_job_type?: string | null
+          applied_location?: string | null
           candidate_id: string
           cover_letter?: string | null
           created_at?: string
@@ -297,6 +301,8 @@ export type Database = {
           ai_scorecard?: Json | null
           applied_company_name?: string | null
           applied_job_title?: string | null
+          applied_job_type?: string | null
+          applied_location?: string | null
           candidate_id?: string
           cover_letter?: string | null
           created_at?: string

@@ -99,7 +99,9 @@ export default [
       detail.push(...keep.detail);
       if (keep.def) {
         const body = plain(keep.def.body);
-        if (!/IF TG_OP = 'INSERT' THEN NEW\.applied_job_title := NULL; NEW\.applied_company_name := NULL; SELECT j\.title, p\.company_name INTO NEW\.applied_job_title, NEW\.applied_company_name FROM public\.jobs j LEFT JOIN public\.profiles p ON p\.user_id = j\.employer_id WHERE j\.id = NEW\.job_id; RETURN NEW; END IF; NEW\.applied_job_title := OLD\.applied_job_title; NEW\.applied_company_name := OLD\.applied_company_name; RETURN NEW;/i.test(body))
+        // Since the twentieth Phase 5 review (20261025730000) the job's location
+        // and type are kept the same way (applications-keep-place-and-type).
+        if (!/IF TG_OP = 'INSERT' THEN NEW\.applied_job_title := NULL; NEW\.applied_company_name := NULL; NEW\.applied_location := NULL; NEW\.applied_job_type := NULL; SELECT j\.title, p\.company_name, j\.location, j\.job_type INTO NEW\.applied_job_title, NEW\.applied_company_name, NEW\.applied_location, NEW\.applied_job_type FROM public\.jobs j LEFT JOIN public\.profiles p ON p\.user_id = j\.employer_id WHERE j\.id = NEW\.job_id; RETURN NEW; END IF; NEW\.applied_job_title := OLD\.applied_job_title; NEW\.applied_company_name := OLD\.applied_company_name; NEW\.applied_location := OLD\.applied_location; NEW\.applied_job_type := OLD\.applied_job_type; RETURN NEW;/i.test(body))
           detail.push(`${keep.def.rel}: applications_as_applied must set the job's title and its business's name from the database on every insert, whatever was sent, and keep them on a browser's update (as written)`);
       }
       // The server's cards read them, never the job or the profile.

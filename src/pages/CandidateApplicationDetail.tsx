@@ -47,7 +47,6 @@ import { buildCandidateJourney, positionFor, startLabelFor, titleFor } from "@/l
 import { stepHasResult, stepIsDone, stepRoute, whereCandidateStands } from "@/lib/journeyProgress";
 import { glyphForKind } from "@/components/glyphForKind";
 import { appliedNames } from "@/lib/appliedNames";
-import { liveJobWords } from "@/lib/liveJobText";
 
 interface WorkflowStep {
   id: string;
@@ -408,11 +407,9 @@ export default function CandidateApplicationDetail() {
   // the real steps, plus the one honest closing "Decision" stage. Nothing
   // synthetic beyond that (no standalone Review/Interview/Hired legs).
   const phases = (() => {
-    // Its own titles only for someone still waiting on it, or while it is on
-    // its public page: never, for someone turned down or hired, a title the
-    // business gave a step since nobody else could see it (the eighteenth
-    // security review, finding 1; src/lib/liveJobText.ts).
-    const workflowSteps = liveJobWords(application, application?.jobs).workflowSteps as WorkflowStep[];
+    // The job's own steps: once anyone has applied, no browser can change a
+    // word of them (jobs_applicant_words_fixed; the twentieth Phase 5 review).
+    const workflowSteps = (Array.isArray(application?.jobs?.workflow_steps) ? application.jobs.workflow_steps : []) as unknown as WorkflowStep[];
     const quizQuestions = application?.jobs?.quiz_questions as Json[] | undefined;
     const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
 
@@ -480,8 +477,10 @@ export default function CandidateApplicationDetail() {
 
   const job = application?.jobs;
   const companyName = named.companyName || "This employer";
-  // The job's location and type today, on the same rule as its steps' titles.
-  const words = liveJobWords(application, job);
+  // The job's location and type as they were when they applied, like its
+  // title (the twentieth Phase 5 review): a business can change a closed
+  // job's to anything, and nobody else sees it.
+  const words = named;
 
   // Handle starting a phase action (quiz, typing test, etc.) — through the
   // one step-to-route map the step pages use too (journeyProgress.stepRoute).

@@ -73,7 +73,8 @@ function settleEvaluations(tables: FixtureTables): void {
 /**
  * An application keeps the job's title and the business's name as they were
  * when it was made (applied_job_title, applied_company_name: migration
- * 20261025700000), and the applicant's own pages name those
+ * 20261025700000; its location and type too, applied_location and
+ * applied_job_type: 20261025730000), and the applicant's own pages name those
  * (src/lib/appliedNames.ts). The fixtures never set them, so they are filled
  * from the job and its owner, as the migration filled them; a new
  * application takes them from its job then, whatever it sent; and no write
@@ -83,7 +84,12 @@ function asAppliedFor(tables: FixtureTables, jobId: unknown): FixtureRow {
   const job = (tables.jobs ?? []).find((j) => j.id === jobId);
   const owner = job ? (tables.profiles ?? []).find((p) => p.user_id === job.employer_id) : undefined;
   const branding = job ? (tables.employer_public_branding ?? []).find((b) => b.user_id === job.employer_id) : undefined;
-  return { applied_job_title: job?.title ?? null, applied_company_name: owner?.company_name ?? branding?.company_name ?? null };
+  return {
+    applied_job_title: job?.title ?? null,
+    applied_company_name: owner?.company_name ?? branding?.company_name ?? null,
+    applied_location: job?.location ?? null,
+    applied_job_type: job?.job_type ?? null,
+  };
 }
 
 function settleAsApplied(tables: FixtureTables): void {
@@ -295,6 +301,8 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
         if (isApplications) {
           delete payload.applied_job_title;
           delete payload.applied_company_name;
+          delete payload.applied_location;
+          delete payload.applied_job_type;
         }
         if (this.mutation.type === "insert") {
           const row: FixtureRow = { id: randomId(), created_at: now, updated_at: now, ...payload, ...(isApplications ? asAppliedFor(this.tables, payload.job_id) : {}) };
