@@ -1128,7 +1128,14 @@ reached function deployed):
   reaching that person), and instead keep what applicants rely on from
   changing under them (location and type snapshotted at apply; the form,
   quiz and step words fixed once anyone has applied, as the tests already
-  are).
+  are). Fixed by 0aca1a5e (`applicants_words_stay_as_applied` live
+  20261027103728; the dropped triggers had written no contact rows): an edit
+  of a job or a rename is no contact; once anyone has applied (a draft
+  counts), a browser cannot change the job's form questions, quiz or step
+  words, and the editor shows them read-only with "use Copy to drafts"
+  (this includes the owner's own live job); applications keep the job's
+  place and type as applied; Report a business is on Contact us and an
+  empty Messages. **Round 21 review running** (`p5r21_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1282,8 +1289,13 @@ reached function deployed):
   new question's own wording ("Software, IT or technical" and "Front of
   house, till or sales" are where every engineer's and every sales title's
   question starts, and argued for the coding and the till plans); fixed in
-  0039f851 ("Software or IT", "Front of house or till"). **Round 46 review
-  running** (`p4r46_brief.md`).
+  0039f851 ("Software or IT", "Front of house or till"). **Round 46**
+  (`p4r46_report.md`) found no HIGH and no regression, the wording right
+  everywhere, and one old MEDIUM: the cash and office plans' screening notes
+  stated facts the business had just answered otherwise ("They'll handle
+  the till… lead a team" to a waiter with no money handling); fixed in
+  79c1c66d (text only, 0 of 474,706 rows different). **Round 47 review
+  running** (`p4r47_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1356,7 +1368,11 @@ reached function deployed):
   MEDIUM, the worst a regression against both (round 25's new line drops a
   customer's "Hi, I'm Harold, 81 years old. I need my test results"). **Its
   fixer is running** (`age26_fix_brief.md`), under Phase 4's rule: only
-  narrow or revert round 25; old misses go to `known` unless free.
+  narrow or revert round 25; old misses go to `known` unless free. Fixed by
+  cf87460f (round 25's introduction line reads only whom she serves; its
+  status, follow-up and inch-mark rules narrowed back or reverted; 19 known
+  items; six functions deployed and answering). **Round 27 review running**
+  (`p6r27_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
