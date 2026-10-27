@@ -1006,7 +1006,8 @@ reached function deployed):
   anyone who applied with no row behind them, so the record never sees that
   contact; plus a LOW regression of 680000 (a heard reporter's repeat report
   is an update that never re-runs the count). Both go to the Phase 5 round
-  16 fixer with that review's findings.
+  16 fixer with that review's findings, live in 2303c407. **Round 16 review
+  running** (`sec16_brief.md`).
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -1052,8 +1053,15 @@ reached function deployed):
   the pause count; `interview_pick_time` carries 12 free lines the record
   never sees; three weakenings of "contact since the close" pass every
   behaviour check; the Privacy Policy leaves out reports and Contact us).
-  With security round 15's MEDIUM (the team's emails), **its fixer is
-  running** (`p5r16_fix_brief.md`, migration 690000).
+  With security round 15's MEDIUM (the team's emails), fixed by 2303c407
+  (`team_emails_are_contact` live 20261027022746, every body matching its
+  file; send-notification-email deployed after it, answering and refusing
+  no sign-in): every email the team sends an applicant but a decline is
+  recorded as contact before it goes, its job title and invitation times
+  come from the rows, a repeat report is worked out again, an interview's
+  new time is contact. A decline is not contact (decided in review: it
+  carries only the business's name, and counting it would let three people
+  it turned down pause it). **Round 17 review running** (`p5r17_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1147,8 +1155,14 @@ reached function deployed):
   ("with our riders via Viber" as chat; "0800-1700" as a phone number);
   fixed by its combined narrowing in 4d15d554 (random posts 4,375 → 0
   wrong; cost 5 rows). Rounds 34–36 each found a HIGH in the Viber and
-  contact-line reading round 33 began, so **round 37's review** (running,
-  `p4r37_brief.md`) also weighs undoing that line back to round 32's.
+  contact-line reading round 33 began, so round 37's review also weighed
+  undoing that line back to round 32's. **Round 37** (`p4r37_report.md`)
+  recommends against the undo (on 8,000 random posts round 32 is 3,346
+  wrong, the current reading 0) and found one HIGH ("Answer inquiries
+  (Call/Viber)" with no customer word lost its calls), one MEDIUM
+  regression and one old MEDIUM (IT titles as admin or cash); fixed by its
+  combined patch in e56b86c4, after which it advises to stop narrowing that
+  line. **Round 38 review running** (`p4r38_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1190,7 +1204,10 @@ reached function deployed):
   so a How-to-apply step that names the practice let the applicant's
   [Age]/[Civil Status] template through in the public post, and an age
   question back into the interview guide; and one LOW–MEDIUM false drop of
-  round 21's widened endings. **Its fixer is running** (`age22_fix_brief.md`).
+  round 21's widened endings. Fixed by 4d0b7efb (round 21's ROLE_PLAY,
+  NOT_A_CUSTOMERS_MESSAGE and THEIR_FORMAT back to round 20's, the new words
+  read only where their evidence was; six functions deployed and
+  answering). **Round 23 review running** (`p6r23_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
