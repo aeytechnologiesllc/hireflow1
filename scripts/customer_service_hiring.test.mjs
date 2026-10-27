@@ -1147,8 +1147,8 @@ for (const [title, work, want] of [
   ["House cleaner", "Clean homes for our clients", "cleaner"],
   ["Room Attendant", "Cleans guest rooms and restocks supplies.", "cleaner"],
   ["Post-Construction Cleanup Crew", "Remove debris and sweep floors at job sites.", "cleaner"],
-  // The thirty-fourth (H2, M2): "cleanliness" is the cleaning word of Philippine utility and janitorial posts; and the
-  // title's family comes first, so a developer's "clean code" or an assistant's "keep the office clean" is no cleaning job.
+  // The thirty-fourth (H2, M2): "cleanliness" is the cleaning word of Philippine utility and janitorial posts; and a
+  // developer's title comes first, so a developer's "clean code" is no cleaning job.
   ["Janitress", "Maintain cleanliness and orderliness of the office.", "cleaner"],
   ["Utility Worker", "Maintain cleanliness of the building, sweep and mop floors, and empty trash bins.", "cleaner"],
   ["Room Attendant", "Maintain cleanliness and orderliness of guest rooms and public areas according to hotel standards.", "cleaner"],
@@ -1156,7 +1156,20 @@ for (const [title, work, want] of [
   ["Software Engineer", "Write clean, maintainable code.", "developer"],
   ["Frontend Developer", "Build clean, responsive UIs.", "developer"],
   ["Python Developer", "Write clean code and unit tests.", "developer"],
-  ["Admin Assistant", "Answer emails, manage calendars and keep the office clean.", "admin"],
+  // The thirty-fifth (H1): only a developer's title comes first, read from its role; any other family in the title (or a
+  // business part's "Restaurant" or "Office") never beats the words, so a utility worker is a cleaner and an IT job a
+  // developer's. "Cleanliness" counts only when the title's role names no family. ("Admin Assistant / keep the office
+  // clean" is a cleaner again, as before the thirty-fourth: an old gap, weighed against these.)
+  ["Office Utility Staff", "Clean and sanitize office areas, restrooms and pantry.", "cleaner"],
+  ["Office Aide", "Clean the office, run errands and refill supplies.", "cleaner"],
+  ["Kitchen Assistant", "Wash dishes and keep the kitchen clean.", "cleaner"],
+  ["Restaurant Utility", "Clean tables, wash dishes and take out the trash.", "cleaner"],
+  ["Utility Worker - Restaurant", "Mop floors, clean restrooms and wash dishes.", "cleaner"],
+  ["System Administrator", "Maintain our Linux servers, patch software and manage backups.", "developer"],
+  ["IT Officer", "Set up laptops, manage our network and support staff with software issues.", "developer"],
+  ["IT Manager", "Manage our IT team, servers and software licences.", "developer"],
+  ["Database Administrator", "Tune PostgreSQL queries and manage backups for our software platform.", "developer"],
+  ["Admin Assistant", "Answer emails, manage calendars and maintain cleanliness of the office.", "admin"],
 ]) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is ${want}`, got === want, got);
@@ -1196,6 +1209,11 @@ for (const [title, work, want] of [
   }
   const ms19 = performance.now() - t2;
   check(`…and four for the nineteenth's rules (${ms19.toFixed(0)} ms)`, ms19 < 1000, `${ms19.toFixed(0)} ms`);
+  // (The thirty-fifth, LOW 1: a long run of channel words, "sms/sms/…", took 7 s in the channel list; its repeats are capped.)
+  const t3 = performance.now();
+  M.channelForBrief({ roleTitle: "Chat Support Agent", whatTheyDo: "Answer customer chats. " + "sms/".repeat(24000), followUps: [] });
+  const ms35 = performance.now() - t3;
+  check(`…and a 96 KB run of channel words (${ms35.toFixed(0)} ms)`, ms35 < 1000, `${ms35.toFixed(0)} ms`);
 }
 
 // The fourth Phase 4 review: the guess is only the start; the business confirms the kind of job.
@@ -1594,6 +1612,16 @@ console.log("\n-- the follow-ups and what they pick --");
     ["CSR", "Answer customer calls. Endorse customer concerns to the branch via Viber.", "phone"],
     ["CSR", "Answer customer calls. Forward customer orders to our riders through Viber.", "phone"],
     ["Receptionist", "Greet patients and schedule appointments. Forward patient concerns to the doctor via Viber.", "phone"],
+    // The thirty-fifth (H2): a bare "Call or Viber" or "Viber/Call" is the contact line too, its number on the next line or
+    // none; (M1) a phone number has seven digits or more, so a count or a shift's hours keep the list; (M2) "with" right
+    // after the customer word is the agent's own Viber reply. "Answer customer calls and Viber inquiries" stays a mix.
+    ["Chat Support Agent", "Answer customer chats on our website.\nContact: Viber/Call\n0917-123-4567", "chat"],
+    ["Email Support Agent", "Reply to customer emails about orders.\n0917 123 4567 | Viber/Call", "email"],
+    ["Chat Support Agent", "Answer customer chats and messages. Interested? Call or Viber us now!", "chat"],
+    ["CSR", "Answer customer calls and Viber inquiries.", "mixed"],
+    ["Customer Service Representative", "Handle 100-150 emails and calls daily.", "mixed"],
+    ["Customer Service Representative", "Assist customers through chat and phone, 0800 - 1700.", "mixed"],
+    ["CSR", "Answer customer calls. Assist customers with their bookings via Viber.", "mixed"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {

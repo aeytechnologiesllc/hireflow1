@@ -967,18 +967,22 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
 
 /** The families other than customer service, from the words (detectFamily). */
 function otherFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employmentType">): Family {
-  // (The thirty-fourth review, M2: the title's family first, the words only when the title names none, so a developer's
-  // "Write clean, maintainable code" is no cleaning job.)
-  const byTitle = familyOfWords((brief.roleTitle ?? "").toLowerCase());
-  return byTitle !== "general" ? byTitle : familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase());
+  // (The thirty-fourth review, M2: a developer's title first, so "Write clean, maintainable code" is no cleaning job. Only a
+  // developer's, read from the title's role: the thirty-fifth found that any family in the title, a business part's
+  // "Restaurant" or "Office" too, beat the words, so "Office Utility Staff / Clean and sanitize office areas" was office
+  // admin and "IT Manager" was asked about the till. "Cleanliness" counts only when the title's role names no family, so
+  // "Admin Assistant / Maintain cleanliness of the office" stays the assistant's.)
+  const byTitle = familyOfWords(headPhrase((brief.roleTitle ?? "").toLowerCase()));
+  if (byTitle === "developer") return byTitle;
+  return familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase(), byTitle === "general");
 }
-function familyOfWords(s: string): Family {
+function familyOfWords(s: string, cleanliness = true): Family {
   // (The thirty-third review, M7: a word, never part of one, so a dental office's "cleanings" and a coder's "clean claims"
   // are no cleaning job and an encoder is no developer: "Treatment Coordinator / Schedule cleanings and present treatment
   // plans", "Data Encoder / Encode customer orders"; nor a medical or billing coder. "Cleanliness" is one, the word of
   // Philippine utility, janitorial and steward posts: "Janitress / Maintain cleanliness and orderliness of the office";
   // the thirty-fourth, H2.)
-  if (/(?<!\b(teeth|tooth|dental)\s)\bclean(s|ed|ers?|ing|liness|-?ups?)?\b(?!\s+claims?\b)|janitor|housekeep|custodi|maid|porter/.test(s)) return "cleaner";
+  if ((cleanliness ? /(?<!\b(teeth|tooth|dental)\s)\bclean(s|ed|ers?|ing|liness|-?ups?)?\b(?!\s+claims?\b)|janitor|housekeep|custodi|maid|porter/ : /(?<!\b(teeth|tooth|dental)\s)\bclean(s|ed|ers?|ing|-?ups?)?\b(?!\s+claims?\b)|janitor|housekeep|custodi|maid|porter/).test(s)) return "cleaner";
   if (/develop|engineer|programmer|(?<!\b(medical|billing|clinical|certified|inpatient|outpatient)\s)\bcoders?\b|software|frontend|front-end|back-?end|full-?stack|web dev|data scientist/.test(s))
     return "developer";
   if (/admin|secretar|reception|assistant|office|clerk|book-?keep|schedul|coordinat|data entry/.test(s)) return "admin";

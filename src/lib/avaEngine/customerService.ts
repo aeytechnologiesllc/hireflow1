@@ -215,9 +215,13 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // emails"); not what customers own or are billed for ("their phone and email
   // accounts", "calls and texts on their plan"). Never joined to a phone number, which is how to reach the business to
   // apply: "Call or Viber 0917 123 4567", "0917 123 4567 (Viber/Call)" made every such post a mix once Viber was a
-  // channel (the thirty-fourth review, H1); a count or "24/7" before a list still is one.
+  // channel (the thirty-fourth review, H1); a count or "24/7" before a list still is one. A bare "Call or Viber" or
+  // "Viber/Call" with no customer word after it is the contact line too, its number on the next line or none at all
+  // ("Interested? Call or Viber us now!"); a phone number has seven digits or more, so "Handle 100-150 emails and calls
+  // daily" and a shift's "0800 - 1700" keep their list; and the list's repeats are capped, so a long pasted run of
+  // channel words is read in linear time (the thirty-fifth, H2, M1 and LOW 1).
   const list = new RegExp(
-    String.raw`(?<!\d{3}[ \t-]?\d{3,4}[ \t()\-–:]{0,4})\b(${PHONEW}(${LIST}${WRITTEN})+|${WRITTEN}(${LIST}(${WRITTEN}|${PHONE_AFTER}))*${LIST}${PHONE_AFTER})\b(?!\s+(accounts?|numbers?|settings|plans?|apps?|devices?|bills?|lines?|on (their|your|the|our) (plan|bill|account|phone))|[^.;\n\d]{0,15}\+?\d[\d \t()-]{5,20}\d)`,
+    String.raw`(?<!\d(?:[ \t-]?\d){6}[ \t()\-–:]{0,4})(?!(?<!\b(via|through|thru|on|over|using|by|who|customers?|clients?|patients?|buyers?)\s+)(((call|text|sms)\s*(\/|\bor\b)\s*){1,2}viber|viber(\s*(\/|\bor\b)\s*(call|text|sms)){1,2})\b(?!\s+(messages?|inquir\w*|enquir\w*|chats?|concerns?|orders?|questions?|requests?|customers?|clients?|patients?|buyers?|guests?|members?)\b))\b(${PHONEW}(${LIST}${WRITTEN}){1,6}|${WRITTEN}(${LIST}(${WRITTEN}|${PHONE_AFTER})){0,6}${LIST}${PHONE_AFTER})\b(?!\s+(accounts?|numbers?|settings|plans?|apps?|devices?|bills?|lines?|on (their|your|the|our) (plan|bill|account|phone))|[^.;\n\d]{0,15}\+?\d(?:[ \t()-]{0,2}\d){6,14}(?!\d))`,
   ).test(work);
   // The work the agent does, with what they will NOT do taken out ("no need to
   // take calls", "you won't need to make calls", "you will never have to pick
@@ -277,9 +281,11 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   // (Customers' inquiries, concerns or orders on Viber, Telegram or an FB page are chats: "Entertain customer inquiries via
   // Viber", "Reply to customer inquiries on our FB page" were phone; never the team's, "Endorse concerns to the technical
   // team via Viber". The thirty-third review, M5. Nor handed to someone else, "to" or "with" between: "Endorse customer
-  // concerns to the branch via Viber", "Coordinate customer deliveries with riders via Viber"; the thirty-fourth, M1.)
+  // concerns to the branch via Viber", "Coordinate customer deliveries with riders via Viber"; the thirty-fourth, M1. But
+  // "with" right after the customer word is the agent's own reply: "Assist customers with their bookings via Viber"; the
+  // thirty-fifth, M2.)
   const HELP_TOOL = String.raw`(e-?mails?|live chat|chats?|tickets?|zendesk|freshdesk|slack)`;
-  const chatIn = new RegExp(String.raw`\b(chats?|live chat|messaging|messenger|whatsapp)\b|\b(inquir\w*|enquir\w*|concerns?|orders?|questions?|customers?|clients?|buyers?|patients?)\b(?:(?!\b(to|with|teams?|department|dept|supervisors?|managers?|colleagues?|internal)\b)[^.;\n]){0,30}\b(via|through|thru|on|in|over)\s+(our\s+|the\s+)?(viber|telegram|(facebook|fb) page)\b|(?<!\b(take|takes|taking|took|leave|leaves|leaving|relay|relays|relaying)\s)\bmessages\b|\b(via|in|on|through|thru|using|with) intercom\b|\bintercom (chats?|messages?|inbox|tickets?|conversations?|messenger)\b|\b${HELP_TOOL}\s*(,|&|\/|\band\b|\bor\b)\s*(and\s+)?intercom\b|\bintercom\s*(,|&|\/|\band\b|\bor\b)\s*(and\s+)?${HELP_TOOL}\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b`).test(work);
+  const chatIn = new RegExp(String.raw`\b(chats?|live chat|messaging|messenger|whatsapp)\b|\b(inquir\w*|enquir\w*|concerns?|orders?|questions?|customers?|clients?|buyers?|patients?)\b(?:\s+with\b)?(?:(?!\b(to|with|teams?|department|dept|supervisors?|managers?|colleagues?|internal)\b)[^.;\n]){0,30}\b(via|through|thru|on|in|over)\s+(our\s+|the\s+)?(viber|telegram|(facebook|fb) page)\b|(?<!\b(take|takes|taking|took|leave|leaves|leaving|relay|relays|relaying)\s)\bmessages\b|\b(via|in|on|through|thru|using|with) intercom\b|\bintercom (chats?|messages?|inbox|tickets?|conversations?|messenger)\b|\b${HELP_TOOL}\s*(,|&|\/|\band\b|\bor\b)\s*(and\s+)?intercom\b|\bintercom\s*(,|&|\/|\band\b|\bor\b)\s*(and\s+)?${HELP_TOOL}\b|\b(by|via|over) (text|sms)\b|\b(text|sms) (support|messages? from)\b`).test(work);
   const emailIn = new RegExp(String.raw`\b(e-?mails?)\b(?!\s+(accounts?|address(es)?|settings))${NOT_A_PRODUCT}|\b(answer|answering|resolve|resolving|respond to|responding to|reply to|replying to|handle|handling|work|working)\b[^.;]{0,25}\btickets?\b|\btickets? only\b|\bonly tickets\b|\bticket(ing)? support\b|\bsupport tickets\b|\bzendesk\b|\bfreshdesk\b`).test(work);
 
   // A hotline that is the title's only phone word is the phone line unless the words name only written channels: then they
