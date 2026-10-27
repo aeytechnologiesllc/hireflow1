@@ -1270,8 +1270,12 @@ reached function deployed):
   running** (`age23_fix_brief.md`). Fixed by ff078527 (a self-introduction,
   a name before the age or a civil status, is never excused by the practice
   step; round 22's window, labels and work verbs narrowed back to their
-  cases; six functions deployed and answering). **Round 24 review running**
-  (`p6r24_brief.md`).
+  cases; six functions deployed and answering). **Round 24** (`p6r24_report.md`)
+  found one MEDIUM, not a regression: round 23's self-introduction reads one
+  wording only, so "Hello, my name is Ana, I'm 24 years old" still reaches
+  the post beside the practice step (34 of 63 descriptions); and LOWs (a
+  customer's two-sentence message cut to a fragment; ", single journey" read
+  as a civil status). **Its fixer is running** (`age24_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
