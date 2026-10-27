@@ -1119,7 +1119,16 @@ reached function deployed):
   overview pages show the job's location, type and steps only while it is
   public or the person still waits on it; a report can name the business
   once its job is gone; manual-mode jobs get the plain "Application
-  Submitted". **Round 20 review running** (`p5r20_brief.md`).
+  Submitted". **Round 20** (`p5r20_report.md`) found that round 19's
+  broadcast recording turned against real businesses (a regression: one
+  ordinary edit, "Weekend" added to a form choice or "LLC" to the name, let
+  three throwaway drafts pause it), and that a live job's form, step and
+  quiz words are on no public page. **Its fixer is running**
+  (`p5r20_fix_brief.md`): undo the broadcast (contact is the business
+  reaching that person), and instead keep what applicants rely on from
+  changing under them (location and type snapshotted at apply; the form,
+  quiz and step words fixed once anyone has applied, as the tests already
+  are).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1331,8 +1340,11 @@ reached function deployed):
   (an applicant's introduction ending "and I love helping customers" read as
   a customer's, its age kept) and one LOW–MEDIUM regression of round 24's
   widening (a customer's "Hello, my name is Harold, I'm 81" read as an
-  applicant's, practice cases dropped). **Its fixer is running**
-  (`age25_fix_brief.md`).
+  applicant's, practice cases dropped). Fixed by 2e225392 (round 23's comma
+  wording restored, round 24's wider wordings only when the message asks
+  nothing and tells no trouble: customer lines wrongly dropped 1,816 → 0;
+  an introduction naming whom she serves is the applicant's; six functions
+  deployed and answering). **Round 26 review running** (`p6r26_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
