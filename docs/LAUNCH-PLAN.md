@@ -999,7 +999,14 @@ reached function deployed):
   interview moved onto a real applicant's application, or a card in their
   bell, is contact the record never sees. Both were LOW items of the Phase 5
   round 15 fixer's brief, now raised to MUST in it, with the admins' bell
-  wording; round 15 follows that fix.
+  wording; round 15 follows that fix. **Round 15** (`sec15_report.md`) found
+  the bell-card trigger, the interview pin and the record's access clean, and
+  one old MEDIUM in the same pause: the hiring team's emails carry its own
+  text (a job title of 200 characters, a 100-character message preview) to
+  anyone who applied with no row behind them, so the record never sees that
+  contact; plus a LOW regression of 680000 (a heard reporter's repeat report
+  is an update that never re-runs the count). Both go to the Phase 5 round
+  16 fixer with that review's findings.
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -1119,8 +1126,18 @@ reached function deployed):
   a mix; the whole-word "clean" dropped "cleanliness", so a janitress was
   office admin. Fixed with one MEDIUM regression and a LOW by its combined
   narrowing patch, plus its title-first family option for a developer's
-  "clean code", in 1fe15bb7 (351 rows better, 0 worse). **Round 35 review
-  running** (`p4r35_brief.md`).
+  "clean code", in 1fe15bb7 (351 rows better, 0 worse). **Round 35**
+  (`p4r35_report.md`) found two HIGH regressions of round 34: the
+  title-first family reading (taken from round 34's separate option, with no
+  family sweep: the sets never read the family) made utility workers office
+  admin and IT managers cashiers; the contact-line guard covered only the
+  shapes it was shown. Fixed by its combined patch and its cap in eea8d13b
+  (only a developer's title comes first; a bare "Call or Viber" is a contact
+  line; a phone number has seven digits; a 96 KB run of channel words 7 s →
+  16 ms). Its M3 (a cook's "maintain cleanliness of the kitchen" is a
+  cleaner, as in round 32) has no narrowing without a cost and stays.
+  **Round 36 review running** (`p4r36_brief.md`), told to sweep the family
+  too.
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
