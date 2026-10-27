@@ -1238,8 +1238,12 @@ reached function deployed):
   Graduate Teacher"; a trade's shop as a till; the article rule taking a
   receptionist's "phone lines"), each with a free narrowing, and left one
   MEDIUM on purpose (every fix costs real rows; it is one click); fixed in
-  44e37578 (543 better, 0 worse). **Round 42 review running**
-  (`p4r42_brief.md`), under the same rule.
+  44e37578 (543 better, 0 worse). **Round 42** (`p4r42_report.md`) found one
+  HIGH and one MEDIUM, both in round 41's product-word list ("of the clinic",
+  an order taker's "landline orders" lost their phone); fixed by its
+  narrowing in 98e68280 (630 better, 36 worse, all its own made-up rows).
+  The findings now sit in one rule. **Round 43 review running**
+  (`p4r43_brief.md`), under the same rule.
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1300,7 +1304,12 @@ reached function deployed):
   words is a self-introduction, 0 of 63 descriptions show the age; a quote's
   sentences are read as one; the status and labels narrowed back; six
   functions deployed and answering). **Round 25 review running**
-  (`p6r25_brief.md`).
+  (`p6r25_brief.md`). **Round 25** (`p6r25_report.md`) found one old MEDIUM
+  (an applicant's introduction ending "and I love helping customers" read as
+  a customer's, its age kept) and one LOW–MEDIUM regression of round 24's
+  widening (a customer's "Hello, my name is Harold, I'm 81" read as an
+  applicant's, practice cases dropped). **Its fixer is running**
+  (`age25_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
