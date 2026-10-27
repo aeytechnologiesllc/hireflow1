@@ -1277,8 +1277,13 @@ reached function deployed):
   "Another kind of job", "Which is closest?" starts on the guess and the
   business's answer decides the family, so a wrong guess costs one click.
   Done in 046c154a (typed, voice and draft paths; every earlier builder file
-  byte-identical; with the round's one free narrowing). **Round 45 review
-  running** (`p4r45_brief.md`).
+  byte-identical; with the round's one free narrowing). **Round 45**
+  (`p4r45_report.md`) found no HIGH and no regression, and one MEDIUM in the
+  new question's own wording ("Software, IT or technical" and "Front of
+  house, till or sales" are where every engineer's and every sales title's
+  question starts, and argued for the coding and the till plans); fixed in
+  0039f851 ("Software or IT", "Front of house or till"). **Round 46 review
+  running** (`p4r46_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
