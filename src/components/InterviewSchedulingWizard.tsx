@@ -776,6 +776,9 @@ export default function InterviewSchedulingWizard({
       let scheduledAt: Date;
       let interviewDateLabel: string;
       let interviewTimeLabel: string;
+      // The interview whose offered times the invitation lists (the email
+      // reads them from it; send-notification-email, interview_pick_time).
+      let offeredInterviewId: string | null = null;
       // Their email states every time on THEIR clock, with the zone named. The
       // lookup has usually landed by now; when it has not, ask once more.
       const theirZone = applicantZone ?? (await fetchApplicantTimeZone(applicationId));
@@ -820,7 +823,7 @@ export default function InterviewSchedulingWizard({
           ...(earlierIds.length > 0 ? { again: true } : {}),
         }));
 
-        await createInterview.mutateAsync({
+        const offered = await createInterview.mutateAsync({
           application_id: applicationId,
           scheduled_at: scheduledAt.toISOString(),
           duration_minutes: parseInt(duration),
@@ -833,6 +836,7 @@ export default function InterviewSchedulingWizard({
           // place, and both sides then get that link to join.
           meeting_provider: interviewType === "video" && !ownLink ? "daily" : null,
         });
+        offeredInterviewId = offered?.id ?? null;
 
         interviewDateLabel = `${sortedSelectedWindows.length} times to choose from`;
         interviewTimeLabel = "pick what works in your dashboard";
@@ -897,7 +901,7 @@ export default function InterviewSchedulingWizard({
             proposedTimes,
             undefined,
             earlierIds.length > 0,
-            { interviewType, minutes: parseInt(duration) }
+            { interviewType, minutes: parseInt(duration), interviewId: offeredInterviewId }
           );
           setCandidateEmailStatus(status);
         }

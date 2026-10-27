@@ -386,7 +386,7 @@ console.log("\nOne time from the team, and no times from the applicant");
   check("it goes back to the applicant as a time to book, marked as a new one", /candidate_response: "awaiting_pick",\s*employer_windows: \[\{ start: startIso, durationMinutes: minutes, zone: teamZone, again: true \}\]/.test(review) && /proposed_times: null,\s*candidate_note: null,/.test(review));
   check("…never booked for them unseen", !/handleSetNewTime[\s\S]{0,1400}candidate_response: "confirmed"/.test(review));
   check("a time that has passed cannot be sent", /if \(!newStartAhead\) \{\s*toast\.error\(PASSED_TIME_WORDS\);/.test(review) && /export const PASSED_TIME_WORDS = "That time has already passed\. Choose a later one\.";/.test(await read("src/lib/interviewTimes.ts")) && /disabled=\{isSubmitting \|\| !newStart \|\| !newStartAhead\}/.test(review));
-  check("they are emailed the new time on their own clock, as a new time", /notifyInterviewPickTime\(candidateId, jobTitle, \[line\], undefined, true, \{ interviewType, minutes \}\)/.test(review) && /applicantEmailTime\(newStart, theirZone, teamZone\)\.line/.test(review));
+  check("they are emailed the new time on their own clock, as a new time", /notifyInterviewPickTime\(candidateId, jobTitle, \[line\], undefined, true, \{ interviewType, minutes, interviewId \}\)/.test(review) && /applicantEmailTime\(newStart, theirZone, teamZone\)\.line/.test(review));
   check("the same time offered again still reaches their bell (the database's own fires only on a change)", /if \(sameTime\) \{\s*await supabase\.from\("notifications"\)\.insert\(/.test(review));
   check("a clash is said there too", /clashAt\(newStart, minutes, busy, interviewId\)/.test(review) && /data-review-new-clash/.test(review));
   check("no select in it reaches through profiles", !/\.select\([^)]*profiles\s*[:!(]/.test(review));
@@ -480,7 +480,7 @@ console.log("\nThe team's page for an applicant says where the interview stands"
   check("the card says it above its buttons, in every layout that has a card, and the older layout says it too", /\{interview && !outcome && <InterviewStatus status=\{interview\} className="mb-3" \/>\}/.test(cardFile) && (page.match(/interview=\{interviewLine\}/g) ?? []).length === 2 && /\{interviewLine && \(\s*<div className="ck-card p-4">\s*<InterviewStatus status=\{interviewLine\} \/>/.test(page));
   check("not once a decision is made (offered, hired, declined)", /const interviewStatus = isOffered \|\| isTerminal \? null : interviewRead;/.test(page));
   const wizard = await read_("src/components/InterviewSchedulingWizard.tsx");
-  check("a time that replaces a live interview is said to the applicant as a new time", /\.\.\.\(earlierIds\.length > 0 \? \{ again: true \} : \{\}\),/.test(wizard) && /undefined,\s*earlierIds\.length > 0,\s*\{ interviewType, minutes: parseInt\(duration\) \}\s*\);/.test(wizard));
+  check("a time that replaces a live interview is said to the applicant as a new time", /\.\.\.\(earlierIds\.length > 0 \? \{ again: true \} : \{\}\),/.test(wizard) && /undefined,\s*earlierIds\.length > 0,\s*\{ interviewType, minutes: parseInt\(duration\), interviewId: offeredInterviewId \}\s*\);/.test(wizard));
 }
 
 console.log("\nWhat the interview is, said before anyone has to ask");

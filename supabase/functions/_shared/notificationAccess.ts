@@ -29,9 +29,18 @@
  *
  * And the words that matter are looked up, never taken from the request: who
  * signs it (the job owner's own business name), the applicant's name, the
- * sender's name, and for anything an applicant triggers, the job's title.
- * What is left of the request's own text (a date, a document's name, a
- * message preview) is cut to one short plain line.
+ * sender's name, the job's title, and an interview invitation's times (the
+ * interview's own). What is left of the request's own text (a date, a
+ * document's name, a message preview) is cut to one short plain line.
+ *
+ * Every one of the hiring team's emails to someone who applied (a staff
+ * kind, or a message) but a decline is contact, and the decision names the
+ * business it puts in touch with them (`contactFor`): the function records it before it
+ * sends (docs/BUSINESS-TRUST.md, "Reports"; the sixteenth Phase 5 review and
+ * the fifteenth security review, finding 1: a business wrote "Send the 1,500
+ * PHP onboarding fee to GCash ..." as the job title of a "You're hired"
+ * email to three people who had only applied, and their three reports left
+ * it open).
  *
  * No imports: plain Node loads this file for
  * scripts/notification_access.test.mjs, and the function for every send.
@@ -180,6 +189,13 @@ export interface NotificationLimitResult {
   retryAfter: number;
 }
 
+/** The times an interview offers, written for the applicant, and the application it is on. */
+export interface NotificationOffer {
+  applicationId: string;
+  /** Each one line ("Friday, October 9 · 8:00 AM Philippine Standard Time"), soonest first. */
+  times: string[];
+}
+
 /** What the function looks up for a decision. Each may throw; the decision then sends nothing. */
 export interface NotificationLookups {
   /** Every application of one applicant, newest first. */
@@ -188,6 +204,13 @@ export interface NotificationLookups {
   membershipsOf: (userId: string) => Promise<NotificationMembership[]>;
   profileOf: (userId: string) => Promise<NotificationProfile | null>;
   checkLimit: (bucket: string, identifier: string, limit: number, windowSecs: number) => Promise<NotificationLimitResult>;
+  /**
+   * interview_pick_time: the times offered by an interview on one of these
+   * applications (the one the request names, else the newest still waiting
+   * for the applicant to pick; interviewOffer), or null when there is none.
+   * Without it an invitation lists no times: never the request's own.
+   */
+  offeredTimes?: (applicationIds: readonly string[], interviewId: string | null) => Promise<NotificationOffer | null>;
 }
 
 export interface NotificationRefusal {
@@ -206,6 +229,14 @@ export type NotificationDecision =
       recipientRole: "candidate" | "employer";
       /** What the email may say: looked up, or cut to a short plain line. */
       data: Record<string, unknown>;
+      /**
+       * The business this email puts in touch with the recipient: set for
+       * the hiring team's own emails to someone who applied (a staff kind,
+       * or a message to an applicant), the job's owner, who signs it. The
+       * function records it as a "message" before it sends
+       * (business_contacts_remember_email) and sends nothing when it cannot.
+       */
+      contactFor?: string;
     };
 
 /* ── Small readers ──────────────────────────────────────────────────────── */
@@ -255,16 +286,65 @@ export function staffLinks(
 }
 
 /**
- * The job the email names. An applicant never chooses it: the title they sent
- * is kept only when it IS the title of a job that links them, else the newest
- * such job's. The hiring team may name their own job as they like (they could
- * rename it anyway), so theirs is kept as a plain line.
+ * The job the email names, from the database. The title the request sent is
+ * kept only when it IS the title of a job that links them, else the newest
+ * such job's. Until the sixteenth Phase 5 review the hiring team's own title
+ * was kept as asked ("they could rename it anyway"): up to 200 characters of
+ * its own words in the subject and the first line, which nothing recorded
+ * (the fifteenth security review's "You're joining <business> as CSR. Send
+ * the 1,500 PHP onboarding fee to GCash ..."). A job renamed that way is on
+ * the job page for everyone; an email's title is the job's own.
  */
-function jobTitleFor(asked: unknown, links: readonly NotificationApplication[], trustAsked: boolean): string | undefined {
+function jobTitleFor(asked: unknown, links: readonly NotificationApplication[]): string | undefined {
   const wanted = plainLine(asked, 200);
   const titles = links.map((l) => plainLine(l.job_title, 200)).filter((t): t is string => !!t);
-  if (wanted && (trustAsked || titles.includes(wanted))) return wanted;
+  if (wanted && titles.includes(wanted)) return wanted;
   return titles[0];
+}
+
+/** One interview, as interviewOffer reads it. */
+export interface OfferedInterview {
+  id: string;
+  application_id: string;
+  status?: string | null;
+  candidate_response?: string | null;
+  employer_windows?: unknown;
+}
+
+/**
+ * Pure: which interview an invitation is about, and its offered times still
+ * ahead, soonest first (at most 12). `rows` are the interviews on the
+ * applications that make the caller the hiring team for this applicant,
+ * newest first. The one the request names, when it is one of them; else the
+ * newest still waiting for the applicant to pick a time. Each time is the
+ * window's start and the clock it was picked on (`zone`), as the scheduling
+ * screens save them (employer_windows); null when there is no such interview.
+ *
+ * Since the sixteenth Phase 5 review the invitation's times are these, never
+ * the request's: the request's list was up to 12 lines of 120 characters of
+ * the team's own words ("Pay the 1,500 peso training fee to GCash ...", the
+ * review's probe pe), with no interview behind them.
+ */
+export function interviewOffer(
+  rows: readonly OfferedInterview[],
+  interviewId: string | null,
+  now: number = Date.now(),
+): { applicationId: string; windows: { start: string; zone: string | null }[] } | null {
+  const ahead = (windows: unknown) =>
+    (Array.isArray(windows) ? windows : [])
+      .map((w) => {
+        const window = w && typeof w === "object" ? (w as Record<string, unknown>) : {};
+        return { start: typeof window.start === "string" ? window.start : "", zone: typeof window.zone === "string" ? window.zone : null };
+      })
+      .filter((w) => {
+        const at = Date.parse(w.start);
+        return Number.isFinite(at) && at > now;
+      })
+      .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
+      .slice(0, 12);
+  const named = interviewId ? rows.find((r) => r.id === interviewId) : undefined;
+  const chosen = named ?? rows.find((r) => r.status === "scheduled" && r.candidate_response === "awaiting_pick" && ahead(r.employer_windows).length > 0);
+  return chosen ? { applicationId: chosen.application_id, windows: ahead(chosen.employer_windows) } : null;
 }
 
 function withDefined(entries: Record<string, unknown>): Record<string, unknown> {
@@ -327,7 +407,7 @@ export async function decideNotification(
       // The application it's about, when the request names one of theirs;
       // otherwise the newest with that title (two businesses can share a title).
       const askedApp = typeof asked.application_id === "string" && UUID.test(asked.application_id) ? mine.find((a) => a.id === asked.application_id) : undefined;
-      const jobTitle = askedApp ? (plainLine(askedApp.job_title, 200) ?? jobTitleFor(asked.job_title, mine, false)) : jobTitleFor(asked.job_title, mine, false);
+      const jobTitle = askedApp ? (plainLine(askedApp.job_title, 200) ?? jobTitleFor(asked.job_title, mine)) : jobTitleFor(asked.job_title, mine);
       const about = askedApp ?? mine.find((a) => plainLine(a.job_title, 200) === jobTitle) ?? mine[0];
       const team = await lookups.profileOf(about.employer_id!).catch(() => null);
       return {
@@ -367,7 +447,7 @@ export async function decideNotification(
         data: withDefined({
           ...kept,
           candidate_name: plainLine(me?.full_name, 120) ?? plainLine(me?.email, 120) ?? "A candidate",
-          job_title: jobTitleFor(asked.job_title, links, false),
+          job_title: jobTitleFor(asked.job_title, links),
         }),
       };
     }
@@ -380,8 +460,20 @@ export async function decideNotification(
       const team = await lookups.profileOf(links[0].employer_id!).catch(() => null);
       const kept: Record<string, unknown> = {};
       for (const key of KEPT_TEXT[type] ?? []) kept[key] = plainLine(asked[key]);
+      // The application the email is about, when the request names one of
+      // these (or, for an invitation, its interview's): its job names the email.
+      const askedApp = typeof asked.application_id === "string" && UUID.test(asked.application_id) ? links.find((l) => l.id === asked.application_id) : undefined;
+      let about = askedApp;
       if (type === "interview_pick_time") {
-        const times = (Array.isArray(asked.proposed_times_list) ? asked.proposed_times_list : [])
+        // The interview's own offered times, on the applicant's clock: the
+        // one the request names (interview_id) when it is on one of these
+        // applications, else the newest still waiting for them to pick.
+        // Never the request's lines (the sixteenth Phase 5 review, probe pe:
+        // twelve "times" of payment instructions, with no interview behind them).
+        const wantedInterview = typeof asked.interview_id === "string" && UUID.test(asked.interview_id) ? asked.interview_id : null;
+        const offer = lookups.offeredTimes ? await lookups.offeredTimes(links.map((l) => l.id), wantedInterview) : null;
+        about = links.find((l) => l.id === offer?.applicationId) ?? about;
+        const times = (offer?.times ?? [])
           .map((t) => plainLine(t, 120))
           .filter((t): t is string => !!t)
           .slice(0, 12);
@@ -398,8 +490,7 @@ export async function decideNotification(
       // application: the one asked for when it is one of these, else the
       // newest. Only an id; the function looks up the rest.
       if (type === "status_hired" || type === "document_requested" || type === "document_sent") {
-        const wanted = typeof asked.application_id === "string" && UUID.test(asked.application_id) ? asked.application_id : null;
-        kept.application_id = links.find((l) => l.id === wanted)?.id ?? links[0].id;
+        kept.application_id = askedApp?.id ?? links[0].id;
       }
       return {
         ok: true,
@@ -407,10 +498,14 @@ export async function decideNotification(
         recipientRole: "candidate",
         data: withDefined({
           ...kept,
-          job_title: jobTitleFor(asked.job_title, links, true),
+          job_title: (about && plainLine(about.job_title, 200)) ?? jobTitleFor(asked.job_title, links),
           // Who signs it: the job owner's own business name, whatever the request said.
           company_name: plainLine(team?.company_name, 120),
         }),
+        // The team's own words to someone who applied: contact, for the business that signs it. Never a decline,
+        // which carries no words of the team's but its name: the email a business sends most, to people it turned
+        // down, so three of them could pause it by reporting; a hire is the lure the security review used.
+        contactFor: type === "status_rejected" ? undefined : links[0].employer_id!,
       };
     }
 
@@ -427,12 +522,16 @@ export async function decideNotification(
         recipientUserId: named,
         recipientRole: "candidate",
         data: withDefined({
+          // The page's own preview of the message it has just saved (nothing
+          // here checks that one was): the email is recorded as contact
+          // either way (contactFor).
           message_preview: plainLine(asked.message_preview, 100),
-          job_title: jobTitleFor(asked.job_title, toApplicant, true),
+          job_title: jobTitleFor(asked.job_title, toApplicant),
           company_name: plainLine(team?.company_name, 120),
           sender_id: callerId,
           recipient_role: "candidate",
         }),
+        contactFor: toApplicant[0].employer_id!,
       };
     }
     const toOwner = await applicantLinks();

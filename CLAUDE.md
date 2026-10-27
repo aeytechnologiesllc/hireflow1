@@ -503,10 +503,29 @@ these either; each has a guard or a test that CI runs:
   the server's cards); an interview's application is the server's to change
   (`interviews_stay_on_their_application`; both MEDIUM in the fourteenth
   security review). "Reported 3 times" says the business "has no recorded
-  contact with them", never "had not been in touch". The hiring team's
-  emails are not counted (docs/BUSINESS-TRUST.md says why). Guards `reopen-holds`,
+  contact with them", never "had not been in touch". Guards `reopen-holds`,
   `bell-card-is-contact`, `interview-stays-on-its-application`;
-  launch_locks_behaviour section 24.
+  launch_locks_behaviour section 24. (The sixteenth Phase 5 review and the
+  fifteenth security review, `20261025690000`.) Every email the hiring team
+  sends to someone who applied (a staff kind, or a message) but a decline is
+  a `message` contact for the job's owner: send-notification-email records it through
+  `business_contacts_remember_email` (service role only; only for someone the
+  record says applied there) after the recipient's settings and before it
+  sends, and sends nothing (503) when it cannot; its job title is the job's
+  own and an invitation's times are its interview's own offered times
+  (`interview_id`, `interviewOffer`), never the request's (a "You're hired"
+  naming a GCash fee as the job title, to three people who only applied,
+  had left the business open). A report added to the reporter's open one is
+  worked out again (`employer_reports_auto_pause_on_merge`, AFTER UPDATE OF
+  reason, details), tells every admin when it says something new (five a day
+  for one person), never rings "reported 3 times"; a browser's new time,
+  link or notes on an interview moves its contact (`business_contacts_remember_edit`).
+  Who may send which email, and to whom, is unchanged. A teammate's
+  throwaway accounts still give one pause per three after each reopen
+  (docs/BUSINESS-TRUST.md: Turnstile is the fix). Guards
+  `team-emails-are-contact`, `repeat-report-worked-out-again`,
+  `interview-edit-is-contact`; launch_locks_behaviour section 25;
+  notification_access sections 3b and C.
 - HireFlow's own jobs have their own AI day
   (`ai_platform_business_daily_call_cap`, 6,000 of the platform's 10,000;
   `20261025300000_ai_budget_own_jobs.sql`): they were uncounted, so one
@@ -631,7 +650,11 @@ each kind of email, and looks up who signs it and who is named in it
 key could have any template ("You've got the job" included) sent to any user
 id, signed with any name: the gateway lets the public key through even with
 `verify_jwt = true`. Never add a kind of email that takes its recipient or
-its signer from the request. `scripts/notification_access.test.mjs` runs the
+its signer from the request. Since 2026-10-26 the hiring team's emails to an
+applicant also name the job's own title and an interview's own times, and
+each is recorded as contact for the reports pause before it is sent
+(`contactFor`; the function needs migration `20261025690000` applied first,
+or every such email answers 503). `scripts/notification_access.test.mjs` runs the
 real function against a stand-in world and fails if a rule is weakened.
 One edge function calling another presents the project's secret key in the
 **`apikey` header with no `Authorization` header** (seen live 2026-10-07):

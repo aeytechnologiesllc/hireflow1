@@ -319,7 +319,11 @@ eq("due choices", lib.DUE_CHOICES.join(","), "3,5,7");
   check("the hire email leaves out a letter past its date: it reads expires_at and asks offerLetterWaiting", /\.select\("candidate_signed_at, is_voided, status, expires_at"\)/.test(fn) && /const offerUnsigned = offerLetterWaiting\(letter\);/.test(fn));
   check("the email function builds the list from the application, never from the request", /from\("document_requests"\)[\s\S]{0,300}\.eq\("application_id", data\.application_id\)[\s\S]{0,120}\.eq\("candidate_id", recipient_user_id\)/.test(fn) && /welcomeTodo\(\{ offerUnsigned, requests: requests\.data \?\? \[\] \}\)/.test(fn));
   const access = read("supabase/functions/_shared/notificationAccess.ts");
-  check("…and only for an application that links the sender to that applicant", /kept\.application_id = links\.find\(\(l\) => l\.id === wanted\)\?\.id \?\? links\[0\]\.id;/.test(access));
+  check(
+    "…and only for an application that links the sender to that applicant",
+    /const askedApp = typeof asked\.application_id === "string" && UUID\.test\(asked\.application_id\) \? links\.find\(\(l\) => l\.id === asked\.application_id\) : undefined;/.test(access) &&
+      /kept\.application_id = askedApp\?\.id \?\? links\[0\]\.id;/.test(access),
+  );
   check("the welcome email asks them to sign and send, in one email", /"You're hired!"/.test(fn) && /Before your first day, please:/.test(fn) && /"Open HireFlow"/.test(fn));
   check("an offer letter's email says they were selected, then asks them to sign", /"Congratulations, you've been selected!"/.test(fn) && /has selected you for the position of/.test(fn) && /"Read and sign your offer letter"/.test(fn) && /doc\?\.document_type === "offer_letter"/.test(fn));
 

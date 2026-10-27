@@ -82,16 +82,52 @@ The words that matter are looked up, never taken from the request:
   employer";
 - **the applicant's name** in the hiring team's alerts, and **the sender's
   name** and thread link in a message alert: the caller's own;
-- **the job**, for anything an applicant sets off: a title is kept only when
-  it is the title of a job that really links them, else the newest such job.
-  The hiring team may name their own job (they could rename it anyway);
+- **the job**: a title is kept only when it is the title of a job that
+  really links them, else the newest such job. For the hiring team's emails
+  too since the sixteenth Phase 5 review (2026-10-26): until then the team
+  could name "their own job" as they liked, and the fifteenth security
+  review sent "You're joining <business> as CSR. Send the 1,500 PHP
+  onboarding fee to GCash ..." that way. When a hiring team's request names
+  one of the applications (`application_id`), its job names the email;
+- **an interview invitation's times** (`interview_pick_time`): the
+  interview's own offered times still ahead (`employer_windows`), soonest
+  first, at most 12, on the applicant's clock (`_shared/interviewTimes.ts`,
+  their zone from the computer check in the application's notes; else the
+  clock they were picked on, named, or UTC for a window that saved none). The interview is the one the request
+  names (`interview_id`, sent by the scheduling screens) when it is on one of
+  the applications that make the caller the hiring team for this applicant,
+  else the newest there still waiting for them to pick; with none, the
+  invitation lists no time. The request's own list (`proposed_times_list`,
+  twelve lines of 120 characters: the sixteenth Phase 5 review's probe pe
+  filled them with "Pay the 1,500 peso training fee to GCash ...") is never
+  read; the screens still send it for a function deployed before this;
 - **which side the recipient is on** (a message alert reads differently for
   each).
 
 What is left of the request's own text is the detail only the sender has: a
-date and time, a document's name, a phase's name, a message preview, the
-proposed interview times. Each is cut to one short plain line (no line
-breaks, no control characters), and anything else in the request is dropped.
+date and time, a document's name, a phase's name, a message preview. Each is
+cut to one short plain line (no line breaks, no control characters), and
+anything else in the request is dropped.
+
+## An email from the hiring team is contact (2026-10-26)
+
+Three different people a business has been in touch with pause it by their
+reports (docs/BUSINESS-TRUST.md, "Reports"), and the record of that contact
+used to see messages, requests, documents, interviews and bell cards, never
+these emails. A business could email its applicants its own words with no
+row behind them (above), and three people it emailed could not pause it (the
+fifteenth security review, finding 1, MEDIUM). Now every email the hiring
+team sends to someone who applied (a staff kind in the table above, or a
+message to an applicant) but a decline (no words of the team's but its
+name, and the email it sends most: counted, three people it turned down
+could pause it) is recorded as a `message` contact for the job's
+owner, who signs it (`contactFor`, decided by `notificationAccess.ts`
+alone), through `business_contacts_remember_email` (service role only). It
+is recorded after the recipient's email settings are read (an email they
+turned off is not sent and records nothing) and before it is sent; when it
+cannot be recorded, nothing is sent (`503 try_later`). An applicant's own
+emails and the system's are never recorded. Who may send what, and to whom,
+is unchanged.
 
 The system's own requests are sent as asked, as they always were.
 
@@ -159,7 +195,8 @@ request is not counted against anyone.
 with no `success` when the recipient has that kind turned off; `400
 unknown_type`; `401 not_signed_in`; `403 not_allowed`; `429 too_many`; `502`
 when the provider refused the message; `503 try_later` when it could not
-look up whose request this was (nothing is sent). The pages already treat
+look up whose request this was, or could not record a hiring team's email as
+contact (nothing is sent either way). The pages already treat
 anything but an explicit success as "not sent" (`src/utils/emailStatus.ts`).
 
 No page had to change: the rules read who is asking and who it is for, both
@@ -172,7 +209,9 @@ Give it a rule in `NOTIFICATION_RULES`
 you do. If a page sets it off, decide which of the people above it belongs
 to; if only the system does, it is `service`, and the caller must hold the
 service key. Never add a kind that takes its recipient or its signer from
-the request.
+the request. A kind the hiring team sends to an applicant is contact: its
+decision names the business (`contactFor`), as the staff and message
+branches do. Take its words from a row where there is one.
 
 ## Proof
 
@@ -188,4 +227,9 @@ kinds, including an applicant sending themself "You've got the job"; a
 hand-made token that only claims to be the service is nobody; every
 legitimate sender's email still goes, signed by the real owner and naming a
 real job whatever the request said; the system's callers are served as
-before; "Email me the link" is unchanged.
+before; "Email me the link" is unchanged. Since 2026-10-26: each of the
+hiring team's kinds to an applicant, from the owner and from a teammate, is
+recorded as contact for the owner's business before it is sent, and nothing
+else is; a record that cannot be written sends nothing; a made-up job title
+and the request's own interview "times" never reach the email, the
+interview's own times do (section 3b).

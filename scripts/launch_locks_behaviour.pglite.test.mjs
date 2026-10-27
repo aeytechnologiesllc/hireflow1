@@ -188,6 +188,23 @@
  *      interview booked on the business's own application, moved onto three
  *      real applicants') and contact_bell (three "status_update" cards), and
  *      the admins' "reported 3 times", which says "no recorded contact".
+ *  25. The hiring team's emails are contact, a repeat report is worked out
+ *      again, and an interview's new time, link or notes is contact (the
+ *      sixteenth Phase 5 review and the fifteenth security review;
+ *      20261025690000): three people a business only emailed (recorded by
+ *      business_contacts_remember_email, the server's only, never for
+ *      someone who did not apply to it) pause it, and an email after an
+ *      admin's close makes a heard person count again; the review's probes
+ *      pa and pb and the security review's heard2 pause the business when
+ *      the reports are added to the open ones, a report that adds nothing
+ *      telling no admin, additions told at most five times a day, never a
+ *      second "reported 3 times"; people heard and not written to again
+ *      still count for nothing; applying again is no contact, while an
+ *      interview, a request or a document after the close is, and a report
+ *      an admin closed about another business hears nobody here (the
+ *      review's W3, W7 and W13); a browser's new time, link or notes on an
+ *      interview moves its contact, the server's change, a cancellation or
+ *      a change to nothing does not.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -3302,6 +3319,282 @@ console.log("\n24. An admin's reopen holds; a bell card is contact; an interview
     await as(ANON, `select public.report_already_heard($1, $2)`, [A.b, A.people[0].u]),
   ];
   check("report_already_heard is the server's only", askHeard.every((r) => !r.ok), show(askHeard.map((r) => r.ok || r.error)));
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n25. The hiring team's emails are contact; a repeat report is worked out again; an interview's new time is contact\n");
+{
+  // The sixteenth Phase 5 review and the fifteenth security review
+  // (20261025690000). Security finding 1 (MEDIUM): the team's emails carried
+  // its own text ("You're joining <business> as CSR. Send the 1,500 PHP
+  // onboarding fee to GCash ...") to people who had only applied, and the
+  // record never saw them, so their three reports left it open:
+  // send-notification-email now records each one through
+  // business_contacts_remember_email, called here as the function calls it.
+  // Finding 2 of both: a repeat report on the same job was merged into the
+  // open one and never worked out again (the review's probes pa and pb, the
+  // security review's heard2). Phase 5 finding 3: what counts as contact since
+  // an admin's close was held only by a guard (the review's weakenings W3, W7
+  // and W13 passed every check). The security review's LOW: an interview's new
+  // time, link or notes was no new contact.
+  const R25 = (n) => `9d250000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const status = async (b) => (await one(`select public.business_status_of($1) as s`, [b])).s;
+  const jobStatus = async (j) => (await one(`select status::text s from public.jobs where id = $1`, [j])).s;
+  const report = (u, job, reason = "asked_for_money", details = "They asked me to pay a fee.") =>
+    as(user(u), `select public.report_employer($1, $2, $3) as id`, [job, reason, details]);
+  const rang = async (title) => (await one(`select count(*)::int n from public.notifications n join public.platform_admins a on a.user_id = n.user_id where n.title = $1`, [title])).n;
+  const kinds = async (b, u) => (await db.query(`select kind from private.business_contacts where employer_id = $1 and person_id = $2 order by kind`, [b, u])).rows.map((r) => r.kind).join(",");
+  const heardNow = async (b, u) => (await as(SERVICE, `select public.report_already_heard($1, $2) as yes`, [b, u])).rows?.[0]?.yes;
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
+  /** A confirmed business with a live job and n applicants. */
+  const business = async (n, name, count = 3) => {
+    const b = R25(100 + n);
+    await makeUser(b, "employer", { full_name: `${name} owner`, company_name: name });
+    await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [b]);
+    const j = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Chat support agent', 'Answer chats.', 'published') returning id`, [b])).id;
+    const people = [];
+    for (let k = 0; k < count; k += 1) {
+      const u = R25(1000 + n * 10 + k);
+      await makeUser(u, "candidate");
+      people.push({ u, app: await apply(u, j) });
+    }
+    return { b, j, people };
+  };
+  const write = async (from, p, content = "Thanks for applying. Please finish the chat test this week.") => {
+    const m = await as(user(from), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, $4)`, [from, p.u, p.app, content]);
+    if (!m.ok) throw new Error(`setup: message from ${from}: ${m.error}`);
+  };
+  const reportEach = async (people, job, reason, details) => {
+    const out = [];
+    for (const p of people) out.push(await report(p.u, job, reason, details));
+    return out;
+  };
+  const ids = (results) => results.map((r) => r.rows?.[0]?.id ?? r.error);
+  const reopen = async (b) => {
+    const r = await as(user(ADMIN), `select public.admin_set_business_status($1, 'approved') as s`, [b]);
+    if (!r.ok) throw new Error(`setup: reopen: ${r.error}`);
+  };
+  const paused = async (biz) => (await status(biz.b)) === "suspended" && (await jobStatus(biz.j)) === "closed";
+  const open = async (biz) => (await status(biz.b)) !== "suspended" && (await jobStatus(biz.j)) === "published";
+  /** What send-notification-email does before it sends one of the team's emails to its applicant. */
+  const emailed = (b, u) => as(SERVICE, `select public.business_contacts_remember_email($1, $2) as yes`, [b, u]);
+  const times = async (b, u, kind) =>
+    (await db.query(`select extract(epoch from first_at)::float8 as first, extract(epoch from last_at)::float8 as last from private.business_contacts where employer_id = $1 and person_id = $2 and kind = $3`, [b, u, kind])).rows[0];
+  const hourEarlier = (b, u, kind) =>
+    db.query(`update private.business_contacts set first_at = first_at - interval '1 hour', last_at = last_at - interval '1 hour' where employer_id = $1 and person_id = $2 and kind = $3`, [b, u, kind]);
+
+  // (a) The security review's probe: three emails of the team's own words, and nothing else.
+  const A = await business(1, "Fee Mail Co");
+  const mailed = [];
+  for (const p of A.people) mailed.push(await emailed(A.b, p.u));
+  const rowsBehind = (await one(`select ((select count(*) from public.messages where sender_id = $1) + (select count(*) from public.interviews i join public.applications a on a.id = i.application_id where a.job_id = $2) + (select count(*) from public.document_requests where employer_id = $1) + (select count(*) from public.documents d join public.applications a on a.id = d.application_id where a.job_id = $2))::int as n`, [A.b, A.j])).n;
+  check(
+    "(a) send-notification-email records each of three emails from the business to its applicants as a message in the record, with no message, interview, request or document behind them",
+    mailed.every((r) => r.ok && r.rows[0].yes === true) && Number(rowsBehind) === 0 && (await kinds(A.b, A.people[0].u)) === "applied,message" && (await kinds(A.b, A.people[2].u)) === "applied,message",
+    `${show(mailed)} behind ${rowsBehind} ${await kinds(A.b, A.people[0].u)}`,
+  );
+  await reportEach(A.people, A.j);
+  check("…so the three people it emailed pause it by their reports", await paused(A), await status(A.b));
+  const askEmail = [
+    await as(user(A.b), `select public.business_contacts_remember_email($1, $2)`, [A.b, A.people[0].u]),
+    await as(user(A.people[0].u), `select public.business_contacts_remember_email($1, $2)`, [A.b, A.people[0].u]),
+    await as(ANON, `select public.business_contacts_remember_email($1, $2)`, [A.b, A.people[0].u]),
+  ];
+  check("…and only the server records an email: a business, an applicant or a visitor cannot", askEmail.every((r) => !r.ok), show(askEmail.map((r) => r.ok || r.error)));
+  const B = await business(2, "Other Mail Co", 1);
+  const NOWHERE = R25(3000);
+  await makeUser(NOWHERE, "candidate");
+  const none = [await emailed(B.b, NOWHERE), await emailed(B.b, A.people[0].u), await emailed(B.b, B.b), await emailed(null, B.people[0].u)];
+  check(
+    "…nothing for someone the record says never applied to that business (one who applied nowhere, or only to another), for the business itself, or for no business",
+    none.every((r) => r.ok && r.rows[0].yes === false) && (await kinds(B.b, NOWHERE)) === "" && (await kinds(B.b, A.people[0].u)) === "" && (await kinds(B.b, B.b)) === "",
+    show(none),
+  );
+  const [b0] = B.people;
+  await emailed(B.b, b0.u);
+  await hourEarlier(B.b, b0.u, "message");
+  const before = await times(B.b, b0.u, "message");
+  await tick();
+  await emailed(B.b, b0.u);
+  const after = await times(B.b, b0.u, "message");
+  check("…a later email keeps the first time and moves the last time to now", !!before && !!after && after.first === before.first && after.last > before.last + 30 * 60, show({ before, after }));
+  // Heard, then emailed after the close: they count again.
+  const C = await business(3, "Reopen Mail Co");
+  for (const p of C.people) await write(C.b, p);
+  await reportEach(C.people, C.j);
+  await reopen(C.b);
+  await tick();
+  for (const p of C.people) await emailed(C.b, p.u);
+  const heardC = await heardNow(C.b, C.people[0].u);
+  await reportEach(C.people, C.j);
+  check("…an email to people an admin had heard, after the close, makes them count again: their new reports pause it", heardC === false && (await paused(C)), `${heardC} ${await status(C.b)}`);
+
+  // (b) A repeat report is worked out again. Probe pa: reopened, the heard
+  // three report at once, the business writes to them again, they report the
+  // new demand (added to their open reports).
+  const P = await business(4, "Fee Desk Three");
+  for (const p of P.people) await write(P.b, p, "Send the 1,500 peso training fee to GCash 0917 000 0000.");
+  await reportEach(P.people, P.j);
+  await reopen(P.b);
+  const jobBell0 = await rang("A job was reported");
+  const atOnce = await reportEach(P.people, P.j);
+  check("(b) probe pa: reopened, the three it had paused for report it again at once: taken, each ringing \"A job was reported\", and it stays open", atOnce.every((r) => r.ok) && (await open(P)) && (await rang("A job was reported")) === jobBell0 + 3, `${show(atOnce)} ${await status(P.b)}`);
+  await tick();
+  for (const p of P.people) await write(P.b, p, "Last chance: send the fee today or lose the job.");
+  const jobBell1 = await rang("A job was reported");
+  const pausedBell1 = await rang("A business was paused");
+  const merged = await reportEach(P.people, P.j, "asked_for_money", "They wrote again: pay today or lose the job.");
+  check(
+    "…the business writes to them again and they report the new demand: added to their open reports, and it pauses",
+    merged.every((r) => r.ok) && show(ids(merged)) === show(ids(atOnce)) && (await paused(P)) && (await rang("A business was paused")) === pausedBell1 + 1,
+    `${show(ids(merged))} vs ${show(ids(atOnce))} ${await status(P.b)}`,
+  );
+  check("…and every admin is told of each addition (\"A job was reported\")", (await rang("A job was reported")) === jobBell1 + 3, String((await rang("A job was reported")) - jobBell1));
+  // Probe pb: reported before any contact, then asked for money, and reported again.
+  const Q = await business(5, "Early Ad Co");
+  const threeBell0 = await rang("A business was reported 3 times");
+  const early = await reportEach(Q.people, Q.j, "fake_job", "This job looks fake.");
+  const threeBell1 = await rang("A business was reported 3 times");
+  for (const p of Q.people) await write(Q.b, p, "You passed! Send the 1,500 peso training fee to GCash 0917 000 0000 today.");
+  const pbAgain = await reportEach(Q.people, Q.j);
+  const reasons = (await db.query(`select distinct reason from public.employer_reports where employer_id = $1`, [Q.b])).rows.map((r) => r.reason).join(",");
+  check(
+    "…probe pb: three report a fake ad before any contact (\"reported 3 times\" once), are then asked for money and report again: added to their reports, and it pauses",
+    threeBell1 === threeBell0 + 1 && show(ids(pbAgain)) === show(ids(early)) && reasons === "asked_for_money" && (await paused(Q)) && (await rang("A business was reported 3 times")) === threeBell1,
+    `${threeBell1 - threeBell0} ${show(ids(pbAgain))} ${reasons} ${await status(Q.b)}`,
+  );
+  // heard2, with the same reason and no new words: still worked out again, and nobody told of nothing new.
+  const H = await business(6, "Same Words Co");
+  for (const p of H.people) await write(H.b, p);
+  await reportEach(H.people, H.j, "asked_for_money", null);
+  await reopen(H.b);
+  await reportEach(H.people, H.j, "asked_for_money", null);
+  await tick();
+  for (const p of H.people) await write(H.b, p, "Pay the 1,500 PHP fee to GCash 0917 000 0000 now.");
+  const detailsBefore = (await db.query(`select id, reason, details from public.employer_reports where employer_id = $1 and status = 'open' order by id`, [H.b])).rows;
+  const jobBellH = await rang("A job was reported");
+  await reportEach(H.people, H.j, "asked_for_money", null);
+  const detailsAfter = (await db.query(`select id, reason, details from public.employer_reports where employer_id = $1 and status = 'open' order by id`, [H.b])).rows;
+  check(
+    "…the security review's heard2: written to again, the three report once more with the same reason and no words: it pauses there, before anyone else reports",
+    (await paused(H)) && detailsAfter.length === 3,
+    `${await status(H.b)} ${detailsAfter.length}`,
+  );
+  check("…and a report that adds nothing tells no admin and adds no blank lines", (await rang("A job was reported")) === jobBellH && show(detailsAfter) === show(detailsBefore), `${(await rang("A job was reported")) - jobBellH} ${show(detailsAfter)}`);
+  // Heard, not written to again, report again: added, and nothing more.
+  const N = await business(7, "Heard Desk");
+  for (const p of N.people) await write(N.b, p);
+  await reportEach(N.people, N.j);
+  await reopen(N.b);
+  await reportEach(N.people, N.j);
+  const pausedBellN = await rang("A business was paused");
+  const jobBellN = await rang("A job was reported");
+  const addedN = await reportEach(N.people, N.j, "unsafe", "They were rude when I asked about it.");
+  check(
+    "…people an admin heard who are not written to again, reporting again: added and told, and it stays open",
+    addedN.every((r) => r.ok) && (await open(N)) && (await rang("A business was paused")) === pausedBellN && (await rang("A job was reported")) === jobBellN + 3,
+    `${await status(N.b)} ${(await rang("A job was reported")) - jobBellN}`,
+  );
+  // Three who only applied, reporting again: no second "reported 3 times".
+  const W = await business(8, "Applied Only Co");
+  const threeW = await rang("A business was reported 3 times");
+  await reportEach(W.people, W.j, "fake_job", "Looks fake.");
+  await reportEach(W.people, W.j, "fake_job", "Still looks fake.");
+  check("…three who only applied, reporting again: \"reported 3 times\" rings once, and it stays open", (await rang("A business was reported 3 times")) === threeW + 1 && (await open(W)), String((await rang("A business was reported 3 times")) - threeW));
+  // One person adding to a report over and over: told at most five times a day.
+  const L = await business(9, "Busy Reporter Co", 1);
+  const [l0] = L.people;
+  await report(l0.u, L.j, "fake_job", "First.");
+  const jobBellL = await rang("A job was reported");
+  const adds = [];
+  for (let k = 0; k < 7; k += 1) adds.push(await report(l0.u, L.j, k % 2 ? "unsafe" : "other", `Note ${k}.`));
+  const kept = (await one(`select details from public.employer_reports where reporter_id = $1 and job_id = $2`, [l0.u, L.j])).details;
+  check(
+    "…one person adding to their report seven times: every addition kept, every admin told five times",
+    adds.every((r) => r.ok) && (await rang("A job was reported")) === jobBellL + 5 && [0, 1, 2, 3, 4, 5, 6].every((k) => kept.includes(`Note ${k}.`)),
+    `${(await rang("A job was reported")) - jobBellL} ${kept}`,
+  );
+
+  // (c) What counts as contact since an admin's close (the review's W3, W7, W13).
+  // W3: applying again is no contact.
+  const X3 = await business(10, "Apply Again Co");
+  for (const p of X3.people) await write(X3.b, p);
+  await reportEach(X3.people, X3.j);
+  await reopen(X3.b);
+  await tick();
+  const J3 = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Phone support agent', 'Answer calls.', 'published') returning id`, [X3.b])).id;
+  for (const p of X3.people) await apply(p.u, J3);
+  const heard3 = await heardNow(X3.b, X3.people[0].u);
+  await reportEach(X3.people, J3);
+  check("(c) people an admin heard who apply to its other job after the close are still heard: their three reports of that job leave it open", heard3 === true && (await open(X3)) && (await jobStatus(J3)) === "published", `${heard3} ${await status(X3.b)}`);
+  // W7: an interview, a request for papers and a document after the close are contact.
+  const X7 = await business(11, "Other Ways Co");
+  for (const p of X7.people) await write(X7.b, p);
+  await reportEach(X7.people, X7.j);
+  await reopen(X7.b);
+  await tick();
+  const [x0, x1, x2] = X7.people;
+  const made = [
+    await as(user(X7.b), `insert into public.interviews (application_id, scheduled_at) values ($1, now() + interval '1 day') returning id`, [x0.app]),
+    await as(user(X7.b), `insert into public.document_requests (application_id, employer_id, candidate_id, document_type) values ($1, $2, $3, 'nbi_clearance') returning id`, [x1.app, X7.b, x1.u]),
+    await as(user(X7.b), `insert into public.documents (application_id, name, file_url, recipient_id) values ($1, 'Training agreement', 'data:text/plain;base64,eA==', $2) returning id`, [x2.app, x2.u]),
+  ];
+  await reportEach(X7.people, X7.j);
+  check("…an interview, a request for papers and a document after the close, and no message: the three count again and pause it", made.every((r) => r.ok) && (await paused(X7)), `${show(made.map((r) => r.ok || r.error))} ${await status(X7.b)}`);
+  // W13: a report an admin closed about another business hears nobody here.
+  const X13 = await business(12, "Fresh Co");
+  const Y13 = await business(13, "Earlier Co", 0);
+  for (const p of X13.people) await write(X13.b, p);
+  await tick();
+  await apply(X13.people[0].u, Y13.j);
+  const elsewhere = await report(X13.people[0].u, Y13.j, "fake_job", "Looks fake.");
+  await as(user(ADMIN), `select public.admin_close_report($1)`, [elsewhere.rows?.[0]?.id]);
+  await tick();
+  const heard13 = await heardNow(X13.b, X13.people[0].u);
+  await reportEach(X13.people, X13.j);
+  check("…someone whose report about another business an admin closed, with two others, reports this one, which messaged them: it pauses", elsewhere.ok && heard13 === false && (await paused(X13)), `${heard13} ${await status(X13.b)}`);
+
+  // (d) An interview's new time, link or notes is contact (the security review's LOW).
+  const I = await business(14, "Moved Time Co");
+  const booked = [];
+  for (const p of I.people) booked.push((await as(user(I.b), `insert into public.interviews (application_id, scheduled_at, meeting_link) values ($1, now() + interval '1 day', 'https://meet.example/a') returning id`, [p.app])).rows[0].id);
+  await reportEach(I.people, I.j);
+  check("(d) three people it booked interviews with report it: it pauses", await paused(I), await status(I.b));
+  await reopen(I.b);
+  await reportEach(I.people, I.j);
+  await tick();
+  const IMATE = R25(500);
+  await makeUser(IMATE, "team_member", { full_name: "Scheduler" });
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_schedule_interviews, assigned_job_ids) values ($1, $2, $3, 'active', true, '{}'::uuid[])`, [IMATE, I.b, emailOf(IMATE)]);
+  const edits = [
+    await as(user(I.b), `update public.interviews set scheduled_at = now() + interval '3 days' where id = $1 returning id`, [booked[0]]),
+    await as(user(IMATE), `update public.interviews set meeting_link = 'https://meet.example/pay-first' where id = $1 returning id`, [booked[1]]),
+    await as(user(I.b), `update public.interviews set notes = 'Bring the 1,500 peso fee in cash.' where id = $1 returning id`, [booked[2]]),
+  ];
+  const heardI = await Promise.all(I.people.map((p) => heardNow(I.b, p.u)));
+  const pausedBellI = await rang("A business was paused");
+  await reportEach(I.people, I.j, "asked_for_money", "They changed the interview to ask for a fee.");
+  check(
+    "…reopened, the three heard; the business moves one interview's time, its teammate changes another's link, it writes in the third's notes: they count again, and their reports pause it",
+    edits.every((r) => r.ok && r.rows.length === 1) && heardI.every((h) => h === false) && (await paused(I)) && (await rang("A business was paused")) === pausedBellI + 1,
+    `${show(edits.map((r) => r.ok || r.error))} ${show(heardI)} ${await status(I.b)}`,
+  );
+  const E = await business(15, "Quiet Edit Co", 1);
+  const [e0] = E.people;
+  const ei = (await as(user(E.b), `insert into public.interviews (application_id, scheduled_at, notes) values ($1, now() + interval '1 day', 'See you then.') returning id`, [e0.app])).rows[0].id;
+  await hourEarlier(E.b, e0.u, "interview");
+  const t0 = await times(E.b, e0.u, "interview");
+  const same = await as(user(E.b), `update public.interviews set scheduled_at = scheduled_at, notes = notes, meeting_link = meeting_link where id = $1 returning id`, [ei]);
+  const server = await as(SERVICE, `update public.interviews set scheduled_at = now() + interval '2 days', notes = 'Moved by the server.' where id = $1 returning id`, [ei]);
+  const cancelled = await as(user(E.b), `update public.interviews set status = 'cancelled' where id = $1 returning id`, [ei]);
+  const t1 = await times(E.b, e0.u, "interview");
+  const noted = await as(user(E.b), `update public.interviews set notes = 'Please call us first.' where id = $1 returning id`, [ei]);
+  const t2 = await times(E.b, e0.u, "interview");
+  check(
+    "…an edit that changes nothing, the server's own change and a cancellation move nothing; a browser's new notes move the last time (the first stays)",
+    same.ok && server.ok && cancelled.ok && noted.ok && t1.last === t0.last && t2.last > t0.last + 30 * 60 && t2.first === t0.first,
+    show({ same: same.ok || same.error, server: server.ok || server.error, cancelled: cancelled.ok || cancelled.error, t0, t1, t2 }),
+  );
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

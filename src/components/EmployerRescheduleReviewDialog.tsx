@@ -316,7 +316,7 @@ export function EmployerRescheduleReviewDialog({
           const theirZone = await fetchApplicantTimeZone(applicationId);
           const lines = openOfferedTimes.map((start) => applicantEmailTime(parseISO(start), theirZone, localTimeZone()).line);
           const { notifyInterviewPickTime } = await import("@/utils/emailNotifications");
-          await notifyInterviewPickTime(candidateId, jobTitle, lines, undefined, false, { interviewType, minutes });
+          await notifyInterviewPickTime(candidateId, jobTitle, lines, undefined, false, { interviewType, minutes, interviewId });
         } catch (emailErr) {
           console.error("Failed to email the offered times again:", emailErr);
         }
@@ -387,7 +387,7 @@ export function EmployerRescheduleReviewDialog({
           const theirZone = applicantZone ?? (await fetchApplicantTimeZone(applicationId));
           const line = applicantEmailTime(newStart, theirZone, teamZone).line;
           const { notifyInterviewPickTime } = await import("@/utils/emailNotifications");
-          await notifyInterviewPickTime(candidateId, jobTitle, [line], undefined, true, { interviewType, minutes });
+          await notifyInterviewPickTime(candidateId, jobTitle, [line], undefined, true, { interviewType, minutes, interviewId });
         } catch (emailErr) {
           console.error("Failed to email the new time:", emailErr);
         }

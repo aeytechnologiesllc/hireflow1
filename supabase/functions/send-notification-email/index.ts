@@ -10,9 +10,11 @@ import { offerLetterWaiting, welcomeTodo, type OfferLetterFacts, type WelcomeTod
 import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkEmail } from "../_shared/continueOnComputerEmail.ts";
 import { BUSINESS_EMAIL_CODE_TYPE, businessEmailCodeEmail, readIssuedCode, waitWords } from "../_shared/businessEmailCode.ts";
 import { callerId as callerIp, checkRateLimit } from "../_shared/rateLimit.ts";
+import { applicantEmailTime, applicantTimeZone } from "../_shared/interviewTimes.ts";
 import {
   NOTIFICATION_RULES,
   decideNotification,
+  interviewOffer,
   looksLikeServiceKey,
   sameSecret,
   type NotificationCaller,
@@ -132,8 +134,11 @@ interface NotificationRequest {
     more_steps?: string;
     rejection_reason?: string;
     proposed_times?: string;
+    /** interview_pick_time: read from the interview (interview_id), never from a request. */
     proposed_times_list?: string[];
     window_count?: string;
+    /** interview_pick_time: the interview the invitation is about; its times are its own. */
+    interview_id?: string;
     /** interview_pick_time: "1" for a new time, set after they could not make an earlier one. */
     again?: string;
     /** interview_pick_time, interview_confirmed: "video call", "phone call" or "meeting in person". */
@@ -896,6 +901,9 @@ const handler = async (req: Request): Promise<Response> => {
     let data: NotificationRequest["data"] = request.data && typeof request.data === "object" ? request.data : {};
     // Which side the recipient is on (only new_message reads differently).
     let recipientRole: RecipientRole = "candidate";
+    // The business a hiring team's email puts in touch with its applicant,
+    // recorded before it is sent (below; notificationAccess's contactFor).
+    let contactFor: string | null = null;
 
     const refuse = (status: number, body: Record<string, unknown>, retryAfter?: number) =>
       new Response(JSON.stringify(body), {
@@ -1053,6 +1061,30 @@ const handler = async (req: Request): Promise<Response> => {
             return row ?? null;
           },
           checkLimit: checkRateLimit,
+          // An invitation's times are its interview's own offered times
+          // (employer_windows, each with the clock it was picked on), written
+          // on the applicant's clock as the scheduling screens write them
+          // (_shared/interviewTimes.ts; their zone from the computer check in
+          // the application's notes). Never the request's lines.
+          offeredTimes: async (applicationIds, interviewId) => {
+            if (applicationIds.length === 0) return null;
+            const { data: rows, error } = await supabase
+              .from("interviews")
+              .select("id, application_id, status, candidate_response, employer_windows, created_at")
+              .in("application_id", [...applicationIds])
+              .order("created_at", { ascending: false })
+              .limit(50);
+            if (error) throw error;
+            const offer = interviewOffer(rows ?? [], interviewId);
+            if (!offer) return null;
+            const { data: app, error: appError } = await supabase.from("applications").select("notes").eq("id", offer.applicationId).maybeSingle();
+            if (appError) throw appError;
+            const theirZone = applicantTimeZone(app?.notes);
+            return {
+              applicationId: offer.applicationId,
+              times: offer.windows.map((w) => applicantEmailTime(new Date(w.start), theirZone, w.zone ?? "UTC").line),
+            };
+          },
         });
         if (!access.ok) {
           const refusal = access.refusal;
@@ -1062,6 +1094,7 @@ const handler = async (req: Request): Promise<Response> => {
         recipient_user_id = access.recipientUserId;
         data = access.data as NotificationRequest["data"];
         recipientRole = access.recipientRole;
+        contactFor = access.contactFor ?? null;
       }
     }
 
@@ -1182,6 +1215,26 @@ const handler = async (req: Request): Promise<Response> => {
     }
     const recipientFirst = String((profile as { full_name?: string | null }).full_name ?? "").trim().split(/\s+/)[0];
     if (recipientFirst && isCandidateEmail(type, recipientRole)) data = { ...data, first_name: recipientFirst.slice(0, 40) };
+
+    // The hiring team's own email to someone who applied is contact
+    // (docs/BUSINESS-TRUST.md, "Reports"): recorded as a message from the
+    // job's business, before it is sent, so that three people it emailed (a
+    // "You're hired" naming a fee, a message preview, an invitation, a
+    // request) pause it by their reports, and an email after an admin's close
+    // makes a heard person count again. Until the sixteenth Phase 5 review
+    // nothing recorded these (the fifteenth security review, finding 1). An
+    // email the recipient turned off is not sent and records nothing (above);
+    // when the record cannot be written, nothing is sent.
+    if (contactFor) {
+      const { data: recorded, error: recordError } = await supabase.rpc("business_contacts_remember_email", { p_employer: contactFor, p_person: recipient_user_id });
+      if (recordError) {
+        console.error(`[send-notification-email] ${type}: could not record the contact, so nothing is sent:`, recordError.message);
+        return refuse(503, { error: "We couldn't send it just now. Please try again in a few minutes.", code: "try_later" });
+      }
+      // Only the record's own answer: false for the business's own account
+      // (an owner who applied to their own job), or someone it never saw apply.
+      if (recorded !== true) console.warn(`[send-notification-email] ${type}: no contact recorded (the record has no application from them to this business)`);
+    }
 
     const emailContent = getEmailContent(type, data, recipientRole);
 

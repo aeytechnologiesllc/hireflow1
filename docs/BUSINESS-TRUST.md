@@ -29,7 +29,8 @@ hiring app to check a business's tax number, so there is no TIN check.
   jobs and closes its open reports, so one more report can't pause it again
   straight away, and the people whose reports were closed count again only
   once the business is in touch with them after that (see Reports, "A reopen
-  holds").
+  holds"; an email from the hiring team counts, and a report they add to
+  then is worked out again).
 - Three reports from three different people the business has been in touch
   with pause it by itself, and every admin is told (see Reports for what
   counts). HireFlow's own account (`platform_admins`) is never paused, by
@@ -100,8 +101,10 @@ untouched.
 
 Anyone signed in can report a job (`report_employer`): asked for money,
 suspicious documents, fake job, unsafe, or something else, with a note. One
-open report per person per job (a second adds to the first), at most five a
-day. Every admin is told in their bell. A reporter reads only their own
+open report per person per job (a second adds to the first, and is worked
+out again like a new one), at most five a day. Every admin is told in their
+bell (of an addition, when it says something new, at most five times a day
+for one person). A reporter reads only their own
 reports; the reported business never sees who reported it. Three open
 reports from different people it has been in touch with pause the business by
 itself (see Standing).
@@ -110,7 +113,9 @@ What counts as "in touch" (`business_has_contacted`, Phase 7 security audit,
 2026-10-25): a message to the reporter from the business or anyone on its
 team, a document or a document request on the reporter's application, or an
 interview on it (and, since the fifteenth Phase 5 review, a card the
-business or its team wrote into their bell). Only the business can make any of these, so a stranger
+business or its team wrote into their bell; since the sixteenth, an email
+the hiring team sent them and a new time, link or notes on their
+interview). Only the business can make any of these, so a stranger
 cannot manufacture them; Ava never messages, sends papers or books
 interviews. Before, three people who had merely applied were enough, and
 applying costs nothing (no email confirmation, no bot check yet): three
@@ -138,14 +143,18 @@ time and, since the fifteenth review, last time; one row each):
 | `applied` | an application is made | the job's owner |
 | `message` | a message is sent | each business the receiver applied to whose owner, or anyone on whose team, sent it |
 | `message` | a browser writes a card into the bell of someone who applied (since the fifteenth review) | each business whose job they applied to and whose owner, or active teammate on that job, wrote it |
+| `message` | the hiring team's email goes to someone who applied (since the sixteenth review; send-notification-email, before it sends) | the job's owner, who signs it |
 | `document_request` | papers are asked for | the application's job's owner |
 | `document` | a document is sent | the application's job's owner |
-| `interview` | an interview is booked | the application's job's owner |
+| `interview` | an interview is booked, or a browser changes its time, link or notes (since the sixteenth review) | the application's job's owner |
 
 - The rows are written by `business_contacts_remember`, an AFTER INSERT
   trigger for each row on `applications`, `messages`, `document_requests`,
   `documents` and `interviews` (and on `notifications`, for a browser's own
-  card only, since the fifteenth review), with its own rights. The business is read
+  card only, since the fifteenth review; and AFTER UPDATE on `interviews`, for
+  a browser's new time, link or notes, since the sixteenth), with its own
+  rights, and by `business_contacts_remember_email` for the hiring team's
+  emails (since the sixteenth: the server's only). The business is read
   from the application's job (for a message, a job the receiver applied
   to), never from a column the business writes, so one business cannot make
   another look in touch, and an applicant's own message to a business is no
@@ -189,7 +198,9 @@ teammate was taken off the team. Now:
   bell, until the business is in touch with them again after that close
   (`report_already_heard`, read by `employer_reports_auto_pause`). Their new
   reports are still taken and still ring "A job was reported" for every
-  admin, so a real repeat is seen.
+  admin, so a real repeat is seen (and, since the sixteenth review, so does
+  something new added to an open report; until then an addition rang
+  nothing and was never worked out again, below).
 - People the business was in touch with who were not heard before still
   pause it: after a reopen, one more report leaves it open, and three new
   ones pause it again. A business that writes to someone again after the
@@ -224,24 +235,94 @@ teammate was taken off the team. Now:
 - The admins' "A business was reported 3 times" bell said the business "had
   not been in touch with them", which these two paths made untrue; it says
   "it has no recorded contact with them" now.
-- Not counted: the emails the hiring team can set off through
-  `send-notification-email` (docs/NOTIFICATION-EMAILS.md). Each carries one
-  short line of the team's own text (a message preview, up to 100
-  characters; a document's or a step's name or a date, up to 160), and none
-  needs a row behind it, so a business writing to the API directly could
-  email its applicants a line the record never sees. Tying only the message
-  email to a real message would leave the same line in the other kinds;
-  tying every kind to its row is a change to the function's caller checks,
-  which hold (CLAUDE.md, "Notification emails are caller-checked"). In the
-  app a message, document or interview email follows the row it reports,
-  which the record counts; a decision or a step's email is no contact, as
-  the decision itself is not. Each is signed with the job owner's own
-  business name, looked up, so the applicant can report the right job.
-- Left as it was: a report that adds to the reporter's open report on the
-  same job (one open report per person per job) is no new report, so the
-  pause is worked out only when a report is made; and a revoked teammate
-  row still counts as the business's team for a message (the team page
-  deletes the row; no live business has a revoked one).
+- The emails the hiring team can set off through `send-notification-email`
+  were not counted here: the reason given was that each carried "one short
+  line" of the team's text. That was wrong (the sixteenth Phase 5 review,
+  finding 2): a job title of the team's own choosing (200 characters, in the
+  subject), a document's or a step's name, a message preview, and an
+  invitation's twelve "times" of 120 characters. They are counted since the
+  sixteenth review (below).
+- Left as it was: a revoked teammate row still counts as the business's
+  team for a message (the team page deletes the row; no live business has a
+  revoked one).
+
+**The hiring team's emails, a repeat report and an interview's new time
+(the sixteenth Phase 5 review and the fifteenth security review, 2026-10-26;
+`20261025690000_team_emails_are_contact.sql`).**
+
+- An email from the hiring team to someone who applied is contact. The
+  security review's probe: the owner asked for `status_hired` emails to three
+  people who had only applied, with the job title "CSR. Send the 1,500 PHP
+  onboarding fee to GCash 0917 000 0000 by Friday to keep your slot"; each
+  went out from the business by name ("You're joining <business> as CSR.
+  Send the 1,500 PHP ..."), nothing recorded it, and their three reports left
+  the business open; a message preview with no message, a document request
+  named "GCash receipt for the 1,500 PHP fee" and an interview subject did
+  the same. Now `send-notification-email`, once it has decided the email may
+  go (who may send what is unchanged) and before it sends it, records a
+  `message` for the job's business and the recipient through
+  `business_contacts_remember_email` (service role only, SECURITY DEFINER;
+  only for someone the record says applied to that business, never the
+  business itself; the record's own `ON CONFLICT ... last_at`). Every kind
+  the team sends an applicant counts (a hire, a step, an interview, a
+  document, a request, a message) but a decline: each carries at least the
+  business's own name, which it chooses. An email the applicant turned off is not sent and
+  records nothing; when the record cannot be written, nothing is sent (503).
+  An email after an admin's close makes a heard person count again, like a
+  message. The applicant's own emails and the system's never count.
+- The email's words come from the rows where there are rows: the job's own
+  title (the one the request names when it is one of theirs, the
+  application's when it names one, else the newest), and an invitation's
+  times from its interview's own offered times, on the applicant's clock
+  (the review's probe pe: twelve lines of "Pay the 1,500 peso training fee to
+  GCash ..." with no interview behind them). A step's or a document's name, a
+  date and a message preview are still the page's (docs/NOTIFICATION-EMAILS.md);
+  the record covers them.
+- A decline email is not contact. It carries no words of the team's but its
+  name, and it is the email a business sends most, to people it turned down:
+  counted, three of them could pause it by reporting. A hire is (the lure the
+  security review used); so is anything else the team writes them.
+- A report added to the reporter's open report on the same job (one open
+  report per person per job) is worked out again, as a new one is
+  (`employer_reports_auto_pause_on_merge`, AFTER UPDATE OF reason, details,
+  while it is open, running `employer_reports_auto_pause`). After a reopen
+  the people an admin had heard report again at once (not counted, as
+  above), so their reports stay open; when the business wrote to them again
+  and they reported the new demand, each was added to the open report and
+  nothing ran (the review's probe pa; the security review's heard2 paused
+  only when a fourth person filed a new report; probe pb, three people who
+  reported a fake ad before any contact and then were asked for money, the
+  same). Now that pauses it. Every admin is told when an addition gives a new
+  reason or more words ("A job was reported": "Someone added to their report
+  of ..."), at most five times a day for one person, and an addition with
+  nothing new tells nobody and adds no blank lines (it used to add two).
+  Only a new report rings "reported 3 times": an addition brings nobody new.
+  Someone heard and not written to again still counts for nothing.
+- A browser's change of an interview's time (`scheduled_at`, or the offered
+  times, `employer_windows`), link or notes moves that interview contact's
+  last time (`business_contacts_remember_edit`, AFTER UPDATE on interviews,
+  `WHEN (current_user = 'authenticated')` and one of them changed). After a
+  reopen a business could otherwise move a heard reporter's interview, or
+  put a new link or "Bring the 1,500 peso fee" in its notes, and they stayed
+  heard (the security review's LOW, probe heard). Only the job's owner or a
+  teammate who schedules interviews can change one from a browser; the
+  server's changes (reminders, an applicant's answer), a cancellation and a
+  change to nothing do not count.
+- Left as it is (the security review's other LOW): a teammate, while on the
+  team, who messages many throwaway accounts that applied gets one automatic
+  pause for every three of them after each reopen, even after being taken off
+  the team (messages allow 600 an hour, and accounts are free). Each pause is
+  of the business that let the teammate in; an admin looks each time, and
+  closing those reports by hand hears them. The fix is a bot check on sign-up
+  (Turnstile, waiting on the owner's keys).
+- Proof: `scripts/launch_locks_behaviour.pglite.test.mjs` section 25 (the
+  emails as send-notification-email records them, the review's probes pa and
+  pb, the security review's heard2, the Phase 5 review's weakenings W3
+  (applying again counted), W7 (only messages counted) and W13 (a report
+  about another business heard someone here), and the interview edits);
+  `scripts/notification_access.test.mjs` sections 3b and C; guards
+  `team-emails-are-contact`, `repeat-report-worked-out-again` and
+  `interview-edit-is-contact`.
 - Proof: `scripts/launch_locks_behaviour.pglite.test.mjs` section 24 (the
   review's probes p1, p2, p3 and p5 and its weakenings M1 to M6: HireFlow's
   own account, closed reports, another business's teammate, a reopen that

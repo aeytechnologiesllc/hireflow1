@@ -42,7 +42,10 @@ interface NotificationData {
   company_name?: string;
   rejection_reason?: string;
   proposed_times?: string;
+  /** interview_pick_time: sent for a function deployed before 2026-10-26, which still read it. The function now writes the times from the interview itself. */
   proposed_times_list?: string[];
+  /** interview_pick_time: the interview the invitation is about (its offered times are what the email lists). */
+  interview_id?: string;
   /** interview_pick_time: "1" when it is a new time after they could not make an earlier one. */
   again?: string;
   /** interview_pick_time: "video call", "phone call" or "meeting in person". */
@@ -211,6 +214,13 @@ export async function notifyInterviewScheduled(
 export interface InterviewAbout {
   interviewType?: string | null;
   minutes?: number | null;
+  /**
+   * The interview itself. The email lists its own offered times, on the
+   * applicant's clock (send-notification-email reads them from the row;
+   * the sixteenth Phase 5 review): the lines this page writes are only for a
+   * function deployed before that.
+   */
+  interviewId?: string | null;
 }
 
 /**
@@ -237,6 +247,7 @@ export async function notifyInterviewPickTime(
     window_count: proposedTimes.length.toString(),
     company_name: companyName,
     ...(again ? { again: "1" } : {}),
+    ...(about?.interviewId ? { interview_id: about.interviewId } : {}),
     ...(about ? { interview_kind: interviewKindPhrase(about.interviewType) } : {}),
     ...(length ? { interview_length: length } : {}),
   });

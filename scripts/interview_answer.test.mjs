@@ -305,7 +305,7 @@ console.log("\nThe team's answer");
   const back = /const handleBackToOffer = async \(\) => \{[\s\S]*?\n  \};\n/.exec(review)?.[0] ?? "";
   check("back to the offer puts them back to choosing", /candidate_response: "awaiting_pick",\s*proposed_times: null,\s*candidate_note: null,/.test(back));
   check("…never touching the time, and never 'pending'", !/scheduled_at:/.test(back) && !/"pending"/.test(back));
-  check("…tells them, in the app and by the invitation email with the times still open", /from\("notifications"\)\.insert/.test(back) && /notifyInterviewPickTime\(candidateId, jobTitle, lines, undefined, false, \{ interviewType, minutes \}\)/.test(back) && /openOfferedTimes\.map\(\(start\) => applicantEmailTime\(parseISO\(start\), theirZone, localTimeZone\(\)\)\.line\)/.test(back));
+  check("…tells them, in the app and by the invitation email with the times still open", /from\("notifications"\)\.insert/.test(back) && /notifyInterviewPickTime\(candidateId, jobTitle, lines, undefined, false, \{ interviewType, minutes, interviewId \}\)/.test(back) && /openOfferedTimes\.map\(\(start\) => applicantEmailTime\(parseISO\(start\), theirZone, localTimeZone\(\)\)\.line\)/.test(back));
   check("…and is not offered once the offered times have passed", /disabled=\{isSubmitting \|\| !canGoBackToOffer\}/.test(review) && /The times you offered have passed\. Accept one of theirs, or message/.test(review));
 
   const accept = /const handleAcceptTime = async \(\) => \{[\s\S]*?\n  \};\n/.exec(review)?.[0] ?? "";

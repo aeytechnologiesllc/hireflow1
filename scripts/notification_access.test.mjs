@@ -25,7 +25,14 @@
  *        - who signs an email, the names in it and (for an applicant) the job
  *          are looked up, whatever the request said;
  *        - every legitimate sender still gets their email sent;
- *        - the system's own callers (the service key) are served as before.
+ *        - the system's own callers (the service key) are served as before;
+ *        - every one of the hiring team's emails to its applicant is
+ *          recorded as contact for the job's business before it is sent,
+ *          and names the job and the interview times from the database
+ *          (the sixteenth Phase 5 review; the fifteenth security review,
+ *          finding 1: "You're joining <business> as CSR. Send the 1,500 PHP
+ *          onboarding fee to GCash ..." to people who had only applied,
+ *          and nothing recorded it).
  *
  * Run with: node scripts/notification_access.test.mjs
  */
@@ -34,6 +41,7 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import * as A from "../supabase/functions/_shared/notificationAccess.ts";
+import { applicantEmailTime } from "../supabase/functions/_shared/interviewTimes.ts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -103,7 +111,8 @@ function freshWorld() {
       { id: JOB_X, title: TITLE_X, employer_id: RIVAL },
     ],
     applications: [
-      { id: id(201), candidate_id: ANA, job_id: JOB_A, status: "reviewing", created_at: "2026-10-05T10:00:00Z" },
+      // Ana's computer check recorded her clock (src/lib/interviewTimes.ts): her invitations are on it.
+      { id: id(201), candidate_id: ANA, job_id: JOB_A, status: "reviewing", created_at: "2026-10-05T10:00:00Z", notes: { equipmentCheckResult: { device: { timezone: "Asia/Manila" } } } },
       { id: id(202), candidate_id: ANA, job_id: JOB_B, status: "reviewing", created_at: "2026-10-06T10:00:00Z" },
       { id: id(203), candidate_id: BEN, job_id: JOB_B, status: "reviewing", created_at: "2026-10-06T11:00:00Z" },
       { id: id(204), candidate_id: CAT, job_id: JOB_X, status: "reviewing", created_at: "2026-10-06T12:00:00Z" },
@@ -115,6 +124,11 @@ function freshWorld() {
       { user_id: TEAM_GONE, employer_id: OWNER, status: "revoked", assigned_job_ids: [], can_manage_pipeline: true, can_schedule_interviews: true, can_send_documents: true, can_message_candidates: true },
     ],
     user_roles: [{ user_id: OWNER, role: "employer" }, { user_id: RIVAL, role: "employer" }, { user_id: ANA, role: "candidate" }],
+    // Interviews, as the scheduling screens save them (employer_windows: each start and the clock it was picked on).
+    interviews: [],
+    // What the record of contact was told (business_contacts_remember_email), with how many emails had gone by then.
+    contacts: [],
+    recordDown: false,
     sent: [],
     counters: new Map(),
     limiterDown: false,
@@ -248,9 +262,11 @@ function client() {
   };
   return {
     from,
-    // The database's code maker (issue_business_email_code), answered by the world.
+    // The database's code maker (issue_business_email_code) and the record of
+    // contact (business_contacts_remember_email), answered by the world.
     rpc: async (fn, args) => {
       if (world.databaseDown) return { data: null, error: { message: "stand-in: database down" } };
+      if (world.recordDown && fn === "business_contacts_remember_email") return { data: null, error: { message: "stand-in: the record cannot be written" } };
       const answer = world.rpcs?.[fn];
       return answer ? { data: answer(args), error: null } : { data: null, error: { message: `stand-in: no ${fn}` } };
     },
@@ -297,6 +313,14 @@ check("the real function loaded, with only its three outside modules replaced", 
 function reset(change) {
   world = freshWorld();
   world.client = client;
+  // As the database answers it: a "message" for the job's business and that
+  // person, when the record holds their application to it (here: a live one).
+  world.rpcs = {
+    business_contacts_remember_email: ({ p_employer, p_person }) => {
+      world.contacts.push({ employer: p_employer, person: p_person, sentBefore: world.sent.length });
+      return p_employer !== p_person && world.applications.some((a) => a.candidate_id === p_person && world.jobs.find((j) => j.id === a.job_id)?.employer_id === p_employer);
+    },
+  };
   world.mail = async (payload) => {
     if (world.providerRefuses) return { data: null, error: { name: "daily_quota_exceeded", message: "stand-in refusal" } };
     world.sent.push(payload);
@@ -333,6 +357,20 @@ const textOf = (mail) => String(mail?.html ?? "").replace(/<[^>]+>/g, " ").repla
 const emailOf = (userId) => world.profiles.find((p) => p.user_id === userId)?.email;
 const KINDS = Object.keys(A.NOTIFICATION_RULES);
 const HOSTILE = { job_title: "Chief Executive", company_name: "Some Other Company", candidate_name: "<b>Free Money</b>", sender_name: "The CEO", sender_id: OWNER, recipient_role: "employer" };
+// An invitation's times are its interview's own offered times, still ahead,
+// on the applicant's clock (the sixteenth Phase 5 review): Ana's computer
+// check recorded Manila. Days from now, at a given hour (UTC).
+const DAY = 86_400_000;
+const ahead = (days, hourUtc = 6) => new Date(Math.ceil(Date.now() / DAY) * DAY + days * DAY + hourUtc * 3_600_000).toISOString();
+const onHerClock = (iso) => applicantEmailTime(new Date(iso), "Asia/Manila", "America/New_York").line;
+/** An interview on Ana's first application waiting for her to pick, offering `starts` (picked on New York's clock). */
+const offering = (starts, over = {}) => (w) => {
+  w.interviews = [
+    ...w.interviews,
+    { id: id(301), application_id: id(201), status: "scheduled", candidate_response: "awaiting_pick", created_at: "2026-10-20T10:00:00Z", employer_windows: starts.map((start) => ({ start, durationMinutes: 30, zone: "America/New_York" })), ...over },
+  ];
+};
+const ONE = ahead(5, 6);
 
 reset();
 const quiet = console.log;
@@ -473,7 +511,7 @@ void quiet;
   const staffKinds = [
     ["phase_advanced", { phase_name: "Chat practice\r\nBcc: x@y.example", job_title: TITLE_A }, /Chat practice Bcc: x@y\.example/],
     ["interview_scheduled", { job_title: TITLE_A, interview_date: "Friday, October 9", interview_time: "3:00 PM" }, /Friday, October 9/],
-    ["interview_pick_time", { job_title: TITLE_A, proposed_times_list: ["Fri 3 PM", "<i>Sat</i> 10 AM", 7, "  "], window_count: "99" }, /proposed 2 times/],
+    ["interview_pick_time", { job_title: TITLE_A, proposed_times_list: ["Fri 3 PM", "<i>Sat</i> 10 AM", 7, "  "], window_count: "99" }, /proposed 2 times/, offering([ahead(3), ahead(4)])],
     ["interview_cancelled", { job_title: TITLE_A, original_date: "Friday" }, /Original date: Friday/],
     ["interview_rescheduled", { job_title: TITLE_A, new_date: "Monday", new_time: "9 AM" }, /New Date: Monday/],
     ["document_sent", { document_name: "Offer letter" }, /Document: Offer letter/],
@@ -481,33 +519,130 @@ void quiet;
   ];
   // One time is the rule since 2026-10-07: the email states it, says what to
   // do if they cannot make it, and a new time after that is said as one.
-  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { ...HOSTILE, job_title: TITLE_A, proposed_times_list: ["Sunday, October 11 · 2:00 PM Philippine Standard Time"], window_count: "1" } })));
+  r = await hush(async () => (reset(offering([ONE])), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { ...HOSTILE, job_title: TITLE_A, proposed_times_list: ["Sunday, October 11 · 2:00 PM Philippine Standard Time"], window_count: "1", interview_id: id(301) } })));
   mail = world.sent[0];
-  check("one offered time: the invitation states it, and how to answer if they can't make it", r.status === 200 && mail.subject === `You're invited to an interview: ${TITLE_A}` && /would like to interview you at this time:/.test(textOf(mail)) && textOf(mail).includes("Sunday, October 11 · 2:00 PM Philippine Standard Time") && /Can't make it\? Tell them there which days you are free, and from what time to what time/.test(textOf(mail)) && !/proposed|Pick whichever/.test(textOf(mail)), `${mail?.subject} ${textOf(mail).slice(0, 200)}`);
-  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: ["Monday, October 12 · 9:00 AM Philippine Standard Time"], again: "1" } })));
+  check("one offered time: the invitation states it, on her own clock, and how to answer if they can't make it", r.status === 200 && mail.subject === `You're invited to an interview: ${TITLE_A}` && /would like to interview you at this time:/.test(textOf(mail)) && textOf(mail).includes(onHerClock(ONE)) && /Philippine Standard Time/.test(onHerClock(ONE)) && /Can't make it\? Tell them there which days you are free, and from what time to what time/.test(textOf(mail)) && !/proposed|Pick whichever|October 11/.test(textOf(mail)), `${mail?.subject} ${textOf(mail).slice(0, 200)}`);
+  r = await hush(async () => (reset(offering([ONE])), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: ["Monday, October 12 · 9:00 AM Philippine Standard Time"], again: "1" } })));
   mail = world.sent[0];
-  check("a new time after 'can't make it' is said as a new time", r.status === 200 && mail.subject === `A new time for your interview: ${TITLE_A}` && /set a new time for your interview \(the final step: an interview with the hiring team\):/.test(textOf(mail)), `${mail?.subject} | ${textOf(mail ?? { html: "" }).slice(0, 200)}`);
+  check("a new time after 'can't make it' is said as a new time", r.status === 200 && mail.subject === `A new time for your interview: ${TITLE_A}` && /set a new time for your interview \(the final step: an interview with the hiring team\):/.test(textOf(mail)) && textOf(mail).includes(onHerClock(ONE)), `${mail?.subject} | ${textOf(mail ?? { html: "" }).slice(0, 200)}`);
   // What the interview is, said before the time (a finalist had to write in to ask).
-  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: ["Saturday, October 10 · 4:00 AM Philippine Standard Time"], interview_kind: "video call", interview_length: "30 minutes" } })));
+  r = await hush(async () => (reset(offering([ONE])), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, interview_kind: "video call", interview_length: "30 minutes" } })));
   mail = world.sent[0];
-  check("the invitation says they passed the online steps and this is the final step: a 30-minute video call, not another test", r.status === 200 && textOf(mail).includes("You have completed the online steps, and you have been selected for the final step: a 30-minute video call with the hiring team. It is a conversation, not another test.") && textOf(mail).indexOf("the final step") < textOf(mail).indexOf("Saturday, October 10"), textOf(mail ?? { html: "" }).slice(0, 300));
+  check("the invitation says they passed the online steps and this is the final step: a 30-minute video call, not another test", r.status === 200 && textOf(mail).includes("You have completed the online steps, and you have been selected for the final step: a 30-minute video call with the hiring team. It is a conversation, not another test.") && textOf(mail).indexOf("the final step") < textOf(mail).indexOf(onHerClock(ONE)), textOf(mail ?? { html: "" }).slice(0, 300));
   check("…and where a question goes: Messages in the app", textOf(mail).includes("Questions before then? Open Messages in your account and write to the hiring team."), textOf(mail).slice(-260));
-  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: ["Mon 9 AM"], interview_kind: "phone call", interview_length: "1 hour 30 minutes" } })));
+  r = await hush(async () => (reset(offering([ONE])), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, interview_kind: "phone call", interview_length: "1 hour 30 minutes" } })));
   check("…other kinds and lengths read as what they are", textOf(world.sent[0]).includes("the final step: a 90-minute phone call with the hiring team"), textOf(world.sent[0]).slice(0, 220));
-  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: ["Mon 9 AM"], interview_kind: "<b>free money call</b>", interview_length: "999 years <script>" } })));
+  r = await hush(async () => (reset(offering([ONE])), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, interview_kind: "<b>free money call</b>", interview_length: "999 years <script>" } })));
   check("…and neither is ever text from the request: anything else is left out", r.status === 200 && textOf(world.sent[0]).includes("the final step: an interview with the hiring team") && !/free money|999 years|<script>/.test(world.sent[0].html), textOf(world.sent[0]).slice(0, 220));
-  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: ["Mon 9 AM"], again: "1", interview_kind: "video call", interview_length: "30 minutes" } })));
+  r = await hush(async () => (reset(offering([ONE])), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, again: "1", interview_kind: "video call", interview_length: "30 minutes" } })));
   check("a new time says it again, briefly", textOf(world.sent[0]).includes("set a new time for your interview (the final step: a 30-minute video call with the hiring team):"), textOf(world.sent[0]).slice(0, 220));
-  r = await hush(async () => (reset(), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: ["Monday, October 12 · 9:00 AM"], again: "<b>yes</b>" } })));
+  r = await hush(async () => (reset(offering([ONE])), ask("tok-team-all", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, again: "<b>yes</b>" } })));
   check("…and that mark is only ever a mark: other words in its place do nothing", r.status === 200 && world.sent[0].subject === `You're invited to an interview: ${TITLE_A}` && !/<b>yes/.test(world.sent[0].html));
 
-  for (const [kind, data, expect] of staffKinds) {
-    r = await hush(async () => (reset(), ask("tok-team-all", { type: kind, recipient_user_id: ANA, data: { ...HOSTILE, ...data } })));
+  for (const [kind, data, expect, change] of staffKinds) {
+    r = await hush(async () => (reset(change), ask("tok-team-all", { type: kind, recipient_user_id: ANA, data: { ...HOSTILE, ...data } })));
     mail = world.sent[0];
     const text = textOf(mail);
     check(`${kind}: the hiring team's is sent to the applicant, with its own details and nothing forged`, r.status === 200 && world.sent.length === 1 && show(mail.to) === show([emailOf(ANA)]) && expect.test(text) && !/Some Other Company|Free Money|The CEO/.test(mail.html) && !/[\r\n]/.test(mail.subject), `${r.status} ${text.slice(0, 160)}`);
   }
   check("…a subject never carries a line break from the request", !/[\r\n]/.test(world.sent[0]?.subject ?? ""));
+}
+
+/* 3b. The hiring team's emails say what the database says, and are contact
+   (the sixteenth Phase 5 review, findings 2 and 1; the fifteenth security
+   review, finding 1, in the shape of its probe: the team's own text as a job
+   title, a message preview, an invitation's "times", to people who had only
+   applied, and nothing in the record of contact, so three of them reporting
+   it left the business open). */
+{
+  const SCAM = "CSR. Send the 1,500 PHP onboarding fee to GCash 0917 000 0000 by Friday to keep your slot";
+  const FEE = "Pay the 1,500 peso training fee to GCash 0917 000 0000 today to keep this slot, then reply DONE in Messages.";
+  let r = await hush(async () => (reset(), ask("tok-owner", { type: "status_hired", recipient_user_id: BEN, data: { job_title: SCAM } })));
+  let mail = world.sent[0];
+  check("a job title the team makes up is never in its email: the job's own (the security review's \"You're hired\")", r.status === 200 && mail.subject === "Welcome to Zulu Support Team, Ben" && textOf(mail).replace(/ \./g, ".").includes(`You're joining Zulu Support Team as ${TITLE_B}.`) && !/GCash|1,500|CSR/.test(mail.subject + mail.html), `${mail?.subject} | ${textOf(mail ?? { html: "" }).slice(0, 160)}`);
+  r = await hush(async () => (reset(), ask("tok-owner", { type: "interview_scheduled", recipient_user_id: BEN, data: { job_title: SCAM, interview_date: "Friday", interview_time: "9am" } })));
+  check("…not in an interview's subject either", r.status === 200 && world.sent[0]?.subject === `Interview Scheduled: ${TITLE_B}` && !/GCash/.test(world.sent[0].html), world.sent[0]?.subject);
+  r = await hush(async () => (reset(), ask("tok-owner", { type: "new_message", recipient_user_id: BEN, data: { job_title: SCAM, message_preview: "Hello Ben" } })));
+  check("…nor in a message alert's", r.status === 200 && world.sent[0]?.subject === `New message regarding your application: ${TITLE_B}` && !/GCash/.test(world.sent[0].subject + world.sent[0].html), world.sent[0]?.subject);
+  r = await hush(async () => (reset(), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A } })));
+  check("…a title that is one of their jobs is kept", r.status === 200 && world.sent[0]?.subject === `An update on your ${TITLE_A} application`, world.sent[0]?.subject);
+  r = await hush(async () => (reset(), ask("tok-owner", { type: "status_hired", recipient_user_id: ANA, data: { job_title: TITLE_B, application_id: id(201) } })));
+  check("…and the application the email names, named by its own job", r.status === 200 && textOf(world.sent[0]).replace(/ \./g, ".").includes(`You're joining Zulu Support Team as ${TITLE_A}.`), textOf(world.sent[0] ?? { html: "" }).slice(0, 160));
+
+  // An invitation's times.
+  const [T1, T2, T3] = [ahead(3, 1), ahead(4, 2), ahead(6, 3)];
+  r = await hush(async () => (reset(offering([T2, T1])), ask("tok-owner", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, proposed_times_list: Array(12).fill(FEE) } })));
+  mail = world.sent[0];
+  const listed = [...(mail?.html ?? "").matchAll(/<li[^>]*>([^<]*)<\/li>/g)].map((m) => m[1].replace(/&#39;/g, "'").replace(/&amp;/g, "&"));
+  check("an invitation lists its interview's own offered times, soonest first, on the applicant's clock, never the request's twelve lines (the review's probe pe)", r.status === 200 && show(listed) === show([onHerClock(T1), onHerClock(T2)]) && !/GCash|DONE/.test(mail.html) && /proposed 2 times/.test(textOf(mail)), show(listed));
+  r = await hush(async () => (reset((w) => { offering([T1])(w); offering([T3], { id: id(302), created_at: "2026-10-21T10:00:00Z" })(w); }), ask("tok-owner", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, interview_id: id(301) } })));
+  check("…the interview the request names, when it is on that applicant's application", r.status === 200 && textOf(world.sent[0]).includes(onHerClock(T1)) && !textOf(world.sent[0]).includes(onHerClock(T3)), textOf(world.sent[0] ?? { html: "" }).slice(0, 300));
+  r = await hush(async () => (reset((w) => { offering([T1])(w); offering([T3], { id: id(302), created_at: "2026-10-21T10:00:00Z" })(w); }), ask("tok-owner", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A } })));
+  check("…else the newest still waiting for them to pick (a page open since before this, which names none)", r.status === 200 && textOf(world.sent[0]).includes(onHerClock(T3)) && !textOf(world.sent[0]).includes(onHerClock(T1)), textOf(world.sent[0] ?? { html: "" }).slice(0, 300));
+  r = await hush(async () => (reset((w) => { offering([T1], { candidate_response: "confirmed" })(w); offering([T3], { id: id(303), application_id: id(203), created_at: "2026-10-22T10:00:00Z" })(w); }), ask("tok-owner", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A, interview_id: id(303), proposed_times_list: [FEE] } })));
+  mail = world.sent[0];
+  check("…never another applicant's interview, nor one already answered, nor the request's lines when there is none: it lists no time", r.status === 200 && !/<li/.test(mail?.html ?? "") && !textOf(mail).includes(onHerClock(T3)) && !textOf(mail).includes(onHerClock(T1)) && !/GCash/.test(mail.html), textOf(mail ?? { html: "" }).slice(0, 300));
+  r = await hush(async () => (reset(offering([new Date(Date.now() - 3_600_000).toISOString(), T2])), ask("tok-owner", { type: "interview_pick_time", recipient_user_id: ANA, data: { job_title: TITLE_A } })));
+  check("…a time already passed is left out", r.status === 200 && world.sent[0]?.subject === `You're invited to an interview: ${TITLE_A}` && textOf(world.sent[0]).includes(onHerClock(T2)), world.sent[0]?.subject);
+  r = await hush(async () => (reset((w) => { w.interviews = [{ id: id(304), application_id: id(203), status: "scheduled", candidate_response: "awaiting_pick", created_at: "2026-10-20T10:00:00Z", employer_windows: [{ start: T2, zone: "America/New_York" }] }]; }), ask("tok-owner", { type: "interview_pick_time", recipient_user_id: BEN, data: { job_title: TITLE_B } })));
+  check("…with no clock of theirs on file, the one it was picked on, named", r.status === 200 && textOf(world.sent[0]).includes(applicantEmailTime(new Date(T2), null, "America/New_York").line) && /Eastern/.test(textOf(world.sent[0])), textOf(world.sent[0] ?? { html: "" }).slice(0, 300));
+
+  // The record of contact.
+  const staffAsks = [
+    ["status_hired", { job_title: SCAM }],
+    ["phase_advanced", { phase_name: "Pay the fee" }],
+    ["interview_scheduled", { interview_date: "Friday", interview_time: "9am" }],
+    ["interview_pick_time", {}],
+    ["interview_cancelled", { original_date: "Friday" }],
+    ["interview_rescheduled", { new_date: "Monday", new_time: "9 AM" }],
+    ["document_sent", { document_name: "Fee form" }],
+    ["document_requested", { document_name: "GCash receipt for the 1,500 PHP fee (0917 000 0000)" }],
+    ["new_message", { message_preview: "Pay the 1,500 PHP training fee to GCash 0917 000 0000 today" }],
+  ];
+  const bad = [];
+  for (const [kind, data] of staffAsks) {
+    for (const token of ["tok-owner", "tok-team-all"]) {
+      r = await hush(async () => (reset(), ask(token, { type: kind, recipient_user_id: BEN, data })));
+      if (!(r.status === 200 && world.sent.length === 1 && show(world.contacts) === show([{ employer: OWNER, person: BEN, sentBefore: 0 }]))) bad.push(`${kind}/${token}: ${r.status} sent=${world.sent.length} ${show(world.contacts)}`);
+    }
+  }
+  check(`each of the hiring team's ${staffAsks.length} kinds of email to its applicant is recorded as contact for the job's business (never the teammate), before it is sent`, bad.length === 0, bad.slice(0, 4).join(" | "));
+  r = await hush(async () => {
+    reset();
+    const out = [];
+    for (const to of [ANA, BEN]) out.push(await ask("tok-owner", { type: "status_hired", recipient_user_id: to, data: { job_title: SCAM } }));
+    return out;
+  });
+  check("…so the security review's emails to two applicants put the business in touch with both", r.every((x) => x.status === 200) && show(world.contacts.map((c) => c.person)) === show([ANA, BEN]) && world.contacts.every((c) => c.employer === OWNER), show(world.contacts));
+  const quietKinds = [
+    ["an applicant's own received email", "tok-ana", { type: "application_received", recipient_user_id: ANA, data: {} }],
+    ["an applicant's new application", "tok-ana", { type: "new_application", recipient_user_id: OWNER, data: {} }],
+    ["an applicant's finished step", "tok-cat", { type: "phase_completed", recipient_user_id: RIVAL, data: { phase_name: "x" } }],
+    ["an applicant's message to the owner", "tok-ana", { type: "new_message", recipient_user_id: OWNER, data: { message_preview: "Hi" } }],
+    ["an applicant's reply to a teammate", "tok-ana", { type: "new_message", recipient_user_id: TEAM_ALL, data: { message_preview: "Thanks" } }],
+    ["a stranger's forged hire", "tok-stranger", { type: "status_hired", recipient_user_id: ANA, data: {} }],
+    ["a teammate without the permission", "tok-team-view", { type: "status_rejected", recipient_user_id: ANA, data: {} }],
+    // A decline carries no words of the team's but its name, and goes to people it turned down: not contact, so three
+    // of them cannot pause it by reporting (it is still sent).
+    ["the owner's decline", "tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} }],
+    ["a teammate's decline", "tok-team-all", { type: "status_rejected", recipient_user_id: BEN, data: {} }],
+  ];
+  const noisy = [];
+  for (const [label, token, body] of quietKinds) {
+    r = await hush(async () => (reset(), ask(token, body)));
+    if (world.contacts.length !== 0) noisy.push(`${label}: ${show(world.contacts)}`);
+  }
+  r = await hush(async () => (reset(), asFunction({ type: "new_message", recipient_user_id: ANA, data: { sender_name: "Zulu", message_preview: "Hi" } })));
+  if (world.contacts.length !== 0 || r.status !== 200) noisy.push(`the system's message: ${r.status} ${show(world.contacts)}`);
+  r = await hush(async () => (reset(), asFunction({ type: "interview_confirmed", recipient_user_id: ANA, data: { job_title: TITLE_A } })));
+  if (world.contacts.length !== 0 || r.status !== 200) noisy.push(`the system's confirmation: ${r.status} ${show(world.contacts)}`);
+  check("an applicant's own emails, refused requests and the system's own emails record nothing", noisy.length === 0, noisy.join(" | "));
+  r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === ANA).email_phase_updates = false; }), ask("tok-owner", { type: "phase_advanced", recipient_user_id: ANA, data: { phase_name: "Chat test" } })));
+  check("…nor an email the applicant turned off, which is not sent", r.status === 200 && world.sent.length === 0 && world.contacts.length === 0, show({ r, contacts: world.contacts }));
+  r = await hush(async () => (reset((w) => { w.recordDown = true; }), ask("tok-owner", { type: "status_hired", recipient_user_id: ANA, data: {} })));
+  check("when the contact cannot be recorded, nothing is sent (503)", r.status === 503 && r.body?.code === "try_later" && world.sent.length === 0, show(r));
+  r = await hush(async () => (reset((w) => { w.applications.push({ id: id(209), candidate_id: OWNER, job_id: JOB_A, status: "reviewing", created_at: "2026-10-07T10:00:00Z" }); }), ask("tok-owner", { type: "phase_advanced", recipient_user_id: OWNER, data: { phase_name: "Chat test" } })));
+  check("…and the record's own \"no\" (the owner who applied to their own job) still lets it go", r.status === 200 && world.sent.length === 1 && world.contacts.length === 1, show({ r, contacts: world.contacts }));
 }
 
 /* 4. An applicant's own emails. */
@@ -749,7 +884,7 @@ void quiet;
   // database's code, nothing from the request, no name, a per-IP limit.
   const issued = [];
   const codeWorld = (answer) => (w) => {
-    w.rpcs = { issue_business_email_code: (args) => (issued.push(args), answer) };
+    w.rpcs = { ...w.rpcs, issue_business_email_code: (args) => (issued.push(args), answer) };
     w.profiles.find((p) => p.user_id === OWNER).full_name = "hireflow-verify.example/login Owner";
   };
   r = await hush(async () => (reset(codeWorld({ ok: true, code: "042917", email: emailOf(OWNER) })), ask("tok-owner", { type: "business_email_code", recipient_user_id: ANA, data: { code: "111111", email: "victim@example.com" } })));
@@ -817,6 +952,17 @@ console.log("\nC. The wiring\n");
   check("a person is only ever read from Authorization, never from apikey", /if \(!token\) return \{ kind: "anonymous" \};\s*const \{ data: auth, error \} = await supabase\.auth\.getUser\(token\);/.test(body) && !/getUser\(apikey\)/.test(body));
   check("a person is who their own sign-in says", /await supabase\.auth\.getUser\(token\);\s*return !error && auth\?\.user\?\.id \? \{ kind: "user", id: auth\.user\.id \} : \{ kind: "anonymous" \};/.test(body));
   check("a refusal answers there and then", /if \(!access\.ok\) \{[\s\S]*?return refuse\(refusal\.status,/.test(body));
+  {
+    // The sixteenth Phase 5 review: the hiring team's email is recorded as
+    // contact after the recipient's settings are read (an email they turned
+    // off records nothing) and before it is sent, and a record that cannot be
+    // written sends nothing.
+    const recordAt = body.indexOf('supabase.rpc("business_contacts_remember_email", { p_employer: contactFor, p_person: recipient_user_id })', mainAt);
+    const settingsAt = body.indexOf("if (preferenceValue === false) {", mainAt);
+    check("the hiring team's email is recorded as contact after the recipient's settings and before it is sent; only the decision names the business", recordAt > settingsAt && settingsAt > profileAt && recordAt < sendAt && /contactFor = access\.contactFor \?\? null;/.test(body) && (body.match(/contactFor = /g) ?? []).length === 1, `${settingsAt} ${recordAt} ${sendAt}`);
+    check("…and when it cannot be recorded, nothing is sent", /if \(recordError\) \{[\s\S]*?return refuse\(503,/.test(body.slice(recordAt)));
+    check("an invitation's times come from its interview, never the request", /offeredTimes: async \(applicationIds, interviewId\) =>/.test(body) && !/proposed_times_list/.test(code(await src("supabase/functions/_shared/notificationAccess.ts")).replace(/kept\.proposed_times_list = /g, "")));
+  }
   check("then the recipient, the words and the side are REPLACED by what was decided", /recipient_user_id = access\.recipientUserId;\s*data = access\.data as NotificationRequest\["data"\];\s*recipientRole = access\.recipientRole;/.test(body));
   check("an unknown kind never reaches a template", /hasOwnProperty\.call\(NOTIFICATION_RULES, type\)/.test(body) && body.indexOf("hasOwnProperty.call(NOTIFICATION_RULES, type)") < identifyAt);
   check("the function is still deployed behind the gateway's own check too", /\[functions\.send-notification-email\]\s*\nverify_jwt = true/.test(await src("supabase/config.toml")));
