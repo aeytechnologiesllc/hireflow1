@@ -1286,7 +1286,11 @@ reached function deployed):
   wording only, so "Hello, my name is Ana, I'm 24 years old" still reaches
   the post beside the practice step (34 of 63 descriptions); and LOWs (a
   customer's two-sentence message cut to a fragment; ", single journey" read
-  as a civil status). **Its fixer is running** (`age24_fix_brief.md`).
+  as a civil status). Fixed by 6dc16df7 (a name then the age in her own
+  words is a self-introduction, 0 of 63 descriptions show the age; a quote's
+  sentences are read as one; the status and labels narrowed back; six
+  functions deployed and answering). **Round 25 review running**
+  (`p6r25_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
