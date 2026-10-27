@@ -1047,8 +1047,13 @@ reached function deployed):
   heard counts again only after new contact, a browser's bell card is a
   message, only the server moves an interview, the admins' bell says "no
   recorded contact"; a rolled-back live probe was refused
-  `interview_application_fixed`). **Round 16 review running**
-  (`p5r16_brief.md`).
+  `interview_application_fixed`). **Round 16** (`p5r16_report.md`) found
+  nothing MEDIUM: four LOWs (a repeat report on the same job never re-runs
+  the pause count; `interview_pick_time` carries 12 free lines the record
+  never sees; three weakenings of "contact since the close" pass every
+  behaviour check; the Privacy Policy leaves out reports and Contact us).
+  With security round 15's MEDIUM (the team's emails), **its fixer is
+  running** (`p5r16_fix_brief.md`, migration 690000).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1173,8 +1178,13 @@ reached function deployed):
   intro); fixed by a032d0d1 (round 20's "are you" narrowed back to round
   19's exceptions, the label endings widened to the reviewer's list, the
   heading's reach ended by a practice or a short heading; 12 known misses
-  written down; six functions deployed and answering). **Round 22 review
-  running** (`p6r22_brief.md`).
+  written down; six functions deployed and answering). **Round 22**
+  (`p6r22_report.md`) found one MEDIUM regression against both: round 21's
+  "practice email" and "chat practice" are also HireFlow's own step's name,
+  so a How-to-apply step that names the practice let the applicant's
+  [Age]/[Civil Status] template through in the public post, and an age
+  question back into the interview guide; and one LOW–MEDIUM false drop of
+  round 21's widened endings. **Its fixer is running** (`age22_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
