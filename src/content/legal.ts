@@ -43,7 +43,7 @@ export interface LegalDocument {
   sections: LegalSection[];
 }
 
-export const LEGAL_UPDATED = "October 26, 2026";
+export const LEGAL_UPDATED = "October 27, 2026";
 
 export const PRIVACY_POLICY: LegalDocument = {
   title: "Privacy Policy",
@@ -305,7 +305,7 @@ export const TERMS: LegalDocument = {
           ],
         },
         { sub: "Reports and pausing" },
-        "Applicants can report a job. We read every report, and the business never learns who sent it. When three different people the business has been in touch with (by message, by an email other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview) report it, it pauses by itself while we look. We may also pause a business ourselves. A paused business's jobs close until it is open again. Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that.",
+        "Applicants can report a job. We read every report, and the business never learns who sent it. When three different people the business has been in touch with (by message, by an email its hiring team sends them other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview) report it, it pauses by itself while we look. We may also pause a business ourselves. A paused business's jobs close until it is open again. Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that.",
         { sub: "Price" },
         "Using the site is free at the moment. If that changes we will tell you first, and nothing will be charged without your agreement.",
       ],

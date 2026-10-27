@@ -3919,5 +3919,56 @@ console.log("\n26. A decline names the job as they applied, once; the hiring tea
   check("…and new offered times alone move that interview's last time (the first stays)", !!t0 && !!t1 && t1.last > t0.last + 30 * 60 && t1.first === t0.first, show({ t0, t1 }));
 }
 
+console.log("\n27. The decline card says \"team\" once\n");
+{
+  // The eighteenth Phase 5 review, finding 3 (20261025710000): the card added
+  // " team" to every business's name, so "The Zulu Support Team team has made
+  // a decision on your application ..." (61 of the 63 decline cards live).
+  // The decline email has dropped the second "team" since 2026-10-11
+  // (/\bteam$/i); the card now uses the same rule. The cards already in
+  // people's bells are left as they are.
+  const R27 = (n) => `9d270000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const cards = async (u) => (await db.query(`select title, message from public.notifications where user_id = $1 order by created_at, id`, [u])).rows.map((c) => `${c.title}: ${c.message}`);
+  /** A business by this name (or none), with a live job and one applicant it turns down. */
+  const declined = async (n, name, { renameTo } = {}) => {
+    const b = R27(100 + n);
+    await makeUser(b, "employer", name === null ? { full_name: `Owner ${n}` } : { full_name: `Owner ${n}`, company_name: name });
+    await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [b]);
+    const j =(await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Chat support agent', 'Answer chats.', 'published') returning id`, [b])).id;
+    const u = R27(1000 + n);
+    await makeUser(u, "candidate");
+    const app = await apply(u, j);
+    if (renameTo) {
+      const renamed = await as(user(b), `update public.profiles set company_name = $2 where user_id = $1 returning user_id`, [b, renameTo]);
+      if (!renamed.ok || renamed.rows.length !== 1) throw new Error(`setup: rename: ${show(renamed)}`);
+    }
+    // A decline the database refuses (a card it cannot write) is a failed check, not a crash.
+    const passed = await as(user(b), `update public.applications set status = 'rejected', rejected_by = $2, rejected_by_type = 'user' where id = $1 returning id`, [app, b]);
+    if (!passed.ok || passed.rows.length !== 1) return [`the decline was refused: ${show(passed)}`];
+    return (await cards(u)).filter((c) => c.startsWith("Application update: "));
+  };
+  const card = (team) => [`Application update: ${team} has made a decision on your application for Chat support agent.`];
+
+  const zulu = await declined(1, "Zulu Support Team");
+  check("a business named \"... Team\": \"The Zulu Support Team has made a decision\", never \"Team team\"", show(zulu) === show(card("The Zulu Support Team")), show(zulu));
+  const loud = await declined(2, "Night Desk TEAM");
+  check("…in any capitals", show(loud) === show(card("The Night Desk TEAM")), show(loud));
+  const desk = await declined(3, "Card Desk");
+  check("any other name still gets \"team\" after it", show(desk) === show(card("The Card Desk team")), show(desk));
+  const steam = await declined(4, "Kopi Steam");
+  check("…a name that only ends in the letters \"team\" too (the word, as the email reads it)", show(steam) === show(card("The Kopi Steam team")), show(steam));
+  const none = await declined(5, null);
+  check("…and a business with no name on file is \"The hiring team\"", show(none) === show(card("The hiring team")), show(none));
+  const renamed = await declined(6, "Rosa Help Team", { renameTo: "Fee Desk: pay 500 PHP to GCash 0917 000 0000" });
+  check("the name is still the one they applied to, renamed since or not", show(renamed) === show(card("The Rosa Help Team")), show(renamed));
+
+  // The cards already sent are real people's notifications: the migration
+  // writes no card, and changes none.
+  const sql = readFileSync(path.join(MIGRATIONS, "20261025710000_decline_card_says_team_once.sql"), "utf8").replace(/--[^\n]*/g, " ");
+  const body = sql.slice(sql.indexOf("AS $function$"), sql.lastIndexOf("$function$"));
+  const outside = sql.replace(body, " ");
+  check("…and the migration rewrites no card already sent (no update or delete of notifications)", !/\b(update|delete\s+from|truncate)\s+(public\.)?notifications\b/i.test(sql) && !/\bnotifications\b/i.test(outside), "");
+}
+
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

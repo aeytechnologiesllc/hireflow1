@@ -70,6 +70,28 @@ function settleEvaluations(tables: FixtureTables): void {
   }
 }
 
+/**
+ * An application keeps the job's title and the business's name as they were
+ * when it was made (applied_job_title, applied_company_name: migration
+ * 20261025700000), and the applicant's own pages name those
+ * (src/lib/appliedNames.ts). The fixtures never set them, so they are filled
+ * from the job and its owner, as the migration filled them; a new
+ * application takes them from its job then, whatever it sent; and no write
+ * changes them afterwards, as no browser's can.
+ */
+function asAppliedFor(tables: FixtureTables, jobId: unknown): FixtureRow {
+  const job = (tables.jobs ?? []).find((j) => j.id === jobId);
+  const owner = job ? (tables.profiles ?? []).find((p) => p.user_id === job.employer_id) : undefined;
+  const branding = job ? (tables.employer_public_branding ?? []).find((b) => b.user_id === job.employer_id) : undefined;
+  return { applied_job_title: job?.title ?? null, applied_company_name: owner?.company_name ?? branding?.company_name ?? null };
+}
+
+function settleAsApplied(tables: FixtureTables): void {
+  for (const application of tables.applications ?? []) {
+    if (application.applied_job_title === undefined) Object.assign(application, asAppliedFor(tables, application.job_id));
+  }
+}
+
 function pickEvaluation(row: FixtureRow | undefined): FixtureRow | null {
   return row ? Object.fromEntries(EVALUATION_FIELDS.map((f) => [f, row[f] ?? null])) : null;
 }
@@ -240,6 +262,7 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
 
   private execute(): PostgrestResult {
     settleEvaluations(this.tables);
+    settleAsApplied(this.tables);
     const store = this.tables[this.table];
 
     if (this.mutation) {
@@ -268,8 +291,13 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
         const payload: FixtureRow = isApplications ? { ...sent } : sent;
         // (takeEvaluationFields leaves those fields NULL on the application.)
         const evaluation = isApplications ? takeEvaluationFields(payload, false) : {};
+        // As applied: the database's, never the write's (asAppliedFor).
+        if (isApplications) {
+          delete payload.applied_job_title;
+          delete payload.applied_company_name;
+        }
         if (this.mutation.type === "insert") {
-          const row: FixtureRow = { id: randomId(), created_at: now, updated_at: now, ...payload };
+          const row: FixtureRow = { id: randomId(), created_at: now, updated_at: now, ...payload, ...(isApplications ? asAppliedFor(this.tables, payload.job_id) : {}) };
           store.push(row);
           if (isApplications) fileEvaluation(this.tables, row.id, Object.fromEntries(Object.entries(evaluation).filter(([, v]) => v !== null)));
           written.push(row);
@@ -281,7 +309,7 @@ class FixtureQueryBuilder implements PromiseLike<PostgrestResult> {
           ? store.filter((r) => r.id != null && r.id === payload.id)
           : this.applyFilters(store);
         if (targets.length === 0 && this.mutation.type === "upsert") {
-          const row: FixtureRow = { id: payload.id ?? randomId(), created_at: now, updated_at: now, ...payload };
+          const row: FixtureRow = { id: payload.id ?? randomId(), created_at: now, updated_at: now, ...payload, ...(isApplications ? asAppliedFor(this.tables, payload.job_id) : {}) };
           store.push(row);
           if (isApplications) fileEvaluation(this.tables, row.id, evaluation);
           written.push(row);

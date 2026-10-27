@@ -45,7 +45,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { ImprovementBlueprintCard } from "@/components/ImprovementBlueprintCard";
 import { CandidateStatusScreen } from "@/components/CandidateStatusScreen";
 import {
@@ -60,6 +60,7 @@ import { stepRoute } from "@/lib/journeyProgress";
 import { thisDeviceKind } from "@/lib/deviceGate";
 import { isFreshArrival, stepWaitingOnComputer } from "@/lib/resumeOnComputer";
 import { candidateInterviewWords, type CandidateInterviewWords } from "@/lib/candidateInterview";
+import { appliedNames } from "@/lib/appliedNames";
 import {
   InterviewSeal,
   InterviewSelectedMoment,
@@ -78,10 +79,6 @@ const LetterIdentityGlyph = GlyphLetter as unknown as LucideIcon;
 interface ApplicationCardProps {
   application: ApplicationWithJob;
   onOpenBlueprint?: (applicationId: string) => void;
-  /** The employer's real, publicly-safe company name — resolved via the
-   *  employer_public_branding view, never the job's internal department
-   *  field. Absent (not a placeholder) when it truly isn't on file. */
-  companyName?: string | null;
 }
 
 /* ── The journey, derived from the job's own workflow ───────────────────
@@ -275,11 +272,15 @@ function JourneyProgress({ index, total, title }: { index: number; total: number
   );
 }
 
-function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }: ApplicationCardProps & { onDelete: (id: string) => void }) {
+function ApplicationCard({ application, onDelete, onOpenBlueprint }: ApplicationCardProps & { onDelete: (id: string) => void }) {
   const navigate = useNavigate();
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmWithdrawOpen, setConfirmWithdrawOpen] = useState(false);
   const job = application.jobs;
+  // The job and the business as they were when they applied, never as they
+  // are now (src/lib/appliedNames.ts; the seventeenth security review,
+  // finding 1). Absent, not a placeholder, when the application has none.
+  const { jobTitle, companyName } = appliedNames(application);
 
   // Use shared display state utility - SINGLE SOURCE OF TRUTH
   const displayState = getApplicationDisplayState(application);
@@ -412,7 +413,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
           <AlertDialogHeader>
             <AlertDialogTitle className="font-display text-xl">Withdraw this application?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes your application for &ldquo;{job?.title}&rdquo; for good.{" "}
+              {jobTitle ? <>This removes your application for &ldquo;{jobTitle}&rdquo; for good.</> : "This removes this application for good."}{" "}
               {/* A sent application can be made again 30 days later
                   (applications_refuse_recent_withdrawal); an unsent form at
                   once (the third product audit: this promised "again" for both). */}
@@ -441,7 +442,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
     return (
       <InterviewHero
         words={interviewWords}
-        jobTitle={job?.title || "Unknown Position"}
+        jobTitle={jobTitle || "Unknown Position"}
         companyName={companyName}
         onOpen={openInterview}
         menu={menu}
@@ -466,7 +467,7 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint, companyName }
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="font-display truncate text-[17px] font-semibold leading-snug" style={{ color: "var(--ink)" }}>
-            {job?.title || "Unknown Position"}
+            {jobTitle || "Unknown Position"}
           </h3>
           {companyName && (
             <p className="mt-0.5 truncate text-[13px]" style={{ color: "var(--ink-3)" }}>
@@ -620,39 +621,10 @@ export default function Applications() {
     queryClient.invalidateQueries({ queryKey: ["applications", "candidate"] });
   };
 
-  // The employer's real, public-safe company name. jobs.department is a job
-  // department, not a company — employer_public_branding is the honest
-  // source (RLS keeps raw employer profiles invisible to candidates).
-  const employerIds = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          (applications ?? [])
-            .map((app) => app.jobs?.employer_id)
-            .filter((id): id is string => Boolean(id))
-        )
-      ),
-    [applications]
-  );
-
-  const { data: employerNames } = useQuery({
-    queryKey: ["applications", "employer-branding", employerIds],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employer_public_branding")
-        .select("user_id, company_name")
-        .in("user_id", employerIds);
-
-      if (error) throw error;
-
-      const map: Record<string, string> = {};
-      (data ?? []).forEach((row) => {
-        if (row.user_id && row.company_name) map[row.user_id] = row.company_name;
-      });
-      return map;
-    },
-    enabled: employerIds.length > 0,
-  });
+  // Each application names the job and the business as they were when they
+  // applied (src/lib/appliedNames.ts), so nothing here reads the business's
+  // name today: a business can rename itself, or its closed job, to a fee
+  // ask after turning people down (the seventeenth security review, finding 1).
 
   const handleOpenBlueprintDialog = (applicationId: string) => {
     setBlueprintApplicationId(applicationId);
@@ -666,8 +638,8 @@ export default function Applications() {
   // depended on the list itself), with a moment each time when nothing was
   // listening, and it never heard about interviews at all, so an answer from
   // the team waited for a reload.
-  const latest = useRef({ applications, employerNames });
-  latest.current = { applications, employerNames };
+  const latest = useRef({ applications });
+  latest.current = { applications };
   const liveId = useId();
   const userId = user?.id;
   useEffect(() => {
@@ -686,11 +658,11 @@ export default function Applications() {
           const previous = (payload.old ?? {}) as { status?: string };
           if (payload.eventType === "UPDATE" && next.status === "rejected" && previous.status !== "rejected" && next.id) {
             const existing = latest.current.applications?.find((application) => application.id === next.id);
-            const employerId = existing?.jobs?.employer_id;
+            const named = appliedNames(existing);
             setRejectedAnnouncement({
               applicationId: next.id,
-              jobTitle: existing?.jobs?.title,
-              companyName: employerId ? latest.current.employerNames?.[employerId] : undefined,
+              jobTitle: named.jobTitle,
+              companyName: named.companyName,
             });
           }
           refresh();
@@ -717,21 +689,20 @@ export default function Applications() {
     void momentsSeen;
     if (isEmployer || deciding) return null;
     for (const application of applications ?? []) {
-      const employerId = application.jobs?.employer_id;
-      const company = employerId ? employerNames?.[employerId] : undefined;
+      const { jobTitle, companyName: company } = appliedNames(application);
       const words = liveInterviewWords(application, company);
       const interviewId = application.latestInterview?.id;
-      if (words?.selected && interviewId && !hasCelebrated(interviewId)) return { application, words, company, interviewId };
+      if (words?.selected && interviewId && !hasCelebrated(interviewId)) return { application, words, company, jobTitle, interviewId };
     }
     return null;
-  }, [applications, employerNames, isEmployer, deciding, momentsSeen]);
+  }, [applications, isEmployer, deciding, momentsSeen]);
   const closeMoment = () => {
     if (selectedMoment) markCelebrated(selectedMoment.interviewId);
     setMomentsSeen((n) => n + 1);
   };
 
   const filteredApplications = applications?.filter((app) => {
-    const matchesSearch = app.jobs?.title?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = appliedNames(app).jobTitle?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = !statusFilter || app.status === statusFilter;
     return matchesSearch !== false && matchesStatus;
   });
@@ -836,7 +807,6 @@ export default function Applications() {
               application={application}
               onDelete={handleDeleteApplication}
               onOpenBlueprint={handleOpenBlueprintDialog}
-              companyName={application.jobs?.employer_id ? employerNames?.[application.jobs.employer_id] : undefined}
             />
           ))
         ) : (
@@ -859,7 +829,7 @@ export default function Applications() {
       <InterviewSelectedMoment
         open={!!selectedMoment}
         companyName={selectedMoment?.company}
-        jobTitle={selectedMoment?.application.jobs?.title}
+        jobTitle={selectedMoment?.jobTitle}
         about={selectedMoment?.words.about}
         detail={selectedMoment?.words.ask ?? ""}
         action={selectedMoment?.words.action ?? ""}

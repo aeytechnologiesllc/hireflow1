@@ -10,8 +10,11 @@
  * send-notification-email that trusts nothing in the request:
  *   - it goes to whoever is signed in (the caller's own account), never to a
  *     user id or an address named in the body;
- *   - the application must be theirs and still open, and its job's name and
- *     the team's name are looked up, not taken from the page;
+ *   - the application must be theirs and still open, and the job and the
+ *     team it names are the application's own, as they were when the
+ *     applicant started it (applied_job_title and applied_company_name, set
+ *     by the database), never the page's, nor the job's or the business's
+ *     names today;
  *   - it is rate limited on the server, per person and for everyone at once,
  *     and when the limiter cannot be asked nothing is sent (the other limits
  *     in _shared/rateLimit.ts fail open because they guard a test in
@@ -45,6 +48,12 @@ export interface ContinueOnComputerEmailWords {
 
 function tidy(value: unknown): string {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+}
+
+/** One short plain line: no control characters, no runs of space, cut to `max`. */
+function line(value: unknown, max: number): string {
+  // deno-lint-ignore no-control-regex
+  return tidy(typeof value === "string" ? value.replace(/[\u0000-\u001f\u007f\u2028\u2029]+/g, " ") : "").slice(0, max).trim();
 }
 
 /**
@@ -176,12 +185,14 @@ export async function continueLinkLimitRefusal(callerId: string, check: Continue
 export interface ContinueLinkLookups {
   /** The signed-in user's id for this request, or null. */
   callerId: () => Promise<string | null>;
-  /** The application with its job's title and employer, or null. */
-  application: (applicationId: string) => Promise<(ContinueLinkApplication & { job_title?: string | null; employer_id?: string | null }) | null>;
+  /**
+   * The application with the job's title and the business's name as they
+   * were when it was started (the database sets them on every new
+   * application, a draft included, and no browser can change them), or null.
+   */
+  application: (applicationId: string) => Promise<(ContinueLinkApplication & { applied_job_title?: string | null; applied_company_name?: string | null }) | null>;
   /** The applicant's own name. */
   fullName: (userId: string) => Promise<string | null>;
-  /** The hiring team's name, as their other emails sign it. */
-  companyName: (employerId: string) => Promise<string | null>;
   checkLimit: ContinueLinkLimitCheck;
 }
 
@@ -215,13 +226,21 @@ export async function decideContinueLinkEmail(requestData: unknown, lookups: Con
   const limited = await continueLinkLimitRefusal(callerId!, lookups.checkLimit);
   if (limited) return { ok: false, refusal: limited };
 
-  const [fullName, companyName] = await Promise.all([
-    lookups.fullName(callerId!).catch(() => null),
-    application!.employer_id ? lookups.companyName(application!.employer_id).catch(() => null) : Promise.resolve(null),
-  ]);
+  const fullName = await lookups.fullName(callerId!).catch(() => null);
   const data: { candidate_name?: string; job_title?: string; company_name?: string } = {};
   if (tidy(fullName)) data.candidate_name = tidy(fullName);
-  if (tidy(application!.job_title)) data.job_title = tidy(application!.job_title);
-  if (tidy(companyName)) data.company_name = tidy(companyName);
+  // The job and the business as they were when the application was started,
+  // cut as every other email cuts them (200 and 120 characters). Never the
+  // job's title or the business's name today: a business can close its job
+  // and rename it, or itself, to a fee ask while people are part-way through
+  // its steps, and this email goes from it by name and is no contact (the
+  // eighteenth Phase 5 review, finding 1: 902 characters of "Before the
+  // typing test, pay the 500 PHP exam fee by GCash ..."). An application
+  // with none, open job or closed, names no job and no business: the email
+  // then says "your application", from HireFlow, signed by the hiring team.
+  const jobTitle = line(application!.applied_job_title, 200);
+  const companyName = line(application!.applied_company_name, 120);
+  if (jobTitle) data.job_title = jobTitle;
+  if (companyName) data.company_name = companyName;
   return { ok: true, recipientUserId: callerId!, data };
 }

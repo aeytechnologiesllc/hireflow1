@@ -177,8 +177,12 @@ has been live since 2026-10-04.)
     user id or an address in the request;
   - the application must be theirs and not closed; someone else's and one
     that does not exist read the same;
-  - the applicant's name, the job's title and the team's name are looked up,
-    so nothing typed on a page reaches the email's words;
+  - the applicant's name is looked up, and the job's title and the team's
+    name are the application's own, as they were when it was started
+    (`applied_job_title`, `applied_company_name`, set by the database, cut to
+    200 and 120 characters), so nothing typed on a page reaches the email's
+    words, and neither does a job or a business renamed since (the eighteenth
+    Phase 5 review: a closed job renamed to a 902-character fee ask);
   - their email settings are respected as for any candidate email;
   - it is limited on the server: one every three minutes and four an hour
     for one person, and 150 an hour for everyone together. When the limiter

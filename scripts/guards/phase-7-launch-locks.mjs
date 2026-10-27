@@ -462,6 +462,24 @@ export default [
       if (/Key context:|Work mode:|`Start: |Openings: /.test(template)) detail.push("src/lib/avaEngine/templateGenerator.ts: the fallback post puts raw notes on the public post again");
       const email = strip(await read("supabase/functions/send-notification-email/index.ts"));
       if (!/application_received: data\.more_steps === "1"/.test(email)) detail.push("send-notification-email: the first-step email no longer says what is left");
+      // …and the decision keeps what that email needs. Until the eighteenth
+      // Phase 5 review (finding 2) it kept only the title and the name, so the
+      // template's text was there and never sent, and this guard passed: the
+      // mark, from the job's own steps when they can be read (else the page's
+      // "1"), and the application only when it is the caller's own.
+      const access = strip(await read("supabase/functions/_shared/notificationAccess.ts"));
+      const selfAt = access.indexOf('if (rule.who === "self") {');
+      const self = selfAt >= 0 ? access.slice(selfAt, access.indexOf("if (!named) return", selfAt)) : "";
+      if (
+        !/const askedApp = [^;]*mine\.find\(\(a\) => a\.id === asked\.application_id\)/.test(self) ||
+        !/const more = lookups\.stepsAfterForm \? await lookups\.stepsAfterForm\(about\.id\)\.catch\(\(\) => null\) : null;/.test(self) ||
+        !/const moreSteps = typeof more === "boolean" \? more : asked\.more_steps === "1";/.test(self) ||
+        !/more_steps: moreSteps \? "1" : undefined,/.test(self) ||
+        !/application_id: askedApp\?\.id,/.test(self)
+      )
+        detail.push("supabase/functions/_shared/notificationAccess.ts: \"application received\" no longer keeps \"more steps\" (from the job's steps, else the page's \"1\") or the caller's own application, so the first-step email never goes");
+      if (!/stepsAfterForm: async \(applicationId\) => \{[\s\S]{0,600}?return buildCandidateJourney\(steps, \{ hasQuiz: Array\.isArray\(job\.quiz_questions\) && job\.quiz_questions\.length > 0 \}\)\.length > 2;/.test(email))
+        detail.push("send-notification-email: whether more steps follow the form must be read from the job's own steps, counted as the form's page counts them (stepsAfterForm)");
       const form = strip(await read("src/pages/ApplicationFormPhase.tsx"));
       if (!/moreSteps: journeyStep\.total > 2,/.test(form)) detail.push("src/pages/ApplicationFormPhase.tsx: the submitted email is no longer told when more steps follow");
       const legal = strip(await read("src/components/LegalPage.tsx"));

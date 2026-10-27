@@ -286,7 +286,7 @@ check("it names no governing law or court (there is no company named to hang one
   })();
   check(
     "the pause rule says a report already looked at counts again only after the business is in touch again, as employer_reports_auto_pause reads it",
-    /When three different people the business has been in touch with \(by message, by an email other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview\) report it, it pauses by itself while we look/.test(terms) &&
+    /When three different people the business has been in touch with \(by message, by an email its hiring team sends them other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview\) report it, it pauses by itself while we look/.test(terms) &&
       /Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that\./.test(terms) &&
       /AND NOT public\.report_already_heard\(NEW\.employer_id, r\.reporter_id\)/.test(heard) && /AND since\.last_at > done\.closed_at/.test(heard) &&
       // "by an email": the hiring team's emails are contact, but a decline (the sixteenth Phase 5 review).
@@ -307,6 +307,19 @@ check("it names no governing law or court (there is no company named to hang one
     "…and both pages name the team moving an application forward, which the record counts as it is made (never a decline)",
     /by moving their application forward/.test(terms) && /moving your application forward/.test(privacy) &&
       /CREATE TRIGGER business_contacts_remember_move\s+AFTER UPDATE OF status, phase ON public\.applications\s+FOR EACH ROW\s+WHEN \(current_user = 'authenticated' AND NEW\.status IS DISTINCT FROM 'rejected'/.test(moves),
+  );
+  // The eighteenth Phase 5 review (finding 1): "an email other than turning
+  // them down" read as if every email from the business by name counted. The
+  // applicant's own two ("application received", "Email me the link") come
+  // from it by name and are no contact: they are the applicant's doing, and
+  // name only what they applied to. The Terms say whose emails count.
+  const access = read("supabase/functions/_shared/notificationAccess.ts");
+  const self = access.slice(access.indexOf('if (rule.who === "self") {'), access.indexOf("if (!named) return"));
+  check(
+    "…an email counts when the hiring team sends it; the applicant's own emails are no contact and name the job as they applied",
+    /by an email its hiring team sends them other than turning them down/.test(terms) && !/by an email other than turning them down/.test(terms) &&
+      !/contactFor/.test(self) && /job_title: plainLine\(about\.applied_job_title, 200\),/.test(self) &&
+      /line\(application!\.applied_job_title, 200\)/.test(read("supabase/functions/_shared/continueOnComputerEmail.ts")),
   );
 }
 

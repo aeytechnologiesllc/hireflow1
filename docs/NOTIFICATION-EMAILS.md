@@ -79,7 +79,8 @@ The words that matter are looked up, never taken from the request:
 - **who signs it**: the job owner's own business name (`profiles.company_name`
   of the employer whose job links the two). With none on file it is "The
   hiring team". The page used to send this, and a blank one arrived as "This
-  employer";
+  employer". A decline and the applicant's own emails are signed with the
+  business's name as it was when they applied (below);
 - **the applicant's name** in the hiring team's alerts, and **the sender's
   name** and thread link in a message alert: the caller's own;
 - **the job**: a title is kept only when it is the title of a job that
@@ -169,9 +170,49 @@ it. Since `20261025700000`:
   The request's title and name are never read, and neither are the job's or
   the profile's today.
 
-The other kinds still name the job's own title and the business's own name
-today: each is contact (above), so three people it reached that way pause
-it by their reports.
+## An applicant's own emails: named as they applied (2026-10-27)
+
+"Application received" (`application_received`, sent when the applicant
+sends the form) and "Email me the link" (`continue_on_computer`, its own
+gate in `_shared/continueOnComputerEmail.ts`) are the applicant's own: they
+set them off, they go to them alone, and they come from the business by
+name. Neither is contact. This page said that every kind but a decline names
+the job's own title and the business's own name today and is contact; these
+two named today's and were not. The eighteenth Phase 5 review (finding 1):
+a business can close a job its applicants are part-way through, rename it
+"Chat support agent. To finish, pay the 500 PHP processing fee by GCash to
+0917 000 0000", and rename itself; the form is still taken (a draft moves to
+`pending` whatever the job's status), and each applicant who sent it got
+"Application Submitted: Chat support agent. To finish, pay ..." from it by
+name (probes pq_submit_closed, pr_received); the link email carried the
+title uncut, 902 characters in probe pr_continue. Nothing recorded either.
+Since then:
+
+- **Named as they applied.** Both name the application's own
+  `applied_job_title` and `applied_company_name` (set by the database on
+  every new application, a draft included, and never changed by a browser),
+  cut to 200 and 120 characters like the others: the subject, the first
+  line, the From name and the signature. Never the request's, nor the job's
+  or the profile's today, open job or closed. The link email reads only the
+  application (`id, candidate_id, status, applied_job_title,
+  applied_company_name`). An application with neither on file (none live:
+  every application has them) names no job and no business: "Application
+  Submitted", "the next part of your application", from HireFlow, signed
+  "The hiring team".
+- **"Not finished yet" goes again.** The first-step email ("Your application
+  is not finished yet", with a button to that application) went to nobody
+  since the decision kept only the title and the name (finding 2, a
+  regression of the Phase 7 product audit): every applicant on a job with
+  more than the form was told "the hiring team will get back to you". The
+  decision now keeps whether more steps follow the form, read from the job's
+  own steps as the form's page counts them (`stepsAfterForm`, the server's
+  `buildCandidateJourney`; the page's "1" only when they cannot be read,
+  never its text), and the application the button opens, only when the
+  request names one of the caller's own.
+
+The hiring team's other kinds still name the job's own title and the
+business's own name today: each is contact (above), so three people it
+reached that way pause it by their reports.
 
 ## How the system really calls (found 2026-10-07, five hours after the lock)
 
@@ -280,4 +321,11 @@ interview's own times do (section 3b). Since the seventeenth Phase 5 review
 review's P1), a decline goes once for each application turned down (four at
 once are one; a provider's refusal lets it go again), and it names the job
 and the business as they were when the person applied, whatever the job or
-the business is called now (P1b, pd).
+the business is called now (P1b, pd). Since the eighteenth (section 4):
+"application received" and "Email me the link" name the job and the
+business as they were when the person applied, after the job was closed and
+both were renamed to a fee ask (probes pq_submit_closed, pr_received and
+pr_continue), cut to 200 and 120 characters, and nothing when the
+application has neither; the first-step email goes for a job with steps
+after the form, read from the job's steps, and its button opens only one of
+the caller's own applications (`scripts/continue_link_email.test.mjs` too).

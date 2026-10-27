@@ -11,6 +11,7 @@ import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkE
 import { BUSINESS_EMAIL_CODE_TYPE, businessEmailCodeEmail, readIssuedCode, waitWords } from "../_shared/businessEmailCode.ts";
 import { callerId as callerIp, checkRateLimit } from "../_shared/rateLimit.ts";
 import { applicantEmailTime, applicantTimeZone } from "../_shared/interviewTimes.ts";
+import { buildCandidateJourney, type WorkflowStepLike } from "../_shared/candidateJourney.ts";
 import {
   NOTIFICATION_RULES,
   decideNotification,
@@ -301,12 +302,14 @@ const getEmailContent = (
     // The form is often the first of several steps: then it says what is
     // left, never "submitted, we'll get back to you" (the Phase 7 product
     // audit: applicants stopped after step 1, thinking they were done).
+    // The job is named as it was when they applied (notificationAccess), and
+    // an application with none on file names no job.
     application_received: data.more_steps === "1"
       ? {
-          subject: `Next steps for your ${data.job_title} application`,
+          subject: data.job_title?.trim() ? `Next steps for your ${data.job_title} application` : "Next steps for your application",
           html: wrapEmail(
             "Your application is not finished yet",
-            `<p>We have your answers for <strong>${esc(data.job_title)}</strong>. Thank you.</p>
+            `<p>We have your answers${data.job_title?.trim() ? ` for <strong>${esc(data.job_title)}</strong>` : ""}. Thank you.</p>
              <p>Your application has more steps, and they are waiting for you. The hiring team decides once you have done them, so please finish them soon.</p>`,
             "Continue my application",
             candidateLink(
@@ -317,10 +320,10 @@ const getEmailContent = (
           ),
         }
       : {
-          subject: `Application Submitted: ${data.job_title}`,
+          subject: data.job_title?.trim() ? `Application Submitted: ${data.job_title}` : "Application Submitted",
           html: wrapEmail(
             "Application Submitted",
-            `<p>Your application for <strong>${esc(data.job_title)}</strong> has been successfully submitted.</p>
+            `<p>Your application${data.job_title?.trim() ? ` for <strong>${esc(data.job_title)}</strong>` : ""} has been successfully submitted.</p>
              <p style="color: #666;">The hiring team will review your application and get back to you. You can track your application status in your dashboard.</p>`,
             "Track Application",
             candidateLink("/applications")
@@ -963,7 +966,8 @@ const handler = async (req: Request): Promise<Response> => {
     // it themself, so this one type trusts nothing the page sent but the
     // application's id. It goes to whoever is signed in, for an application
     // that is theirs and open, at most once every few minutes; the job and
-    // the team are looked up. A refusal answers here and nothing is sent.
+    // the team are the application's own, as they were when it was started.
+    // A refusal answers here and nothing is sent.
     if (type === CONTINUE_ON_COMPUTER_TYPE) {
       const decision = await decideContinueLinkEmail(data, {
         callerId: async () => {
@@ -972,23 +976,27 @@ const handler = async (req: Request): Promise<Response> => {
           const { data: auth, error } = await supabase.auth.getUser(token);
           return error ? null : auth?.user?.id ?? null;
         },
+        // The job and the business as they were when the application was
+        // started (the database sets them, a draft's too), never the job's
+        // or the profile's today (the eighteenth Phase 5 review, finding 1).
         application: async (applicationId) => {
           const { data: row } = await supabase
             .from("applications")
-            .select("id, candidate_id, status, jobs(title, employer_id)")
+            .select("id, candidate_id, status, applied_job_title, applied_company_name")
             .eq("id", applicationId)
             .maybeSingle();
           if (!row) return null;
-          const job = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as { title?: string | null; employer_id?: string | null } | null;
-          return { id: row.id, candidate_id: row.candidate_id, status: row.status, job_title: job?.title ?? null, employer_id: job?.employer_id ?? null };
+          return {
+            id: row.id,
+            candidate_id: row.candidate_id,
+            status: row.status,
+            applied_job_title: row.applied_job_title ?? null,
+            applied_company_name: row.applied_company_name ?? null,
+          };
         },
         fullName: async (userId) => {
           const { data: me } = await supabase.from("profiles").select("full_name").eq("user_id", userId).maybeSingle();
           return me?.full_name ?? null;
-        },
-        companyName: async (employerId) => {
-          const { data: team } = await supabase.from("profiles").select("company_name").eq("user_id", employerId).maybeSingle();
-          return team?.company_name ?? null;
         },
         checkLimit: checkRateLimit,
       });
@@ -1099,6 +1107,18 @@ const handler = async (req: Request): Promise<Response> => {
               applicationId: offer.applicationId,
               times: offer.windows.map((w) => applicantEmailTime(new Date(w.start), theirZone, w.zone ?? "UTC").line),
             };
+          },
+          // "Application received": whether the job has steps after the form,
+          // counted as the form's own page counts them (_shared/candidateJourney.ts,
+          // the server's copy of the page's): the form, a quiz when it has
+          // one, its steps, the decision.
+          stepsAfterForm: async (applicationId) => {
+            const { data: row, error } = await supabase.from("applications").select("jobs(workflow_steps, quiz_questions)").eq("id", applicationId).maybeSingle();
+            if (error || !row) return null;
+            const job = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as { workflow_steps?: unknown; quiz_questions?: unknown } | null;
+            if (!job) return null;
+            const steps = Array.isArray(job.workflow_steps) ? (job.workflow_steps as WorkflowStepLike[]) : [];
+            return buildCandidateJourney(steps, { hasQuiz: Array.isArray(job.quiz_questions) && job.quiz_questions.length > 0 }).length > 2;
           },
         });
         if (!access.ok) {

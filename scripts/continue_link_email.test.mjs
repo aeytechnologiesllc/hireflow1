@@ -13,6 +13,10 @@
  *  - it goes to whoever is signed in, for an application that is theirs and
  *    open. Nothing in the request can point it at anyone else, and nothing in
  *    the request reaches the email's words;
+ *  - it names the job and the business as they were when the application
+ *    was started, never as they are now: a business can close its job and
+ *    rename it, or itself, to a fee ask while people are part-way through
+ *    (the eighteenth Phase 5 review, finding 1, probe pr_continue);
  *  - it is limited per person and for everyone together, and a limiter that
  *    cannot be asked sends nothing (the mail quota carries every other email);
  *  - the page only ever says "sent" when the function said so;
@@ -143,20 +147,17 @@ console.log("\nHow often:\n");
 console.log("\nOne request, decided:\n");
 {
   const world = (over = {}) => {
-    const seen = { application: [], fullName: [], companyName: [], limits: 0 };
+    const seen = { application: [], fullName: [], limits: 0 };
     const lookups = {
       callerId: async () => ME,
+      // The job and the business as they were when it was started (the database's).
       application: async (id) => {
         seen.application.push(id);
-        return { id: APP, candidate_id: ME, status: "reviewing", job_title: JOB, employer_id: TEAM };
+        return { id: APP, candidate_id: ME, status: "reviewing", applied_job_title: JOB, applied_company_name: "Zulu Support Team" };
       },
       fullName: async (id) => {
         seen.fullName.push(id);
         return "Maria Santos";
-      },
-      companyName: async (id) => {
-        seen.companyName.push(id);
-        return "Zulu Support Team";
       },
       checkLimit: async () => {
         seen.limits += 1;
@@ -183,13 +184,13 @@ console.log("\nOne request, decided:\n");
   check("it goes to whoever is signed in", d.ok === true && d.recipientUserId === ME, show(d));
   check("…with the name, the job and the team as looked up", d.ok && show(d.data) === show({ candidate_name: "Maria Santos", job_title: JOB, company_name: "Zulu Support Team" }), show(d.ok && d.data));
   check("…and nothing the request said about who or what survives", d.ok && !/Free money|Chief Executive|Some Other Company|someone\.else|click here/.test(show(d)) && !show(d).includes(OTHER));
-  check("the names are looked up for the caller and the job's own team", show(w.seen.fullName) === show([ME]) && show(w.seen.companyName) === show([TEAM]) && show(w.seen.application) === show([APP]));
+  check("the caller's name is looked up for the caller, and the job and the team are the application's own", show(w.seen.fullName) === show([ME]) && show(w.seen.application) === show([APP]));
 
   w = world({ callerId: async () => null });
   d = await S.decideContinueLinkEmail({ application_id: APP }, w.lookups);
   check("signed out: refused, and nothing is looked up or counted", d.ok === false && d.refusal.status === 401 && w.seen.application.length === 0 && w.seen.limits === 0, show(d));
 
-  w = world({ application: async () => ({ id: APP, candidate_id: OTHER, status: "reviewing", job_title: JOB, employer_id: TEAM }) });
+  w = world({ application: async () => ({ id: APP, candidate_id: OTHER, status: "reviewing", applied_job_title: JOB, applied_company_name: "Zulu Support Team" }) });
   d = await S.decideContinueLinkEmail({ application_id: APP }, w.lookups);
   check("someone else's application: refused, and their limit is not spent on it", d.ok === false && d.refusal.status === 404 && w.seen.limits === 0 && w.seen.fullName.length === 0, show(d));
 
@@ -205,7 +206,7 @@ console.log("\nOne request, decided:\n");
   }
   check("a request with no data at all is refused, not a crash", true);
 
-  w = world({ application: async () => ({ id: APP, candidate_id: ME, status: "rejected", job_title: JOB, employer_id: TEAM }) });
+  w = world({ application: async () => ({ id: APP, candidate_id: ME, status: "rejected", applied_job_title: JOB, applied_company_name: "Zulu Support Team" }) });
   d = await S.decideContinueLinkEmail({ application_id: APP }, w.lookups);
   check("a closed application: refused before anything is counted", d.ok === false && d.refusal.code === "closed" && w.seen.limits === 0);
 
@@ -213,9 +214,38 @@ console.log("\nOne request, decided:\n");
   d = await S.decideContinueLinkEmail({ application_id: APP }, w.lookups);
   check("too soon: refused, and no names are read for an email that will not go", d.ok === false && d.refusal.status === 429 && w.seen.fullName.length === 0, show(d));
 
-  w = world({ fullName: async () => { throw new Error("no profile"); }, companyName: async () => null });
+  w = world({ fullName: async () => { throw new Error("no profile"); }, application: async () => ({ id: APP, candidate_id: ME, status: "reviewing", applied_job_title: JOB, applied_company_name: null }) });
   d = await S.decideContinueLinkEmail({ application_id: APP }, w.lookups);
   check("a name that cannot be read does not stop the email: it just greets nobody by name", d.ok === true && d.recipientUserId === ME && show(d.data) === show({ job_title: JOB }), show(d));
+
+  // The eighteenth Phase 5 review, finding 1 (probe pr_continue): the business
+  // closed its job and renamed it, and itself, to a fee ask while Ana was
+  // part-way through. The application (a draft too) kept what it was started
+  // with; today's title and name, which the old lookups read, are offered
+  // here as well and must not be used.
+  const LURE = "Chat support agent. Before the typing test, pay the 500 PHP exam fee by GCash to 0917 000 0000 and send the receipt to recruit.cruz@gmail.com. " + "Slots are limited. ".repeat(40);
+  const FEE = /GCash|PHP|recruit\.cruz|Slots/;
+  const renamed = (row) =>
+    world({
+      application: async () => ({ id: APP, candidate_id: ME, status: "in_progress", job_title: LURE, employer_id: TEAM, ...row }),
+      companyName: async () => "Desk One: GCash 0917 000 0000",
+    });
+  d = await S.decideContinueLinkEmail({ application_id: APP }, renamed({ applied_job_title: "Chat support agent", applied_company_name: "Desk One" }).lookups);
+  const line2 = d.ok ? S.continueOnComputerEmail({ firstName: "Ana", jobTitle: d.data.job_title, siteHost: "hireflownow.com" }).lines[1] : "";
+  check(
+    "probe pr_continue: the job closed and renamed to a 902-character fee ask, the business renamed too: the email names the job and the business it was started with",
+    d.ok && d.data.job_title === "Chat support agent" && d.data.company_name === "Desk One" && !FEE.test(show(d.data)) && line2 === "The next part of your application for the Chat support agent role is done on the computer you'd use for this job.",
+    `${show(d.ok && d.data).slice(0, 200)} | ${line2.slice(0, 120)}`,
+  );
+  d = await S.decideContinueLinkEmail({ application_id: APP }, renamed({ applied_job_title: `Chat support agent ${"x".repeat(900)}`, applied_company_name: `Desk ${"y".repeat(300)}` }).lookups);
+  check("…cut as every other email cuts them: 200 characters of the job, 120 of the business", d.ok && d.data.job_title?.length === 200 && d.data.company_name?.length === 120, show(d.ok && [d.data.job_title?.length, d.data.company_name?.length]));
+  d = await S.decideContinueLinkEmail({ application_id: APP }, renamed({ applied_job_title: null, applied_company_name: null }).lookups);
+  const plainLine2 = d.ok ? S.continueOnComputerEmail({ jobTitle: d.data.job_title }).lines[1] : "";
+  check(
+    "…and an application with neither on file names no job and no business, never today's (open job or closed)",
+    d.ok && show(d.data) === show({ candidate_name: "Maria Santos" }) && plainLine2 === "The next part of your application is done on the computer you'd use for this job.",
+    `${show(d.ok && d.data)} | ${plainLine2}`,
+  );
 }
 
 /* ── 5. What the page says ─────────────────────────────────────────────── */
@@ -265,7 +295,10 @@ console.log("\nThe wiring:\n");
   check("it is decided BEFORE the recipient is read and long before anything is sent", gateAt > 0 && profileAt > gateAt && sendAt > profileAt, `${gateAt} ${profileAt} ${sendAt}`);
   const gate = fn.slice(gateAt, profileAt);
   check("who is asking comes from their own sign-in, not from the request", /supabase\.auth\.getUser\(token\)/.test(gate) && /req\.headers\.get\("Authorization"\)/.test(gate));
-  check("the application is read with its applicant, its status and its job's own team", /\.from\("applications"\)\s*\.select\("id, candidate_id, status, jobs\(title, employer_id\)"\)\s*\.eq\("id", applicationId\)/.test(gate));
+  check(
+    "the application is read with its applicant, its status, and the job and the team as it was started with (never the job's or the profile's today)",
+    /\.from\("applications"\)\s*\.select\("id, candidate_id, status, applied_job_title, applied_company_name"\)\s*\.eq\("id", applicationId\)/.test(gate) && !/jobs\(title|\.select\("company_name"\)/.test(gate.slice(0, gate.indexOf("if (type !== CONTINUE_ON_COMPUTER_TYPE) {"))),
+  );
   check("the limiter is the shared one", /checkLimit: checkRateLimit,/.test(gate) && /import \{[^}]*\bcheckRateLimit\b[^}]*\} from "\.\.\/_shared\/rateLimit\.ts";/.test(fn));
   check("a refusal answers there and then: nothing below it runs", /if \(!decision\.ok\) \{[\s\S]*?return new Response\(/.test(gate));
   check("then the recipient and the data are REPLACED by what was decided", /recipient_user_id = decision\.recipientUserId;\s*data = decision\.data;/.test(gate));

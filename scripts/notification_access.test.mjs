@@ -229,7 +229,7 @@ function client() {
     if (table === "applications") {
       return world.applications.map((a) => {
         const job = world.jobs.find((j) => j.id === a.job_id) ?? null;
-        return { ...a, jobs: job ? { title: job.title, employer_id: job.employer_id } : null };
+        return { ...a, jobs: job ? { title: job.title, employer_id: job.employer_id, workflow_steps: job.workflow_steps ?? [], quiz_questions: job.quiz_questions ?? null } : null };
       });
     }
     return world[table] ?? [];
@@ -860,6 +860,89 @@ void quiet;
   r = await hush(async () => (reset(), ask("tok-stranger", { type: "application_received", recipient_user_id: STRANGER, data: { job_title: "Anything", company_name: "Anyone" } })));
   check("…and someone who has applied to nothing cannot have one written for them", r.status === 403 && world.sent.length === 0, show(r));
 
+  // The eighteenth Phase 5 review, finding 1 (probes pq_submit_closed and
+  // pr_received): the business closed Ana's job B, renamed it to a fee ask,
+  // and itself too, and Ana sent the form (the database takes it). This
+  // email goes from the business by name and is no contact, so it names the
+  // job and the business as they were when she applied, never as they are.
+  const LURE = "Night Shift Agent. To finish, pay the 500 PHP processing fee by GCash to 0917 000 0000";
+  const LURE_NAME = "Clinic One: GCash 0917 000 0000";
+  const FEE = /GCash|PHP|Clinic One/;
+  const closedAndRenamed = (w) => {
+    w.jobs.find((j) => j.id === JOB_B).title = LURE;
+    w.profiles.find((p) => p.user_id === OWNER).company_name = LURE_NAME;
+  };
+  r = await hush(async () => (reset(closedAndRenamed), ask("tok-ana", { type: "application_received", recipient_user_id: ANA, data: { job_title: LURE, company_name: LURE_NAME, application_id: id(202) } })));
+  mail = world.sent[0];
+  check(
+    "probe pq_submit_closed: the job closed and renamed to a fee ask, the business renamed too, then the form sent: the subject, the first line, the From line and the signature name them as she applied, and nothing is recorded",
+    r.status === 200 && mail?.subject === `Application Submitted: ${TITLE_B}` && mail.from === "Zulu Support Team <no-reply@hireflownow.com>" && textOf(mail).includes(`Your application for ${TITLE_B} has been`) && textOf(mail).endsWith("— The Zulu Support Team") && !FEE.test(mail.from + mail.subject + mail.html) && world.contacts.length === 0,
+    `${mail?.from} | ${mail?.subject}`,
+  );
+  r = await hush(async () => (reset(both(closedAndRenamed, (w) => { w.applications.find((a) => a.id === id(202)).applied_job_title = `Night Shift Agent ${"x".repeat(900)}`; })), ask("tok-ana", { type: "application_received", data: { application_id: id(202) } })));
+  check("…cut to 200 characters, as every other email cuts it", world.sent[0]?.subject === `Application Submitted: ${`Night Shift Agent ${"x".repeat(900)}`.slice(0, 200)}`, String(world.sent[0]?.subject.length));
+  r = await hush(async () => (reset(both(closedAndRenamed, (w) => { Object.assign(w.applications.find((a) => a.id === id(202)), { applied_job_title: null, applied_company_name: null }); })), ask("tok-ana", { type: "application_received", data: { job_title: LURE, application_id: id(202) } })));
+  mail = world.sent[0];
+  check(
+    "…and an application with neither on file names no job and no business, never today's: from HireFlow, signed by the hiring team",
+    r.status === 200 && mail?.subject === "Application Submitted" && mail.from === "HireFlow <no-reply@hireflownow.com>" && textOf(mail).includes("Your application has been successfully submitted") && textOf(mail).endsWith("— The hiring team") && !FEE.test(mail.from + mail.subject + mail.html) && !/undefined|null/.test(mail.subject + textOf(mail)),
+    `${mail?.from} | ${mail?.subject}`,
+  );
+
+  // Finding 2 (a regression of the Phase 7 product audit): the decision kept
+  // only the title and the name, so every applicant on a job with more than
+  // the form was told "the hiring team will get back to you". Now whether
+  // more steps follow is read from the job's own steps, as the form's page
+  // counts them, and the button opens their own application.
+  const withSteps = (w) => { w.jobs.find((j) => j.id === JOB_B).workflow_steps = [{ id: "wf-typing", type: "typing_test", title: "Typing test" }]; };
+  r = await hush(async () => (reset(withSteps), ask("tok-ana", { type: "application_received", data: { job_title: TITLE_B, application_id: id(202), more_steps: "1" } })));
+  mail = world.sent[0];
+  check(
+    "a job with steps after the form: \"Your application is not finished yet\", and its button opens that application",
+    r.status === 200 && mail?.subject === `Next steps for your ${TITLE_B} application` && textOf(mail).startsWith("Your application is not finished yet") && mail.html.includes(encodeURIComponent(`/applications/${id(202)}`)),
+    `${mail?.subject} | ${textOf(mail ?? { html: "" }).slice(0, 60)}`,
+  );
+  r = await hush(async () => (reset(withSteps), ask("tok-ana", { type: "application_received", data: { application_id: id(202) } })));
+  check("…read from the job's steps, whatever the page said", world.sent[0]?.subject === `Next steps for your ${TITLE_B} application`, world.sent[0]?.subject);
+  r = await hush(async () => (reset(), ask("tok-ana", { type: "application_received", data: { application_id: id(201), more_steps: "1" } })));
+  check("…and a job with only the form says submitted, whatever the page said", world.sent[0]?.subject === `Application Submitted: ${TITLE_A}`, world.sent[0]?.subject);
+  r = await hush(async () => (reset((w) => { withSteps(w); w.jobs.find((j) => j.id === JOB_X).workflow_steps = [{ id: "wf-chat", type: "chat_simulation" }]; }), ask("tok-ana", { type: "application_received", data: { job_title: TITLE_B, application_id: id(204), more_steps: "1" } })));
+  mail = world.sent[0];
+  check(
+    "…its button never opens someone else's application: one they did not make is not named, and the email is about one of theirs",
+    r.status === 200 && !mail.html.includes(id(204)) && mail.html.includes(encodeURIComponent("/applications")) && !mail.html.includes(encodeURIComponent("/applications/")) && mail.subject === `Next steps for your ${TITLE_B} application`,
+    `${mail?.subject} | ${(/redirect=([^"&]+)/.exec(mail?.html ?? "") ?? [])[1]}`,
+  );
+
+  // The decision itself, as the review's probe pr_received ran it.
+  {
+    const APP = id(291);
+    const lookups = (over = {}) => ({
+      applicationsOf: async (c) => (c === ANA ? [{ id: APP, job_id: JOB_B, job_title: "Chat support agent. To finish, pay the 500 PHP processing fee by GCash to 0917 000 0000", employer_id: OWNER, status: "pending", applied_job_title: "Chat support agent", applied_company_name: "Clinic One" }] : []),
+      membershipsOf: async () => [],
+      profileOf: async (u) => (u === OWNER ? { company_name: "Clinic One: GCash 0917 000 0000", full_name: "Owner" } : { full_name: "Ana" }),
+      checkLimit: async () => ({ allowed: true, hits: 1, retryAfter: 0 }),
+      ...over,
+    });
+    const asked = { type: "application_received", recipient_user_id: ANA, data: { job_title: "Chat support agent", company_name: "Clinic One", application_id: APP, more_steps: "1" } };
+    let d = await A.decideNotification(asked, { kind: "user", id: ANA }, lookups());
+    check(
+      "probe pr_received, decided: the job and the business as she applied, \"more steps\" and her own application kept, and no contact",
+      d.ok && show(d.data) === show({ job_title: "Chat support agent", company_name: "Clinic One", application_id: APP, more_steps: "1" }) && d.contactFor === undefined && d.declineOf === undefined,
+      show(d),
+    );
+    d = await A.decideNotification(asked, { kind: "user", id: ANA }, lookups({ stepsAfterForm: async () => false }));
+    const d2 = await A.decideNotification(asked, { kind: "user", id: ANA }, lookups({ stepsAfterForm: async () => { throw new Error("down"); } }));
+    const d3 = await A.decideNotification({ ...asked, data: { ...asked.data, more_steps: "yes, pay 500 PHP" } }, { kind: "user", id: ANA }, lookups({ stepsAfterForm: async () => null }));
+    check(
+      "…the job's own steps decide \"more steps\" when they can be read; when they cannot, the page's mark, \"1\" only and never its text",
+      d.ok && d.data.more_steps === undefined && d2.ok && d2.data.more_steps === "1" && d3.ok && d3.data.more_steps === undefined && !/pay/.test(show(d3)),
+      show([d.ok && d.data, d2.ok && d2.data, d3.ok && d3.data]),
+    );
+    d = await A.decideNotification({ ...asked, data: { ...asked.data, application_id: id(203) } }, { kind: "user", id: ANA }, lookups());
+    check("…and an application id that is not hers is not kept", d.ok && d.data.application_id === undefined && d.data.job_title === "Chat support agent", show(d));
+  }
+
   r = await hush(async () => (reset(), ask("tok-ana", { type: "new_application", recipient_user_id: OWNER, data: HOSTILE })));
   mail = world.sent[0];
   check("new application: to the owner of the job they applied to, as a team alert", r.status === 200 && show(mail.to) === show([emailOf(OWNER)]) && mail.from === "HireFlow <notifications@hireflownow.com>", show(r));
@@ -1082,6 +1165,21 @@ void quiet;
   // "Email me the link" keeps its own gate (scripts/continue_link_email.test.mjs).
   r = await hush(async () => (reset(), ask("tok-ana", { type: "continue_on_computer", recipient_user_id: BEN, data: { application_id: id(201), job_title: "Chief Executive" } })));
   check("'Email me the link' is unchanged: to the signed-in applicant, looked up", r.status === 200 && show(world.sent[0]?.to) === show([emailOf(ANA)]) && textOf(world.sent[0]).includes(`for the ${TITLE_A} role`), show(r));
+  // The eighteenth Phase 5 review, finding 1 (probe pr_continue): the job
+  // closed and renamed to a fee ask while she was part-way through, and the
+  // business renamed too. The email names what she applied to.
+  r = await hush(async () => {
+    reset((w) => {
+      w.jobs.find((j) => j.id === JOB_A).title = `Chat support agent. Before the typing test, pay the 500 PHP exam fee by GCash to 0917 000 0000. ${"Slots are limited. ".repeat(40)}`;
+      w.profiles.find((p) => p.user_id === OWNER).company_name = "Desk One: GCash 0917 000 0000";
+    });
+    return ask("tok-ana", { type: "continue_on_computer", data: { application_id: id(201) } });
+  });
+  check(
+    "…naming the job and the business as she applied, never as they were renamed since",
+    r.status === 200 && textOf(world.sent[0]).includes(`for the ${TITLE_A} role`) && world.sent[0]?.from === "Zulu Support Team <no-reply@hireflownow.com>" && textOf(world.sent[0]).endsWith("— The Zulu Support Team") && !/GCash|PHP|Slots|Desk One/.test(world.sent[0]?.from + world.sent[0]?.html),
+    `${world.sent[0]?.from} | ${textOf(world.sent[0] ?? { html: "" }).slice(0, 160)}`,
+  );
   r = await hush(async () => (reset(), ask(SERVICE_KEY, { type: "continue_on_computer", recipient_user_id: ANA, data: { application_id: id(201) } })));
   check("…and it is not the system's to send for someone", r.status === 401 && world.sent.length === 0, show(r));
 

@@ -546,6 +546,23 @@ these either; each has a guard or a test that CI runs:
   whenever it brings words. Guards `team-moves-are-contact`,
   `decline-names-the-job-as-applied`, `decline-once-for-a-real-decline`;
   launch_locks_behaviour section 26; notification_access sections 3c and C.
+  (The eighteenth Phase 5 review and the seventeenth security review,
+  `20261025710000`.) The rest of what reaches an applicant names the job and
+  the business as they applied, never today's: "Application received" and
+  "Email me the link" (from the business by name, no contact; cut to 200 and
+  120 characters; nothing when the application has neither), and the
+  applicant's own pages, Your applications and the application page the
+  decline links to (`src/lib/appliedNames.ts`, always, live job or not; no
+  `employer_public_branding`). "Application received" keeps "more steps"
+  again (read from the job's steps, `stepsAfterForm`) and the caller's own
+  application id, so "Your application is not finished yet" goes. The
+  decline card says "team" once (cards already sent left as they are). The
+  Terms: "by an email its hiring team sends them other than turning them
+  down". Left: the job's location, type and step titles on those pages are
+  still today's. Guards `applicant-emails-name-the-job-as-applied`,
+  `applicant-pages-name-the-job-as-applied`, `decline-card-says-team-once`,
+  `product-audit-fixes-hold`; notification_access section 4,
+  continue_link_email section 4, launch_locks_behaviour section 27.
 - HireFlow's own jobs have their own AI day
   (`ai_platform_business_daily_call_cap`, 6,000 of the platform's 10,000;
   `20261025300000_ai_budget_own_jobs.sql`): they were uncounted, so one

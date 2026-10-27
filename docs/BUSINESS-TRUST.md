@@ -427,6 +427,59 @@ decline.
   `decline-names-the-job-as-applied`, `decline-once-for-a-real-decline` and
   `repeat-report-worked-out-again`.
 
+**What reaches an applicant names the job as they applied (the eighteenth
+Phase 5 review and the seventeenth security review, 2026-10-27;
+`20261025710000_decline_card_says_team_once.sql`).**
+
+The rule round 17 began: what reaches an applicant about a job they applied
+to names the job and the business as they were when they applied
+(`applied_job_title`, `applied_company_name`), never as they are now. A
+business can rename a closed job, or itself, to a fee ask, and nothing
+records that as contact. Round 17 did this for the decline and the server's
+cards; two emails and the applicant's own pages were left.
+
+- The applicant's own emails. "Application received" and "Email me the
+  link" go from the business by name and are no contact (the applicant sets
+  them off). The Phase 5 review's probe pq_submit_closed: three people had
+  the form open, the business closed the job and renamed it "Chat support
+  agent. To finish, pay the 500 PHP processing fee by GCash to 0917 000
+  0000", and itself; each sent the form (the database takes it), and each
+  got "Application Submitted: Chat support agent. To finish, pay ..."; the
+  record held "applied" only, so their three reports left it open. The link
+  email carried the title uncut (902 characters in probe pr_continue). Both
+  now name the application's own title and name, cut to 200 and 120
+  characters, and nothing when it has neither (docs/NOTIFICATION-EMAILS.md).
+  The Terms say an email counts when the hiring team sends it ("by an email
+  its hiring team sends them other than turning them down").
+- The applicant's own pages. The decline's card and email send the person
+  to their application page, and it, like Your applications, named the job's
+  title and the business's name today: the security review's probe s5
+  renamed both after the decline ("Chat support agent (reconsideration: send
+  500 PHP to GCash 0917 000 0000, then message us REAPPLY)", "Fee Clinic:
+  pay 500 PHP to GCash ... to stay in the pool"), and that was the page's
+  heading, with the name under it, for the person turned down and for
+  someone never turned down alike. Both pages now name the application's own
+  (`src/lib/appliedNames.ts`), always, even while the job is still live: one
+  rule for the emails, the cards and the pages. They no longer read
+  `employer_public_branding`.
+- The decline card says "team" once: "The Zulu Support Team has made a
+  decision on your application ...", never "The Zulu Support Team team"
+  (61 of the 63 decline cards live). The cards already in people's bells are
+  left as they are.
+- Left, the same class: the job's location, its type (shown as written when
+  it is not one of the known kinds) and its steps' titles on those pages are
+  still the job's today (no application keeps them), and a business can
+  change them on a closed job too.
+- Proof: `scripts/notification_access.test.mjs` section 4 (the review's
+  probes pq_submit_closed and pr_received, the cut, none on file, "not
+  finished yet" from the job's steps, the button never another's
+  application), `scripts/continue_link_email.test.mjs` section 4 (probe
+  pr_continue), `scripts/launch_locks_behaviour.pglite.test.mjs` section 27
+  (the card), `scripts/legal_pages.test.mjs`; guards
+  `applicant-emails-name-the-job-as-applied`,
+  `applicant-pages-name-the-job-as-applied`, `decline-card-says-team-once`
+  and `product-audit-fixes-hold` (now the decision too).
+
 ## Admins
 
 `platform_admins` holds who runs HireFlow (the owner's account,

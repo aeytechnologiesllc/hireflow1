@@ -53,6 +53,14 @@
  * with its closed job renamed so, a business sent declines from that name to
  * people still under review, three times each, and nothing recorded them).
  *
+ * An applicant's own emails ("application received", and "Email me the
+ * link", which has its own gate) are no contact either: the applicant sets
+ * them off, and they come from the business by name. So they too name the
+ * job and the business as they were when the person applied, never as they
+ * are now (the eighteenth Phase 5 review, finding 1: the form sent after the
+ * job was closed and renamed "Chat support agent. To finish, pay the 500 PHP
+ * processing fee by GCash ...", and the subject carried it).
+ *
  * No imports: plain Node loads this file for
  * scripts/notification_access.test.mjs, and the function for every send.
  */
@@ -227,6 +235,13 @@ export interface NotificationLookups {
    * Without it an invitation lists no times: never the request's own.
    */
   offeredTimes?: (applicationIds: readonly string[], interviewId: string | null) => Promise<NotificationOffer | null>;
+  /**
+   * application_received: whether this application's job has steps after the
+   * form (its journey is more than the form and the decision, as the form's
+   * own page counts it), or null when that cannot be read. The email then
+   * says what is left, never "submitted, we'll get back to you".
+   */
+  stepsAfterForm?: (applicationId: string) => Promise<boolean | null>;
 }
 
 export interface NotificationRefusal {
@@ -318,8 +333,9 @@ export function staffLinks(
  * own. That is still the team's text: a closed job can be renamed to
  * anything, and nobody else sees it (the seventeenth Phase 5 review, probe
  * qj). So every email that names a job this way is contact (contactFor), and
- * the one that is not, a decline, names the job as it was when they applied
- * (applied_job_title), never this.
+ * the ones that are not, a decline and the applicant's own (application
+ * received; "Email me the link", _shared/continueOnComputerEmail.ts), name
+ * the job as it was when they applied (applied_job_title), never this.
  */
 function jobTitleFor(asked: unknown, links: readonly NotificationApplication[]): string | undefined {
   const wanted = plainLine(asked, 200);
@@ -431,16 +447,38 @@ export async function decideNotification(
       const limited = await overLimit(callerId, NOTIFICATION_LIMITS.applicant, lookups);
       if (limited) return { ok: false, refusal: limited };
       // The application it's about, when the request names one of theirs;
-      // otherwise the newest with that title (two businesses can share a title).
+      // otherwise the newest made under the title asked for (two businesses
+      // can share a title), else the newest.
       const askedApp = typeof asked.application_id === "string" && UUID.test(asked.application_id) ? mine.find((a) => a.id === asked.application_id) : undefined;
-      const jobTitle = askedApp ? (plainLine(askedApp.job_title, 200) ?? jobTitleFor(asked.job_title, mine)) : jobTitleFor(asked.job_title, mine);
-      const about = askedApp ?? mine.find((a) => plainLine(a.job_title, 200) === jobTitle) ?? mine[0];
-      const team = await lookups.profileOf(about.employer_id!).catch(() => null);
+      const wantedTitle = plainLine(asked.job_title, 200);
+      const about = askedApp ?? (wantedTitle ? mine.find((a) => plainLine(a.applied_job_title, 200) === wantedTitle) : undefined) ?? mine[0];
+      // More steps after the form: read from the job's own steps when that
+      // can be done, else the page's mark ("1" only, never text). It only
+      // chooses between two fixed emails, both to the applicant themself.
+      const more = lookups.stepsAfterForm ? await lookups.stepsAfterForm(about.id).catch(() => null) : null;
+      const moreSteps = typeof more === "boolean" ? more : asked.more_steps === "1";
       return {
         ok: true,
         recipientUserId: callerId,
         recipientRole: "candidate",
-        data: withDefined({ job_title: jobTitle, company_name: plainLine(team?.company_name, 120) }),
+        data: withDefined({
+          // The job and the business as they were when they applied (set by
+          // the database), never as they are now: a business can send the form
+          // on a job it has closed and renamed to a fee ask, or rename itself,
+          // and this email goes from it by name and is no contact (the
+          // eighteenth Phase 5 review, finding 1: "Application Submitted: Chat
+          // support agent. To finish, pay the 500 PHP processing fee by GCash
+          // ..."). With none on the application, no job and no business is named.
+          job_title: plainLine(about.applied_job_title, 200),
+          company_name: plainLine(about.applied_company_name, 120),
+          // "Continue my application" opens it: only one of their own, named by
+          // the request. And the mark that says there is more to do. Until the
+          // eighteenth Phase 5 review both were dropped here, so every applicant
+          // on a job with more than the form was told "the hiring team will get
+          // back to you" (finding 2, a regression of the Phase 7 product audit).
+          application_id: askedApp?.id,
+          more_steps: moreSteps ? "1" : undefined,
+        }),
       };
     }
 

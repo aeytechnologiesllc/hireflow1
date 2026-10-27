@@ -191,7 +191,7 @@ console.log("\nThe applications list");
   check("what happened while the line was down is caught up on connecting", /\.subscribe\(\(status\) => \{\s*if \(status === "SUBSCRIBED"\) refresh\(\);/.test(list));
 
   // The moment.
-  check("the moment shows for someone just selected, once for each interview", /if \(words\?\.selected && interviewId && !hasCelebrated\(interviewId\)\) return \{ application, words, company, interviewId \};/.test(list) && /if \(selectedMoment\) markCelebrated\(selectedMoment\.interviewId\);/.test(list));
+  check("the moment shows for someone just selected, once for each interview", /if \(words\?\.selected && interviewId && !hasCelebrated\(interviewId\)\) return \{ application, words, company, jobTitle, interviewId \};/.test(list) && /if \(selectedMoment\) markCelebrated\(selectedMoment\.interviewId\);/.test(list));
   check("its button goes to the interview", /<InterviewSelectedMoment\s+open=\{!!selectedMoment\}/.test(list) && /if \(id\) navigate\(`\/applications\/\$\{id\}#interview`\);/.test(list));
   check("no leftover lines about a job code", !/job code/i.test(list.replace(/\/\/.*$/gm, "").replace(/\{\/\*[\s\S]*?\*\/\}/g, "")) && !/new code from the employer/.test(list));
 }
@@ -205,7 +205,7 @@ console.log("\nThe application page and the card");
   check("the interview comes before the step panel", first > 0 && panel > 0 && first < panel);
   check("while an interview is live the page shows no step to take", /\) : interviewLive \? null : phases\.length > 0 \? \(/.test(page));
   check("…and no list of steps", /\{!interviewLive && \(\s*<div className="ck-reveal" style=\{\{ \["--ck-i" as string\]: 2 \}\} data-steps-list>/.test(page));
-  check("…read from the one place, and not for a decided application", /isRejected \|\| isHired \|\| applicationStatus === "offered"\s*\? null\s*: candidateInterviewWords\(candidateInterview, \{ company: employerBranding, now: new Date\(\) \}\);/.test(page) && /const interviewLive = !!interviewWords;/.test(page));
+  check("…read from the one place, and not for a decided application", /isRejected \|\| isHired \|\| applicationStatus === "offered"\s*\? null\s*: candidateInterviewWords\(candidateInterview, \{ company: named\.companyName, now: new Date\(\) \}\);/.test(page) && /const interviewLive = !!interviewWords;/.test(page));
   check("the page celebrates too, once, and the old pop-up is no longer raised for an interview", /<InterviewSelectedMoment\s+open=\{!!celebrateId\}/.test(page) && /interviewWords\?\.selected && candidateInterview && !hasCelebrated\(candidateInterview\.id\)/.test(page) && !/setStatusScreen\("interview_scheduled"\)/.test(page));
   check("the card sits on the lit surface, with the seal and the same sentence", /<InterviewSurface id="interview" tone="selected"/.test(card) && /<InterviewSeal size=\{54\} press=\{press\} \/>/.test(card) && (card.match(/SELECTED_TITLE/g) ?? []).length >= 4 && !/amber-bg|amber-fg/.test(card));
   check("…once only", page.split("<CandidateInterviewConfirmationCard").length === 2);

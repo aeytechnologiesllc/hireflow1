@@ -46,6 +46,7 @@ import { phaseDurationEstimates } from "@/lib/phaseDurations";
 import { buildCandidateJourney, positionFor, startLabelFor, titleFor } from "@/lib/candidateJourney";
 import { stepHasResult, stepIsDone, stepRoute, whereCandidateStands } from "@/lib/journeyProgress";
 import { glyphForKind } from "@/components/glyphForKind";
+import { appliedNames } from "@/lib/appliedNames";
 
 interface WorkflowStep {
   id: string;
@@ -137,24 +138,13 @@ export default function CandidateApplicationDetail() {
     enabled: !!id && !!user && !authLoading,
   });
 
-  // The employer's real, public-safe company name. jobs.department is a job
-  // department, not a company — employer_public_branding is the honest
-  // source (RLS keeps raw employer profiles invisible to candidates).
-  const employerId = application?.jobs?.employer_id;
-  const { data: employerBranding } = useQuery({
-    queryKey: ["candidate-application", "employer-branding", employerId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("employer_public_branding")
-        .select("company_name")
-        .eq("user_id", employerId!)
-        .maybeSingle();
-
-      if (error) throw error;
-      return data?.company_name ?? null;
-    },
-    enabled: !!employerId,
-  });
+  // The job and the business as they were when they applied (the
+  // application's own applied_job_title and applied_company_name, set by the
+  // database), never the job's title or the business's name today: the
+  // decline's link opens this page, and a business can close its job and
+  // rename it, or itself, to a fee ask after turning people down (the
+  // seventeenth security review, finding 1). src/lib/appliedNames.ts.
+  const named = appliedNames(application);
 
   // Fetch interview details when needed (for status screen)
   const fetchInterviewDetails = async (applicationId: string) => {
@@ -483,7 +473,7 @@ export default function CandidateApplicationDetail() {
   const standing = whereCandidateStands(phases, journeyApp);
 
   const job = application?.jobs;
-  const companyName = employerBranding || "This employer";
+  const companyName = named.companyName || "This employer";
 
   // Handle starting a phase action (quiz, typing test, etc.) — through the
   // one step-to-route map the step pages use too (journeyProgress.stepRoute).
@@ -566,7 +556,7 @@ export default function CandidateApplicationDetail() {
   const interviewWords =
     isRejected || isHired || applicationStatus === "offered"
       ? null
-      : candidateInterviewWords(candidateInterview, { company: employerBranding, now: new Date() });
+      : candidateInterviewWords(candidateInterview, { company: named.companyName, now: new Date() });
   const interviewLive = !!interviewWords;
   // "You've been selected": the moment, once for each interview on this browser.
   const celebrateId = interviewWords?.selected && candidateInterview && !hasCelebrated(candidateInterview.id) ? candidateInterview.id : null;
@@ -626,7 +616,7 @@ export default function CandidateApplicationDetail() {
       {/* Status Screen Overlay */}
       <CandidateStatusScreen
         state={statusScreen}
-        jobTitle={job?.title}
+        jobTitle={named.jobTitle ?? undefined}
         companyName={companyName}
         interviewDetails={interviewDetails || undefined}
         onClose={() => setStatusScreen(null)}
@@ -647,8 +637,8 @@ export default function CandidateApplicationDetail() {
 
       <InterviewSelectedMoment
         open={!!celebrateId}
-        companyName={employerBranding}
-        jobTitle={job?.title}
+        companyName={named.companyName}
+        jobTitle={named.jobTitle ?? undefined}
         about={interviewWords?.about}
         detail={interviewWords?.ask ?? ""}
         action={interviewWords?.action ?? ""}
@@ -679,8 +669,8 @@ export default function CandidateApplicationDetail() {
             <CandidateInterviewConfirmationCard
               interview={candidateInterview}
               applicationId={id!}
-              employerName={employerBranding}
-              jobTitle={job?.title}
+              employerName={named.companyName}
+              jobTitle={named.jobTitle ?? undefined}
             />
           </div>
         )}
@@ -690,7 +680,7 @@ export default function CandidateApplicationDetail() {
           {BRASS_RULE}
           <CardContent className="p-5 sm:p-6">
             <h1 className="font-display break-words text-2xl font-semibold text-foreground [overflow-wrap:anywhere]">
-              {job?.title}
+              {named.jobTitle ?? "Your application"}
             </h1>
             <p className="mt-1 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
               {companyName}
@@ -934,7 +924,7 @@ export default function CandidateApplicationDetail() {
         )}
 
         {/* Stay safe, and report the job (the 2026-10-11 mock-ups, #5). */}
-        {job && <SafetyNote job={{ id: job.id, title: job.title }} />}
+        {job && <SafetyNote job={{ id: job.id, title: named.jobTitle ?? "This job" }} />}
       </div>
 
       {/* Document Upload Dialog */}

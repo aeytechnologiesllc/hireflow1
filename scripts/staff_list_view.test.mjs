@@ -58,7 +58,15 @@ const tableRow = types.slice(tableStart, types.indexOf("        }\n", tableStart
 const tableCols = [...tableRow.matchAll(/^\s{10}(\w+)\??:/gm)].map((m) => m[1]);
 
 check("the applications row type was found", tableCols.length >= 20, String(tableCols.length));
-const missing = tableCols.filter((c) => !viewCols.includes(c));
+// Columns of applications the staff screens never read, each with its reason.
+// The job's title and the business's name as they were when the application
+// was made (20261025700000) are what the applicant's own side names (the
+// decline, the server's cards, their two emails and their two pages:
+// src/lib/appliedNames.ts); the hiring team's screens name its job by the job
+// itself. The view was made before them and does not carry them.
+const NOT_IN_VIEW = { applied_job_title: "the applicant's side only", applied_company_name: "the applicant's side only" };
+const missing = tableCols.filter((c) => !viewCols.includes(c) && !(c in NOT_IN_VIEW));
+check("…and those left out are still columns of applications, and still not in the view", Object.keys(NOT_IN_VIEW).every((c) => tableCols.includes(c) && !viewCols.includes(c)), Object.keys(NOT_IN_VIEW).join(", "));
 const extra = viewCols.filter((c) => !tableCols.includes(c));
 check("the view has every column of applications", missing.length === 0, missing.join(", "));
 check("...and nothing applications does not have", extra.length === 0, extra.join(", "));
