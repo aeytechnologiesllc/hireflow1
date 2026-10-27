@@ -623,8 +623,11 @@ const getEmailContent = (
     // download), and no mention of how the decision was reached. The words
     // are _shared/declineNote.ts, the same ones the Pass dialog shows the
     // owner before he confirms: thanks, "not this time", a door left open.
+    // The job and the business are as they were when the person applied
+    // (notificationAccess: a decline is no contact, so it carries nothing the
+    // business wrote since).
     status_rejected: {
-      subject: `An update on your ${data.job_title} application`,
+      subject: data.job_title?.trim() ? `An update on your ${data.job_title} application` : "An update on your application",
       html: wrapEmail(
         `An update from ${companyName || "the hiring team"}`,
         declineNoteLines(data.job_title).map((line) => `<p>${esc(line)}</p>`).join("\n         "),
@@ -904,6 +907,9 @@ const handler = async (req: Request): Promise<Response> => {
     // The business a hiring team's email puts in touch with its applicant,
     // recorded before it is sent (below; notificationAccess's contactFor).
     let contactFor: string | null = null;
+    // A decline: the application it is for, marked before it is sent so that
+    // it goes once (below; notificationAccess's declineOf).
+    let declineOf: string | null = null;
 
     const refuse = (status: number, body: Record<string, unknown>, retryAfter?: number) =>
       new Response(JSON.stringify(body), {
@@ -1035,7 +1041,7 @@ const handler = async (req: Request): Promise<Response> => {
           applicationsOf: async (candidateId) => {
             const { data: rows, error } = await supabase
               .from("applications")
-              .select("id, job_id, created_at, jobs(title, employer_id)")
+              .select("id, job_id, status, created_at, applied_job_title, applied_company_name, jobs(title, employer_id)")
               .eq("candidate_id", candidateId)
               .order("created_at", { ascending: false })
               .limit(200);
@@ -1043,7 +1049,16 @@ const handler = async (req: Request): Promise<Response> => {
             // deno-lint-ignore no-explicit-any
             return (rows ?? []).map((row: any) => {
               const job = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as { title?: string | null; employer_id?: string | null } | null;
-              return { id: row.id, job_id: row.job_id ?? null, job_title: job?.title ?? null, employer_id: job?.employer_id ?? null };
+              return {
+                id: row.id,
+                job_id: row.job_id ?? null,
+                job_title: job?.title ?? null,
+                employer_id: job?.employer_id ?? null,
+                status: row.status ?? null,
+                // As they were when the application was made (the database sets them): a decline names these.
+                applied_job_title: row.applied_job_title ?? null,
+                applied_company_name: row.applied_company_name ?? null,
+              };
             });
           },
           membershipsOf: async (userId) => {
@@ -1095,6 +1110,7 @@ const handler = async (req: Request): Promise<Response> => {
         data = access.data as NotificationRequest["data"];
         recipientRole = access.recipientRole;
         contactFor = access.contactFor ?? null;
+        declineOf = access.declineOf ?? null;
       }
     }
 
@@ -1236,6 +1252,28 @@ const handler = async (req: Request): Promise<Response> => {
       if (recorded !== true) console.warn(`[send-notification-email] ${type}: no contact recorded (the record has no application from them to this business)`);
     }
 
+    // A decline goes once for each application the team has turned down
+    // (docs/NOTIFICATION-EMAILS.md). It is no contact, so it carries only what
+    // was there when they applied (notificationAccess), and it is marked here,
+    // after the recipient's settings and before it is sent: two requests at
+    // once are one. Until the seventeenth Phase 5 review a business could send
+    // it to anyone who applied, as often as it liked (the sixteenth security
+    // review, P1: three each, to people still under review).
+    if (declineOf) {
+      const { data: first, error: claimError } = await supabase.rpc("decline_email_claim", { p_application: declineOf });
+      if (claimError) {
+        console.error(`[send-notification-email] ${type}: could not mark the decline, so nothing is sent:`, claimError.message);
+        return refuse(503, { error: "We couldn't send it just now. Please try again in a few minutes.", code: "try_later" });
+      }
+      if (first !== true) {
+        console.log(`[send-notification-email] ${type}: a decline has already gone for this application; not sent again`);
+        return new Response(
+          JSON.stringify({ message: "A decline was already sent for this application", code: "already_sent" }),
+          { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
+
     const emailContent = getEmailContent(type, data, recipientRole);
 
     console.log(`[send-notification-email] Sending email to ${recipientEmail} with subject: ${emailContent.subject}`);
@@ -1254,6 +1292,11 @@ const handler = async (req: Request): Promise<Response> => {
     // this answer, and every other caller's "sent" means the same.
     if (emailResponse?.error) {
       console.error(`[send-notification-email] The provider refused ${type} for ${recipientEmail}:`, JSON.stringify(emailResponse.error));
+      // Nothing went, so the decline may go again.
+      if (declineOf) {
+        const { error: releaseError } = await supabase.rpc("decline_email_release", { p_application: declineOf });
+        if (releaseError) console.error(`[send-notification-email] ${type}: could not take back the decline's mark:`, releaseError.message);
+      }
       return new Response(
         JSON.stringify({ success: false, error: "The email provider refused the message", provider_error: emailResponse.error }),
         { status: 502, headers: { "Content-Type": "application/json", ...corsHeaders } }

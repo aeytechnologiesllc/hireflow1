@@ -42,6 +42,17 @@
  * email to three people who had only applied, and their three reports left
  * it open).
  *
+ * A decline is not contact: it is the email a business sends most, to people
+ * it turned down, so counting it would let three of them pause a real
+ * business by reporting. So it carries no text the business can change after
+ * they applied: it names the job and the business as they were when they
+ * applied (the application's applied_job_title and applied_company_name, set
+ * by the database), and it goes only for an application the team has turned
+ * down, once (`declineOf`; the seventeenth Phase 5 review and the sixteenth
+ * security review, finding 1: renamed "Zulu: pay 1,500 PHP to GCash ...", or
+ * with its closed job renamed so, a business sent declines from that name to
+ * people still under review, three times each, and nothing recorded them).
+ *
  * No imports: plain Node loads this file for
  * scripts/notification_access.test.mjs, and the function for every send.
  */
@@ -164,6 +175,11 @@ export interface NotificationApplication {
   job_id: string | null;
   job_title: string | null;
   employer_id: string | null;
+  /** Where it stands ("rejected" once the hiring team has turned it down). */
+  status?: string | null;
+  /** The job's title and its business's name when it was made (set by the database, never by a browser). */
+  applied_job_title?: string | null;
+  applied_company_name?: string | null;
 }
 
 /** One active team membership. */
@@ -237,6 +253,12 @@ export type NotificationDecision =
        * (business_contacts_remember_email) and sends nothing when it cannot.
        */
       contactFor?: string;
+      /**
+       * A decline: the application it is for, one the team has turned down.
+       * The function marks it before it sends (decline_email_claim) and
+       * sends nothing when a decline has already gone for it.
+       */
+      declineOf?: string;
     };
 
 /* ── Small readers ──────────────────────────────────────────────────────── */
@@ -292,8 +314,12 @@ export function staffLinks(
  * was kept as asked ("they could rename it anyway"): up to 200 characters of
  * its own words in the subject and the first line, which nothing recorded
  * (the fifteenth security review's "You're joining <business> as CSR. Send
- * the 1,500 PHP onboarding fee to GCash ..."). A job renamed that way is on
- * the job page for everyone; an email's title is the job's own.
+ * the 1,500 PHP onboarding fee to GCash ..."). An email's title is the job's
+ * own. That is still the team's text: a closed job can be renamed to
+ * anything, and nobody else sees it (the seventeenth Phase 5 review, probe
+ * qj). So every email that names a job this way is contact (contactFor), and
+ * the one that is not, a decline, names the job as it was when they applied
+ * (applied_job_title), never this.
  */
 function jobTitleFor(asked: unknown, links: readonly NotificationApplication[]): string | undefined {
   const wanted = plainLine(asked, 200);
@@ -455,6 +481,17 @@ export async function decideNotification(
     if (rule.who === "staff") {
       const links = await teamLinks(rule.permission);
       if (links.length === 0) return { ok: false, refusal: NOT_ALLOWED };
+      // A decline is for an application the team has turned down: the one the
+      // request names when it is one of these, else the newest. None turned
+      // down, no decline (the sixteenth security review, P1: three declines
+      // each to people still under review). Once for each: the function marks
+      // it before it sends (declineOf).
+      const turnedDown = links.filter((l) => l.status === "rejected");
+      const declined =
+        type === "status_rejected"
+          ? (typeof asked.application_id === "string" ? turnedDown.find((l) => l.id === asked.application_id) : undefined) ?? turnedDown[0]
+          : undefined;
+      if (type === "status_rejected" && !declined) return { ok: false, refusal: NOT_ALLOWED };
       const limited = await overLimit(callerId, NOTIFICATION_LIMITS.staff, lookups);
       if (limited) return { ok: false, refusal: limited };
       const team = await lookups.profileOf(links[0].employer_id!).catch(() => null);
@@ -498,14 +535,19 @@ export async function decideNotification(
         recipientRole: "candidate",
         data: withDefined({
           ...kept,
-          job_title: (about && plainLine(about.job_title, 200)) ?? jobTitleFor(asked.job_title, links),
+          // A decline names the job and the business as they were when they
+          // applied (set by the database): a business can rename a closed
+          // job, or itself, to anything since, and nobody else sees it.
+          job_title: declined ? plainLine(declined.applied_job_title, 200) : ((about && plainLine(about.job_title, 200)) ?? jobTitleFor(asked.job_title, links)),
           // Who signs it: the job owner's own business name, whatever the request said.
-          company_name: plainLine(team?.company_name, 120),
+          company_name: declined ? plainLine(declined.applied_company_name, 120) : plainLine(team?.company_name, 120),
         }),
         // The team's own words to someone who applied: contact, for the business that signs it. Never a decline,
-        // which carries no words of the team's but its name: the email a business sends most, to people it turned
-        // down, so three of them could pause it by reporting; a hire is the lure the security review used.
+        // the email a business sends most, to people it turned down, so three of them could pause it by reporting;
+        // it carries only what was there when they applied, once, for a real decline (declineOf). A hire is the
+        // lure the fifteenth security review used.
         contactFor: type === "status_rejected" ? undefined : links[0].employer_id!,
+        declineOf: declined?.id,
       };
     }
 

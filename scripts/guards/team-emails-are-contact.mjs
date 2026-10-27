@@ -50,11 +50,12 @@ export default [
       // The decision names the business for the team's own emails, and only there.
       const named = access.match(/contactFor: [^,}]+/g) ?? [];
       if (named.length !== 2 || !named.includes("contactFor: type === \"status_rejected\" ? undefined : links[0].employer_id!") || !named.includes("contactFor: toApplicant[0].employer_id!"))
-        detail.push(`supabase/functions/_shared/notificationAccess.ts: the hiring team's emails to an applicant (a staff kind, a message) must name the job's business as contactFor (every staff kind but a decline, which carries no words of the team's but its name), and nothing else may (found ${JSON.stringify(named)})`);
+        detail.push(`supabase/functions/_shared/notificationAccess.ts: the hiring team's emails to an applicant (a staff kind, a message) must name the job's business as contactFor (every staff kind but a decline, which carries only what was there when they applied: guard decline-names-the-job-as-applied), and nothing else may (found ${JSON.stringify(named)})`);
       // The words: the job's own title, the interview's own times.
       if (
         !/function jobTitleFor\(asked: unknown, links: readonly NotificationApplication\[\]\): string \| undefined \{ const wanted = plainLine\(asked, 200\); const titles = links\.map\(\(l\) => plainLine\(l\.job_title, 200\)\)\.filter\(\(t\): t is string => !!t\); if \(wanted && titles\.includes\(wanted\)\) return wanted; return titles\[0\]; \}/.test(access) ||
-        !access.includes("job_title: (about && plainLine(about.job_title, 200)) ?? jobTitleFor(asked.job_title, links),") ||
+        // (A decline names the job as it was when they applied: guard decline-names-the-job-as-applied.)
+        !access.includes(": ((about && plainLine(about.job_title, 200)) ?? jobTitleFor(asked.job_title, links)),") ||
         !access.includes("job_title: jobTitleFor(asked.job_title, toApplicant),") ||
         /job_title: plainLine\(asked\.job_title/.test(access)
       )
@@ -107,12 +108,14 @@ export default [
         detail.push(`${pause?.rel ?? "supabase/migrations"}: only a new report may ring "reported 3 times" (IF TG_OP = 'INSERT' AND applied = 3 ...): a report added to an open one brings nobody new`);
       const report = await latestDefinition(ctx, "report_employer");
       const body = plain(report?.body);
-      // The merge sets both columns the trigger watches, adds only new words,
-      // and tells every admin when it says something new, five times a day at most.
-      if (!/UPDATE public\.employer_reports SET reason = p_reason, details = CASE WHEN clean IS NULL THEN details ELSE left\(coalesce\(details \|\| E'\\n\\n', ''\) \|\| clean, 1000\) END WHERE id = existing RETURNING reason, details INTO now_reason, now_details;/i.test(body))
-        detail.push(`${report?.rel ?? "supabase/migrations"}: report_employer's merge must set the reason and the details (which works the pause out again) and add only new words, as written`);
-      if (!/IF FOUND AND \(now_reason IS DISTINCT FROM was_reason OR now_details IS DISTINCT FROM was_details\) AND coalesce\(\(public\.check_rate_limit\('report-added', me::text, 5, 86400\) ->> 'allowed'\)::boolean, true\) THEN INSERT INTO public\.notifications \(user_id, type, title, message, link, is_read\) SELECT a\.user_id, 'system', 'A job was reported',/i.test(body))
-        detail.push(`${report?.rel ?? "supabase/migrations"}: report_employer's merge must tell every admin ("A job was reported") when it says something new, at most five times a day for one person`);
+      // The merge sets both columns the trigger watches, adds only new words
+      // and keeps the newest (the old text is cut from the front: the
+      // seventeenth Phase 5 review, probe pf), and tells every admin whenever
+      // it brings words or a new reason, five times a day at most.
+      if (!/UPDATE public\.employer_reports SET reason = p_reason, details = CASE WHEN clean IS NULL THEN details ELSE right\(coalesce\(details \|\| E'\\n\\n', ''\) \|\| left\(clean, 1000\), 1000\) END WHERE id = existing RETURNING reason, details INTO now_reason, now_details;/i.test(body))
+        detail.push(`${report?.rel ?? "supabase/migrations"}: report_employer's merge must set the reason and the details (which works the pause out again), add only new words and keep the newest, as written`);
+      if (!/IF FOUND AND \(now_reason IS DISTINCT FROM was_reason OR clean IS NOT NULL\) AND coalesce\(\(public\.check_rate_limit\('report-added', me::text, 5, 86400\) ->> 'allowed'\)::boolean, true\) THEN INSERT INTO public\.notifications \(user_id, type, title, message, link, is_read\) SELECT a\.user_id, 'system', 'A job was reported',/i.test(body))
+        detail.push(`${report?.rel ?? "supabase/migrations"}: report_employer's merge must tell every admin ("A job was reported") whenever it brings words or a new reason, at most five times a day for one person`);
       return { ok: detail.length === 0, detail };
     },
   },

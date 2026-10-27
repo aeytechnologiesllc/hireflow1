@@ -103,8 +103,8 @@ Anyone signed in can report a job (`report_employer`): asked for money,
 suspicious documents, fake job, unsafe, or something else, with a note. One
 open report per person per job (a second adds to the first, and is worked
 out again like a new one), at most five a day. Every admin is told in their
-bell (of an addition, when it says something new, at most five times a day
-for one person). A reporter reads only their own
+bell (of an addition, whenever it brings words or a new reason, at most five
+times a day for one person). A reporter reads only their own
 reports; the reported business never sees who reported it. Three open
 reports from different people it has been in touch with pause the business by
 itself (see Standing).
@@ -115,7 +115,8 @@ team, a document or a document request on the reporter's application, or an
 interview on it (and, since the fifteenth Phase 5 review, a card the
 business or its team wrote into their bell; since the sixteenth, an email
 the hiring team sent them and a new time, link or notes on their
-interview). Only the business can make any of these, so a stranger
+interview; since the seventeenth, the hiring team moving their application
+forward). Only the business can make any of these, so a stranger
 cannot manufacture them; Ava never messages, sends papers or books
 interviews. Before, three people who had merely applied were enough, and
 applying costs nothing (no email confirmation, no bot check yet): three
@@ -143,18 +144,23 @@ time and, since the fifteenth review, last time; one row each):
 | `applied` | an application is made | the job's owner |
 | `message` | a message is sent | each business the receiver applied to whose owner, or anyone on whose team, sent it |
 | `message` | a browser writes a card into the bell of someone who applied (since the fifteenth review) | each business whose job they applied to and whose owner, or active teammate on that job, wrote it |
-| `message` | the hiring team's email goes to someone who applied (since the sixteenth review; send-notification-email, before it sends) | the job's owner, who signs it |
+| `message` | the hiring team's email goes to someone who applied (since the sixteenth review; send-notification-email, before it sends), never a decline | the job's owner, who signs it |
+| `message` | the hiring team moves an application from a browser to an interview, an offer, a hire or another step (since the seventeenth review), never to rejected | the job's owner |
 | `document_request` | papers are asked for | the application's job's owner |
 | `document` | a document is sent | the application's job's owner |
-| `interview` | an interview is booked, or a browser changes its time, link or notes (since the sixteenth review) | the application's job's owner |
+| `interview` | an interview is booked, or a browser changes its time, its offered times, its link or its notes (since the sixteenth review) | the application's job's owner |
 
 - The rows are written by `business_contacts_remember`, an AFTER INSERT
   trigger for each row on `applications`, `messages`, `document_requests`,
   `documents` and `interviews` (and on `notifications`, for a browser's own
   card only, since the fifteenth review; and AFTER UPDATE on `interviews`, for
   a browser's new time, link or notes, since the sixteenth), with its own
-  rights, and by `business_contacts_remember_email` for the hiring team's
-  emails (since the sixteenth: the server's only). The business is read
+  rights, by `business_contacts_remember_email` for the hiring team's
+  emails (since the sixteenth: the server's only), and by
+  `business_contacts_remember_move` for the hiring team's moves of an
+  application (AFTER UPDATE OF status, phase on `applications`, for a
+  browser's own move by the job's owner or an active teammate on it, since
+  the seventeenth). The business is read
   from the application's job (for a message, a job the receiver applied
   to), never from a column the business writes, so one business cannot make
   another look in touch, and an applicant's own message to a business is no
@@ -266,7 +272,8 @@ teammate was taken off the team. Now:
   business itself; the record's own `ON CONFLICT ... last_at`). Every kind
   the team sends an applicant counts (a hire, a step, an interview, a
   document, a request, a message) but a decline: each carries at least the
-  business's own name, which it chooses. An email the applicant turned off is not sent and
+  business's own name, which it chooses (a decline carries only the name and
+  the title it had when they applied, since the seventeenth review: below). An email the applicant turned off is not sent and
   records nothing; when the record cannot be written, nothing is sent (503).
   An email after an admin's close makes a heard person count again, like a
   message. The applicant's own emails and the system's never count.
@@ -278,10 +285,14 @@ teammate was taken off the team. Now:
   GCash ..." with no interview behind them). A step's or a document's name, a
   date and a message preview are still the page's (docs/NOTIFICATION-EMAILS.md);
   the record covers them.
-- A decline email is not contact. It carries no words of the team's but its
-  name, and it is the email a business sends most, to people it turned down:
-  counted, three of them could pause it by reporting. A hire is (the lure the
-  security review used); so is anything else the team writes them.
+- A decline email is not contact: it is the email a business sends most, to
+  people it turned down, and counted, three of them could pause it by
+  reporting. A hire is (the lure the security review used); so is anything
+  else the team writes them. (This said a decline "carries no words of the
+  team's but its name". It carried the job's title too, which a business can
+  rename after they applied, and went to anyone who applied, as often as it
+  liked: the seventeenth Phase 5 review and the sixteenth security review,
+  below.)
 - A report added to the reporter's open report on the same job (one open
   report per person per job) is worked out again, as a new one is
   (`employer_reports_auto_pause_on_merge`, AFTER UPDATE OF reason, details,
@@ -296,6 +307,9 @@ teammate was taken off the team. Now:
   reason or more words ("A job was reported": "Someone added to their report
   of ..."), at most five times a day for one person, and an addition with
   nothing new tells nobody and adds no blank lines (it used to add two).
+  (Until the seventeenth review "more words" was whatever fitted in 1,000
+  characters after the old text: a first report that filled the box kept
+  none of the addition, and nobody was told. Below.)
   Only a new report rings "reported 3 times": an addition brings nobody new.
   Someone heard and not written to again still counts for nothing.
 - A browser's change of an interview's time (`scheduled_at`, or the offered
@@ -330,6 +344,88 @@ teammate was taken off the team. Now:
   review's `contact_move` and `contact_bell`, and the bell's words); guards
   `reopen-holds`, `bell-card-is-contact`, `interview-stays-on-its-application`
   and `contact-counts-as-made`.
+
+**A decline names the job as they applied, and goes once; the hiring team's
+moves are contact; a repeat report keeps its newest words (the seventeenth
+Phase 5 review and the sixteenth security review, 2026-10-26;
+`20261025700000_decline_names_the_job_as_applied.sql`).**
+
+A decline stays no contact (above: it is the email a business sends most,
+to people it turned down). What both reviews showed is that it, and the
+server's own cards, carried text the business can change after the person
+applied: the job's title (a closed job can be renamed to anything, and
+nobody else sees it: the Phase 5 review's probe qj) and the business's own
+name. So that text is taken away from them, rather than counting the
+decline.
+
+- The hiring team's moves of an application are contact. The Phase 5
+  review's probe po: the owner closed its job, renamed it "Chat support
+  agent. To accept, pay the 1,500 PHP onboarding kit fee by GCash to 0917
+  000 0000 today and send the receipt to recruit.cruz@gmail.com", moved three
+  applicants to an offer (as the Advance button does) and one to a hire,
+  and renamed it back. Each got "Congratulations! You've received an offer
+  for Chat support agent. To accept, pay ..." in their bell, pushed to their
+  phone; moving someone to an offer sends no email, so the record held
+  "applied" only, and their three reports left the business open. Now a
+  browser's move of an application to an interview, an offer or a hire, or to
+  another step, records a `message` for the job's business
+  (`business_contacts_remember_move`, AFTER UPDATE OF status, phase on
+  `applications`, `WHEN (current_user = 'authenticated')` and it is such a
+  move), when the writer is the job's owner or an active teammate on that job
+  (`is_job_owner` / `is_active_team_member_for_job`). Never a move to
+  rejected (a decline), never the applicant's own (their step moves are the
+  server's), never the server's own (written inside SECURITY DEFINER
+  functions or by the service role), and never a move to review, which tells
+  them nothing.
+- An application keeps the job's title and the business's name as they were
+  when it was made (`applications.applied_job_title`, `applied_company_name`),
+  set by the database on every insert whatever was sent
+  (`applications_as_applied`, BEFORE INSERT), and kept from every browser
+  afterwards, the applicant's and the hiring team's (BEFORE UPDATE,
+  `WHEN (current_user IN ('anon', 'authenticated'))`: the old values stay).
+  The applications already there were filled from that day's titles and names.
+  The server's decision and step cards (a decline, an offer, a hire, a next
+  step: `notify_application_status_change`,
+  `notify_application_phase_advanced`) name the job, and a decline the
+  business, by them. So does the decline email: its subject, heading, first
+  line, signature and From name. The cards about an interview still name the
+  job's own title: an interview is contact.
+- A decline goes only for an application the team has turned down (status
+  `rejected`), once. send-notification-email picks the application the
+  request names when it is one of the recipient's that the caller is the
+  hiring team for and it is turned down, else the newest such; with none it
+  refuses (403). Before it sends, after the recipient's settings, it marks
+  that application (`decline_email_claim`, service role only: one row in
+  `private.decline_emails`, primary key the application, so two requests at
+  once are one); a second decline for it sends nothing (200, `already_sent`),
+  a mark that cannot be written sends nothing (503), and a decline the mail
+  provider refused is unmarked (`decline_email_release`) so the next try can
+  send it. The security review's probe P1 (three declines to each of three
+  people still under review, from a business renamed "Zulu: pay 1,500 PHP to
+  GCash 0917 000 0000 to stay in the pool") is refused; P1b (the job renamed
+  instead) and the Phase 5 review's pd (a closed job renamed "CSR
+  (reconsideration: send 500 PHP to GCash 0917 000 0000, then message us
+  REAPPLY)") send the decline once, naming the job and the business as they
+  were when they applied. The declines made before the migration were marked
+  as sent (the screens send each right after the move); a mark goes with its
+  application. Moving someone back and turning them down again sends no
+  second decline.
+- A repeat report keeps its newest words. The merge added the new words
+  after the old and cut the whole at 1,000 characters, so a first report that
+  used the whole box (the applicant pasted the recruiter's messages) kept
+  none of the second, the business's new demand ("pay 3,000 PHP more today
+  ... New GCash number 0918 111 2222"), and with the same reason no admin was
+  told (the Phase 5 review's probe pf). Now the old text is cut from the front
+  (`right(…, 1000)`), and every admin is told whenever an addition brings
+  words or a new reason, at most five times a day for one person.
+- Proof: `scripts/launch_locks_behaviour.pglite.test.mjs` section 26 (probes
+  po and pf, each move and each thing that is not one, the cards, the
+  columns kept from every browser and filled by the migration, the mark, and
+  the review's N3: new offered times alone are contact);
+  `scripts/notification_access.test.mjs` section 3c (P1, P1b and pd, once,
+  which application, the mark) and C; guards `team-moves-are-contact`,
+  `decline-names-the-job-as-applied`, `decline-once-for-a-real-decline` and
+  `repeat-report-worked-out-again`.
 
 ## Admins
 

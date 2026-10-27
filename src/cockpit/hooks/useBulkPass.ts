@@ -64,7 +64,7 @@ export function useBulkPass() {
             result.passed += 1;
             failuresInARow = 0;
             if (target.candidateId) {
-              const emailed = await notifyStatusRejected(target.candidateId, target.jobTitle || "Position");
+              const emailed = await notifyStatusRejected(target.candidateId, target.jobTitle || "Position", undefined, target.applicationId);
               if (emailed === "sent") result.emailed += 1;
             }
           } catch (error) {

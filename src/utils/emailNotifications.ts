@@ -322,16 +322,22 @@ export async function notifyDocumentRequested(
 }
 
 /**
- * Notify candidate when their application is rejected
+ * Notify candidate when their application is rejected. Sent right after the
+ * move: the function sends a decline only for an application that is turned
+ * down, once, and names the job and the business as they were when the
+ * person applied (docs/NOTIFICATION-EMAILS.md).
  */
 export async function notifyStatusRejected(
   candidateId: string,
   jobTitle: string,
-  companyName?: string
+  companyName?: string,
+  /** The application turned down: the decline is for it. */
+  applicationId?: string
 ): Promise<EmailStatus> {
   return sendNotificationEmail("status_rejected", candidateId, {
     job_title: jobTitle,
     company_name: companyName,
+    ...(applicationId ? { application_id: applicationId } : {}),
   });
 }
 

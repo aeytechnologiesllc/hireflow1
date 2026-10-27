@@ -525,7 +525,27 @@ these either; each has a guard or a test that CI runs:
   (docs/BUSINESS-TRUST.md: Turnstile is the fix). Guards
   `team-emails-are-contact`, `repeat-report-worked-out-again`,
   `interview-edit-is-contact`; launch_locks_behaviour section 25;
-  notification_access sections 3b and C.
+  notification_access sections 3b and C. (The seventeenth Phase 5 review and
+  the sixteenth security review, `20261025700000`.) A decline stays no
+  contact (the email sent most, to people turned down), so it carries
+  nothing the business can change after they applied: an application keeps
+  the job's title and the business's name as they were when it was made
+  (`applied_job_title`, `applied_company_name`, set by `applications_as_applied`
+  on insert and kept from every browser), and the decline email (subject,
+  heading, first line, signature, From name) and the server's decision and
+  step cards name those (a closed job renamed "To accept, pay the 1,500 PHP
+  ... by GCash" had reached every applicant's bell and phone). A decline goes
+  only for an application that is turned down, once (`decline_email_claim`,
+  service role only, `private.decline_emails`, before it sends; 503 when it
+  cannot mark, `already_sent` after the first; `decline_email_release` when
+  the provider refuses). The hiring team's browser moving an application to
+  an interview, an offer, a hire or another step is a `message` contact
+  (`business_contacts_remember_move`, AFTER UPDATE OF status, phase, never a
+  move to rejected or the applicant's own). A repeat report keeps its newest
+  words (the old text is cut from the front) and rings "A job was reported"
+  whenever it brings words. Guards `team-moves-are-contact`,
+  `decline-names-the-job-as-applied`, `decline-once-for-a-real-decline`;
+  launch_locks_behaviour section 26; notification_access sections 3c and C.
 - HireFlow's own jobs have their own AI day
   (`ai_platform_business_daily_call_cap`, 6,000 of the platform's 10,000;
   `20261025300000_ai_budget_own_jobs.sql`): they were uncounted, so one

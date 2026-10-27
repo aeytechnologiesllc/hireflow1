@@ -43,7 +43,7 @@ The function works out who is asking itself (`identifyCaller`):
 
 | kind | who may ask | to whom |
 | --- | --- | --- |
-| `status_rejected`, `status_hired`, `phase_advanced` | the job's owner, or an active team member of that owner with **manage pipeline** | someone who applied to that job |
+| `status_rejected`, `status_hired`, `phase_advanced` | the job's owner, or an active team member of that owner with **manage pipeline** | someone who applied to that job (a decline: only for an application of theirs that is turned down, once; below) |
 | `interview_scheduled`, `interview_pick_time`, `interview_cancelled`, `interview_rescheduled` | the owner, or a team member with **schedule interviews** | someone who applied to that job |
 | `document_sent`, `document_requested` | the owner, or a team member with **send documents** | someone who applied to that job |
 | `new_message` | the owner, or a team member with **message candidates**, to an applicant of theirs; or an applicant, to the owner of a job they applied to | the other of the two |
@@ -88,7 +88,9 @@ The words that matter are looked up, never taken from the request:
   could name "their own job" as they liked, and the fifteenth security
   review sent "You're joining <business> as CSR. Send the 1,500 PHP
   onboarding fee to GCash ..." that way. When a hiring team's request names
-  one of the applications (`application_id`), its job names the email;
+  one of the applications (`application_id`), its job names the email. A
+  decline names the job, and the business, as they were when the person
+  applied (below);
 - **an interview invitation's times** (`interview_pick_time`): the
   interview's own offered times still ahead (`employer_windows`), soonest
   first, at most 12, on the applicant's clock (`_shared/interviewTimes.ts`,
@@ -118,9 +120,9 @@ these emails. A business could email its applicants its own words with no
 row behind them (above), and three people it emailed could not pause it (the
 fifteenth security review, finding 1, MEDIUM). Now every email the hiring
 team sends to someone who applied (a staff kind in the table above, or a
-message to an applicant) but a decline (no words of the team's but its
-name, and the email it sends most: counted, three people it turned down
-could pause it) is recorded as a `message` contact for the job's
+message to an applicant) but a decline (the email it sends most: counted,
+three people it turned down could pause it; it carries only what was there
+when they applied, below) is recorded as a `message` contact for the job's
 owner, who signs it (`contactFor`, decided by `notificationAccess.ts`
 alone), through `business_contacts_remember_email` (service role only). It
 is recorded after the recipient's email settings are read (an email they
@@ -130,6 +132,46 @@ emails and the system's are never recorded. Who may send what, and to whom,
 is unchanged.
 
 The system's own requests are sent as asked, as they always were.
+
+## A decline: a real one, once, naming what they applied to (2026-10-26)
+
+A decline is not contact, so it may carry nothing the business can change
+after the person applied. This page said a decline carried "no words of the
+team's but its name"; it carried the job's title too, which a business can
+rename to anything once the job is closed (nobody else sees it), and its own
+name, and it went to anyone who applied, as often as the business liked. The
+sixteenth security review sent three each, from a business renamed "Zulu:
+pay 1,500 PHP to GCash 0917 000 0000 to stay in the pool", to people still
+under review (P1), and the same with the job renamed instead (P1b); the
+seventeenth Phase 5 review sent it after renaming a closed job "CSR
+(reconsideration: send 500 PHP to GCash 0917 000 0000, then message us
+REAPPLY)" (pd). Each went from the business by name, and nothing recorded
+it. Since `20261025700000`:
+
+- **Only for a real decline.** `status_rejected` is decided as before (the
+  job's owner, or a teammate with manage pipeline, to someone who applied),
+  and then only for an application of theirs that is turned down (status
+  `rejected`): the one the request names (`application_id`, which the Pass
+  screens send) when it is one, else the newest. With none, 403
+  `not_allowed`, counted against nobody.
+- **Once.** After the recipient's settings are read and before it is sent,
+  the function marks that application (`decline_email_claim`, service role
+  only, one row for each application in `private.decline_emails`), and sends
+  nothing when it was already marked (200 `already_sent`, which the pages
+  read as "not sent") or the mark cannot be written (503 `try_later`). A
+  decline the provider refuses is unmarked (`decline_email_release`), so a
+  later try can send it. A decline the applicant turned off is neither sent
+  nor marked.
+- **Named as they applied.** Its subject, heading, first line, signature and
+  From name name the job and the business by the application's own
+  `applied_job_title` and `applied_company_name`: set by the database when
+  the application is made, never changed by a browser (docs/BUSINESS-TRUST.md).
+  The request's title and name are never read, and neither are the job's or
+  the profile's today.
+
+The other kinds still name the job's own title and the business's own name
+today: each is contact (above), so three people it reached that way pause
+it by their reports.
 
 ## How the system really calls (found 2026-10-07, five hours after the lock)
 
@@ -192,11 +234,12 @@ request is not counted against anyone.
 ## Answers
 
 `200 { success: true, recipient }` when the mail provider accepted it; `200`
-with no `success` when the recipient has that kind turned off; `400
+with no `success` when the recipient has that kind turned off, or a decline
+already went for that application (`already_sent`); `400
 unknown_type`; `401 not_signed_in`; `403 not_allowed`; `429 too_many`; `502`
 when the provider refused the message; `503 try_later` when it could not
-look up whose request this was, or could not record a hiring team's email as
-contact (nothing is sent either way). The pages already treat
+look up whose request this was, could not record a hiring team's email as
+contact, or could not mark a decline (nothing is sent in any of them). The pages already treat
 anything but an explicit success as "not sent" (`src/utils/emailStatus.ts`).
 
 No page had to change: the rules read who is asking and who it is for, both
@@ -232,4 +275,9 @@ hiring team's kinds to an applicant, from the owner and from a teammate, is
 recorded as contact for the owner's business before it is sent, and nothing
 else is; a record that cannot be written sends nothing; a made-up job title
 and the request's own interview "times" never reach the email, the
-interview's own times do (section 3b).
+interview's own times do (section 3b). Since the seventeenth Phase 5 review
+(section 3c): a decline to someone not turned down is refused (the security
+review's P1), a decline goes once for each application turned down (four at
+once are one; a provider's refusal lets it go again), and it names the job
+and the business as they were when the person applied, whatever the job or
+the business is called now (P1b, pd).

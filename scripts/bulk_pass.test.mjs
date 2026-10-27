@@ -123,7 +123,9 @@ console.log("\nHow it is sent\n");
   check("it writes the Pass's own fields, by application id", /\.from\("applications"\)\s*\.update\(passUpdate\(user\?\.id \?\? null\) as never\)\s*\.eq\("id", target\.applicationId\)/.test(hook));
   check("…and only where the status is still one a Pass may change", /\.in\("status", \[\.\.\.PASSABLE_STATUSES\] as never\)/.test(hook));
   check("nothing changed means they had moved on: counted, not a failure", /if \(!Array\.isArray\(data\) \|\| data\.length === 0\) \{[\s\S]{0,160}?result\.moved \+= 1;/.test(hook));
-  check("the note is the single Pass's own, and it is waited for", /const emailed = await notifyStatusRejected\(target\.candidateId, target\.jobTitle \|\| "Position"\);/.test(hook) && /if \(emailed === "sent"\) result\.emailed \+= 1;/.test(hook));
+  // Naming the application just turned down: the function sends a decline
+  // only for one, once (the seventeenth Phase 5 review).
+  check("the note is the single Pass's own, for the application just passed on, and it is waited for", /const emailed = await notifyStatusRejected\(target\.candidateId, target\.jobTitle \|\| "Position", undefined, target\.applicationId\);/.test(hook) && /if \(emailed === "sent"\) result\.emailed \+= 1;/.test(hook));
   check("one person at a time: no Promise.all, no burst", !/Promise\.all/.test(hook) && /for \(let i = 0; i < targets\.length; i \+= 1\)/.test(hook));
   check("it stops after three failures in a row", /if \(failuresInARow >= BULK_PASS_STOP_AFTER\) \{\s*result\.stopped = true;\s*break;/.test(hook) && P.BULK_PASS_STOP_AFTER === 3);
   // It reads the applications table back after a Pass that changed nothing

@@ -112,10 +112,12 @@ function freshWorld() {
     ],
     applications: [
       // Ana's computer check recorded her clock (src/lib/interviewTimes.ts): her invitations are on it.
-      { id: id(201), candidate_id: ANA, job_id: JOB_A, status: "reviewing", created_at: "2026-10-05T10:00:00Z", notes: { equipmentCheckResult: { device: { timezone: "Asia/Manila" } } } },
-      { id: id(202), candidate_id: ANA, job_id: JOB_B, status: "reviewing", created_at: "2026-10-06T10:00:00Z" },
-      { id: id(203), candidate_id: BEN, job_id: JOB_B, status: "reviewing", created_at: "2026-10-06T11:00:00Z" },
-      { id: id(204), candidate_id: CAT, job_id: JOB_X, status: "reviewing", created_at: "2026-10-06T12:00:00Z" },
+      // Each keeps the job's title and the business's name as they were when it
+      // was made (applied_job_title, applied_company_name: the database sets them).
+      { id: id(201), candidate_id: ANA, job_id: JOB_A, status: "reviewing", created_at: "2026-10-05T10:00:00Z", notes: { equipmentCheckResult: { device: { timezone: "Asia/Manila" } } }, applied_job_title: TITLE_A, applied_company_name: "Zulu Support Team" },
+      { id: id(202), candidate_id: ANA, job_id: JOB_B, status: "reviewing", created_at: "2026-10-06T10:00:00Z", applied_job_title: TITLE_B, applied_company_name: "Zulu Support Team" },
+      { id: id(203), candidate_id: BEN, job_id: JOB_B, status: "reviewing", created_at: "2026-10-06T11:00:00Z", applied_job_title: TITLE_B, applied_company_name: "Zulu Support Team" },
+      { id: id(204), candidate_id: CAT, job_id: JOB_X, status: "reviewing", created_at: "2026-10-06T12:00:00Z", applied_job_title: TITLE_X, applied_company_name: "Rival Co" },
     ],
     team_members: [
       { user_id: TEAM_ALL, employer_id: OWNER, status: "active", assigned_job_ids: [], can_manage_pipeline: true, can_schedule_interviews: true, can_send_documents: true, can_message_candidates: true },
@@ -129,6 +131,9 @@ function freshWorld() {
     // What the record of contact was told (business_contacts_remember_email), with how many emails had gone by then.
     contacts: [],
     recordDown: false,
+    // The applications a decline has gone for (decline_email_claim), and whether that mark can be written.
+    declines: [],
+    declineMarkDown: false,
     sent: [],
     counters: new Map(),
     limiterDown: false,
@@ -267,6 +272,7 @@ function client() {
     rpc: async (fn, args) => {
       if (world.databaseDown) return { data: null, error: { message: "stand-in: database down" } };
       if (world.recordDown && fn === "business_contacts_remember_email") return { data: null, error: { message: "stand-in: the record cannot be written" } };
+      if (world.declineMarkDown && fn === "decline_email_claim") return { data: null, error: { message: "stand-in: the mark cannot be written" } };
       const answer = world.rpcs?.[fn];
       return answer ? { data: answer(args), error: null } : { data: null, error: { message: `stand-in: no ${fn}` } };
     },
@@ -320,6 +326,18 @@ function reset(change) {
       world.contacts.push({ employer: p_employer, person: p_person, sentBefore: world.sent.length });
       return p_employer !== p_person && world.applications.some((a) => a.candidate_id === p_person && world.jobs.find((j) => j.id === a.job_id)?.employer_id === p_employer);
     },
+    // As the database answers it: true once for an application that is turned
+    // down (and marks it), false for one that is not, or already marked.
+    decline_email_claim: ({ p_application }) => {
+      const app = world.applications.find((a) => a.id === p_application);
+      if (!app || app.status !== "rejected" || world.declines.includes(p_application)) return false;
+      world.declines.push(p_application);
+      return true;
+    },
+    decline_email_release: ({ p_application }) => {
+      world.declines = world.declines.filter((a) => a !== p_application);
+      return null;
+    },
   };
   world.mail = async (payload) => {
     if (world.providerRefuses) return { data: null, error: { name: "daily_quota_exceeded", message: "stand-in refusal" } };
@@ -371,6 +389,18 @@ const offering = (starts, over = {}) => (w) => {
   ];
 };
 const ONE = ahead(5, 6);
+// A decline goes only for an application the team has turned down, once
+// (the seventeenth Phase 5 review). These turn them down: the ones named, or
+// every one.
+const turnedDown = (...ids) => (w) => {
+  for (const a of w.applications) if (ids.length === 0 || ids.includes(a.id)) a.status = "rejected";
+};
+/** The owner's business had this name when they applied (a decline names it), and has it now. */
+const namedSo = (name) => (w) => {
+  w.profiles.find((p) => p.user_id === OWNER).company_name = name;
+  for (const a of w.applications) if (w.jobs.find((j) => j.id === a.job_id)?.employer_id === OWNER) a.applied_company_name = name;
+};
+const both = (...changes) => (w) => changes.forEach((change) => change(w));
 
 reset();
 const quiet = console.log;
@@ -423,14 +453,15 @@ void quiet;
   for (const kind of ["status_hired", "status_rejected", "phase_advanced", "interview_scheduled", "document_sent"]) {
     const bad = [];
     for (const [label, token, to] of tries) {
-      const r = await hush(async () => (reset(), ask(token, { type: kind, recipient_user_id: to, data: { ...HOSTILE, phase_name: "Hired", interview_date: "Monday", interview_time: "9", document_name: "Offer" } })));
+      // Every application turned down, so that a decline is refused only for who is asking.
+      const r = await hush(async () => (reset(turnedDown()), ask(token, { type: kind, recipient_user_id: to, data: { ...HOSTILE, phase_name: "Hired", interview_date: "Monday", interview_time: "9", document_name: "Offer" } })));
       if (r.status !== 403 || r.body?.code !== "not_allowed" || world.sent.length !== 0) bad.push(`${label}: ${r.status} ${show(r.body)} sent=${world.sent.length}`);
     }
     check(`${kind}: nobody who is not the hiring team for that applicant can send it (9 ways tried)`, bad.length === 0, bad.join(" | "));
   }
-  const limitedOk = await hush(async () => (reset(), ask("tok-team-job-b", { type: "status_rejected", recipient_user_id: BEN, data: {} })));
+  const limitedOk = await hush(async () => (reset(turnedDown(id(203))), ask("tok-team-job-b", { type: "status_rejected", recipient_user_id: BEN, data: {} })));
   check("…while a team member limited to a job CAN decide on that job's applicant", limitedOk.status === 200 && world.sent.length === 1 && show(world.sent[0].to) === show([emailOf(BEN)]), show(limitedOk));
-  const limitedNo = await hush(async () => (reset((w) => { w.applications = w.applications.filter((a) => !(a.candidate_id === ANA && a.job_id === JOB_B)); }), ask("tok-team-job-b", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
+  const limitedNo = await hush(async () => (reset(both(turnedDown(), (w) => { w.applications = w.applications.filter((a) => !(a.candidate_id === ANA && a.job_id === JOB_B)); })), ask("tok-team-job-b", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
   check("…and not on an applicant who only applied to a job they are not on", limitedNo.status === 403 && world.sent.length === 0, show(limitedNo));
 }
 
@@ -468,20 +499,20 @@ void quiet;
   r = await hush(async () => (reset((w) => { w.documents = offerLetter(-3600_000); }), ask("tok-owner", { type: "status_hired", recipient_user_id: ANA, data: { job_title: TITLE_A, application_id: id(201) } })));
   check("…but not one past its date: the hire still goes, without that line", r.status === 200 && world.sent.length === 1 && !textOf(world.sent[0]).includes("Sign your offer letter") && textOf(world.sent[0]).includes(`You're joining Zulu Support Team as ${TITLE_A}`), textOf(world.sent[0] ?? { html: "" }).slice(0, 320));
 
-  r = await hush(async () => (reset(), ask("tok-team-all", { type: "status_rejected", recipient_user_id: ANA, data: { company_name: "Rival Co" } })));
+  r = await hush(async () => (reset(turnedDown(id(201), id(202))), ask("tok-team-all", { type: "status_rejected", recipient_user_id: ANA, data: { company_name: "Rival Co" } })));
   mail = world.sent[0];
   check("a team member with the permission declines: sent, signed by the job owner's business, not a name they chose", r.status === 200 && show(mail.to) === show([emailOf(ANA)]) && textOf(mail).endsWith("— The Zulu Support Team") && !/Rival/.test(mail.html), textOf(mail).slice(-60));
-  check("…and with no job named, the job that links them (the newest)", mail.subject === `An update on your ${TITLE_B} application`, mail.subject);
+  check("…and with no application named, the newest of theirs that was turned down", mail.subject === `An update on your ${TITLE_B} application`, mail.subject);
 
-  r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === OWNER).company_name = null; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A, company_name: "This employer" } })));
+  r = await hush(async () => (reset(both(turnedDown(id(201)), namedSo(null))), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A, company_name: "This employer" } })));
   check("an owner with no business name on file signs as 'The hiring team', not as words from the request", r.status === 200 && textOf(world.sent[0]).endsWith("— The hiring team"), textOf(world.sent[0]).slice(-40));
   check("…and is sent from HireFlow by name, never Zulu or the request's words", world.sent[0]?.from === "HireFlow <no-reply@hireflownow.com>", world.sent[0]?.from);
 
   // Every business's applicants get mail from that business by name (the
   // 2026-10-11 overview: every applicant email said "Zulu Support Team").
-  r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === OWNER).company_name = "Lucky Star Support, Inc."; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A, company_name: "Rival Co" } })));
+  r = await hush(async () => (reset(both(turnedDown(id(201)), namedSo("Lucky Star Support, Inc."))), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A, company_name: "Rival Co" } })));
   check("another business's applicant gets mail from that business by name (quoted when it has punctuation)", r.status === 200 && world.sent[0]?.from === '"Lucky Star Support, Inc." <no-reply@hireflownow.com>', world.sent[0]?.from);
-  r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === OWNER).company_name = 'Evil "Co"\r\nBcc: victim@example.com <x>'; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A } })));
+  r = await hush(async () => (reset(both(turnedDown(id(201)), namedSo('Evil "Co"\r\nBcc: victim@example.com <x>'))), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A } })));
   check("a business name cannot break the From header", r.status === 200 && !/[\r\n<>]/.test((world.sent[0]?.from ?? "").replace(/<no-reply@hireflownow\.com>$/, "")) && (world.sent[0]?.from ?? "").endsWith("<no-reply@hireflownow.com>"), world.sent[0]?.from);
 
   // An offer letter is the news that they were chosen (the owner,
@@ -564,8 +595,8 @@ void quiet;
   check("…not in an interview's subject either", r.status === 200 && world.sent[0]?.subject === `Interview Scheduled: ${TITLE_B}` && !/GCash/.test(world.sent[0].html), world.sent[0]?.subject);
   r = await hush(async () => (reset(), ask("tok-owner", { type: "new_message", recipient_user_id: BEN, data: { job_title: SCAM, message_preview: "Hello Ben" } })));
   check("…nor in a message alert's", r.status === 200 && world.sent[0]?.subject === `New message regarding your application: ${TITLE_B}` && !/GCash/.test(world.sent[0].subject + world.sent[0].html), world.sent[0]?.subject);
-  r = await hush(async () => (reset(), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A } })));
-  check("…a title that is one of their jobs is kept", r.status === 200 && world.sent[0]?.subject === `An update on your ${TITLE_A} application`, world.sent[0]?.subject);
+  r = await hush(async () => (reset(), ask("tok-owner", { type: "interview_scheduled", recipient_user_id: ANA, data: { job_title: TITLE_A, interview_date: "Friday", interview_time: "9am" } })));
+  check("…a title that is one of their jobs is kept", r.status === 200 && world.sent[0]?.subject === `Interview Scheduled: ${TITLE_A}`, world.sent[0]?.subject);
   r = await hush(async () => (reset(), ask("tok-owner", { type: "status_hired", recipient_user_id: ANA, data: { job_title: TITLE_B, application_id: id(201) } })));
   check("…and the application the email names, named by its own job", r.status === 200 && textOf(world.sent[0]).replace(/ \./g, ".").includes(`You're joining Zulu Support Team as ${TITLE_A}.`), textOf(world.sent[0] ?? { html: "" }).slice(0, 160));
 
@@ -622,15 +653,16 @@ void quiet;
     ["an applicant's reply to a teammate", "tok-ana", { type: "new_message", recipient_user_id: TEAM_ALL, data: { message_preview: "Thanks" } }],
     ["a stranger's forged hire", "tok-stranger", { type: "status_hired", recipient_user_id: ANA, data: {} }],
     ["a teammate without the permission", "tok-team-view", { type: "status_rejected", recipient_user_id: ANA, data: {} }],
-    // A decline carries no words of the team's but its name, and goes to people it turned down: not contact, so three
-    // of them cannot pause it by reporting (it is still sent).
-    ["the owner's decline", "tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} }],
-    ["a teammate's decline", "tok-team-all", { type: "status_rejected", recipient_user_id: BEN, data: {} }],
+    // A decline is the email a business sends most, to people it turned down: not contact, so three of them cannot
+    // pause it by reporting (it is still sent, once, naming only what was there when they applied: section 3c).
+    ["the owner's decline", "tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} }, turnedDown(id(203))],
+    ["a teammate's decline", "tok-team-all", { type: "status_rejected", recipient_user_id: BEN, data: {} }, turnedDown(id(203))],
   ];
   const noisy = [];
-  for (const [label, token, body] of quietKinds) {
-    r = await hush(async () => (reset(), ask(token, body)));
+  for (const [label, token, body, change] of quietKinds) {
+    r = await hush(async () => (reset(change), ask(token, body)));
     if (world.contacts.length !== 0) noisy.push(`${label}: ${show(world.contacts)}`);
+    if (change && (r.status !== 200 || world.sent.length !== 1)) noisy.push(`${label}: not sent (${r.status})`);
   }
   r = await hush(async () => (reset(), asFunction({ type: "new_message", recipient_user_id: ANA, data: { sender_name: "Zulu", message_preview: "Hi" } })));
   if (world.contacts.length !== 0 || r.status !== 200) noisy.push(`the system's message: ${r.status} ${show(world.contacts)}`);
@@ -643,6 +675,174 @@ void quiet;
   check("when the contact cannot be recorded, nothing is sent (503)", r.status === 503 && r.body?.code === "try_later" && world.sent.length === 0, show(r));
   r = await hush(async () => (reset((w) => { w.applications.push({ id: id(209), candidate_id: OWNER, job_id: JOB_A, status: "reviewing", created_at: "2026-10-07T10:00:00Z" }); }), ask("tok-owner", { type: "phase_advanced", recipient_user_id: OWNER, data: { phase_name: "Chat test" } })));
   check("…and the record's own \"no\" (the owner who applied to their own job) still lets it go", r.status === 200 && world.sent.length === 1 && world.contacts.length === 1, show({ r, contacts: world.contacts }));
+}
+
+/* 3c. A decline: a real one, once, naming what they applied to (the
+   seventeenth Phase 5 review, finding 1 and its probe pd; the sixteenth
+   security review, finding 1, its probes P1 and P1b). A decline is no
+   contact (it is the email a business sends most, to people it turned down),
+   so it may carry nothing the business can change after they applied: the
+   job's title (a closed job can be renamed to anything, and nobody else sees
+   it) and the business's own name. */
+{
+  const ASK = "Zulu: pay 1,500 PHP to GCash 0917 000 0000 to stay in the pool";
+  const RENAMED = "CSR. Send the 1,500 PHP re-review fee to GCash 0917 000 0000 by Friday";
+  const LURE = "CSR (reconsideration: send 500 PHP to GCash 0917 000 0000, then message us REAPPLY)";
+  const renamedJob = (title) => (w) => { w.jobs.find((j) => j.id === JOB_B).title = title; };
+  const renamedBusiness = (name) => (w) => { w.profiles.find((p) => p.user_id === OWNER).company_name = name; };
+  const FEE = /GCash|PHP|REAPPLY|pool/;
+  const outcome = (x) => (x.body?.success === true ? "sent" : x.body?.code ?? String(x.status));
+
+  // P1, as the security review ran it: Ben still under review, the business renamed, three declines.
+  let r = await hush(async () => {
+    reset(renamedBusiness(ASK));
+    const out = [];
+    for (let i = 0; i < 3; i += 1) out.push(await ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: { job_title: "anything", application_id: id(203) } }));
+    return out;
+  });
+  check(
+    "the security review's P1: three declines to someone still under review, from a business renamed with a fee: each refused (403), nothing sent, marked or counted",
+    r.every((x) => x.status === 403 && x.body?.code === "not_allowed") && world.sent.length === 0 && world.declines.length === 0 && world.counters.size === 0,
+    show(r.map((x) => x.status)),
+  );
+  // Turned down, and the business renames itself after: once, from the name it had when Ben applied.
+  r = await hush(async () => {
+    reset(both(turnedDown(id(203)), renamedBusiness(ASK)));
+    const out = [];
+    for (let i = 0; i < 3; i += 1) out.push(await ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: { application_id: id(203), company_name: ASK } }));
+    return out;
+  });
+  let mail = world.sent[0];
+  check(
+    "…turned down, three declines are one: the second and the third send nothing (200, already sent)",
+    r.map(outcome).join(",") === "sent,already_sent,already_sent" && r.every((x) => x.status === 200) && world.sent.length === 1 && show(world.declines) === show([id(203)]),
+    show(r.map((x) => x.body)),
+  );
+  check(
+    "…from the business by the name it had when they applied, in the From line, the heading and the signature, never its new one",
+    mail?.from === "Zulu Support Team <no-reply@hireflownow.com>" && textOf(mail).startsWith("An update from Zulu Support Team") && textOf(mail).endsWith("— The Zulu Support Team") && !FEE.test(mail.from + mail.subject + mail.html),
+    `${mail?.from} | ${textOf(mail ?? { html: "" }).slice(0, 90)}`,
+  );
+  // P1b: the job renamed instead.
+  r = await hush(async () => (reset(both(turnedDown(id(203)), renamedJob(RENAMED))), ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: { job_title: RENAMED } })));
+  mail = world.sent[0];
+  check(
+    "…P1b, the job renamed instead: the subject and the first line name the job as it was when they applied",
+    r.status === 200 && mail?.subject === `An update on your ${TITLE_B} application` && textOf(mail).includes(`Thank you for applying for the ${TITLE_B} role`) && !FEE.test(mail.subject + mail.html),
+    mail?.subject,
+  );
+  // pd: the closed job renamed so, and two passed on.
+  r = await hush(async () => {
+    reset(both(turnedDown(id(202), id(203)), renamedJob(LURE)));
+    return [await ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: LURE } }), await ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: { job_title: LURE } })];
+  });
+  check(
+    "…the Phase 5 review's pd: its job renamed \"CSR (reconsideration: send 500 PHP ...)\" and two passed on: both declines name the job they applied to, and record no contact",
+    r.every((x) => x.status === 200) && world.sent.length === 2 && world.sent.every((m) => m.subject === `An update on your ${TITLE_B} application` && !FEE.test(m.subject + m.html)) && world.contacts.length === 0,
+    show(world.sent.map((m) => m.subject)),
+  );
+
+  // Which application.
+  r = await hush(async () => {
+    reset(turnedDown(id(201), id(202)));
+    const out = [];
+    for (const data of [{ application_id: id(201) }, { application_id: id(201) }, {}, {}]) out.push(await ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data }));
+    return out;
+  });
+  check(
+    "a decline is for the application it names, when that one of theirs is turned down, once each; with none named, the newest turned down",
+    r.map(outcome).join(",") === "sent,already_sent,sent,already_sent" && show(world.sent.map((m) => m.subject)) === show([`An update on your ${TITLE_A} application`, `An update on your ${TITLE_B} application`]) && show(world.declines) === show([id(201), id(202)]),
+    show(r.map((x) => x.body)),
+  );
+  r = await hush(async () => (reset(turnedDown(id(202))), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { application_id: id(201) } })));
+  check(
+    "…naming one still under review sends the decline of the one turned down, and none for the other",
+    r.status === 200 && world.sent[0]?.subject === `An update on your ${TITLE_B} application` && show(world.declines) === show([id(202)]),
+    world.sent[0]?.subject,
+  );
+  r = await hush(async () => (reset(turnedDown(id(204))), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { application_id: id(204) } })));
+  check("…another applicant's application, turned down by another business, makes no decline for this one", r.status === 403 && world.sent.length === 0 && world.declines.length === 0, show(r));
+
+  // The mark.
+  r = await hush(async () => (reset(both(turnedDown(id(203)), (w) => { w.declineMarkDown = true; })), ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} })));
+  check("when the decline cannot be marked, nothing is sent (503)", r.status === 503 && r.body?.code === "try_later" && world.sent.length === 0, show(r));
+  r = await hush(async () => {
+    reset(both(turnedDown(id(203)), (w) => { w.providerRefuses = true; }));
+    const first = await ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} });
+    const marked = [...world.declines];
+    world.providerRefuses = false;
+    const again = await ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} });
+    const third = await ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} });
+    return { first, marked, again, third };
+  });
+  check(
+    "…one the mail provider refused is not marked as gone, so it goes on the next try, and then never again",
+    r.first.status === 502 && r.marked.length === 0 && outcome(r.again) === "sent" && outcome(r.third) === "already_sent" && world.sent.length === 1 && show(world.declines) === show([id(203)]),
+    show({ first: r.first.status, marked: r.marked, again: r.again.body, third: r.third.body }),
+  );
+  r = await hush(async () => {
+    reset(both(turnedDown(id(203)), (w) => { w.profiles.find((p) => p.user_id === BEN).email_phase_updates = false; }));
+    const off = await ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} });
+    const marked = [...world.declines];
+    world.profiles.find((p) => p.user_id === BEN).email_phase_updates = true;
+    const on = await ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} });
+    return { off, marked, on };
+  });
+  check("…one the applicant turned off is neither sent nor marked", r.off.status === 200 && r.off.body?.success !== true && r.marked.length === 0 && outcome(r.on) === "sent" && world.sent.length === 1, show({ off: r.off.body, marked: r.marked }));
+  r = await hush(async () => {
+    reset(turnedDown(id(203)));
+    return Promise.all([0, 1, 2, 3].map(() => ask("tok-owner", { type: "status_rejected", recipient_user_id: BEN, data: {} })));
+  });
+  check("…four at once are one", r.every((x) => x.status === 200) && r.filter((x) => outcome(x) === "sent").length === 1 && world.sent.length === 1, String(world.sent.length));
+  r = await hush(async () => (reset(both(turnedDown(id(203)), renamedBusiness(ASK))), ask("tok-team-job-b", { type: "status_rejected", recipient_user_id: BEN, data: { company_name: ASK } })));
+  check("a teammate's decline is the same: once, named as they applied", r.status === 200 && world.sent[0]?.from === "Zulu Support Team <no-reply@hireflownow.com>" && show(world.declines) === show([id(203)]) && world.contacts.length === 0, world.sent[0]?.from);
+
+  // The two screens that send it, as they send it right after the move: a
+  // Pass (src/hooks/useApplications.ts, with the job and the business the
+  // screen knows) and a bulk Pass (src/cockpit/hooks/useBulkPass.ts, one at a
+  // time, "Position" when the list had no title), each naming the
+  // application just passed on.
+  r = await hush(async () => {
+    reset(turnedDown(id(201), id(203)));
+    return [
+      await ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: { job_title: TITLE_A, company_name: "Zulu Support Team", application_id: id(201) } }),
+      await ask("tok-team-all", { type: "status_rejected", recipient_user_id: BEN, data: { job_title: "Position", application_id: id(203) } }),
+    ];
+  });
+  check(
+    "the Pass and the bulk Pass, as they send it right after the move: each goes, once, naming the application passed on",
+    r.every((x) => outcome(x) === "sent") && show(world.sent.map((m) => m.subject)) === show([`An update on your ${TITLE_A} application`, `An update on your ${TITLE_B} application`]) && show(world.declines) === show([id(201), id(203)]),
+    show(r.map((x) => x.body)),
+  );
+  check(
+    "…and both screens name it",
+    /notifyStatusRejected\(snap\.candidate_id, job\.title, job\.companyName, id\);/.test(await src("src/hooks/useApplications.ts")) &&
+      /notifyStatusRejected\(target\.candidateId, target\.jobTitle \|\| "Position", undefined, target\.applicationId\)/.test(await src("src/cockpit/hooks/useBulkPass.ts")) &&
+      /\.\.\.\(applicationId \? \{ application_id: applicationId \} : \{\}\)/.test((await src("src/utils/emailNotifications.ts")).slice((await src("src/utils/emailNotifications.ts")).indexOf("export async function notifyStatusRejected("))),
+  );
+
+  // The decision itself.
+  const lookups = (apps) => ({
+    applicationsOf: async () => apps,
+    membershipsOf: async () => [],
+    profileOf: async () => ({ company_name: ASK }),
+    checkLimit: async () => ({ allowed: true, hits: 1, retryAfter: 0 }),
+  });
+  const apps = [
+    { id: id(282), job_id: JOB_B, job_title: RENAMED, employer_id: OWNER, status: "rejected", applied_job_title: TITLE_B, applied_company_name: "Zulu Support Team" },
+    { id: id(281), job_id: JOB_A, job_title: TITLE_A, employer_id: OWNER, status: "reviewing", applied_job_title: TITLE_A, applied_company_name: "Zulu Support Team" },
+  ];
+  const owner = { kind: "user", id: OWNER };
+  const d = await A.decideNotification({ type: "status_rejected", recipient_user_id: BEN, data: { job_title: RENAMED, company_name: ASK, application_id: id(281) } }, owner, lookups(apps));
+  check(
+    "the decision: a decline is for the application turned down, names its job and its business as at application, and is no contact",
+    d.ok && d.declineOf === id(282) && d.data.job_title === TITLE_B && d.data.company_name === "Zulu Support Team" && d.contactFor === undefined,
+    show(d),
+  );
+  const none = await A.decideNotification({ type: "status_rejected", recipient_user_id: BEN, data: {} }, owner, lookups(apps.map((a) => ({ ...a, status: "offered" }))));
+  check("…with none turned down there is no decline", !none.ok && none.refusal.status === 403, show(none));
+  const hire = await A.decideNotification({ type: "status_hired", recipient_user_id: BEN, data: {} }, owner, lookups(apps));
+  check("…and no other kind is a decline (a hire is contact, and names the job's own title)", hire.ok && hire.declineOf === undefined && hire.contactFor === OWNER && hire.data.job_title === RENAMED, show(hire));
 }
 
 /* 4. An applicant's own emails. */
@@ -756,7 +956,7 @@ void quiet;
   }
   check(`anything in apikey that is not the secret key is nobody, for all ${KINDS.length} kinds`, bad.length === 0, bad.slice(0, 6).join(", "));
 
-  r = await hush(async () => (reset(), askWith({ apikey: PUBLIC_KEY, authorization: "tok-owner" }, { type: "status_rejected", recipient_user_id: ANA, data: {} })));
+  r = await hush(async () => (reset(turnedDown(id(201))), askWith({ apikey: PUBLIC_KEY, authorization: "tok-owner" }, { type: "status_rejected", recipient_user_id: ANA, data: {} })));
   check("a browser (public key in apikey, the person's sign-in in Authorization) is still that person", r.status === 200 && show(world.sent[0]?.to) === show([emailOf(ANA)]), show(r));
   r = await hush(async () => (reset(), askWith({ apikey: PUBLIC_KEY, authorization: "tok-ana" }, { type: "status_hired", recipient_user_id: ANA, data: {} })));
   check("…and still cannot send themself a decision", r.status === 403 && world.sent.length === 0, show(r));
@@ -839,8 +1039,14 @@ void quiet;
   });
   check("an applicant's 31st email in an hour is refused (429), the 30 before it sent", last.status === 429 && last.body?.code === "too_many" && world.sent.length === 30 && Number(last.retryAfter) > 0, `${last.status} sent=${world.sent.length}`);
   await hush(async () => {
-    reset();
-    for (let i = 0; i < 40; i += 1) last = await ask("tok-owner", { type: "status_rejected", recipient_user_id: i % 2 ? ANA : BEN, data: {} });
+    // Forty people who applied to the owner's job, each just turned down.
+    reset((w) => {
+      for (let i = 0; i < 40; i += 1) {
+        w.profiles.push({ ...w.profiles.find((p) => p.user_id === BEN), user_id: id(500 + i), email: `passed${i}@example.com`, full_name: `Passed ${i}` });
+        w.applications.push({ id: id(600 + i), candidate_id: id(500 + i), job_id: JOB_B, status: "rejected", created_at: "2026-10-07T10:00:00Z", applied_job_title: TITLE_B, applied_company_name: "Zulu Support Team" });
+      }
+    });
+    for (let i = 0; i < 40; i += 1) last = await ask("tok-owner", { type: "status_rejected", recipient_user_id: id(500 + i), data: {} });
   });
   check("the hiring team passing on 40 people in a row is not stopped", last.status === 200 && world.sent.length === 40);
   await hush(async () => {
@@ -848,11 +1054,11 @@ void quiet;
     for (let i = 0; i < 5; i += 1) await ask("tok-stranger", { type: "status_hired", recipient_user_id: ANA, data: {} });
   });
   check("refused requests are not counted against anyone", world.counters.size === 0, show([...world.counters]));
-  r = await hush(async () => (reset((w) => { w.limiterDown = true; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
+  r = await hush(async () => (reset(both(turnedDown(id(201)), (w) => { w.limiterDown = true; })), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
   check("with the limiter down, an entitled email still goes (it is a ceiling, not the lock)", r.status === 200 && world.sent.length === 1, show(r));
   r = await hush(async () => (reset((w) => { w.limiterDown = true; }), ask("tok-stranger", { type: "status_hired", recipient_user_id: ANA, data: {} })));
   check("…and an unentitled one is still refused", r.status === 403 && world.sent.length === 0);
-  r = await hush(async () => (reset((w) => { w.databaseDown = true; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
+  r = await hush(async () => (reset(both(turnedDown(id(201)), (w) => { w.databaseDown = true; })), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
   check("when it cannot look up whose request this is, nothing is sent (503)", r.status === 503 && r.body?.code === "try_later" && world.sent.length === 0, show(r));
   r = await hush(async () => (reset(), ask("tok-owner", { type: "you_have_won", recipient_user_id: ANA, data: {} })));
   check("a kind the function does not know is refused (400), where it used to crash (500)", r.status === 400 && r.body?.code === "unknown_type" && world.sent.length === 0, show(r));
@@ -868,9 +1074,9 @@ void quiet;
   check("a recipient that is not an id is refused", r.status === 403 && world.sent.length === 0);
   r = await hush(async () => (reset(), ask("tok-owner", { type: "status_rejected", recipient_user_id: NOBODY_HERE, data: {} })));
   check("so is one that is nobody", r.status === 403 && world.sent.length === 0);
-  r = await hush(async () => (reset((w) => { w.providerRefuses = true; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
+  r = await hush(async () => (reset(both(turnedDown(id(201)), (w) => { w.providerRefuses = true; })), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
   check("a message the mail provider refuses is still never reported as sent", r.status === 502 && r.body?.success === false, show(r));
-  r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === ANA).email_phase_updates = false; }), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
+  r = await hush(async () => (reset(both(turnedDown(id(201)), (w) => { w.profiles.find((p) => p.user_id === ANA).email_phase_updates = false; })), ask("tok-owner", { type: "status_rejected", recipient_user_id: ANA, data: {} })));
   check("the recipient's email settings are still respected", r.status === 200 && r.body?.success !== true && world.sent.length === 0, show(r));
 
   // "Email me the link" keeps its own gate (scripts/continue_link_email.test.mjs).
@@ -961,6 +1167,17 @@ console.log("\nC. The wiring\n");
     const settingsAt = body.indexOf("if (preferenceValue === false) {", mainAt);
     check("the hiring team's email is recorded as contact after the recipient's settings and before it is sent; only the decision names the business", recordAt > settingsAt && settingsAt > profileAt && recordAt < sendAt && /contactFor = access\.contactFor \?\? null;/.test(body) && (body.match(/contactFor = /g) ?? []).length === 1, `${settingsAt} ${recordAt} ${sendAt}`);
     check("…and when it cannot be recorded, nothing is sent", /if \(recordError\) \{[\s\S]*?return refuse\(503,/.test(body.slice(recordAt)));
+    // The seventeenth Phase 5 review: a decline is marked after the
+    // recipient's settings and before it is sent (two at once are one), only
+    // the decision names it, a mark that cannot be written sends nothing, one
+    // already there sends nothing again, and a refusal by the mail provider
+    // takes the mark back.
+    const claimAt = body.indexOf('supabase.rpc("decline_email_claim", { p_application: declineOf })', mainAt);
+    const releaseAt = body.indexOf('supabase.rpc("decline_email_release", { p_application: declineOf })', mainAt);
+    check("a decline is marked after the recipient's settings and before it is sent; only the decision names it", claimAt > settingsAt && claimAt < sendAt && (body.match(/declineOf = /g) ?? []).length === 1 && /declineOf = access\.declineOf \?\? null;/.test(body), `${settingsAt} ${claimAt} ${sendAt}`);
+    check("…a mark that cannot be written sends nothing (503), and one already there sends nothing again", /if \(claimError\) \{[\s\S]*?return refuse\(503,/.test(body.slice(claimAt)) && /if \(first !== true\) \{[\s\S]*?return new Response\([\s\S]*?code: "already_sent"/.test(body.slice(claimAt, sendAt)));
+    check("…and a refusal by the mail provider takes the mark back", releaseAt > sendAt && /if \(emailResponse\?\.error\) \{[\s\S]*?decline_email_release/.test(body.slice(sendAt)));
+    check("the applications a decision reads carry where each stands and what it was when they applied", /\.select\("id, job_id, status, created_at, applied_job_title, applied_company_name, jobs\(title, employer_id\)"\)/.test(body));
     check("an invitation's times come from its interview, never the request", /offeredTimes: async \(applicationIds, interviewId\) =>/.test(body) && !/proposed_times_list/.test(code(await src("supabase/functions/_shared/notificationAccess.ts")).replace(/kept\.proposed_times_list = /g, "")));
   }
   check("then the recipient, the words and the side are REPLACED by what was decided", /recipient_user_id = access\.recipientUserId;\s*data = access\.data as NotificationRequest\["data"\];\s*recipientRole = access\.recipientRole;/.test(body));

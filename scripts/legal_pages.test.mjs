@@ -190,7 +190,7 @@ check("it tells people how to delete their account, by the button's own name", /
   })();
   check(
     "it names the note of how each business was in touch, kept for reports, and says it goes with the account, as the record's keys make it",
-    /So is a note of each business you applied to and of how it was in touch with you \(a message, an email, a request for papers, a document or an interview\), with when each kind first and last happened\. It is kept so that a report you make about a business still counts if the business deletes them/.test(privacy) &&
+    /So is a note of each business you applied to and of how it was in touch with you \(a message, an email, moving your application forward, a request for papers, a document or an interview\), with when each kind first and last happened\. It is kept so that a report you make about a business still counts if the business deletes them/.test(privacy) &&
       /employer_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/.test(contacts) && /person_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/.test(contacts),
   );
   // The sixteenth Phase 5 review (finding 4): since round 15 the note also
@@ -286,11 +286,27 @@ check("it names no governing law or court (there is no company named to hang one
   })();
   check(
     "the pause rule says a report already looked at counts again only after the business is in touch again, as employer_reports_auto_pause reads it",
-    /When three different people the business has been in touch with \(by message, by an email other than turning them down, a document to sign, a request for papers, or an interview\) report it, it pauses by itself while we look/.test(terms) &&
+    /When three different people the business has been in touch with \(by message, by an email other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview\) report it, it pauses by itself while we look/.test(terms) &&
       /Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that\./.test(terms) &&
       /AND NOT public\.report_already_heard\(NEW\.employer_id, r\.reporter_id\)/.test(heard) && /AND since\.last_at > done\.closed_at/.test(heard) &&
       // "by an email": the hiring team's emails are contact, but a decline (the sixteenth Phase 5 review).
       /contactFor: type === "status_rejected" \? undefined : links\[0\]\.employer_id!/.test(read("supabase/functions/_shared/notificationAccess.ts")) && /business_contacts_remember_email/.test(read("supabase/functions/send-notification-email/index.ts")),
+  );
+  // The seventeenth Phase 5 review (finding 1): the hiring team's moves of an
+  // application to an interview, an offer, the job or another step are
+  // contact too, never a decline (business_contacts_remember_move); both
+  // pages say so, as the trigger records it.
+  const moves = (() => {
+    try {
+      return read("supabase/migrations/20261025700000_decline_names_the_job_as_applied.sql");
+    } catch {
+      return "";
+    }
+  })();
+  check(
+    "…and both pages name the team moving an application forward, which the record counts as it is made (never a decline)",
+    /by moving their application forward/.test(terms) && /moving your application forward/.test(privacy) &&
+      /CREATE TRIGGER business_contacts_remember_move\s+AFTER UPDATE OF status, phase ON public\.applications\s+FOR EACH ROW\s+WHEN \(current_user = 'authenticated' AND NEW\.status IS DISTINCT FROM 'rejected'/.test(moves),
   );
 }
 

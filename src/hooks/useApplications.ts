@@ -376,7 +376,7 @@ export function useUpdateApplication() {
               // applications) — a manual insert here duplicated it with a
               // second, differently-worded bell and a non-redirect link.
               if (updates.status === "rejected" && currentApp?.status !== "rejected") {
-                notifyStatusRejected(snap.candidate_id, job.title, job.companyName);
+                notifyStatusRejected(snap.candidate_id, job.title, job.companyName, id);
               }
 
               // Status changed to hired — same DB trigger already covers
