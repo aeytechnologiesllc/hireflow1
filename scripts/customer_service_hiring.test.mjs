@@ -1322,6 +1322,9 @@ for (const [title, work, want] of [
   // (The forty-fifth review, M1: no chip says "technical" or "sales". Every engineer and every sales title starts on the
   // developer or the cash chip, whose plans are a software plan and a till's.)
   check("no chip says 'technical' or 'sales', and the developer badge says software / IT", M.JOB_FAMILY_CHIPS.every(([label]) => !/technical|sales/i.test(label)) && M.PLAYBOOKS.developer.label === "software / IT", M.JOB_FAMILY_CHIPS.map(([l]) => l).join("|"));
+  // (The forty-sixth review, M1: the cash and office plans' screening notes state no facts about the job, which the
+  // business's own answers one screen earlier may contradict.)
+  check("the cash and office plans' screening notes claim no till, team, open/close, scheduling or records of the job", !/till|deposits|lead a team|open\/close/i.test(M.PLAYBOOKS.cash.rigor.rationale) && !/own scheduling|sensitive records/i.test(M.PLAYBOOKS.admin.rigor.rationale) && M.PLAYBOOKS.cash.rigor.recommended === "high" && M.PLAYBOOKS.admin.rigor.recommended === "standard", [M.PLAYBOOKS.cash.rigor.rationale, M.PLAYBOOKS.admin.rigor.rationale]);
   for (const [b, want] of [
     [post("Janitor", ""), "Cleaning or housekeeping"],
     [post("Web Developer", ""), "Software or IT"],

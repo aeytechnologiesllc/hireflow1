@@ -1156,8 +1156,11 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
     ],
     rigor: {
       recommended: "high",
+      // (No facts about the job: the note followed the business's own answers, so a waiter answered "Solo for now" and
+      // "No money handling" was told "They'll handle the till and deposits, lead a team, and own open/close"; the
+      // forty-sixth review, M1.)
       rationale:
-        "They'll handle the till and deposits, lead a team, and own open/close — a mishire here is expensive. A practical simulation plus a structured written interview protects you.",
+        "A mishire here is expensive. A practical simulation plus a structured written interview protects you.",
     },
   },
   cleaner: {
@@ -1215,7 +1218,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
     rigor: {
       recommended: "standard",
       rationale:
-        "They'll own scheduling and sensitive records. A focused screen on organization and discretion is enough — no need to over-test a support role.",
+        "A focused screen on organization and discretion is enough — no need to over-test a support role.",
     },
   },
   developer: {
