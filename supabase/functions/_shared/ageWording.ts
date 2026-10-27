@@ -1,6 +1,6 @@
 /**
  * No age, birth date or marital status in what the job writers produce
- * (2026-10-25; the second to twenty-third Phase 6 reviews).
+ * (2026-10-25; the second to twenty-fourth Phase 6 reviews).
  *
  * Every application already starts with HireFlow's own "Are you 18 or
  * older?" (src/lib/ageCheck.ts), and RA 10911 Section 5(a) makes it unlawful
@@ -123,7 +123,11 @@
  * her own message under "Her ticket:" or "His chat:" after the case's customer,
  * a customer's message after a sentence naming applicants in a job post's text
  * ("Every applicant does a short customer chat practice. Sample: reply to this
- * chat: …"), and a desk's "How many users are you managing on your plan?".
+ * chat: …"), and a desk's "How many users are you managing on your plan?",
+ * and since the twenty-fourth a customer's message of two sentences there,
+ * whole, the practice's sample under a "How to apply" heading after a
+ * practice line naming applicants, and a ticket's or a room's "single
+ * journey" or "single occupancy" beside a practice step.
  * The same words put to the applicant go ('Ask the candidate: "How old are
  * you?"', "Number of dependents:", 'Ask:
  * "Are you married? Just for our records."', and since the tenth an unquoted
@@ -180,7 +184,11 @@
  * email: "Hi, I'm Maria, 23 years old, single, from Cebu."'), after "with a
  * short intro, for example:" or before "Applicants must reply in this exact
  * format.", and in a job post's text the ask a later note puts to the
- * applicant, not the note), and so does an
+ * applicant, not the note; since the twenty-fourth a name and then the age in
+ * her own words there ('"Hello, my name is Ana, I'm 24 years old"', "I'm Ana
+ * and I'm 24", "I'm Ana. I'm 24"), an enrolment agent's count "each day" or
+ * "per shift" before an age question, and the agent's own "Let me check with
+ * my billing team." under "Her chat:"), and so does an
  * age in a hiring sentence however it is attached ("We want a 25-year-old
  * go-getter", "We hire students aged 18-24", "Retirees aged 55-70 wanted",
  * "Hiring 21-35 year old Patient Access Representatives"; the tenth; "With full benefits, we're
@@ -847,8 +855,13 @@ const NOT_THE_LISTENER = re([
   // enrolment ('"How many users are you managing on your plan? Are you 18 or older?"', "…members are you helping enroll
   // today?", "…tenants are you managing on this lease, and are you 18 or older?"), so the work's verbs, as against "able",
   // "used", "comfortable", "expected" and "handling", which were the twenty-second review's cases, are the work unless a
-  // plan, a lease or an enrolment follows them in the sentence.
-  String.raw`\bhow many\s+(${CUSTOMER_PEOPLE})\s+(do|did|can|could|will|would|have|are)\s+you\b(?!(?<=\bare\s+you)(?!\s+((currently|now|typically|usually|normally|really)\s+)?((able|used|comfortable|expected|handling)\b|(helping|serving|supporting|assisting|managing|resolving|answering|scheduling)\b(?![^.?!]*\b(plans?|leases?|enrol\w*)\b)))(?=[^.?!]*(\d|\b(need|needs|must|can|may|get|gets|qualif\w*|eligib\w*|consent|discounts?|rates?|plans?|add|enrol\w*|join|apply)\b))|(?<=\b(do|would)\s+you)\s+((currently|already|now|still)\s+)?(want|like)\s+to\s+enrol\w*\b|\s+((currently|already|now|still)\s+)?((have|want to add|need to add|wish to add|plan to add|would like to add|like to add|want to cover|need to cover|need to enrol\w*)\b[^.?!]*\b(plans?|polic(y|ies)|accounts?|households?|famil(y|ies)|coverage|memberships?)\b|(have|want to add|need to add|wish to add|would like to add|like to add)\b[^.?!]*\b(in|on|to)\s+(your|the|this)\s+(party|booking|reservation)\b))`,
+  // plan, a lease or an enrolment follows them in the sentence. The twenty-fourth review: an enrolment agent's own count
+  // names a plan or an enrolment as often, and counts by the day, the shift or the hour ('"How many members are you helping
+  // enroll each day? How old are you?"', "…supporting per shift on the Medicare plans?", "…assisting per hour with plan
+  // changes?"; Medicare enrolment is a common BPO campaign), which no desk's count of one customer's plan did ("…today?",
+  // "…on your plan?", "…on this lease"), so with one of those the verbs are the work whatever follows, as the twenty-second
+  // round read them.
+  String.raw`\bhow many\s+(${CUSTOMER_PEOPLE})\s+(do|did|can|could|will|would|have|are)\s+you\b(?!(?<=\bare\s+you)(?!\s+((currently|now|typically|usually|normally|really)\s+)?((able|used|comfortable|expected|handling)\b|(helping|serving|supporting|assisting|managing|resolving|answering|scheduling)\b(?!(?![^.?!]*\b((each|per|a|an)\s+(day|shift|hour)|in\s+an?\s+([\w-]+\s+)?shift)\b)[^.?!]*\b(plans?|leases?|enrol\w*)\b)))(?=[^.?!]*(\d|\b(need|needs|must|can|may|get|gets|qualif\w*|eligib\w*|consent|discounts?|rates?|plans?|add|enrol\w*|join|apply)\b))|(?<=\b(do|would)\s+you)\s+((currently|already|now|still)\s+)?(want|like)\s+to\s+enrol\w*\b|\s+((currently|already|now|still)\s+)?((have|want to add|need to add|wish to add|plan to add|would like to add|like to add|want to cover|need to cover|need to enrol\w*)\b[^.?!]*\b(plans?|polic(y|ies)|accounts?|households?|famil(y|ies)|coverage|memberships?)\b|(have|want to add|need to add|wish to add|would like to add|like to add)\b[^.?!]*\b(in|on|to)\s+(your|the|this)\s+(party|booking|reservation)\b))`,
   String.raw`\b(${CUSTOMER_PEOPLE})\s+(that\s+|who\s+)?you(['’]ll|['’]d| will| would)?\s+((also|be|mostly|often)\s+){0,2}(serve|serving|help|helping|support|supporting|handle|handling|talk|talking|speak|speaking|work|working|assist|assisting|answer|answering|chat|chatting)\b`,
   // The job's title, with the job named or applied for ("the Customer Service Representative role", "your application for
   // Patient Coordinator"), and an agent's own title as the fourteenth round read it ("Hi, I'm Ana, your Patient Coordinator"),
@@ -929,8 +942,17 @@ const setsUpAPractice = (text: string) => ROLE_PLAY.test(text) || PRACTICE_STEP.
 // of applying excused the step for any age given as a number, so the applicant's own introduction stayed in the job post
 // ('To apply, complete a practice email, then reply to this email: "Hi, I'm Maria, 23 years old, single, from Cebu."';
 // customersQuote, textWithout).
-const A_SELF_INTRO = /\b([Ii]['’]?m|[Ii] am|[Mm]y name is)\s+[A-Z][\w'’.-]*(\s+[A-Z][\w'’.-]*)?\s*,\s*\d{2}\b/;
-const A_CIVIL_STATUS_GIVEN = /(,|\band|\bi['’]?m|\bi am)\s+(single|married|separated|widowed|divorced)\b(?!-)/i;
+// The twenty-fourth review: that read one wording, the name and the age split by a comma, so the commonest others stayed in
+// the job post beside the practice step ('To apply, complete a practice email, then reply to this email: "Hello, my name is
+// Ana, I'm 24 years old, from Cebu."', "Hi, I'm Ana and I'm 24 years old", "Hi, I'm Ana. I'm 24 years old"; 34 of the
+// review's 63 descriptions). A name is followed by the age in the speaker's own words, after a comma, "and" or the name's
+// own sentence, and may run to four words ("I'm Juan dela Cruz, 24", "I am Maria Clara Santos, 23"; the review's tested fix).
+// And a status counts only where it ends its clause, as every one that round read did ("…, single, from Cebu", "…, married
+// with two kids"), never a ticket's or a room's ("two tickets, single journey", "a room for one, single occupancy") or "two
+// charges, separated by one day": a customer's own message with one was dropped beside a practice step, which neither
+// earlier round did.
+const A_SELF_INTRO = /\b([Ii]['’]?m|[Ii] am|[Mm]y name is)\s+[A-Z][\w'’.-]*(\s+([A-Z][\w'’.-]*|de|del|dela|delos|de\s+la|de\s+los)){0,3}\s*(,|[.!]|,?\s+and\b)\s*((and\s+)?([Ii]['’]?m|[Ii] am)\s+)?\d{2}\b/;
+const A_CIVIL_STATUS_GIVEN = /(,|\band|\bi['’]?m|\bi am)\s+(single|married|separated|widowed|divorced)\b(?!-)(?=\s*([,.;:!?"”)]|$|(and|with|from|but|no|mother|mom|father|dad|parent)\b))/i;
 const selfIntroduction = (quote: string) => (A_SELF_INTRO.test(quote) || A_CIVIL_STATUS_GIVEN.test(quote)) && !A_CUSTOMERS_OWN.test(quote);
 // A label that answers someone's message: the quote is that message, never the speaker's own words ("Reply to: …", "Reply to
 // this chat: …", "Respond to this email: …", "Answer the chat: …"; OWN_AGE, the seventeenth review). The nineteenth review:
@@ -1149,12 +1171,16 @@ const namesTheCasesCustomer = (earlier: string) => THE_CASES_CUSTOMER.test(outsi
 // to know when my Medicare plan starts."', 'A player writes in about a refund. His chat: "Hi, I'm 15 years old and I
 // bought gems with my mom's card. …"'; generate-flow dropped the practice case whole). Such a label is the applicant's own
 // only where the message names nothing of the speaker's own as a customer does (A_CUSTOMERS_OWN), as in the
-// twenty-second round's cases ("Hi, I'm 19 years old and new here, sorry!").
+// twenty-second round's cases ("Hi, I'm 19 years old and new here, sorry!"). The twenty-fourth review: the agent names her
+// own team in that line ('Her chat: "Hi, I'm 19 years old and new here, sorry! Let me check with my billing team."', "I'll
+// ask my claims team."), which no customer's message does (hers is "your billing team"), so a word of her own before
+// "team", "department" or "desk" is never the customer's under such a label (HER_OWN_UNDER_HER_LABEL).
 const A_LABEL_AFTER_A_CUSTOMER = /(^|["”.!?]\s*)\s*((the\s+)?(agent|rep|you|response)|((her|his|their|your|my)\s+)?([\w'’-]+\s+){0,2}(ticket|chat))\s*:\s*$/i;
+const HER_OWN_UNDER_HER_LABEL = new RegExp(String.raw`${A_CUSTOMERS_OWN.source}(?!\s+(team|department|desk)\b)`, "i");
 const A_CUSTOMERS_LINE = new RegExp(String.raw`(^|[.!?"”]\s*)\s*((the|a|an)\s+)?(${LINE_OWNERS})(['’]s)?\s*(\([^)]*\)\s*)?:\s*["“]`, "i");
 function afterACustomer(said: string, earlier: string, quote: string): boolean {
   const label = A_LABEL_AFTER_A_CUSTOMER.exec(said);
-  if (!label || (label[5] && !A_CUSTOMERS_OWN.test(quote)) || (OWN_AGE.test(quote) && (label[4] || !OWN_AGE_GIVEN.test(quote)))) return false;
+  if (!label || (label[5] && !HER_OWN_UNDER_HER_LABEL.test(quote)) || (OWN_AGE.test(quote) && (label[4] || !OWN_AGE_GIVEN.test(quote)))) return false;
   const before = `${earlier} ${said.slice(0, label.index)}`;
   return A_CUSTOMERS_LINE.test(before) || namesTheCasesCustomer(before);
 }
@@ -1496,9 +1522,18 @@ function textWithout(text: unknown, drops: (text: unknown) => boolean, saysItsel
   // template on the next line through ('HOW TO APPLY\nApply on our site and complete a practice email.\nThen reply to this
   // email: "Hi, I'm [Name], [Age] years old, …"'), so the practice line is read with the line after it instead, as the
   // same two sentences on one line are (customersQuote: a practice excuses the step only for a customer's own age).
+  // The twenty-fourth review: a practice line naming applicants is no case's set-up (aPracticeCase), so under the heading the
+  // customer's own message on the line after it went whole ('HOW TO APPLY\nCandidates do a short chat practice.\nSample:
+  // reply to this chat: "I'm 70 years old and my refill is late again."'; all 45 of the review's posts under three headings,
+  // which the twenty-first round kept), and so did the same sample after the practice on one line. It is the practice's
+  // sample, as the same two sentences are without the heading (the window's escape below): an age given as a number, in no
+  // self-introduction, in words that do not drop by themselves, read for each sentence of the line in the window. An
+  // applicant's template or introduction there still goes.
+  const aSample = (practice: string, said: string) => setsUpAPractice(practice) && OWN_AGE_GIVEN.test(said) && !selfIntroduction(said) && !drops(said);
   let under = "";
   let previous = "";
   for (const line of text.split("\n")) {
+    let practice = "";
     if (headed) {
       if (HOW_TO_APPLY_HEADING.test(line)) {
         under = "How to apply. ";
@@ -1507,7 +1542,7 @@ function textWithout(text: unknown, drops: (text: unknown) => boolean, saysItsel
         continue;
       }
       if (!line.trim() || A_HEADING.test(line)) under = "";
-      const practice = under && setsUpAPractice(previous) ? `${previous.replace(/[.!?:;]?\s*$/, ".")} ` : "";
+      practice = under && setsUpAPractice(previous) ? `${previous.replace(/[.!?:;]?\s*$/, ".")} ` : "";
       previous = line;
       if (practice && !drops(`${under}${practice}${line}`)) {
         out.push(line);
@@ -1534,8 +1569,22 @@ function textWithout(text: unknown, drops: (text: unknown) => boolean, saysItsel
     // age of its own (saysItself) stays, and the nearest one before it that does goes in its place, unless that one is gone
     // already ("Script: For security, may I have your date of birth? The applicant must enter it on the application form."
     // keeps only the note).
-    const sentences = line.split(/(?<=[.!?;])\s+|\s+(?=[•·]\s)/);
-    const cut = sentences.map((sentence) => drops(`${under}${sentence}`));
+    // The twenty-fourth review: the line was split at every sentence's end, inside a quote too, so a customer's message of two
+    // sentences lost its first, open quote and all, and the rest stayed in the post ('Candidates do a short chat practice.
+    // Reply to this chat: "Hi, I'm 15 years old and I bought gems with my mom's card. Can I get a refund?"' kept only 'Can I
+    // get a refund?"'; 18 of the review's 24 lines). A quote's own sentences are read as one, as asksAgeOrStatus reads the
+    // quote, where every quote on the line closes (an unpaired mark would join the rest of the line to it); an applicant's
+    // template of two sentences now goes whole, not leaving 'Then reply to this email: "Hi!'. And under a "How to apply"
+    // heading a practice set up earlier on the line, or on the line before, sets up the sample a sentence gives (aSample).
+    const sentences: string[] = [];
+    let inQuote = false;
+    const paired = (line.match(/"/g) ?? []).length % 2 === 0 && (line.match(/“/g) ?? []).length === (line.match(/”/g) ?? []).length;
+    for (const piece of line.split(/(?<=[.!?;])\s+|\s+(?=[•·]\s)/)) {
+      if (inQuote && paired) sentences[sentences.length - 1] += ` ${piece}`;
+      else sentences.push(piece);
+      for (const ch of piece) if (ch === '"') inQuote = !inQuote; else if (ch === "“") inQuote = true; else if (ch === "”") inQuote = false;
+    }
+    const cut = sentences.map((sentence, at) => drops(`${under}${sentence}`) && !(under && aSample(`${practice}${sentences.slice(Math.max(0, at - 4), at).join(" ")}`, sentence)));
     for (let at = 1; at < sentences.length; at++) {
       const sentence = sentences[at];
       if (cut[at]) continue;
