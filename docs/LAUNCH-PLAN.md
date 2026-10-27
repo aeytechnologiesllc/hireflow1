@@ -1276,6 +1276,9 @@ reached function deployed):
   or not, **a fixer is adding one question** (`p4r44_fix_brief.md`): under
   "Another kind of job", "Which is closest?" starts on the guess and the
   business's answer decides the family, so a wrong guess costs one click.
+  Done in 046c154a (typed, voice and draft paths; every earlier builder file
+  byte-identical; with the round's one free narrowing). **Round 45 review
+  running** (`p4r45_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1344,7 +1347,11 @@ reached function deployed):
   wording restored, round 24's wider wordings only when the message asks
   nothing and tells no trouble: customer lines wrongly dropped 1,816 → 0;
   an introduction naming whom she serves is the applicant's; six functions
-  deployed and answering). **Round 26 review running** (`p6r26_brief.md`).
+  deployed and answering). **Round 26** (`p6r26_report.md`) found three
+  MEDIUM, the worst a regression against both (round 25's new line drops a
+  customer's "Hi, I'm Harold, 81 years old. I need my test results"). **Its
+  fixer is running** (`age26_fix_brief.md`), under Phase 4's rule: only
+  narrow or revert round 25; old misses go to `known` unless free.
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
