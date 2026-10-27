@@ -303,7 +303,7 @@ export const TERMS: LegalDocument = {
           ],
         },
         { sub: "Reports and pausing" },
-        "Applicants can report a job. We read every report, and the business never learns who sent it. When three different people the business has been in touch with (by message, a document to sign, a request for papers, or an interview) report it, it pauses by itself while we look, and we may pause a business ourselves; its jobs close until it is open again.",
+        "Applicants can report a job. We read every report, and the business never learns who sent it. When three different people the business has been in touch with (by message, a document to sign, a request for papers, or an interview) report it, it pauses by itself while we look, and we may pause a business ourselves; its jobs close until it is open again. Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that.",
         { sub: "Price" },
         "Using the site is free at the moment. If that changes we will tell you first, and nothing will be charged without your agreement.",
       ],

@@ -27,7 +27,9 @@ hiring app to check a business's tax number, so there is no TIN check.
   closes the business's published jobs (drafts stay drafts), remembers which,
   and tells the business in its bell. Opening it again reopens exactly those
   jobs and closes its open reports, so one more report can't pause it again
-  straight away.
+  straight away, and the people whose reports were closed count again only
+  once the business is in touch with them after that (see Reports, "A reopen
+  holds").
 - Three reports from three different people the business has been in touch
   with pause it by itself, and every admin is told (see Reports for what
   counts). HireFlow's own account (`platform_admins`) is never paused, by
@@ -107,7 +109,8 @@ itself (see Standing).
 What counts as "in touch" (`business_has_contacted`, Phase 7 security audit,
 2026-10-25): a message to the reporter from the business or anyone on its
 team, a document or a document request on the reporter's application, or an
-interview on it. Only the business can make any of these, so a stranger
+interview on it (and, since the fifteenth Phase 5 review, a card the
+business or its team wrote into their bell). Only the business can make any of these, so a stranger
 cannot manufacture them; Ava never messages, sends papers or books
 interviews. Before, three people who had merely applied were enough, and
 applying costs nothing (no email confirmation, no bot check yet): three
@@ -128,19 +131,21 @@ did each, and the three reports paused nothing; after Delete their
 information not even the "reported 3 times" bell rang, since a removed
 applicant no longer counted as having applied. Now contact is recorded when
 it is made, in `private.business_contacts` (business, person, kind, first
-time; one row each):
+time and, since the fifteenth review, last time; one row each):
 
 | Kind | Written when | The business is |
 |---|---|---|
 | `applied` | an application is made | the job's owner |
 | `message` | a message is sent | each business the receiver applied to whose owner, or anyone on whose team, sent it |
+| `message` | a browser writes a card into the bell of someone who applied (since the fifteenth review) | each business whose job they applied to and whose owner, or active teammate on that job, wrote it |
 | `document_request` | papers are asked for | the application's job's owner |
 | `document` | a document is sent | the application's job's owner |
 | `interview` | an interview is booked | the application's job's owner |
 
 - The rows are written by `business_contacts_remember`, an AFTER INSERT
   trigger for each row on `applications`, `messages`, `document_requests`,
-  `documents` and `interviews`, with its own rights. The business is read
+  `documents` and `interviews` (and on `notifications`, for a browser's own
+  card only, since the fifteenth review), with its own rights. The business is read
   from the application's job (for a message, a job the receiver applied
   to), never from a column the business writes, so one business cannot make
   another look in touch, and an applicant's own message to a business is no
@@ -166,6 +171,84 @@ time; one row each):
   applicants removed with or without contact, a document deleted, a
   teammate taken off the team and the job deleted) and section 5; guard
   `contact-counts-as-made`.
+
+**A reopen holds (the fifteenth Phase 5 review, 2026-10-26;
+`20261025680000_reports_heard_stay_heard.sql`).** With the record permanent,
+nothing let a business or an admin out of a pause: the reopen closes the open
+reports, but `report_employer` lets the same person report the same job
+again as soon as their report is closed. The review's probes: three people a
+business had messaged once ("Please finish the chat test this week") paused
+it; an admin looked and reopened it; the same three reported again and
+paused it again, after the business had blocked them and deleted their
+information too; a teammate's throwaway accounts kept paying off after the
+teammate was taken off the team. Now:
+
+- Someone an admin has already heard about this business (a report of theirs
+  on it closed by an admin: the reopen and Close on the Admin page both set
+  `closed_by`) counts toward neither the pause nor the "reported 3 times"
+  bell, until the business is in touch with them again after that close
+  (`report_already_heard`, read by `employer_reports_auto_pause`). Their new
+  reports are still taken and still ring "A job was reported" for every
+  admin, so a real repeat is seen.
+- People the business was in touch with who were not heard before still
+  pause it: after a reopen, one more report leaves it open, and three new
+  ones pause it again. A business that writes to someone again after the
+  close (a message, a request, a document, an interview or a bell card)
+  makes that person count again; their closed report never counts.
+- For that the record keeps each contact's last time too (`last_at`, moved
+  forward by the same triggers; `first_at` stays the first). The migration
+  filled it from today's rows (the latest of each kind; where the business
+  had deleted them, the first time).
+- A card the job's owner or an active teammate on that job writes into its
+  applicant's bell from a browser, of any type, counts as a `message` (probe
+  p3: "Training fee due ... Send 1,500 PHP to GCash ...", typed `system` and
+  pushed to their phone, left the business open; the fourteenth security
+  review's `contact_bell` did the same with a `status_update` card). The trigger fires only for a
+  browser's own insert (`WHEN (current_user = 'authenticated')`), so the
+  server's cards (a decision, an interview, a request, written inside
+  SECURITY DEFINER functions or by the service role) are never counted.
+  Every screen that writes a card to an applicant writes it about a request,
+  a document or an interview the team has made, which the record already
+  counts, so in the app this changes nothing.
+- An interview stays on the application it was booked for: nobody but the
+  server changes `interviews.application_id` (`interviews_stay_on_their_application`,
+  `interview_application_fixed`; no screen or server code does). The job's
+  owner or a teammate who schedules interviews could move one onto another
+  applicant's application, who then saw it and its "rescheduled" card, and
+  the record (written when an interview is booked) never knew (probe p2;
+  the fourteenth security review's `contact_move`, which booked "Pay the
+  1,500 peso training fee before the interview" on a decoy's application,
+  or the business's own, where not even the decoy is recorded, and moved one
+  onto each of three real applicants'). The two review findings on this
+  and the bell card were rated MEDIUM.
+- The admins' "A business was reported 3 times" bell said the business "had
+  not been in touch with them", which these two paths made untrue; it says
+  "it has no recorded contact with them" now.
+- Not counted: the emails the hiring team can set off through
+  `send-notification-email` (docs/NOTIFICATION-EMAILS.md). Each carries one
+  short line of the team's own text (a message preview, up to 100
+  characters; a document's or a step's name or a date, up to 160), and none
+  needs a row behind it, so a business writing to the API directly could
+  email its applicants a line the record never sees. Tying only the message
+  email to a real message would leave the same line in the other kinds;
+  tying every kind to its row is a change to the function's caller checks,
+  which hold (CLAUDE.md, "Notification emails are caller-checked"). In the
+  app a message, document or interview email follows the row it reports,
+  which the record counts; a decision or a step's email is no contact, as
+  the decision itself is not. Each is signed with the job owner's own
+  business name, looked up, so the applicant can report the right job.
+- Left as it was: a report that adds to the reporter's open report on the
+  same job (one open report per person per job) is no new report, so the
+  pause is worked out only when a report is made; and a revoked teammate
+  row still counts as the business's team for a message (the team page
+  deletes the row; no live business has a revoked one).
+- Proof: `scripts/launch_locks_behaviour.pglite.test.mjs` section 24 (the
+  review's probes p1, p2, p3 and p5 and its weakenings M1 to M6: HireFlow's
+  own account, closed reports, another business's teammate, a reopen that
+  closes nothing, an application to another business; the security
+  review's `contact_move` and `contact_bell`, and the bell's words); guards
+  `reopen-holds`, `bell-card-is-contact`, `interview-stays-on-its-application`
+  and `contact-counts-as-made`.
 
 ## Admins
 

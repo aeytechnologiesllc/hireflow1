@@ -18,8 +18,15 @@
  *     account they name (ON DELETE CASCADE); business_has_contacted and both
  *     of employer_reports_auto_pause's "applied" checks read it.
  *
- * Proved by behaviour too: launch_locks_behaviour section 22 (the review's
- * probe p2, cases (a) to (e)) and section 5.
+ * Since the fifteenth Phase 5 review (20261025680000) the record keeps each
+ * contact's last time too (last_at, moved forward by the triggers; first_at
+ * stays the first), a browser's own bell card from the job's owner or team
+ * is a message (a sixth trigger, on notifications, WHEN current_user =
+ * 'authenticated'), and the one change a migration may make to its rows is
+ * to fill last_at. Guard reopen-holds holds what reads the last time.
+ *
+ * Proved by behaviour too: launch_locks_behaviour sections 22 (the review's
+ * probe p2, cases (a) to (e)), 24 and 5.
  */
 
 import { latestDefinition, migrationTexts, triggerProblems } from "./phase-7-launch-locks.mjs";
@@ -36,7 +43,8 @@ export default [
       "interviews or removed the applicants with Delete their information was never paused by their three reports, and " +
       "the admins' \"reported 3 times\" bell never rang for removed applicants (the fourteenth Phase 5 review, probe " +
       "p2). Contact is recorded when it is made (private.business_contacts), nothing a business can delete removes it, " +
-      "and the pause reads it.",
+      "and the pause reads it. Each contact keeps its first and last time, and a bell card a browser writes from the " +
+      "job's owner or team to its applicant is a message (the fifteenth Phase 5 review, probe p3).",
     run: async (ctx) => {
       const detail = [];
       const texts = await migrationTexts(ctx);
@@ -51,9 +59,16 @@ export default [
         }
         if (!/PRIMARY KEY \(employer_id, person_id, kind\)/i.test(def)) detail.push(`${made[0].rel}: private.business_contacts keeps one row per business, person and kind`);
       }
-      // Nothing deletes from it, empties it, changes it or hands it to an API role.
+      // Nothing deletes from it, empties it, changes it or hands it to an API
+      // role. The one change allowed is filling the last time (last_at), set
+      // alone: never who, what kind, or the first time.
       for (const { rel, sql } of texts) {
-        if (new RegExp(String.raw`\b(DELETE\s+FROM|UPDATE|TRUNCATE(?:\s+TABLE)?|DROP\s+TABLE(?:\s+IF\s+EXISTS)?)\s+(?:ONLY\s+)?${TABLE}`, "i").test(sql)) detail.push(`${rel}: deletes, changes or drops rows of private.business_contacts (only an account's own deletion may take a row)`);
+        if (new RegExp(String.raw`\b(DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|DROP\s+TABLE(?:\s+IF\s+EXISTS)?)\s+(?:ONLY\s+)?${TABLE}`, "i").test(sql)) detail.push(`${rel}: deletes or drops rows of private.business_contacts (only an account's own deletion may take a row)`);
+        for (const m of sql.matchAll(new RegExp(String.raw`\bUPDATE\s+(?:ONLY\s+)?${TABLE}[^;]*;`, "gi"))) {
+          const set = m[0].replace(/\s+/g, " ").replace(/^[\s\S]*?\bSET\b/i, "");
+          if (!/^\s*"?last_at"?\s*=/i.test(set) || /(?<![.\w"])"?(employer_id|person_id|kind|first_at)"?\s*=(?!=)/i.test(set))
+            detail.push(`${rel}: changes rows of private.business_contacts other than filling their last time (only an account's own deletion may take a row, and nothing changes who, what kind or when first)`);
+        }
         if (new RegExp(String.raw`\bALTER\s+TABLE\s+(?:IF\s+EXISTS\s+)?(?:ONLY\s+)?${TABLE}\s[^;]*\b(DROP\s+CONSTRAINT|ON\s+DELETE|DISABLE)`, "i").test(sql)) detail.push(`${rel}: changes how private.business_contacts' rows go`);
         for (const m of sql.matchAll(/\bGRANT\s+([^;]*?)\s+ON\s+([\s\S]*?)\s+TO\s+([^;]*);/gi)) {
           const on = m[2].trim();
@@ -71,13 +86,24 @@ export default [
         for (const [what, re] of [
           ["an application, from its job", /SELECT j\.employer_id, NEW\.candidate_id, 'applied' FROM public\.jobs j WHERE j\.id = NEW\.job_id/i],
           ["a message to someone who applied, from the business itself or its team", /SELECT DISTINCT j\.employer_id, NEW\.receiver_id, 'message' FROM public\.applications a JOIN public\.jobs j ON j\.id = a\.job_id WHERE a\.candidate_id = NEW\.receiver_id AND \(j\.employer_id = NEW\.sender_id OR EXISTS \(SELECT 1 FROM public\.team_members tm WHERE tm\.employer_id = j\.employer_id AND tm\.user_id = NEW\.sender_id\)\)/i],
-          ["a request, a document or an interview, from its application's job", /TG_TABLE_NAME IN \('document_requests', 'documents', 'interviews'\) THEN INSERT INTO private\.business_contacts \(employer_id, person_id, kind\) SELECT j\.employer_id, a\.candidate_id, CASE TG_TABLE_NAME WHEN 'document_requests' THEN 'document_request' WHEN 'documents' THEN 'document' ELSE 'interview' END FROM public\.applications a JOIN public\.jobs j ON j\.id = a\.job_id WHERE a\.id = NEW\.application_id/i],
+          ["a request, a document or an interview, from its application's job", /TG_TABLE_NAME IN \('document_requests', 'documents', 'interviews'\) THEN INSERT INTO private\.business_contacts (?:AS c )?\(employer_id, person_id, kind\) SELECT j\.employer_id, a\.candidate_id, CASE TG_TABLE_NAME WHEN 'document_requests' THEN 'document_request' WHEN 'documents' THEN 'document' ELSE 'interview' END FROM public\.applications a JOIN public\.jobs j ON j\.id = a\.job_id WHERE a\.id = NEW\.application_id/i],
+          // A browser's own card (the trigger's WHEN) from the owner or an
+          // active teammate of a job the person applied to (the fifteenth
+          // Phase 5 review): the writer's relationship to each job, never any
+          // card to anyone who applied anywhere.
+          ["a bell card a browser writes to someone who applied, from the job's owner or an active teammate on it, as a message", /TG_TABLE_NAME = 'notifications' THEN INSERT INTO private\.business_contacts AS c \(employer_id, person_id, kind\) SELECT DISTINCT j\.employer_id, NEW\.user_id, 'message' FROM public\.applications a JOIN public\.jobs j ON j\.id = a\.job_id WHERE a\.candidate_id = NEW\.user_id AND j\.employer_id IS DISTINCT FROM NEW\.user_id AND \(public\.is_job_owner\(a\.job_id, auth\.uid\(\)\) OR public\.is_active_team_member_for_job\(a\.job_id, auth\.uid\(\)\)\) ON CONFLICT/i],
         ]) if (!re.test(body)) detail.push(`${remember.rel}: business_contacts_remember no longer records ${what} as written`);
-        if ((body.match(/ON CONFLICT DO NOTHING/gi) ?? []).length !== 3) detail.push(`${remember.rel}: business_contacts_remember must keep the first time of each contact (ON CONFLICT DO NOTHING)`);
-        if (/\bDELETE\b|\bUPDATE\b/i.test(body)) detail.push(`${remember.rel}: business_contacts_remember must only add to the record`);
+        // Each kind keeps its first time and moves only its last time forward.
+        const KEEP = /ON CONFLICT \(employer_id, person_id, kind\) DO UPDATE SET last_at = greatest\(c\.last_at, EXCLUDED\.last_at\);/gi;
+        if ((body.match(KEEP) ?? []).length !== 4 || (body.match(/ON CONFLICT/gi) ?? []).length !== 4 || (body.match(/INSERT INTO private\.business_contacts AS c \(/gi) ?? []).length !== 4)
+          detail.push(`${remember.rel}: business_contacts_remember must keep the first time of each contact and move only its last time forward (ON CONFLICT (employer_id, person_id, kind) DO UPDATE SET last_at = greatest(c.last_at, EXCLUDED.last_at), in each of its four inserts)`);
+        if (/\bDELETE\b|\bUPDATE\b/i.test(body.replace(KEEP, " "))) detail.push(`${remember.rel}: business_contacts_remember must only add to the record`);
         for (const table of ["applications", "messages", "document_requests", "documents", "interviews"]) {
           detail.push(...(await triggerProblems(ctx, { name: "business_contacts_remember", table, timing: "AFTER", event: "INSERT", fn: "business_contacts_remember" })));
         }
+        // The card's trigger fires for a browser's own insert only: inside the
+        // server's SECURITY DEFINER functions the statement runs as their owner.
+        detail.push(...(await triggerProblems(ctx, { name: "business_contacts_remember", table: "notifications", timing: "AFTER", event: "INSERT", fn: "business_contacts_remember", when: "current_user = 'authenticated'" })));
       }
 
       // The pause reads it: "applied" from the record, never from live applications.

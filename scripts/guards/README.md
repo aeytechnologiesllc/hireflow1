@@ -16,7 +16,8 @@ A guard over SQL reads the migrations the way Postgres does, with the readers
 `phase-7-launch-locks.mjs` exports: `latestDefinition(ctx, fn)` (the latest
 CREATE in any case, with any dollar-quote tag, the whole statement, and the
 SECURITY a later ALTER FUNCTION gives it), `triggerProblems(ctx, {...})` (the
-latest CREATE TRIGGER on its own table, FOR EACH ROW with no WHEN, and no later
+latest CREATE TRIGGER on its own table, FOR EACH ROW with no WHEN, or exactly
+the WHEN it names as `when`, and no later
 DROP, DISABLE or ENABLE REPLICA / ALWAYS) and `grantsToBrowser(ctx, fn)` (a
 grant to anon, authenticated or PUBLIC, with or without `public.`, ON ROUTINE,
 or ON ALL FUNCTIONS). A regex that finds a body only between `$$` quotes

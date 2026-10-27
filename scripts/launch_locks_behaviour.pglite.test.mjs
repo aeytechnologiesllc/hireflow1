@@ -168,6 +168,26 @@
  *      queued, when tried again; any other error is logged and the delete
  *      goes (the thirteenth security review, finding 2 and LOW 1;
  *      20261025650000).
+ *  24. An admin's reopen holds, a bell card is contact, and an interview
+ *      stays on its application (the fifteenth Phase 5 review, in the shape
+ *      of its probes p1, p2, p3 and p5, and its weakenings M1 to M6;
+ *      20261025680000): paused, reopened, the same three report again (and
+ *      again after Close on the Admin page, Block and Delete their
+ *      information): it stays open, every report still ringing "A job was
+ *      reported"; a reopen closes the open reports, so one more leaves it
+ *      open and three new people it contacted pause it; written to again
+ *      after the close, someone already heard counts again, their closed
+ *      reports never; a fired teammate's throwaway accounts pause it once;
+ *      HireFlow's own account is never paused; another business's teammate
+ *      and an application to another business count for nothing here; a
+ *      card the business or its teammate writes into its applicant's bell
+ *      is a message, the server's own cards and a card past the limit are
+ *      not; the record keeps each contact's first time and moves its last;
+ *      nobody but the server moves an interview onto another application.
+ *      And the fourteenth security review's probes contact_move (an
+ *      interview booked on the business's own application, moved onto three
+ *      real applicants') and contact_bell (three "status_update" cards), and
+ *      the admins' "reported 3 times", which says "no recorded contact".
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -427,6 +447,18 @@ const putStepFiles = async (application, candidate) => {
   await putFile("voice-interview-recordings", `${application}/interview-1.webm`);
   await putFile("videos", `${candidate}/${application}-intro.webm`);
   await putFile("portfolios", `${candidate}/${application}-sample.pdf`);
+};
+/**
+ * A migration's fill of private.business_contacts alone, from its "WITH applied
+ * AS (" to the statement that ends it (`end`, included), so that running it
+ * again redefines none of the file's functions or triggers (sections 22 and 23).
+ */
+const fillStatement = (file, end) => {
+  const sql = readFileSync(path.join(MIGRATIONS, file), "utf8");
+  const from = sql.indexOf("WITH applied AS (");
+  const to = sql.indexOf(end, from);
+  if (from < 0 || to < 0) throw new Error(`no fill in ${file}`);
+  return sql.slice(from, to + end.length);
 };
 /** A new account, as Supabase Auth makes one (its trigger makes the profile). */
 const makeUser = async (u, role, meta = { full_name: "Someone" }) => {
@@ -2735,7 +2767,10 @@ console.log("\n22. Contact counts as it was made, whatever the business deletes 
   const fill = files.find((f) => f.endsWith("_contact_kept_when_made.sql"));
   if (fill) {
     await db.query(`delete from private.business_contacts`);
-    await db.exec(prepare(readFileSync(path.join(MIGRATIONS, fill), "utf8")));
+    // Only its fill, not the whole file: its functions were redefined since
+    // (the fifteenth Phase 5 review), and a later section, or a weakening
+    // made as the last migration, must meet the latest ones.
+    await db.exec(fillStatement(fill, "ON CONFLICT DO NOTHING;"));
   }
   const filled = { q: await kinds(QBIZ, S[0]), p: await kinds(PBIZ, R[0]), d: await kinds(D.b, D.people[0].u), e: await kinds(E.b, E.people[0].u), g: await kinds(G.b, g2.u), b: await kinds(B.b, B.people[0].u) };
   check(
@@ -2901,6 +2936,372 @@ console.log("\n23. The queues' turns are taken at commit, in one order, and a de
   await db.exec(`drop trigger zz_queue_fails on public.storage_file_trash; drop function public.zz_queue_fails();`);
   check("…and through all of it the removal queue's turns are the queue as it stands", (await removalDrift()) === 0 && (await pending()) === 0, show(await removalDrift()));
   await db.exec(`delete from public.storage_file_trash; delete from public.storage_file_trash_served;`);
+}
+
+// ---------------------------------------------------------------------------
+console.log("\n24. An admin's reopen holds; a bell card is contact; an interview stays on its application\n");
+{
+  // The fifteenth Phase 5 review (20261025680000). Finding 1, probes p1 and
+  // p5: with the record permanent, three people a business messaged once
+  // paused it, an admin reopened it, and the same three paused it again as
+  // soon as their closed reports let them report again, after the business
+  // had blocked them and deleted their information too, and after the
+  // teammate who wrote to them was taken off the team. Finding 2, probe p2:
+  // an interview moved onto another application was contact the record
+  // never saw. Finding 3: closed reports, a reopen that closes nothing,
+  // HireFlow's own account, another business's teammate and an application
+  // to another business were held by no test of their latest definitions
+  // (the review's M1 to M6). Finding 4, probe p3: a bell card from the
+  // business to its applicant was not counted.
+  const R23 = (n) => `9d230000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const status = async (b) => (await one(`select public.business_status_of($1) as s`, [b])).s;
+  const jobStatus = async (j) => (await one(`select status::text s from public.jobs where id = $1`, [j])).s;
+  const report = (u, job) => as(user(u), `select public.report_employer($1, 'fake_job', 'This is not a real job.') as id`, [job]);
+  const rang = async (title) => (await one(`select count(*)::int n from public.notifications n join public.platform_admins a on a.user_id = n.user_id where n.title = $1`, [title])).n;
+  const contacted = async (b, u) => {
+    const r = await as(SERVICE, `select public.business_has_contacted($1, $2) as yes`, [b, u]);
+    if (!r.ok) throw new Error(`business_has_contacted: ${r.error}`);
+    return r.rows[0].yes;
+  };
+  const kinds = async (b, u) => (await db.query(`select kind from private.business_contacts where employer_id = $1 and person_id = $2 order by kind`, [b, u])).rows.map((r) => r.kind).join(",");
+  const openReports = async (b) => (await one(`select count(*)::int n from public.employer_reports where employer_id = $1 and status = 'open'`, [b])).n;
+  // PGlite's clock moves in milliseconds: a write "after the close" waits for it to move.
+  const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
+  /** A confirmed business with a live job and n applicants. */
+  const business = async (n, name, count = 3) => {
+    const b = R23(100 + n);
+    await makeUser(b, "employer", { full_name: `${name} owner`, company_name: name });
+    await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [b]);
+    const j = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Chat support agent', 'Answer chats.', 'published') returning id`, [b])).id;
+    const people = [];
+    for (let k = 0; k < count; k += 1) {
+      const u = R23(1000 + n * 10 + k);
+      await makeUser(u, "candidate");
+      people.push({ u, app: await apply(u, j) });
+    }
+    return { b, j, people };
+  };
+  const write = async (from, p, content = "Thanks for applying. Please finish the chat test this week.") => {
+    const m = await as(user(from), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, $4)`, [from, p.u, p.app, content]);
+    if (!m.ok) throw new Error(`setup: message from ${from}: ${m.error}`);
+  };
+  const reportEach = async (people, job) => {
+    const out = [];
+    for (const p of people) out.push(await report(p.u, job));
+    return out;
+  };
+  const reopen = async (b) => {
+    const r = await as(user(ADMIN), `select public.admin_set_business_status($1, 'approved') as s`, [b]);
+    if (!r.ok) throw new Error(`setup: reopen: ${r.error}`);
+  };
+  const paused = async (biz) => (await status(biz.b)) === "suspended" && (await jobStatus(biz.j)) === "closed";
+  const open = async (biz) => (await status(biz.b)) !== "suspended" && (await jobStatus(biz.j)) === "published";
+
+  // (a) Probe p1: paused by three it messaged, reopened, the same three report again.
+  const A = await business(1, "Loop Clinic");
+  for (const p of A.people) await write(A.b, p);
+  await reportEach(A.people, A.j);
+  check("(a) three people the business messaged report it: it pauses", await paused(A), await status(A.b));
+  await reopen(A.b);
+  check(
+    "…an admin reopens it: its job is live again and the open reports are closed, by an admin",
+    (await open(A)) && (await openReports(A.b)) === 0 && (await one(`select count(*)::int n from public.employer_reports where employer_id = $1 and closed_by = $2 and closed_at is not null`, [A.b, ADMIN])).n === 3,
+    `${await status(A.b)} open reports ${await openReports(A.b)}`,
+  );
+  const jobBell = await rang("A job was reported");
+  const pausedBell = await rang("A business was paused");
+  const threeBell = await rang("A business was reported 3 times");
+  const againA = await reportEach(A.people, A.j);
+  check("…the same three report it again: each report is taken", againA.every((r) => r.ok && r.rows[0].id), show(againA));
+  check("…and it stays open, its job live", await open(A), `${await status(A.b)} ${await jobStatus(A.j)}`);
+  check(
+    "…every admin is still told of each report (\"A job was reported\"), and of no pause and no \"reported 3 times\"",
+    (await rang("A job was reported")) === jobBell + 3 && (await rang("A business was paused")) === pausedBell && (await rang("A business was reported 3 times")) === threeBell,
+    show({ job: (await rang("A job was reported")) - jobBell, paused: (await rang("A business was paused")) - pausedBell, three: (await rang("A business was reported 3 times")) - threeBell }),
+  );
+  // The admin closes those three by hand (Close on the Admin page), the
+  // business blocks the three and deletes their information, and they report again.
+  for (const r of againA) {
+    const c = await as(user(ADMIN), `select public.admin_close_report($1)`, [r.rows[0].id]);
+    if (!c.ok) throw new Error(`setup: close: ${c.error}`);
+  }
+  for (const p of A.people) {
+    const blocked = await as(user(A.b), `select public.block_applicant($1, 'Reports us without reason') as r`, [p.app]);
+    if (!blocked.ok) throw new Error(`setup: block: ${blocked.error}`);
+    if ((await one(`select count(*)::int n from public.applications where id = $1`, [p.app])).n) {
+      const removed = await as(SERVICE, `select public.remove_applicant($1, $2, 'they asked') as r`, [p.app, A.b]);
+      if (!removed.ok) throw new Error(`setup: remove: ${removed.error}`);
+    }
+  }
+  const thirdA = await reportEach(A.people, A.j);
+  check("…closed by hand too, blocked and deleted, the three report it a third time: taken, and it stays open", thirdA.every((r) => r.ok) && (await open(A)), `${show(thirdA)} ${await status(A.b)}`);
+
+  // (b) After a reopen, one more report leaves it open; three new people it contacted pause it.
+  const B = await business(2, "Reopen Desk", 6);
+  for (const p of B.people) await write(B.b, p);
+  await reportEach(B.people.slice(0, 3), B.j);
+  await reopen(B.b);
+  const fourth = await report(B.people[3].u, B.j);
+  check("(b) after a reopen, one more report from someone it was in touch with leaves it open (the reopen closed the others)", fourth.ok && (await open(B)), `${show(fourth)} ${await status(B.b)}`);
+  await reportEach(B.people.slice(4), B.j);
+  check("…and three new people it was in touch with pause it again", await paused(B), await status(B.b));
+
+  // (c) Written to again after the close, someone already heard counts again.
+  const C = await business(3, "Again Co", 4);
+  for (const p of C.people) await write(C.b, p);
+  await reportEach(C.people.slice(0, 3), C.j);
+  await reopen(C.b);
+  await tick();
+  for (const p of C.people.slice(0, 3)) await write(C.b, p, "Please send the 1,500 peso training fee to this GCash number.");
+  const heard = await as(SERVICE, `select public.report_already_heard($1, $2) as yes`, [C.b, C.people[0].u]);
+  check("(c) the business writes to the three again after the reopen: they are no longer \"already heard\"", heard.ok && heard.rows[0].yes === false, show(heard));
+  await report(C.people[3].u, C.j);
+  check("…their closed reports are not counted: one new report leaves it open", await open(C), await status(C.b));
+  await reportEach(C.people.slice(0, 2), C.j);
+  check("…but two of them reporting again, with the new one, pause it", await paused(C), await status(C.b));
+
+  // (d) Probe p5: a teammate's throwaway accounts, the teammate taken off the team.
+  const D = await business(4, "Team Co");
+  const MATE = R23(500);
+  await makeUser(MATE, "team_member", { full_name: "Rogue teammate" });
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_message_candidates, assigned_job_ids) values ($1, $2, $3, 'active', true, '{}'::uuid[])`, [MATE, D.b, emailOf(MATE)]);
+  for (const p of D.people) await write(MATE, p, "hi");
+  const fired = await as(user(D.b), `delete from public.team_members where user_id = $1 returning user_id`, [MATE]);
+  await reportEach(D.people, D.j);
+  check("(d) a teammate messages three accounts and is taken off the team; the three report: it pauses (round 14's record)", fired.ok && fired.rows.length === 1 && (await paused(D)), await status(D.b));
+  await reopen(D.b);
+  for (const p of D.people) {
+    await as(user(D.b), `select public.block_applicant($1, 'sock')`, [p.app]);
+    if ((await one(`select count(*)::int n from public.applications where id = $1`, [p.app])).n) await as(SERVICE, `select public.remove_applicant($1, $2, 'sock')`, [p.app, D.b]);
+  }
+  const againD = await reportEach(D.people, D.j);
+  check("…an admin reopens it and the owner blocks and deletes the three; they report again: taken, and it stays open", againD.every((r) => r.ok) && (await open(D)), `${show(againD)} ${await status(D.b)}`);
+
+  // (e) Close on the Admin page, with no pause: those reporters are heard too.
+  const E = await business(5, "Hand Co");
+  for (const p of E.people) await write(E.b, p);
+  const firstE = await reportEach(E.people.slice(0, 2), E.j);
+  for (const r of firstE) await as(user(ADMIN), `select public.admin_close_report($1)`, [r.rows[0].id]);
+  await reportEach(E.people, E.j);
+  check("(e) two reports an admin closed by hand, then those two and a third report it: it stays open", firstE.every((r) => r.ok) && (await open(E)) && (await openReports(E.b)) === 3, `${await status(E.b)} ${await openReports(E.b)}`);
+
+  // (e, the bell) Someone already heard makes no second "reported 3 times".
+  const K = await business(13, "Quiet Desk", 4);
+  const [k0, ...kRest] = K.people;
+  const firstK = await report(k0.u, K.j);
+  await as(user(ADMIN), `select public.admin_close_report($1)`, [firstK.rows?.[0]?.id]);
+  const threeBellK = await rang("A business was reported 3 times");
+  await reportEach(kRest, K.j);
+  const afterThree = await rang("A business was reported 3 times");
+  await report(k0.u, K.j);
+  check(
+    "…three people who only applied ring \"reported 3 times\" once, and a fourth already heard does not ring it again",
+    firstK.ok && afterThree === threeBellK + 1 && (await rang("A business was reported 3 times")) === afterThree && (await open(K)),
+    show({ first: afterThree - threeBellK, again: (await rang("A business was reported 3 times")) - afterThree }),
+  );
+
+  // (f) HireFlow's own account is never paused by reports (the review's M1).
+  const OWN = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Support team lead', 'Lead the chat team.', 'published') returning id`, [ADMIN])).id;
+  const own = [];
+  for (let k = 0; k < 3; k += 1) {
+    const u = R23(2000 + k);
+    await makeUser(u, "candidate");
+    own.push({ u, app: await apply(u, OWN) });
+  }
+  for (const p of own) await write(ADMIN, p);
+  const pausedBellF = await rang("A business was paused");
+  const repF = await reportEach(own, OWN);
+  check(
+    "(f) three people HireFlow's own account messaged report it: taken, it stays open, its job live, no pause bell",
+    repF.every((r) => r.ok) && (await contacted(ADMIN, own[0].u)) === true && (await status(ADMIN)) !== "suspended" && (await jobStatus(OWN)) === "published" && (await rang("A business was paused")) === pausedBellF,
+    `${show(repF)} ${await status(ADMIN)} ${await jobStatus(OWN)}`,
+  );
+
+  // (g) Another business's teammate puts this business in touch with nobody (the review's M3).
+  const X = await business(6, "Other Co", 0);
+  const Y = await business(7, "Target Co");
+  const XMATE = R23(501);
+  await makeUser(XMATE, "team_member", { full_name: "Other Co teammate" });
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_message_candidates, assigned_job_ids) values ($1, $2, $3, 'active', true, '{}'::uuid[])`, [XMATE, X.b, emailOf(XMATE)]);
+  for (const p of Y.people) {
+    const app = await apply(p.u, X.j);
+    await write(XMATE, { u: p.u, app }, "About Other Co's job.");
+  }
+  const xCard = await as(user(X.b), `insert into public.notifications (user_id, type, title, message) values ($1, 'application', 'About our job', 'Please finish our chat test.')`, [Y.people[1].u]);
+  await reportEach(Y.people, Y.j);
+  check(
+    "(g) three people who applied to two businesses, messaged by the other's teammate (one carded by its owner too), report this one: it stays open, in touch with none of them",
+    xCard.ok && (await open(Y)) && (await kinds(Y.b, Y.people[0].u)) === "applied" && (await kinds(Y.b, Y.people[1].u)) === "applied" && (await kinds(X.b, Y.people[0].u)) === "applied,message",
+    `${show(xCard)} ${await status(Y.b)} ${await kinds(Y.b, Y.people[0].u)} ${await kinds(Y.b, Y.people[1].u)} | ${await kinds(X.b, Y.people[0].u)}`,
+  );
+
+  // (h) An application to another business is no application to this one (the review's M6).
+  const Z = await business(8, "Plain Desk", 1);
+  const elsewhere = [];
+  for (let k = 0; k < 2; k += 1) {
+    const u = R23(2100 + k);
+    await makeUser(u, "candidate");
+    elsewhere.push({ u, app: await apply(u, X.j) });
+  }
+  const threeBellH = await rang("A business was reported 3 times");
+  await reportEach([...elsewhere, Z.people[0]], Z.j);
+  check(
+    "(h) two people who applied only to another business and one who applied here report it: no \"reported 3 times\" bell",
+    (await open(Z)) && (await rang("A business was reported 3 times")) === threeBellH,
+    String((await rang("A business was reported 3 times")) - threeBellH),
+  );
+
+  // (i) Probe p3: a bell card from the business, or its teammate, to its applicant is a message.
+  const F = await business(9, "Bell Co");
+  const fee = (from, to) => as(user(from), `insert into public.notifications (user_id, type, title, message, link) values ($1, 'system', 'Training fee due', 'Send 1,500 PHP to GCash 0917 000 0000 before your interview, or your application closes.', '/applications')`, [to]);
+  const cards = [await fee(F.b, F.people[0].u), await fee(F.b, F.people[1].u)];
+  const FMATE = R23(502);
+  await makeUser(FMATE, "team_member", { full_name: "Bell Co teammate" });
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_message_candidates, assigned_job_ids) values ($1, $2, $3, 'active', true, '{}'::uuid[])`, [FMATE, F.b, emailOf(FMATE)]);
+  cards.push(await fee(FMATE, F.people[2].u));
+  const inBells = (await one(`select count(*)::int n from public.notifications where title = 'Training fee due' and user_id = any($1::uuid[])`, [F.people.map((p) => p.u)])).n;
+  check(
+    "(i) the business writes a card into two applicants' bells and its teammate into a third's: each is a message in the record",
+    cards.every((c) => c.ok) && inBells === 3 && (await kinds(F.b, F.people[0].u)) === "applied,message" && (await kinds(F.b, F.people[2].u)) === "applied,message",
+    `${show(cards)} ${inBells} ${await kinds(F.b, F.people[0].u)} ${await kinds(F.b, F.people[2].u)}`,
+  );
+  await reportEach(F.people, F.j);
+  check("…so their three reports pause it", await paused(F), await status(F.b));
+  // The server's own cards are not the business writing to them.
+  const G = await business(10, "Card Co", 4);
+  const [g0, g1, g2, g3] = G.people;
+  const cardsBefore = (await one(`select count(*)::int n from public.notifications where user_id = $1`, [g0.u])).n;
+  const decided = await as(user(G.b), `update public.applications set status = 'rejected' where id = $1 returning id`, [g0.app]);
+  const cardsAfter = (await one(`select count(*)::int n from public.notifications where user_id = $1`, [g0.u])).n;
+  check(
+    "…the server's own card (a decision, written as the business turns them down) is no message in the record",
+    decided.ok && decided.rows.length === 1 && cardsAfter > cardsBefore && (await kinds(G.b, g0.u)) === "applied",
+    `${show(decided)} ${cardsBefore}->${cardsAfter} ${await kinds(G.b, g0.u)}`,
+  );
+  const toBusiness = await as(user(g1.u), `insert into public.notifications (user_id, type, title, message) values ($1, 'application', 'A question', 'When will I hear back?')`, [G.b]);
+  const toSelf = await as(user(g1.u), `insert into public.notifications (user_id, type, title, message) values ($1, 'application', 'Note to self', 'Call them on Monday.')`, [g1.u]);
+  check(
+    "…an applicant's card to the business, or into their own bell, puts the business in touch with nobody",
+    toBusiness.ok && toSelf.ok && (await kinds(G.b, g1.u)) === "applied",
+    `${show({ toBusiness, toSelf })} ${await kinds(G.b, g1.u)}`,
+  );
+  const stranger = await as(user(STRANGER), `insert into public.notifications (user_id, type, title, message) values ($1, 'application', 'Hello', 'Hello')`, [g2.u]);
+  check("…another business cannot write one to them, and is put in touch with nobody", !stranger.ok && (await kinds(STRANGER, g2.u)) === "" && (await kinds(G.b, g2.u)) === "applied", `${show(stranger)} ${await kinds(STRANGER, g2.u)}`);
+  for (let i = 0; i < 30; i += 1) await as(user(G.b), `select public.client_send_allowed('notification', $1)`, [g3.u]);
+  const overLimit = await fee(G.b, g3.u);
+  const dropped = !(await one(`select 1 as x from public.notifications where user_id = $1 and title = 'Training fee due'`, [g3.u]));
+  check("…a card past the hour's limit is not written, and is no message in the record", overLimit.ok && dropped && (await kinds(G.b, g3.u)) === "applied", `${show(overLimit)} ${dropped} ${await kinds(G.b, g3.u)}`);
+
+  // (j) The record keeps the first time and moves the last.
+  const H = await business(11, "Time Co", 2);
+  const [h0, h1] = H.people;
+  await write(H.b, h0);
+  // (Without a last time at all, these checks fail rather than stop the test.)
+  await db.query(`update private.business_contacts set first_at = first_at - interval '1 hour', last_at = last_at - interval '1 hour' where employer_id = $1 and person_id = $2 and kind = 'message'`, [H.b, h0.u]).catch(() => null);
+  const times = async (b, u, kind) =>
+    (await db.query(`select extract(epoch from first_at)::float8 as first, extract(epoch from last_at)::float8 as last from private.business_contacts where employer_id = $1 and person_id = $2 and kind = $3`, [b, u, kind]).catch(() => ({ rows: [] }))).rows[0];
+  const hourAgo = await times(H.b, h0.u, "message");
+  await write(H.b, h0, "Did you finish it?");
+  const later = await times(H.b, h0.u, "message");
+  check(
+    "(j) a later message keeps the first time and moves the last time to now",
+    !!hourAgo && !!later && later.first === hourAgo.first && later.last > hourAgo.last + 30 * 60,
+    show({ hourAgo, later }),
+  );
+  // The fill: a row's last time from today's rows (its message), or its first time when they are gone.
+  await write(H.b, h1);
+  const gone = await as(user(H.b), `delete from public.messages where sender_id = $1 and receiver_id = $2 returning id`, [H.b, h1.u]);
+  const fillFile = files.find((f) => f.endsWith("_reports_heard_stay_heard.sql"));
+  let refilled = null;
+  if (fillFile && gone.ok && hourAgo?.last != null) {
+    await db.query(`update private.business_contacts set first_at = first_at - interval '1 day' where employer_id = $1`, [H.b]);
+    await db.query(`alter table private.business_contacts alter column last_at drop not null`);
+    await db.query(`update private.business_contacts set last_at = null where employer_id = $1`, [H.b]);
+    // Its fill and the two ALTERs after it, not its functions (a weakening made as the last migration stays).
+    await db.exec(fillStatement(fillFile, "ALTER TABLE private.business_contacts ALTER COLUMN last_at SET NOT NULL;"));
+    const lastMessage = (await one(`select extract(epoch from max(created_at))::float8 as at from public.messages where sender_id = $1 and receiver_id = $2`, [H.b, h0.u])).at;
+    refilled = { h0: await times(H.b, h0.u, "message"), h1: await times(H.b, h1.u, "message"), lastMessage, nullable: (await one(`select is_nullable from information_schema.columns where table_schema = 'private' and table_name = 'business_contacts' and column_name = 'last_at'`)).is_nullable };
+  }
+  check(
+    "…the migration fills each last time from today's rows (the latest message), or the first time where the business deleted them, and keeps it required",
+    !!refilled && refilled.h0.last === refilled.lastMessage && refilled.h0.last > refilled.h0.first && refilled.h1.last === refilled.h1.first && refilled.nullable === "NO",
+    show(refilled),
+  );
+
+  // (k) Probe p2: an interview stays on the application it was booked for.
+  const I = await business(12, "Move Desk", 2);
+  const [sock, victim] = I.people;
+  const booked = await as(user(I.b), `insert into public.interviews (application_id, scheduled_at) values ($1, now() + interval '1 day') returning id`, [sock.app]);
+  if (!booked.ok) throw new Error(`setup: interview: ${booked.error}`);
+  const interview = booked.rows[0].id;
+  const moved = await as(user(I.b), `update public.interviews set application_id = $2, scheduled_at = now() + interval '2 days' where id = $1 returning id`, [interview, victim.app]);
+  const IMATE = R23(503);
+  await makeUser(IMATE, "team_member", { full_name: "Scheduler" });
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_schedule_interviews, assigned_job_ids) values ($1, $2, $3, 'active', true, '{}'::uuid[])`, [IMATE, I.b, emailOf(IMATE)]);
+  const movedByMate = await as(user(IMATE), `update public.interviews set application_id = $2 where id = $1 returning id`, [interview, victim.app]);
+  const sees = await as(user(victim.u), `select count(*)::int n from public.interviews where application_id = $1`, [victim.app]);
+  check(
+    "(k) the business, or its teammate who schedules interviews, cannot move an interview onto another application",
+    !moved.ok && /interview_application_fixed/.test(moved.error) && !movedByMate.ok && /interview_application_fixed/.test(movedByMate.error) &&
+      (await one(`select application_id from public.interviews where id = $1`, [interview])).application_id === sock.app && sees.ok && sees.rows[0].n === 0,
+    show({ moved, movedByMate, sees }),
+  );
+  const rescheduled = await as(user(I.b), `update public.interviews set scheduled_at = now() + interval '3 days' where id = $1 returning id`, [interview]);
+  check("…it can still move the time", rescheduled.ok && rescheduled.rows.length === 1, show(rescheduled));
+
+  // (l) The fourteenth security review's probes (finding 1), in their shape.
+  // contact_move: the business books an interview on a decoy's application
+  // ("Pay the 1,500 peso training fee before the interview") for each of
+  // three real applicants and moves each onto theirs; then the three report
+  // it. The decoy is an account of its own, or the business's own
+  // application to its job (an account holding both roles; then not even the
+  // decoy's interview is recorded).
+  const M = await business(14, "Fee Clinic Two");
+  const DECOY = R23(504);
+  await makeUser(DECOY, "candidate");
+  const decoyApp = await apply(DECOY, M.j);
+  const ownApp = (await one(`insert into public.applications (job_id, candidate_id) values ($1, $2) returning id`, [M.j, M.b])).id;
+  const movedEach = [];
+  for (const [k, p] of M.people.entries()) {
+    const i = await as(user(M.b), `insert into public.interviews (application_id, scheduled_at, notes) values ($1, now() + interval '2 days', 'Pay the 1,500 peso training fee before the interview') returning id`, [k === 2 ? ownApp : decoyApp]);
+    movedEach.push(i.ok ? await as(user(M.b), `update public.interviews set application_id = $2 where id = $1 returning id`, [i.rows[0].id, p.app]) : i);
+  }
+  const theyHave = (await one(`select count(*)::int n from public.interviews where application_id = any($1::uuid[])`, [M.people.map((p) => p.app)])).n;
+  await reportEach(M.people, M.j);
+  check(
+    "(l) contact_move: an interview booked on a decoy's application, or the business's own, cannot be moved onto three real applicants' applications",
+    movedEach.every((r) => !r.ok && /interview_application_fixed/.test(r.error)) && theyHave === 0,
+    show({ movedEach: movedEach.map((r) => r.ok || r.error), theyHave, record: await kinds(M.b, M.people[0].u), status: await status(M.b) }),
+  );
+  // contact_bell: a "status_update" card from the business into each one's bell (and phone).
+  const N = await business(15, "Fee Desk Two");
+  const bellCards = [];
+  for (const p of N.people) {
+    bellCards.push(await as(user(N.b), `insert into public.notifications (user_id, type, title, message, link) values ($1, 'status_update', 'Next step: training slot', 'You passed! Send the 1,500 peso training fee to GCash 0917 000 0000 today to keep your slot.', '/dashboard')`, [p.u]));
+  }
+  const threeBellN = await rang("A business was reported 3 times");
+  await reportEach(N.people, N.j);
+  check(
+    "…contact_bell: three \"status_update\" cards from the business are messages in the record, and the three reports pause it",
+    bellCards.every((c) => c.ok) && (await kinds(N.b, N.people[0].u)) === "applied,message" && (await paused(N)) && (await rang("A business was reported 3 times")) === threeBellN,
+    `${show(bellCards.map((c) => c.ok || c.error))} ${await kinds(N.b, N.people[0].u)} ${await status(N.b)}`,
+  );
+  // The admins' bell says what is known, never "had not been in touch".
+  const threeText = await one(`select n.message from public.notifications n join public.platform_admins a on a.user_id = n.user_id where n.title = 'A business was reported 3 times' and n.message like 'Quiet Desk %' order by n.created_at desc limit 1`);
+  check(
+    "…and \"reported 3 times\" says the business has no recorded contact with them, never that it had not been in touch",
+    /^Quiet Desk was reported by 3 people who applied\. It stays open because it has no recorded contact with them\. Open Admin to look\.$/.test(threeText?.message ?? "") &&
+      (await one(`select count(*)::int n from public.notifications where title = 'A business was reported 3 times' and message like '%had not been in touch%' and message like any (array['Quiet Desk %', 'Fee Clinic Two %'])`)).n === 0,
+    show(threeText),
+  );
+
+  // Nobody but the server asks whether someone was already heard.
+  const askHeard = [
+    await as(user(A.b), `select public.report_already_heard($1, $2)`, [A.b, A.people[0].u]),
+    await as(user(A.people[0].u), `select public.report_already_heard($1, $2)`, [A.b, A.people[0].u]),
+    await as(ANON, `select public.report_already_heard($1, $2)`, [A.b, A.people[0].u]),
+  ];
+  check("report_already_heard is the server's only", askHeard.every((r) => !r.ok), show(askHeard.map((r) => r.ok || r.error)));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

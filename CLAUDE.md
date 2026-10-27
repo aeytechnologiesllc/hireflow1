@@ -490,7 +490,23 @@ these either; each has a guard or a test that CI runs:
   rows: deleting its messages, requests, interviews, documents, the
   application or the job no longer dodged the pause, and a removed
   applicant's report still rings "reported 3 times". Guard
-  `contact-counts-as-made`; launch_locks_behaviour section 22.
+  `contact-counts-as-made`; launch_locks_behaviour section 22. (The
+  fifteenth Phase 5 review, `20261025680000`.) An admin's reopen holds:
+  someone whose report on this business an admin closed (`closed_by`: the
+  reopen or Close) counts toward neither the pause nor "reported 3 times"
+  until the business is in touch with them after that close
+  (`report_already_heard`; the record keeps each contact's `last_at`), so
+  the same three can no longer pause it after every reopen; their reports
+  still ring "A job was reported". A browser's card from the job's owner or
+  an active teammate into its applicant's bell is a `message` (a sixth
+  trigger, on notifications, `WHEN (current_user = 'authenticated')`, never
+  the server's cards); an interview's application is the server's to change
+  (`interviews_stay_on_their_application`; both MEDIUM in the fourteenth
+  security review). "Reported 3 times" says the business "has no recorded
+  contact with them", never "had not been in touch". The hiring team's
+  emails are not counted (docs/BUSINESS-TRUST.md says why). Guards `reopen-holds`,
+  `bell-card-is-contact`, `interview-stays-on-its-application`;
+  launch_locks_behaviour section 24.
 - HireFlow's own jobs have their own AI day
   (`ai_platform_business_daily_call_cap`, 6,000 of the platform's 10,000;
   `20261025300000_ai_budget_own_jobs.sql`): they were uncounted, so one
@@ -660,6 +676,8 @@ from it or its team, papers asked for, an interview) pause one by itself
 (`20261011190000_open_by_default_report_pause.sql`, narrowed by
 `20261025290000_reports_need_contact.sql`; contact counted as it was made,
 whatever the business deletes since, `20261025670000_contact_kept_when_made.sql`;
+an admin's reopen holds against the same reporters until the business is in
+touch with them again, `20261025680000_reports_heard_stay_heard.sql`;
 docs/BUSINESS-TRUST.md).
 No TIN check: no law requires one. Don't bring back an approval step.
 New businesses get one-time guided tips (`src/cockpit/tips`, table

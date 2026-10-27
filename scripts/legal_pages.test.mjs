@@ -237,6 +237,25 @@ check("no price is charged, and none without agreement", /free at the moment/.te
 check("signing electronically is explained, and can be declined", /typing or drawing your name/.test(terms) && /You can decline to sign\./.test(terms));
 check("it takes away no right the law protects", /Nothing in these terms takes away a right the law gives you that cannot be taken away\./.test(terms));
 check("it names no governing law or court (there is no company named to hang one on yet)", !/governed by|jurisdiction|courts? of|arbitrat/i.test(terms));
+{
+  // The fifteenth Phase 5 review (finding 1): after a reopen the same three
+  // people paused a business again, for good. Someone whose report an admin
+  // closed counts again only once the business is in touch with them after
+  // that (report_already_heard); the Terms say so, as the pause reads it.
+  const heard = (() => {
+    try {
+      return read("supabase/migrations/20261025680000_reports_heard_stay_heard.sql");
+    } catch {
+      return "";
+    }
+  })();
+  check(
+    "the pause rule says a report already looked at counts again only after the business is in touch again, as employer_reports_auto_pause reads it",
+    /When three different people the business has been in touch with \(by message, a document to sign, a request for papers, or an interview\) report it, it pauses by itself while we look/.test(terms) &&
+      /Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that\./.test(terms) &&
+      /AND NOT public\.report_already_heard\(NEW\.employer_id, r\.reporter_id\)/.test(heard) && /AND since\.last_at > done\.closed_at/.test(heard),
+  );
+}
 
 // --- the pages ---------------------------------------------------------------------------
 const page = read("src/components/LegalPage.tsx");

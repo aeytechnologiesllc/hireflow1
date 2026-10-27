@@ -170,9 +170,12 @@ export async function grantsToBrowser(ctx, fn) {
  * public.<fn>() with no WHEN, and no later migration may drop it, drop its
  * function with CASCADE, or switch it off, to replica only or to always
  * (DISABLE, ENABLE REPLICA, ENABLE ALWAYS: by name, ALL or USER). A CREATE
- * of the same name on another table does not make it.
+ * of the same name on another table does not make it. A trigger made to fire
+ * only for some rows names its condition (`when`, as SQL): its WHEN must be
+ * exactly that, as written (the fifteenth Phase 5 review: a browser's own
+ * bell card, `current_user = 'authenticated'`).
  */
-export async function triggerProblems(ctx, { name, table, timing, event, fn }) {
+export async function triggerProblems(ctx, { name, table, timing, event, fn, when = null }) {
   const events = [];
   (await migrationTexts(ctx)).forEach(({ rel, sql }, file) => {
     for (const m of sql.matchAll(new RegExp(`\\bCREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:CONSTRAINT\\s+)?TRIGGER\\s+"?${name}"?\\s[^;]*;`, "gi"))) {
@@ -196,7 +199,13 @@ export async function triggerProblems(ctx, { name, table, timing, event, fn }) {
   const firing = /\b(BEFORE|AFTER|INSTEAD\s+OF)\s+([\s\S]*?)\s+ON\s/i.exec(def);
   if (!firing || firing[1].toUpperCase() !== timing || !new RegExp(`\\b${event}\\b`, "i").test(firing[2])) problems.push(`${made.rel}: ${name} is made again other than ${timing} ${event}`);
   if (!/\bFOR\s+EACH\s+ROW\b/i.test(def)) problems.push(`${made.rel}: ${name} is made again FOR EACH STATEMENT (it must run for each row)`);
-  if (/\bWHEN\s*\(/i.test(def)) problems.push(`${made.rel}: ${name} is made again with a WHEN`);
+  if (when === null) {
+    if (/\bWHEN\s*\(/i.test(def)) problems.push(`${made.rel}: ${name} is made again with a WHEN`);
+  } else {
+    const flat = (sql) => sql.replace(/\s+/g, " ").trim();
+    const wrote = /\bFOR\s+EACH\s+ROW\s+WHEN\s*\(([\s\S]*)\)\s*EXECUTE\s+(?:FUNCTION|PROCEDURE)\b/i.exec(def);
+    if (!wrote || flat(wrote[1]) !== flat(when)) problems.push(`${made.rel}: ${name} must fire WHEN (${when}), as written`);
+  }
   if (!new RegExp(`\\bEXECUTE\\s+(?:FUNCTION|PROCEDURE)\\s+${sqlName(fn)}\\s*\\(\\s*\\)`, "i").test(def)) problems.push(`${made.rel}: ${name} no longer runs public.${fn}()`);
   // A CREATE (OR REPLACE) switches it on again; a plain ENABLE TRIGGER too.
   let off = null;
