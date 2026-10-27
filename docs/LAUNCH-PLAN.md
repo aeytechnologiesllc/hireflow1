@@ -1006,8 +1006,14 @@ reached function deployed):
   anyone who applied with no row behind them, so the record never sees that
   contact; plus a LOW regression of 680000 (a heard reporter's repeat report
   is an update that never re-runs the count). Both go to the Phase 5 round
-  16 fixer with that review's findings, live in 2303c407. **Round 16 review
-  running** (`sec16_brief.md`).
+  16 fixer with that review's findings, live in 2303c407. **Round 16**
+  (`sec16_report.md`) found no regression and the new recording, caller
+  checks, interview lookups and 503 path clean; one MEDIUM left over: a
+  decline email can still go to anyone who applied, as often as the team
+  likes, with an ask in its renamed business name or job title and no
+  contact recorded (the decline was left out of contact on purpose; the
+  fix is a decline only for an application really turned down, once). It
+  goes to the Phase 5 round 17 fixer with that review's findings.
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -1061,7 +1067,16 @@ reached function deployed):
   come from the rows, a repeat report is worked out again, an interview's
   new time is contact. A decline is not contact (decided in review: it
   carries only the business's name, and counting it would let three people
-  it turned down pause it). **Round 17 review running** (`p5r17_brief.md`).
+  it turned down pause it). **Round 17** (`p5r17_report.md`) found one
+  MEDIUM, not a regression: a closed job's title is the team's free text,
+  and the server's own offer, hire and decline cards (pushed to the phone)
+  and the decline email carry it with nothing recorded, so "rename, click
+  Advance, rename back" asks a fee with no contact; and one LOW (a full
+  first report keeps none of a repeat's words). With security round 16's
+  MEDIUM (the decline email), **its fixer is running** (`p5r17_fix_brief.md`,
+  migration 700000): the team's status moves become contact, and a decline
+  goes once, for a real decline, naming the job and business as they were
+  when the person applied.
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1207,7 +1222,11 @@ reached function deployed):
   round 21's widened endings. Fixed by 4d0b7efb (round 21's ROLE_PLAY,
   NOT_A_CUSTOMERS_MESSAGE and THEIR_FORMAT back to round 20's, the new words
   read only where their evidence was; six functions deployed and
-  answering). **Round 23 review running** (`p6r23_brief.md`).
+  answering). **Round 23** (`p6r23_report.md`) found one MEDIUM: round 22's
+  MEDIUM with a number where it had a blank ("Hi, I'm Maria, 23 years old,
+  single" beside the practice step in How to apply stays in the post), and
+  one LOW–MEDIUM false drop of round 22's sentence window. **Its fixer is
+  running** (`age23_fix_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
