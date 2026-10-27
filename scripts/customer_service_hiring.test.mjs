@@ -1184,6 +1184,19 @@ for (const [title, work, want] of [
   ["Store Manager", "Run the store, handle the till and daily deposits.", "cash"],
   ["Branch Manager", "Open and close the branch and supervise the tellers.", "cash"],
   ["Property Manager", "Collect rent, coordinate repairs and maintain the cleanliness of the building.", "admin"],
+  // The thirty-ninth (H1): the till's places' managers are cash, and a generic manager whose title names one; (H2) only
+  // the IT department's own roles are a developer's, never another trade with an IT word.
+  ["Coffee Shop Manager", "Run the shop and supervise the staff.", "cash"],
+  ["Supermarket Manager", "Oversee daily operations and supervise the staff.", "cash"],
+  ["Pharmacy Manager", "Run the pharmacy and supervise the staff.", "cash"],
+  ["Area Manager - Fast Food", "Visit our branches and supervise the crew.", "cash"],
+  ["Operations Manager - Coffee Shop", "Oversee daily operations and supervise the crew.", "cash"],
+  ["IT Trainer", "Train our staff and run onboarding sessions.", "general"],
+  ["ICT Trainer", "Train our staff and run onboarding sessions.", "general"],
+  ["IT Company Driver", "Drive our staff to client sites and run errands.", "general"],
+  ["Fix-It Handyman", "Repair doors, paint walls and fix leaks.", "general"],
+  ["IT/Network Administrator", "Maintain our network and servers.", "developer"],
+  ["Head of IT", "Lead our IT team and plan our systems.", "developer"],
 ]) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is ${want}`, got === want, got);
@@ -1671,6 +1684,13 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Hotline Officer", "Answer the customer hotline and reply to Viber inquiries.", "mixed"],
     ["Chat Support Agent", "Answer customer chats on our website.\nTake home pay: 15k | For inquiries: Call/Viber HR", "chat"],
     ["Chat Support Agent", "Answer customer chats on our website.\nHiring process: exam, interview, job offer; for inquiries Call/Viber HR", "chat"],
+    // The thirty-ninth (M1): customers' inquiries or messages on Viber are the agent's chats whatever the title; (M2) a
+    // receptionist's phone named by its place is the phone.
+    ["Hotline Officer", "Answer the customer hotline and reply to customer inquiries via Viber.", "mixed"],
+    ["Customer Service Representative (Voice)", "Answer customer calls and respond to customer messages on Viber.", "mixed"],
+    ["Receptionist", "Answer the office phone and reply to emails.", "mixed"],
+    ["Dental Receptionist", "Answer the clinic phone, book appointments and reply to patient Viber inquiries.", "mixed"],
+    ["Receptionist", "Greet visitors, answer the landline and reply to emails.", "mixed"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {

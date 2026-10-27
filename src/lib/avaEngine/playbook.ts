@@ -965,6 +965,14 @@ function isCustomerService(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): b
   return CS_WORK.test(work) || (CLINIC_PHONES.test(work) && PATIENT_CONTEXT.test(work));
 }
 
+// Only the IT department's own roles are a developer's: an IT word, the department's areas, then a department role ("IT
+// Staff", "IT Support Specialist", "IT/Network Administrator", "MIS Officer", "Head of IT"); never another trade with
+// an IT word ("IT Trainer", "IT Company Janitor", "Cebu IT Park Barista", "Fix-It Handyman"). The thirty-eighth's list
+// of other trades missed most of them; the thirty-ninth review, H2.
+const IT_SEP = String.raw`(?:\s*[/&,+-]\s*|\s+(?:and\s+)?)`;
+const IT_AREA = String.raw`(?:support|help ?desk|service ?desk|service|technical|tech|security|cyber ?security|network(?:ing)?|systems?|infrastructure|operations|ops|projects?|department|dept|desktop|field|hardware|software|assets?|management|cloud|data ?cent(?:er|re)|data|servers?|admin|applications?|database|web|qa|quality assurance|devops|telecoms?|business)`;
+const IT_ROLE = String.raw`(?:staff|support|specialists?|officers?|assistants?|asst|technicians?|techs?|managers?|head|supervisors?|admin(?:istrator)?s?|coordinators?|personnel|associates?|analysts?|interns?|trainees?|help ?desk|service desk|leads?|directors?|consultants?|engineers?|architects?|generalists?|professionals?|experts?|executives?|agents?|representatives?|in-?charge|testers?|programmers?|developers?)`;
+const IT_DEPT_ROLE = new RegExp(String.raw`\b(?:it|mis|ict)(?:${IT_SEP}(?:${IT_AREA}|it|mis|ict))*${IT_SEP}${IT_ROLE}\b|\b(?:head|manager|director|supervisor|officer|staff|lead|chief|vp)\s+(?:of|for)\s+(?:the\s+)?(?:it|mis|ict)\b|^\s*(?:it|mis|ict)\s*$`);
 /** The families other than customer service, from the words (detectFamily). */
 function otherFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employmentType">): Family {
   // (The thirty-fourth review, M2: a developer's title first, so "Write clean, maintainable code" is no cleaning job. Only a
@@ -978,8 +986,12 @@ function otherFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employm
   // Manager / ... maintain the cleanliness of the building" is no cleaner; the thirty-eighth, H1 and M3.)
   const head = headPhrase((brief.roleTitle ?? "").toLowerCase());
   const byTitle = familyOfWords(head);
-  if (byTitle === "developer" || (/\b(it|mis|ict)\b/.test(head) && !/\b(recruit\w*|talent|sourc\w+|\w*sales|account executives?|teach\w*|instructors?|faculty|lecturers?|professors?|tutors?|secretar\w*|clerks?|encoders?|purchas\w*|procure\w*|buyers?|audit\w*|compliance|accountants?|accounting|book-?keep\w*|billing|cashiers?)\b/.test(head))) return "developer";
-  return familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase(), byTitle === "general" && !/\bmanagers?\b/.test(head));
+  if (byTitle === "developer" || IT_DEPT_ROLE.test(head)) return "developer";
+  const fam = familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase(), byTitle === "general" && !/\bmanagers?\b/.test(head));
+  // (A manager whose own part names no trade, "Manager - Coffee Shop", "Area Manager - Fast Food", is the till's when the
+  // title names the till's place; the thirty-ninth review, H1.)
+  const genericManager = /^((area|operations|general|deputy|senior|junior|night|day|assistant|regional|district|unit|branch|store|outlet|shift|duty)\s+)?managers?$/.test(head.trim());
+  return fam === "general" && genericManager && /\b(f ?& ?b|food (and|&) beverage|food service|fast food|front of house|foh|coffee|milk ?tea|tea shop|(pawn)?shop|(mini|super|hyper) ?mart|(super|hyper)market|grocery|pharmacy|drugstore|(gas|gasoline|petrol|fuel|service) station|kiosk|boutique|bakery|bakeshop|carinderia|canteen)\b/.test((brief.roleTitle ?? "").toLowerCase()) ? "cash" : fam;
 }
 function familyOfWords(s: string, cleanliness = true): Family {
   // (The thirty-third review, M7: a word, never part of one, so a dental office's "cleanings" and a coder's "clean claims"
@@ -992,8 +1004,9 @@ function familyOfWords(s: string, cleanliness = true): Family {
     return "developer";
   if (/admin|secretar|reception|assistant|office|clerk|book-?keep|schedul|coordinat|data entry/.test(s)) return "admin";
   // (Only the till's managers: "Social Media Manager", "HR Manager", "Project Manager" were asked whether they handle the
-  // till and deposits; the thirty-eighth review, M3.)
-  if (/\b(shift|branch|outlet|floor|bar|duty|kitchen|dining|canteen|f&b) managers?\b|cashier|finance|account|teller|retail|server|barista|caf[eé]|waiter|waitress|host|sales|store|bank|restaurant|bartender/.test(s))
+  // till and deposits; the thirty-eighth review, M3. The till's places too: a coffee shop's, supermarket's, pharmacy's or
+  // fast-food manager stopped being asked about the till; the thirty-ninth, H1.)
+  if (/\b(shift|branch|outlet|floor|bar|duty|kitchen|dining|canteen|f ?& ?b|food (and|&) beverage( service)?|food service|fast food|front of house|foh|coffee shop|(milk )?tea shop|(pawn)?shop|(mini|super|hyper) ?mart|(super|hyper)market|grocery|pharmacy|drugstore|(gas|gasoline|petrol|fuel|service) station|kiosk|boutique|bakery|bakeshop)( operations)? (supervisor ?\/ ?)?managers?\b|\bmanagers? on duty\b|cashier|finance|account|teller|retail|server|barista|caf[eé]|waiter|waitress|host|sales|store|bank|restaurant|bartender/.test(s))
     return "cash";
   return "general";
 }
@@ -1162,7 +1175,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
     ],
     reasoning: [
       "Reading the role and the stack",
-      "Weighing skills, ways of working & remote setup",
+      "Weighing skills, ways of working & work setup",
       "Choosing a fair screen",
       "Writing questions about real work, not trivia",
       "Building the scorecard",
