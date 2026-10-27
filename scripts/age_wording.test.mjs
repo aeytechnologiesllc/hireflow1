@@ -47,8 +47,12 @@
  * seventeenth and eighteenth rounds, in the nineteenth; 202,656 from the trees
  * at the last three rounds, this one and the main working tree, and the same
  * 212 items, against the seventeenth, eighteenth and nineteenth rounds, in the
- * twentieth) to see what the new rules drop that the old ones kept; the
- * seventh to twentieth reviews' fixes drop none of them.
+ * twentieth; 204,059 from the trees at the last three rounds, this one and the
+ * main working tree, 8,172 multi-line literals and whole files read as a job
+ * writer's text, and the same 212 items, against the eighteenth, nineteenth
+ * and twentieth rounds, in the twenty-first) to see what the new rules drop
+ * that the old ones kept; the seventh to twenty-first reviews' fixes drop none
+ * of them.
  *
  * Run with: node scripts/age_wording.test.mjs
  */
@@ -2010,6 +2014,178 @@ for (const [line, drops, why] of [
   ['Opening message: "Welcome to the support team at Bright! To confirm your tax filing status, are you married or single?"', false, "a welcome goes on \"at\" or \"and\" as a hire's only from \"the team\" or \"our team\" itself (the twentieth review: \"our pharmacy team at Bright Clinic\", \"the refill team at Bright Pharmacy\" are desks); a team named by its work reads the same for a desk and a hire"],
   ['Ask: "How many customers are waiting in your queue right now? How old are you?"', false, "\"how many … are …\" is a desk's own count as often (\"How many passengers are traveling with you today?\"); only \"how many … are you …\" and \"… do, did or can you …\" are the work"],
 ]) check(`(20th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, A.asksAgeOrStatus(line) === drops);
+
+// The twenty-first review (ba7c8a3b): the "are" the twentieth round added to the work's "how many … you" had lost the
+// clientele part's exception, so a desk's own count before its age rule was the work and the age the applicant's
+// (MEDIUM, a regression against both: generate-flow dropped five practice cases and two quiz items whole); the label endings
+// the twentieth round read as what to reply with were its review's exact ones, so "…with a short intro, for example:" left
+// the applicant's own sample after a step of the hiring to be a customer's (LOW-MEDIUM, a regression against both); a
+// practice's sample under "How to apply", past a heading with no colon, was a step of applying, and "he said" after "the
+// caller was a teen" was the applicant (LOW, regressions against both); an agent's line under "Agent:" after the customer's,
+// "they" in a quiz item's good answer and a customer's "my refill" lost her age check or her age in every round, and the
+// twentieth round's format note read only "use this format" (LOW). Each was narrowed back or read in the review's cases;
+// the rest are known items below. Every check in this list but the guards and the known items fails on the twentieth
+// round's module.
+console.log("\nThe twenty-first review's cases\n");
+{
+  // Finding 1: "how many … are you …" is the work only where the clientele part read the work in the nineteenth round, with
+  // nothing after it that tells a rule (a number, need, can, may, get, rate, plan, add, enrolling, join, apply…).
+  const counts = ['"How many passengers are you booking at the senior rate? Are you 65 or older?"', '"How many guests are you checking in for 2 nights? Are you 21 or older?"',
+    '"How many members are you enrolling on the family plan? Are you 65 or older?"', '"How many members are you adding to your plan? Are you over 65?"',
+    '"How many travelers are you booking for the 3 p.m. tour? Are you 21 or older?"', '"How many passengers are you traveling with on flight 220? Are you over 65?"',
+    '"How many guests are you checking in, and do any need a crib? Are you 21 or older?"', '"How many guests are you checking in who qualify for the discount? Are you 21 or older?"'];
+  const lines = [...counts.flatMap((q) => [`Ask: ${q}`, `Say: ${q}`]), 'Say: "Welcome to Bright Air! How many passengers are you booking at the senior rate? Are you 65 or older?"',
+    'Good answer: ask "How many passengers are you booking at the senior rate? Are you 65 or older?" and apply the discount.',
+    'A caller wants three seats at the senior fare. The agent asks: "How many passengers are you booking at the senior rate? Are you 65 or older?"'];
+  const dropped = lines.filter((line) => A.asksAgeOrStatus(line));
+  check(`(21st review) a desk's "how many … are you …" before a rule is the customer's (${lines.length} lines)`, lines.length === 19 && dropped.length === 0, dropped.slice(0, 3).join(" | "));
+  // …the review's grid: 10 customer words, 3 verbs, the 6 tails that tell a rule and 3 age asks.
+  const grid = [];
+  for (const n of ["guests", "passengers", "travelers", "members", "players", "customers", "users", "tenants", "patients", "visitors"]) for (const v of ["booking", "checking in", "registering"])
+    for (const t of [" at the senior rate", " for 2 nights", " on the family plan", " for the 3 p.m. tour", " who qualify for the discount", " on flight 220"]) for (const a of ["Are you 21 or older?", "Are you 65 or older?", "Are you over 18?"]) grid.push(`Ask: "How many ${n} are you ${v}${t}? ${a}"`);
+  const gridDropped = grid.filter((line) => A.asksAgeOrStatus(line));
+  check(`(21st review) …over the review's grid (${grid.length} lines)`, grid.length === 540 && gridDropped.length === 0, gridDropped.slice(0, 3).join(" | "));
+}
+for (const line of [
+  // Finding 2: the applicant's own sample or template after the label endings the review found, numbers given or blanks.
+  'To apply, reply to this email with a short intro, for example: "Hi, I\'m Maria, 23 years old, from Davao, and I love helping customers."',
+  'Step 2 of your application. Reply to this message with a short intro, for example: "Hi! I\'m 24 years old and I enjoy talking to patients."',
+  'Reply to the screening email with a short intro, for example: "Hi, I\'m Maria, 23 years old, from Davao, and I love helping customers."',
+  'Reply to our email with a short intro, for example: "Hi, I\'m Maria, 23 years old, from Davao, and I love helping customers."',
+  'To apply, respond to this post with an intro, such as: "Hi! I\'m 24 years old and I enjoy talking to patients."',
+  ...["Reply to this email with a short intro, for example:", "Reply to this email with a short intro, e.g.:", "Reply to this email with a short intro such as:", "Reply to this email with an intro like:",
+    "Reply to this email with a simple intro:", "Reply to this email with a two-line intro:", "Reply to this email with a 3-sentence intro:", "Reply to this email with a short bio:",
+    "Reply to this email with the following details:", "Reply to this email with the following information:", "Reply to this email with the information below:", "Reply to this email with this information:",
+    "Reply to this email with the information requested:", "Reply to this email with a brief intro (example below):", "Reply to this email with a short intro, for instance:", "Respond to this email with a short intro, for example:"]
+    .flatMap((label) => [`${label} "Hi, I'm ___, ___ years old, from ___."`, `${label} "Good day! My name is ___, ___ years old, single, and I have 2 years of BPO experience."`]),
+  // Finding 6: the format to use in the review's other words.
+  'Reply to this message: "Hi, I\'m ___, ___ years old, from ___, and I love helping customers." Applicants must reply in this exact format.',
+  'Reply to this message: "Hi, I\'m ___, ___ years old, from ___, and I love helping customers." Candidates should fill in the blanks.',
+  'Reply to this message: "Hi, I\'m ___, ___ years old, from ___, and I love helping customers." Candidates must use the same format.',
+  'Reply to this message: "Hi, I\'m ___, ___ years old, from ___, and I love helping customers." Candidates should use this exact template.',
+]) check(`(21st review) asks for age or marks it: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+for (const line of [
+  // Findings 3 and 7: an agent's line or a practice's message under its own label, after the customer's line or the case's
+  // customer; "they" in a quiz item's good answer after its scenario; a customer's own refill.
+  'Customer: "I want to rent a car." Agent: "Are you 21 or older?"', 'Customer: "I need a senior ticket." Agent: "Are you 65 or older?"',
+  'Caller: "I\'d like the senior discount." Agent: "Sure! Are you 60 or older?"', 'A customer writes: "I want to rent a car this weekend." Agent: "Happy to help! Are you 21 or older?"',
+  'A caller asks for the senior fare. Agent: "Of course. Are you 65 or older?"', 'A caller asks for the senior fare. Rep: "Of course. Are you 65 or older?"',
+  'A caller asks for the senior fare. You: "Of course. Are you 65 or older?"', 'A caller asks for the senior fare. Response: "Of course. Are you 65 or older?"',
+  'A member writes in. Ticket: "I\'m 64 years old and want to know when my Medicare plan starts."', 'A player writes in. Chat: "Hi, I\'m 15 years old and I bought gems with my mom\'s card. Can I get a refund?"',
+  'Opening message: "I\'m 70 years old, a member since 2010, and my refill is late."',
+  "A caller wants the senior fare for her trip. Confirm they are 65 or older before quoting the senior rate.", "A customer wants to rent a car this weekend. Ask if they are 21 or older, then book the car.",
+  "A customer asks for a refund on her ranked pass. Confirm she is 18 or older.",
+  // Finding 4: a practice's sample after "How to apply" on the same line, now that a practice email or a chat practice is one.
+  'How to apply: answer a practice email: "I\'m 70 years old and my refill is late again."', 'To apply, fill in the form and answer a practice email: "I\'m 70 years old and my refill is late again."',
+  'How to apply: click Apply. You will then do a 10-minute chat practice. Sample: reply to this chat: "Hi, I\'m 15 years old and I bought gems with my mom\'s card. Can I get a refund?"',
+]) check(`(21st review) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+// Finding 5: "he said" after a sentence whose subject is the scenario's customer is hers.
+check("(21st review) a reviewer's remark quoting the scenario's customer after \"he said\" stays", !A.marksAgeOrFamily('In the refund question the caller was a teen. He said, "I\'m 15 and I used my mom\'s card," and the candidate explained the policy well.'));
+// …and in the real paths: generate-flow's simulation filter (:252) keeps the review's five practice cases and its quiz filter
+// (:250) the review's six quiz items, and ai-generate-workflow's configWithoutAgeAsks (:607) deletes none of the prompts;
+// ai-generate-job-content's description (:387) loses the sample after "for example:" under HOW TO APPLY and keeps a
+// practice's sample under the heading; generate-flow's application filter (:249) drops the template questions; the written
+// interview's grader keeps a strength quoting the scenario's customer.
+{
+  const sims21 = [
+    { title: "Senior fare booking", prompt: 'A caller wants to book a family trip. Ask: "How many passengers are you booking at the senior rate? Are you 65 or older?" Then explain the fare.' },
+    { title: "Casino hotel check-in", prompt: 'Practice this call. Say: "How many guests are you checking in for 2 nights? Are you 21 or older?" Then confirm the room.' },
+    { title: "Family plan", prompt: 'Role-play: a member calls to add family to her plan. Ask: "How many members are you enrolling on the family plan? Are you 65 or older?" Explain the senior rate.' },
+    { title: "Group tour", prompt: 'A customer wants seats on the wine tour. Ask: "How many travelers are you booking for the 3 p.m. tour? Are you 21 or older?" Then take the deposit.' },
+    { title: "Flight change", prompt: 'Handle this call. Ask: "How many passengers are you traveling with on flight 220? Are you over 65?" Then offer the senior fare.' },
+  ];
+  check(`(21st review) the review's ${sims21.length} practice cases are kept whole, and no step prompt is deleted`, A.withoutAgeAsks(sims21, (s) => `${s.title}. ${s.prompt}`).length === sims21.length && sims21.every((s) => !A.asksAgeOrStatus(s.prompt)));
+  const quiz21 = [
+    { scenario: "A caller wants to book three seats at the senior fare.", good: 'Ask: "How many passengers are you booking at the senior rate? Are you 65 or older?" and apply the discount.' },
+    { scenario: "A guest calls to check in her party at the casino hotel.", good: 'Ask: "How many guests are you checking in for 2 nights? Are you 21 or older?" then confirm the booking.' },
+    { scenario: "A caller wants the senior fare for her trip.", good: "Confirm they are 65 or older before quoting the senior rate." },
+    { scenario: "A customer wants to rent a car this weekend.", good: "Ask if they are 21 or older, then book the car." },
+    { scenario: 'A customer writes: "I want to rent a car this weekend."', good: 'Agent: "Happy to help! Are you 21 or older?"' },
+    { scenario: "A caller asks for the senior fare.", good: 'Rep: "Of course. Are you 65 or older?" Then apply the fare.' },
+  ];
+  check(`(21st review) …and the review's ${quiz21.length} quiz items`, A.withoutAgeAsks(quiz21, (q) => `${q.scenario} ${q.good}`).length === quiz21.length);
+  const post = (...lines) => ["We are hiring a Chat Support Agent for Bright Pharmacy.", "", ...lines, "", "We review every application within 3 days."].join("\n");
+  const sample = 'Reply to this email with a short intro, for example: "Hi, I\'m Maria, 23 years old, from Davao, and I love helping customers."';
+  check("(21st review) …a job post's sample after \"for example:\" under HOW TO APPLY is dropped, the rest kept", A.textWithoutAgeAsks(post("HOW TO APPLY", sample)) === post("HOW TO APPLY") && A.textWithoutAgeAsks(post("How to apply:", "Send your resume to jobs@brightpharmacy.com.", sample)) === post("How to apply:", "Send your resume to jobs@brightpharmacy.com."));
+  const practice = [
+    post("How to apply:", "- Fill in the short form.", '- Answer a practice email: "I\'m 70 years old and my refill is late again."', "- Book a call with our team."),
+    post("HOW TO APPLY", "Click Apply. You will then do a 10-minute chat practice.", 'Sample: reply to this chat: "Hi, I\'m 15 years old and I bought gems with my mom\'s card. Can I get a refund?"'),
+    post("How to apply", "Apply on our site.", "What you'll do", 'Reply to this chat: "I\'m 64 years old and want to know when my Medicare plan starts."'),
+    post("How to apply", "Apply on our site, then finish a short practice chat.", "About the job", 'Reply to this chat: "I\'m 64 years old and want to know when my Medicare plan starts."'),
+  ];
+  const cut = practice.filter((text) => A.textWithoutAgeAsks(text) !== text);
+  check(`(21st review) …a practice's sample under "How to apply", after the practice or another heading, is kept (${practice.length} posts)`, cut.length === 0, cut.map((t) => JSON.stringify(t)).join(" | "));
+  const application = ["Tell us about a time you calmed an upset customer.", 'Reply to this message with a short intro, for example: "Hi, I\'m ___, ___ years old, from ___."',
+    'Reply to this message with the following information: "Good day! My name is ___, ___ years old, single, and I have 2 years of BPO experience."', 'Reply to this message with a short bio: "Hi, I\'m [Name], [Age] years old, [Civil Status], from [City]."'];
+  check("(21st review) …the application's template questions are dropped, the rest kept", JSON.stringify(A.withoutAgeAsks(application)) === JSON.stringify([application[0]]));
+  const C21 = await import("../supabase/functions/ai-chat-interview/interviewContext.ts");
+  const teen = 'In the refund question the caller was a teen. He said, "I\'m 15 and I used my mom\'s card," and the candidate explained the policy well.';
+  const g = C21.interviewEvaluationFrom({ score: 74, recommendation: "Maybe", credibilityRating: "Medium", strengths: [teen, "Clear steps"], concerns: ["Vague about the refund steps"], inconsistencies: [], summary: `Good tone. ${teen}` }, { leadRole: false, messages: [] });
+  check("(21st review) …and the written interview's grader keeps a strength and a summary quoting the scenario's customer", JSON.stringify(g.strengths) === JSON.stringify([teen, "Clear steps"]) && g.summary === `Good tone. ${teen}`, JSON.stringify(g));
+}
+// Guards: what each reading must still drop or keep. The work's own "how many … are you …" ("address" is no "add") and the
+// heading's reach past its first line (the review's W1) and past a step of five words or more still drop the applicant's;
+// an agent's or a ticket's label is speech only after the customer's line or the case's customer in a practice, never for
+// the agent's own age, after customers the job serves or under a label that is no agent's ("Recruiter:"), and "they" only
+// after the case's customer outside a hiring step, never "you"; "with the details of her refund:", "with a brief intro and
+// an apology:" and "with empathy, for example:" before a customer's message are still hers, and a note naming candidates is
+// still the format only in the format's words ("reply in under 60 words" is none).
+for (const line of [
+  'Ask: "How many customers are you able to handle in a shift? How old are you?"', 'Ask: "How many callers are you used to handling per day? How old are you?"',
+  'Ask: "How many customers are you currently handling per shift at your job? Are you over 30?"',
+  'Ask: "How many customers are you able to address in a shift? How old are you?"',
+  'Agent: "Are you 65 or older?"', 'Interview question. A customer calls about a refund. Agent: "Thanks for calling! Are you married?"',
+  'You will help customers with refunds. Agent: "Thanks for calling! Are you married?"', 'Customer: "I need a refund." Recruiter: "Thanks for calling! Are you married?"',
+  "A caller wants the senior fare. Tell us if you are 21 or older.", "Interview question. A customer calls about a refund. Confirm they are 21 or older.", 'Interviewer: "Tell me about yourself." You: "I\'m 24 years old and I love helping customers."',
+  'Customer: "I need a refund." Agent: "Hi, I\'m Ana, 24 years old, and I\'ll help you today."', 'Interview question. A customer calls about a refund. You: "Are you married?"',
+  'Thanks for applying! A customer calls about a refund. Agent: "How old are you?"', "Confirm they are 21 or older.", "We hire agents to help customers. Confirm they are 21 or older.",
+  "Phone screen. A customer calls about a refund. Confirm they are 21 or older.", 'Ticket: "Hi, I\'m ___, ___ years old, from ___."',
+]) check(`(21st review, guard) …and still drops: ${JSON.stringify(line)}`, A.asksAgeOrStatus(line));
+for (const line of [
+  'Reply to this chat with the details of her refund: "I\'m 70 years old, a member since 2010, and my refill is late."',
+  'Reply to this chat with a brief intro and an apology: "I\'m 72 years old, a patient of Dr. Cruz, and I need a refill."',
+  'Reply to this chat with empathy, for example: "I\'m 64 years old and want to know when my Medicare plan starts."',
+  'Reply to this chat with the correct information: "I\'m 70 years old, a member since 2010, and my refill is late."',
+  'Reply to this chat: "I\'m 70 years old, a member since 2010, and my refill is late." Candidates should reply within the same shift.',
+  'Reply to this chat: "Hi, I\'m 15 years old and I bought gems with my mom\'s card. Can I get a refund?" Candidates should reply in under 60 words.',
+  'Reply to this chat: "Hi, I\'m 15 years old and I bought gems with my mom\'s card. Can I get a refund?" Applicants should reply in the same format they would use in a real chat.',
+]) check(`(21st review, guard) left as written: ${JSON.stringify(line)}`, !A.asksAgeOrStatus(line));
+{
+  const post = (...lines) => ["We are hiring a Chat Support Agent for a US dental clinic.", "", ...lines, "", "We review every application within 3 days."].join("\n");
+  const w1 = [
+    [["How to apply:", "1. Send your resume to jobs@brightclinic.com.", '2. Reply to this email: "Hi, I\'m [Name], [Age] years old, [Civil Status], from [City]."'], ["How to apply:", "1. Send your resume to jobs@brightclinic.com.", "2."]],
+    [["HOW TO APPLY", "Send your resume to jobs@brightclinic.com.", 'Then reply to this email: "Hi, I\'m ___, ___ years old, from ___."'], ["HOW TO APPLY", "Send your resume to jobs@brightclinic.com."]],
+    [["How to apply:", "- Send your resume.", "- Book a call with our team.", '- Reply to this email: "Hi, I\'m ___, ___ years old, from ___."'], ["How to apply:", "- Send your resume.", "- Book a call with our team."]],
+    [["How to apply:", "Send us your resume and this short intro", 'Reply to this email: "Hi, I\'m ___, ___ years old, from ___."'], ["How to apply:", "Send us your resume and this short intro"]],
+  ];
+  const left = w1.filter(([lines, kept]) => A.textWithoutAgeAsks(post(...lines)) !== post(...kept));
+  check(`(21st review, guard) …a "How to apply" heading reaches past its first line, to the next blank line or heading (${w1.length} posts)`, left.length === 0, left.map(([l]) => l[0]).join(" | "));
+}
+// …and the "she wrote" entry's greeting and verbs (the review's W7 and W8 passed every check), also after a sentence that
+// names a customer only as the one helped, or after one between it and the customer's.
+for (const line of [
+  'She wrote: "Hi, I\'m 19 years old and this is my first job."', 'Asked about nights, she replied: "Hello, I\'m 23 and free every night."', 'He replied: "I\'m 45 and a team lead now."',
+  'She typed: "I am 22 years old and eager to learn."', 'They answered, "I\'m 30 and single, so nights are fine."', 'Calmed the angry customer. She wrote: "I\'m 19 years old and this is my first job."',
+  'Kind to the upset caller. She wrote: "Hi, I\'m 19 years old and this is my first job."', 'The caller was a teen. Ana stayed calm. She wrote: "Hi, I\'m 19 years old and this is my first job."',
+]) check(`(21st review, guard) a reviewer's remark quoting her age after "she wrote" is still dropped: ${JSON.stringify(line)}`, A.marksAgeOrFamily(line));
+// Known, and left (the twenty-first review): each is read as shown for the reason given, so the next review need not report it.
+for (const [line, drops, why, fn = "asksAgeOrStatus"] of [
+  ['Ask: "How many passengers are you traveling with? Are you over 65?"', true, "\"how many … are you …\" with nothing after it that tells a rule is the work in every round (the clientele part's reading until the twentieth round, this one since): \"…traveling with?\" reads as \"…able to handle?\" does"],
+  ['Agent: "Thanks for calling Bright Air. Are you 65 or older?"', true, "an agent's, a rep's or a ticket's label is speech only after the customer's own line or the case's customer; alone nothing says who is spoken to (\"Agent: \\\"How old are you?\\\"\" in an interview note)"],
+  ['Ticket: "I\'m 70 years old, a member since 2010, and my refill is late."', true, "the same: \"Ticket:\" or \"Chat:\" with no customer before it is no speech label (the review's candidate narrowing reads it after the case's customer only)"],
+  ['Minor\'s purchase. Opening message: "Hi, I\'m 15 years old and I bought gems with my mom\'s card. Can I get a refund?"', true, "a case's title names no customer, and the message names none of her own (\"my mom's card\" is not hers); the seventeenth round's known item, with a member, a refill or a case's customer it stays"],
+  ["Politely ask whether they are 65 or older, then apply the discount.", true, "\"they\" with no case's customer before it is the applicant, as the interview guide's \"Confirm they are 21 or older.\" is"],
+  ['Simply reply to this email: "Hi, I\'m ___, ___ years old, from ___."', false, "a manner word or the agent before the verb is an instruction to reply (the twentieth review's finding 1), and after any reply label a template with blanks reads as the plain 'Reply to this email: \"Hi, I'm ___…\"', kept by every round"],
+  ['Applicants act as the agent. To apply, reply to this email: "Hi, I\'m ___, ___ years old, from ___."', false, "a set-up ROLE_PLAY reads outweighs a step of the hiring in its every form; reading the twentieth round's set-ups apart from the rest would make its own case ('Applicants act as the agent. Reply to this chat: …') turn on a step named beside it"],
+  ['Opening message: "Welcome to the Customer Care team at Bright Clinic! To confirm your tax filing status, are you married or single?"', false, "the twentieth round's known family: a welcome goes on \"at\" as a hire's only from \"the team\" or \"our team\"; reading a named team's \"at\" again brings back the twentieth review's \"Welcome to our pharmacy team at Bright Clinic!\""],
+  ['Reply to the message sent to our careers email: "Hi, I\'m ___, ___ years old, from ___."', false, "\"sent to our …\" is the twentieth review's desk (\"sent to our live chat\"); telling the careers inbox from the live chat would be a new exemption, and a plain 'Reply to this email:' template is kept by every round"],
+  ['To apply, reply to this email with a sample like this: "Hi, I\'m Maria, 23 years old, from Davao, and I love helping customers."', false, "the review's endings are an intro, a bio, the information, the details or a format; \"a sample\" is the practice's message as often, and after a step of the hiring a message giving an age as a number is read by its own words (the twentieth round's known item)"],
+  ['How to apply:\nSend your resume\nReply to this email: "Hi, I\'m [Name], [Age] years old, [Civil Status], from [City]."', false, "a line of up to four words with no stop is a heading as often (\"What you'll do\", \"About the job\"), and a heading ends the reach, as does a practice set up under it; after either a template is read as every round before the twentieth read it", "textWithoutAgeAsks"],
+  ['The customer was upset. She wrote: "I\'m 19 years old and this is my first job."', false, "after a sentence whose subject is a customer, \"she\" is that customer as often as the applicant (\"the caller was a teen. He said, …\"); a customer named only as the one helped leaves it the applicant's", "marksAgeOrFamily"],
+]) {
+  const got = fn === "textWithoutAgeAsks" ? A.textWithoutAgeAsks(line) !== line : A[fn](line);
+  check(`(21st review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, got === drops);
+}
 
 console.log("\nThe three job writers\n");
 const flow = read("supabase/functions/generate-flow/index.ts");
