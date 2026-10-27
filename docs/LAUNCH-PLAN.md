@@ -992,7 +992,14 @@ reached function deployed):
   live 20261026230701, every new body matching its file; a rolled-back live
   write probe noted the change at the statement and made the turn at commit,
   and the next hourly run answered `ok` (with its new `strays` count).
-  **Round 14 review running** (`sec14_brief.md`).
+  **Round 14** (`sec14_report.md`) found nothing in the queue redesign (no
+  drift in any edge case, 0 deadlocks on the turn tables under the
+  thirteenth's bench, picks 3–5 ms at commit with 2.6M notes, the sweep 49
+  ms with 1.5M objects) and one MEDIUM in Phase 5's report pause: an
+  interview moved onto a real applicant's application, or a card in their
+  bell, is contact the record never sees. Both were LOW items of the Phase 5
+  round 15 fixer's brief, now raised to MUST in it, with the admins' bell
+  wording; round 15 follows that fix.
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -1095,7 +1102,14 @@ reached function deployed):
   list, "Data Encoder" as a developer); fixed by its combined patch with
   three narrowings of its own side effects in f7acd66a (513 rows better, 32
   worse, the reviewer's count; each narrowing pinned by a check that fails
-  on the raw patch). **Round 34 review running** (`p4r34_brief.md`).
+  on the raw patch). **Round 34** (`p4r34_report.md`) found two HIGH
+  regressions of round 33's own new words: "Call or Viber 0917 …" read as
+  the agent's channels, so every post with that contact line defaulted to
+  a mix; the whole-word "clean" dropped "cleanliness", so a janitress was
+  office admin. Fixed with one MEDIUM regression and a LOW by its combined
+  narrowing patch, plus its title-first family option for a developer's
+  "clean code", in 1fe15bb7 (351 rows better, 0 worse). **Round 35 review
+  running** (`p4r35_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
