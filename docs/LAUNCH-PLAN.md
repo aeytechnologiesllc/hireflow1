@@ -1093,8 +1093,13 @@ reached function deployed):
   link" emails still name the job and business as they are today; and two
   LOWs (the "not finished yet" email never goes, since the Phase 7 product
   audit; the decline card's "Team team"). With security round 17's MEDIUM
-  (the applicant's pages show today's names), **its fixer is running**
-  (`p5r18_fix_brief.md`).
+  (the applicant's pages show today's names), fixed by 61cf66fb
+  (`decline_card_says_team_once` live 20261027060849; send-notification-email
+  deployed and answering): the applicant's own two emails and two pages name
+  the job and business as they applied, "not finished yet" goes again, a
+  new decline card says "team" once (the 61 old cards are real users'
+  notifications and stay as they are). **Round 19 review running**
+  (`p5r19_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1217,8 +1222,14 @@ reached function deployed):
   "landline concerns" read as phone work); fixed by its narrowing patch in
   690414da (1,561 better, 0 worse against round 39). Every HIGH since round
   34 came from the round before's own new rule, so **round 41's review**
-  (running, `p4r41_brief.md`) may propose only narrowings or reverts of
-  round 40, and no new rule for an old gap.
+  may propose only narrowings or reverts of round 40, and no new rule for
+  an old gap. **Round 41** (`p4r41_report.md`) found three HIGH regressions
+  of round 40 (its IT graduate and person words inside other trades, "IT
+  Graduate Teacher"; a trade's shop as a till; the article rule taking a
+  receptionist's "phone lines"), each with a free narrowing, and left one
+  MEDIUM on purpose (every fix costs real rows; it is one click); fixed in
+  44e37578 (543 better, 0 worse). **Round 42 review running**
+  (`p4r42_brief.md`), under the same rule.
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
