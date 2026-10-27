@@ -1622,6 +1622,20 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Customer Service Representative", "Handle 100-150 emails and calls daily.", "mixed"],
     ["Customer Service Representative", "Assist customers through chat and phone, 0800 - 1700.", "mixed"],
     ["CSR", "Answer customer calls. Assist customers with their bookings via Viber.", "mixed"],
+    // The thirty-sixth (H1): a customer word anywhere on the pair's line makes "Call/Viber" the agent's own duty; (M1) "with"
+    // only after a person, so a topic's "with our riders via Viber" is a handoff; (M2) "0800-1700" is a shift's hours.
+    ["Customer Service Representative", "Handles customer inquiries (Call/Viber/Email).", "mixed"],
+    ["Customer Service Representative", "Entertain Call/Viber/Email inquiries from customers.", "mixed"],
+    ["Customer Service Representative", "Entertain customer inquiries thru FB page, call or Viber.", "mixed"],
+    ["Customer Service Representative", "Answer customer inquiries (call/text/Viber).", "mixed"],
+    ["Customer Service Representative", "Confirm COD orders: call/Viber each customer.", "mixed"],
+    ["Customer Service Representative", "Our customers usually call or Viber us about their orders.", "mixed"],
+    ["Chat Support Agent", "Answer customer chats on our website.\nInterested Customer Service applicants may Call or Viber:\n0917 123 4567", "chat"],
+    ["Customer Service Representative", "Answer customer calls. Coordinate customer orders with our riders via Viber.", "phone"],
+    ["Customer Service Representative", "Answer customer calls. Endorse customer concerns with the dispatcher via Viber.", "phone"],
+    ["Customer Service Representative", "Support customers through chat and phone, 0800-1700 Mon-Fri.", "mixed"],
+    ["Customer Service Representative", "Provide phone and email support (0800-1700, Mon-Fri).", "mixed"],
+    ["Chat Support Agent", "Provide chat and phone support from 2200-0700 PHT.", "mixed"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
