@@ -1729,6 +1729,13 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Medical Receptionist", "Answer the main line of the clinic and reply to patient emails.", "mixed"],
     ["Receptionist", "Answer all phone lines of the office and reply to emails.", "mixed"],
     ["Order Taker", "Answer the landline orders.", "phone"],
+    // The forty-third (M1): "of" before "each", "my" or a count is the receptionist's own line too; (LOW 3) a telco's
+    // "main line of postpaid plans" and "phone lines installation" stay its product.
+    ["Medical Receptionist", "Answer the main line of each clinic branch and reply to patient emails.", "mixed"],
+    ["Virtual Receptionist", "Answer the main line of my law office and reply to client emails.", "mixed"],
+    ["Order Taker", "Answer the landline of each branch.", "phone"],
+    ["Chat Support Agent - Telco Account", "Handle our main line of postpaid plans and promos via chat.", "chat"],
+    ["Chat Support Agent - Telco Account", "Answer phone lines installation questions via chat.", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
