@@ -1030,7 +1030,18 @@ reached function deployed):
   table, so deleting a message, a request, an interview or the applicant no
   longer dodges the pause; a rolled-back live insert re-recorded a contact;
   the stamp rules held by the real function; Settings no longer says "all
-  data"). **Round 15 is next.**
+  data"). **Round 15** (`p5r15_report.md`) found one MEDIUM regression of
+  round 14 (an admin's reopen no longer held: the same three people could
+  pause the business again as soon as their closed reports let them) and
+  LOWs, two of which the fourteenth security review rated MEDIUM (an
+  interview moved onto a real applicant's application, a card in their
+  bell); fixed by b36969f7 (`reports_heard_stay_heard` live
+  20261027002851, every new body matching its file: a person an admin has
+  heard counts again only after new contact, a browser's bell card is a
+  message, only the server moves an interview, the admins' bell says "no
+  recorded contact"; a rolled-back live probe was refused
+  `interview_application_fixed`). **Round 16 review running**
+  (`p5r16_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1142,7 +1153,11 @@ reached function deployed):
   "are" in the work entry drops "How many passengers are you booking at
   the senior rate? Are you 65 or older?" and whole practice cases with it)
   and one LOW–MEDIUM ("…with a short intro, for example:" before a sample
-  intro); **its fixer is running** (`age21_fix_brief.md`).
+  intro); fixed by a032d0d1 (round 20's "are you" narrowed back to round
+  19's exceptions, the label endings widened to the reviewer's list, the
+  heading's reach ended by a practice or a short heading; 12 known misses
+  written down; six functions deployed and answering). **Round 22 review
+  running** (`p6r22_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).

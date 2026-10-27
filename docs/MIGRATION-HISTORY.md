@@ -461,6 +461,7 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025670000_contact_kept_when_made.sql` | `20261026221959` | `contact_kept_when_made` |
 | `20261025650000_queue_turns_at_commit.sql` | `20261026230626` | `queue_turns_at_commit` |
 | `20261025660000_id_papers_sweep_by_folder.sql` | `20261026230701` | `id_papers_sweep_by_folder` |
+| `20261025680000_reports_heard_stay_heard.sql` | `20261027002851` | `reports_heard_stay_heard` |
 
 620000 and 630000 were applied after 640000, and 650000 and 660000 after 670000 (neither pair touches anything the later one changed; the behaviour test applies them in file order; document-cleanup was deployed between 650000 and 660000), each from its file through `supabase db query --linked --project-ref …`, in one transaction with its own history row (statements = the file), so nothing was copied by hand.
 
