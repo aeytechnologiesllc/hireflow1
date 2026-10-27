@@ -1175,9 +1175,23 @@ for (const [title, work, want] of [
   ["IT Staff", "Set up computers and printers and fix network problems.", "developer"],
   ["MIS Officer", "Maintain our database and reports and support users.", "developer"],
   ["IT Staff - Bank", "Maintain the branch's computers and network.", "developer"],
+  // The thirty-eighth (H1): only the IT department's; an IT title naming another trade is that trade's. (M3) Only the
+  // till's managers are cash, and a manager's "cleanliness" is no cleaning job.
+  ["IT Recruiter", "Source and screen candidates, schedule interviews and onboard new hires.", "admin"],
+  ["MIS Data Encoder", "Encode customer orders and delivery details into our system.", "general"],
+  ["Social Media Manager", "Plan and post content for our pages and reply to comments.", "general"],
+  ["HR Manager", "Handle hiring, payroll and employee relations.", "general"],
+  ["Store Manager", "Run the store, handle the till and daily deposits.", "cash"],
+  ["Branch Manager", "Open and close the branch and supervise the tellers.", "cash"],
+  ["Property Manager", "Collect rent, coordinate repairs and maintain the cleanliness of the building.", "admin"],
 ]) {
   const got = M.detectFamily(brief(title, work));
   check(`"${title} — ${work}" is ${want}`, got === want, got);
+}
+// (The thirty-eighth, M1: a developer is asked no work-setup question; the Type the business chose decides it.)
+{
+  const devFu = M.PLAYBOOKS.developer.followUps({}, { roleTitle: "Software Engineer", whatTheyDo: "", employmentType: "full_time", followUps: [] }) ?? [];
+  check("a developer is asked no work-setup question (the Type decides it)", !devFu.some((f) => f.id === "dev-setup") && devFu.some((f) => f.id === "dev-stack"), devFu.map((f) => f.id));
 }
 // The tenth Phase 4 review: a huge pasted line (the plans over and over, a long run of spaces or tabs) is read in linear time;
 // round 9's benefits filter took 4.4 seconds on 90 KB of plans.
@@ -1651,6 +1665,12 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Chat Support Agent", "Answer customer chats on our website.\nInterested Customer Relationship Officer applicants may Call or Viber:\n0917 123 4567", "chat"],
     ["Chat Support Agent", "Answer customer chats on our website.\nQuestions? Call/Viber any of our team members.", "chat"],
     ["Chat Support Agent", "Answer customer chats on our website.\nInquiries: Call/Viber\n0917 123 4567", "chat"],
+    // The thirty-eighth (M2): a reply to Viber inquiries beside calls is a mix; (LOW 2) take-home pay and a hiring process
+    // on a contact line are no duty.
+    ["Customer Service Representative", "Answer customer calls and reply to Viber inquiries.", "mixed"],
+    ["Hotline Officer", "Answer the customer hotline and reply to Viber inquiries.", "mixed"],
+    ["Chat Support Agent", "Answer customer chats on our website.\nTake home pay: 15k | For inquiries: Call/Viber HR", "chat"],
+    ["Chat Support Agent", "Answer customer chats on our website.\nHiring process: exam, interview, job offer; for inquiries Call/Viber HR", "chat"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {

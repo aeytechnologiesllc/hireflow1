@@ -972,11 +972,14 @@ function otherFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employm
   // "Restaurant" or "Office" too, beat the words, so "Office Utility Staff / Clean and sanitize office areas" was office
   // admin and "IT Manager" was asked about the till. "Cleanliness" counts only when the title's role names no family, so
   // "Admin Assistant / Maintain cleanliness of the office" stays the assistant's. An IT, MIS or ICT title is a
-  // developer's too: "IT Manager / Manage our IT team, servers and network" was asked about the till; the thirty-seventh.)
+  // developer's too: "IT Manager / Manage our IT team, servers and network" was asked about the till; the thirty-seventh.
+  // Only the IT department's: an IT title whose role names another trade is that trade's, "IT Recruiter", "ICT Teacher",
+  // "MIS Data Encoder" were asked for their core stack; and "cleanliness" stays off for a manager's title, so "Property
+  // Manager / ... maintain the cleanliness of the building" is no cleaner; the thirty-eighth, H1 and M3.)
   const head = headPhrase((brief.roleTitle ?? "").toLowerCase());
   const byTitle = familyOfWords(head);
-  if (byTitle === "developer" || /\b(it|mis|ict)\b/.test(head)) return "developer";
-  return familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase(), byTitle === "general");
+  if (byTitle === "developer" || (/\b(it|mis|ict)\b/.test(head) && !/\b(recruit\w*|talent|sourc\w+|\w*sales|account executives?|teach\w*|instructors?|faculty|lecturers?|professors?|tutors?|secretar\w*|clerks?|encoders?|purchas\w*|procure\w*|buyers?|audit\w*|compliance|accountants?|accounting|book-?keep\w*|billing|cashiers?)\b/.test(head))) return "developer";
+  return familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase(), byTitle === "general" && !/\bmanagers?\b/.test(head));
 }
 function familyOfWords(s: string, cleanliness = true): Family {
   // (The thirty-third review, M7: a word, never part of one, so a dental office's "cleanings" and a coder's "clean claims"
@@ -988,7 +991,9 @@ function familyOfWords(s: string, cleanliness = true): Family {
   if (/develop|engineer|programmer|(?<!\b(medical|billing|clinical|certified|inpatient|outpatient)\s)\bcoders?\b|software|frontend|front-end|back-?end|full-?stack|web dev|data scientist/.test(s))
     return "developer";
   if (/admin|secretar|reception|assistant|office|clerk|book-?keep|schedul|coordinat|data entry/.test(s)) return "admin";
-  if (/manager|cashier|finance|account|teller|retail|server|barista|caf[eé]|waiter|waitress|host|sales|store|bank|restaurant|bartender/.test(s))
+  // (Only the till's managers: "Social Media Manager", "HR Manager", "Project Manager" were asked whether they handle the
+  // till and deposits; the thirty-eighth review, M3.)
+  if (/\b(shift|branch|outlet|floor|bar|duty|kitchen|dining|canteen|f&b) managers?\b|cashier|finance|account|teller|retail|server|barista|caf[eé]|waiter|waitress|host|sales|store|bank|restaurant|bartender/.test(s))
     return "cash";
   return "general";
 }
@@ -1152,7 +1157,8 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
     // No code-test question: no applicant screen runs one (templateGenerator.ts).
     followUps: () => [
       { id: "dev-stack", question: "What's the core stack?", chips: ["Frontend", "Backend", "Full-stack", "Mobile"], def: 2 },
-      { id: "dev-setup", question: "What's the work setup?", chips: ["On-site", "Hybrid", "Fully remote"], def: 2 },
+      // (No "What's the work setup?": the Type the business chose decides it, and the question started on "Fully remote"
+      // for an on-site job, so the plan was told both; the thirty-eighth review, M1.)
     ],
     reasoning: [
       "Reading the role and the stack",
