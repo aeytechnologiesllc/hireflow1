@@ -1014,7 +1014,10 @@ reached function deployed):
   contact recorded (the decline was left out of contact on purpose; the
   fix is a decline only for an application really turned down, once). It
   goes to the Phase 5 round 17 fixer with that review's findings, live in
-  f5b5ac17. **Round 17 review running** (`sec17_brief.md`).
+  f5b5ac17. **Round 17** (`sec17_report.md`) found the snapshot, the decline
+  marks, the move trigger and the caller checks clean, and one MEDIUM left
+  over (the decline's link opens pages showing today's names); it goes to
+  the Phase 5 round 18 fixer.
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -1085,7 +1088,13 @@ reached function deployed):
   application turned down (the 62 sent before are marked); the team's
   moves to interview, offer, hire or a new step are contact; a repeat
   report keeps its newest words. **Round 18 review running**
-  (`p5r18_brief.md`).
+  (`p5r18_brief.md`). **Round 18** (`p5r18_report.md`) found one MEDIUM, not
+  a regression: the applicant's own "Application received" and "Email me the
+  link" emails still name the job and business as they are today; and two
+  LOWs (the "not finished yet" email never goes, since the Phase 7 product
+  audit; the decline card's "Team team"). With security round 17's MEDIUM
+  (the applicant's pages show today's names), **its fixer is running**
+  (`p5r18_fix_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1200,7 +1209,16 @@ reached function deployed):
   Trainer" a developer) and two old MEDIUM (Viber replies beside a phone
   title, "the office phone"); fixed by its combined patch in 7066b98e (an
   allow-list of the IT department's own roles, the till's places; 1,038
-  rows better, 8 worse). **Round 40 review running** (`p4r40_brief.md`).
+  rows better, 8 worse). **Round 40** (`p4r40_report.md`) found four HIGH,
+  each a round-39 widening reaching outside its class (the reader's "For any
+  inquiries, message us on Viber" made a phone job a mix; the IT allow-list
+  missed the department's own team leads and graduates; a guard who
+  "reports to the Manager on Duty" was asked about the till; a telco's
+  "landline concerns" read as phone work); fixed by its narrowing patch in
+  690414da (1,561 better, 0 worse against round 39). Every HIGH since round
+  34 came from the round before's own new rule, so **round 41's review**
+  (running, `p4r41_brief.md`) may propose only narrowings or reverts of
+  round 40, and no new rule for an old gap.
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
