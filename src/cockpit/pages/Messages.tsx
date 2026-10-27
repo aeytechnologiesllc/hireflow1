@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, Paperclip, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Flag, Paperclip, Trash2 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useAuth } from "@/hooks/useAuth";
 import { useMessageableEmployers, type MessageableEmployer } from "@/hooks/useMessages";
+import { ReportJobDialog } from "@/components/trust/ReportJobDialog";
 import { resolveCandidateMediaUrls } from "@/utils/candidateMediaUrl";
 import { ActionDialog } from "../components/ActionDialog";
 import { StatusChip } from "../components/ApplicantRow";
@@ -81,7 +82,9 @@ function firstName(full: string) {
   return full.trim().split(/\s+/)[0] || full;
 }
 
-/** A candidate knows the hiring team by the company; fall back to whoever posted. */
+/** A candidate knows the hiring team by the company; fall back to whoever posted.
+ *  The company as it was when they applied (useMessageableEmployers reads the
+ *  application's own applied_company_name), never its name today. */
 function employerName(e: MessageableEmployer) {
   return e.company_name || e.employer_profile?.company_name || e.employer_profile?.full_name || "Hiring team";
 }
@@ -328,6 +331,10 @@ export default function CockpitMessages() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filter, setFilter] = useState<ChatFilter>("all");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // An applicant's Report on the chat with a business (the nineteenth Phase 5
+  // review, finding 3): where a business's words stay once it has deleted its
+  // job, and with it their application and every other Report button.
+  const [reportOpen, setReportOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const bubblesRef = useRef<HTMLDivElement>(null);
@@ -1062,6 +1069,18 @@ export default function CockpitMessages() {
                       Your application
                     </button>
                   )}
+                  {isCandidate && (
+                    <button
+                      type="button"
+                      className="ck-btn ck-btn-ghost ck-chat-action !gap-1.5 !px-2.5 !py-1.5 !text-[12px] max-sm:!h-9 max-sm:!w-9 max-sm:!p-0"
+                      onClick={() => setReportOpen(true)}
+                      title="Report this business to HireFlow"
+                      data-chat-report
+                    >
+                      <Flag className="h-[15px] w-[15px]" aria-hidden />
+                      <span className="max-sm:sr-only">Report</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1198,6 +1217,18 @@ export default function CockpitMessages() {
           )}
         </section>
       </div>
+
+      {isCandidate && partner && (
+        // The chat's other side (the business, or someone on its team: the
+        // database names their business) and the job of their application
+        // to it while there is one.
+        <ReportJobDialog
+          open={reportOpen}
+          onClose={() => setReportOpen(false)}
+          about="business"
+          targets={[{ key: partner.id, label: partner.name, employerId: partner.id, jobId: (activeEmployer ?? teamOf(activeConv))?.job_id ?? null }]}
+        />
+      )}
 
       <ActionDialog
         open={confirmDelete && canMark}

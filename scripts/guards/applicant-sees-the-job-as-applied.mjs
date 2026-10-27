@@ -23,6 +23,22 @@
  *   - decline-card-says-team-once: "The Zulu Support Team team has made a
  *     decision ..." (the Phase 5 review's finding 3).
  *
+ * Widened by the nineteenth Phase 5 review and the eighteenth security
+ * review (2026-10-27): applicant-pages-name-the-job-as-applied also holds
+ *   - the two pages' location, type and steps' titles (the job's own words
+ *     only for someone still waiting on it, or while it is on its public
+ *     page: src/lib/liveJobText.ts; the security review's s1_residual);
+ *   - the applicant's Messages page (src/hooks/useMessages.ts: each business
+ *     and role from their own application; the Phase 5 review's finding 1,
+ *     probe p2_messages);
+ *   - the Improvement Report, a turned-down card's one action: its heading
+ *     and PDF name the job as they applied, and the job's own words go into
+ *     its prompt only while the job is on its public page
+ *     (ai-generate-performance-report, _shared/performanceReportJob.ts,
+ *     src/hooks/useImprovementBlueprint.ts).
+ * The step pages have their own guard, step-pages-name-the-job-as-applied
+ * (text-a-business-changes-is-contact.mjs).
+ *
  * Proved by behaviour too: scripts/notification_access.test.mjs (section 4),
  * scripts/continue_link_email.test.mjs (section 4) and
  * launch_locks_behaviour section 27.
@@ -111,6 +127,62 @@ export default [
         detail.push("src/hooks/useApplications.ts: the applicant's list must read the whole application row (applied_job_title and applied_company_name with it)");
       if (!/\.from\("applications"\) \.select\("\*, jobs\(\*\)"\) \.eq\("id", id!\)/.test(code(await read("src/pages/CandidateApplicationDetail.tsx"))))
         detail.push("src/pages/CandidateApplicationDetail.tsx: the application page must read the whole application row (applied_job_title and applied_company_name with it)");
+      // The job's own location, type and steps' titles: only through
+      // liveJobWords (still waiting on it, or on its public page).
+      for (const rel of ["src/pages/CandidateApplicationDetail.tsx", "src/pages/Applications.tsx"]) {
+        const page = code(await read(rel));
+        if (/\bjob\s*\??\.\s*(location|job_type)\b/.test(page))
+          detail.push(`${rel}: shows the job's location or type today directly; show liveJobWords(application, job)'s, which the page shows only for someone still waiting on the job or while it is on its public page`);
+        if (!page.includes('import { liveJobWords } from "@/lib/liveJobText";') || !/liveJobWords\(application, (application\?\.jobs|job)\)/.test(page))
+          detail.push(`${rel}: must read the job's location, type and steps through liveJobWords (src/lib/liveJobText.ts)`);
+      }
+      if (!/const workflowSteps = liveJobWords\(application, application\?\.jobs\)\.workflowSteps as WorkflowStep\[\];/.test(code(await read("src/pages/CandidateApplicationDetail.tsx"))))
+        detail.push("src/pages/CandidateApplicationDetail.tsx: \"Your steps\" must be built from liveJobWords(...).workflowSteps");
+      if (!/const workflowSteps = liveJobWords\(application, job\)\.workflowSteps;/.test(code(await read("src/pages/Applications.tsx"))))
+        detail.push("src/pages/Applications.tsx: the card's steps must be built from liveJobWords(...).workflowSteps");
+      const live = code(await read("src/lib/liveJobText.ts"));
+      if (
+        !/if \(stillWaiting\(application\) \|\| jobOnItsPublicPage\(job, now\)\) \{ return \{ location: plain\(job\?\.location\), jobType: plain\(job\?\.job_type\), workflowSteps: steps \}; \}/.test(live) ||
+        !/return \{ location: null, jobType: null, workflowSteps: steps\.map\(\(s\) => \(\{ \.\.\.s, title: titleFor\(s\.type\) === s\.type \? "Step" : null, description: null \}\)\), \};/.test(live) ||
+        !/return !!application && application\.status !== "rejected" && application\.status !== "hired";/.test(live) ||
+        !/if \(!job \|\| job\.status !== "published" \|\| job\.exclude_from_feed === true\) return false;/.test(live)
+      )
+        detail.push("src/lib/liveJobText.ts: the job's own words only for someone still waiting on it (not turned down or hired) or while it is on its public page; otherwise none, and each step by its kind");
+      // Messages: each business and role from the applicant's own application.
+      const messages = code(await read("src/hooks/useMessages.ts"));
+      const employersAt = messages.indexOf("export function useMessageableEmployers(");
+      const employers = employersAt >= 0 ? messages.slice(employersAt, messages.indexOf("export function useMessageableCandidates(", employersAt)) : "";
+      if (
+        !employers ||
+        !/\.from\("applications"\) \.select\("id, job_id, created_at, applied_job_title, applied_company_name, jobs\(employer_id\)"\) \.eq\("candidate_id", user!\.id\) \.order\("created_at", \{ ascending: false \}\)/.test(employers) ||
+        !/const named = appliedNames\(app\);/.test(employers) ||
+        !/company_name: named\.companyName,/.test(employers) ||
+        !/job_title: named\.jobTitle \?\? "Your application",/.test(employers) ||
+        /employer_public_branding|jobs\(title|\.title\b/.test(employers)
+      )
+        detail.push("src/hooks/useMessages.ts: the applicant's Messages must name each business and role from their own (newest) application to it (applied_company_name, applied_job_title through appliedNames), never employer_public_branding or the job's title today");
+      // The Improvement Report.
+      const reportFn = code(await read("supabase/functions/ai-generate-performance-report/index.ts"));
+      if (
+        !reportFn.includes("jobTitle: reportJobTitle(application.applied_job_title),") ||
+        !reportFn.includes("- Position: ${reportJobTitle(application.applied_job_title, 'Unknown')}") ||
+        !reportFn.includes("const jobSection = reportJobSection(jobData);") ||
+        /jobData\??\.(title|description|requirements|skills_required)\b/.test(reportFn) ||
+        !/jobs \( description, requirements, skills_required, workflow_steps, passing_score, status, exclude_from_feed, application_deadline \)/.test(reportFn)
+      )
+        detail.push("supabase/functions/ai-generate-performance-report/index.ts: the report must name the job as they applied (reportJobTitle(applied_job_title)) and take the job's own words only through reportJobSection");
+      const reportJob = code(await read("supabase/functions/_shared/performanceReportJob.ts"));
+      if (
+        !/const shown = jobOnItsPublicPage\(job, now\);/.test(reportJob) ||
+        !/if \(shown && job\.description\)/.test(reportJob) ||
+        !/if \(shown && job\.requirements\)/.test(reportJob) ||
+        !/if \(shown && Array\.isArray\(job\.skills_required\) && job\.skills_required\.length\)/.test(reportJob) ||
+        !/\.filter\(\(name: unknown\) => shown \|\| \(typeof name === "string" && KNOWN_STEP_KINDS\.has\(name\)\)\)/.test(reportJob)
+      )
+        detail.push("supabase/functions/_shared/performanceReportJob.ts: the job's description, requirements and skills go into the report only while the job is on its public page, and its steps only by the kinds HireFlow knows otherwise");
+      const blueprint = code(await read("src/hooks/useImprovementBlueprint.ts"));
+      if ((blueprint.match(/namedAsApplied\(/g) ?? []).length < 3 || !/\.select\("notes, applied_job_title"\)/.test(blueprint))
+        detail.push("src/hooks/useImprovementBlueprint.ts: a report, kept or new, must name the job as they applied (namedAsApplied)");
       const types = (await read("src/integrations/supabase/types.ts")) ?? "";
       const row = types.slice(types.indexOf("      applications: {\n        Row: {"), types.indexOf("        Insert: {", types.indexOf("      applications: {\n        Row: {")));
       if (!/applied_company_name: string \| null/.test(row) || !/applied_job_title: string \| null/.test(row))

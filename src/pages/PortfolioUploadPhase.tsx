@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { appliedNames } from "@/lib/appliedNames";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,11 @@ interface ApplicationDetails {
   phase: string | null;
   notes: string | null;
   status: string;
+  /** The job's title and the business's name as they were when they applied
+   *  (set by the database, kept from every browser): the top of this page
+   *  names the job by them (src/lib/appliedNames.ts). */
+  applied_job_title?: string | null;
+  applied_company_name?: string | null;
   jobs: {
     title: string;
     description: string;
@@ -486,7 +492,7 @@ export default function PortfolioUploadPhase() {
       <StepAdvanceScreen
         advance={advance}
         applicationId={id!}
-        jobTitle={application.jobs?.title}
+        jobTitle={appliedNames(application).jobTitle ?? undefined}
         completedTitle={journeyStep.title}
       />
     );
@@ -540,7 +546,7 @@ export default function PortfolioUploadPhase() {
             Upload Your Portfolio
           </CardTitle>
           <p className="text-muted-foreground">
-            For: {application.jobs?.title}
+            {appliedNames(application).jobTitle ? `For: ${appliedNames(application).jobTitle}` : "This role"}
           </p>
           <span className="ck-num block pt-2 text-xs font-medium text-muted-foreground">
             Step {journeyStep.index + 1} of {journeyStep.total} — {journeyStep.title}

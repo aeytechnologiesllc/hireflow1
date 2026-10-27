@@ -220,6 +220,30 @@
  *      marked once, for a turned-down application, by the server only; probe
  *      pf keeps the new words of a repeat report and tells the admins; and an
  *      interview's new offered times alone are contact (the review's N3).
+ *  27. The decline card says "team" once (the eighteenth Phase 5 review;
+ *      20261025710000), and the migration rewrites no card already sent.
+ *  28. What a business changes of its applicants' words is contact, and a
+ *      report can name the business when its job is gone (the nineteenth
+ *      Phase 5 review and the eighteenth security review; 20261025720000):
+ *      the review's probe p1_steps_closed (a closed job's title, step and
+ *      question rewritten into a GCash fee) and the security review's
+ *      s1_residual (its location, type and a new step's title) record a
+ *      message for everyone still waiting on the job, never for someone
+ *      turned down or hired, and three of them pause it; a live job's public
+ *      words changed and staying public for a day, a number, the same words
+ *      again, the server's write and a teammate who may not edit jobs are no
+ *      contact; words its public page never shows (a prompt, a question's
+ *      options) are, on a live job too; a change made public and the job
+ *      taken off its public page within the day is, at that moment; probe
+ *      p2_messages: a rename from the business's browser is a message to
+ *      everyone still waiting on its jobs, the Messages page's own columns
+ *      keep the names they applied to, and the same name again or the
+ *      server's change is no contact; probe p3_nowhere_to_report: with the
+ *      job deleted (Fee Desk A) or the people removed (Fee Desk B), a report
+ *      naming the business is taken and three pause it; one open report per
+ *      business when there is no job, a teammate's chat naming their
+ *      business, never a business with no contact or thread, five a day, and
+ *      the heard rule.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -3968,6 +3992,353 @@ console.log("\n27. The decline card says \"team\" once\n");
   const body = sql.slice(sql.indexOf("AS $function$"), sql.lastIndexOf("$function$"));
   const outside = sql.replace(body, " ");
   check("…and the migration rewrites no card already sent (no update or delete of notifications)", !/\b(update|delete\s+from|truncate)\s+(public\.)?notifications\b/i.test(sql) && !/\bnotifications\b/i.test(outside), "");
+}
+
+console.log("\n28. What a business changes of its applicants' words is contact; a report can name the business when its job is gone\n");
+{
+  // The nineteenth Phase 5 review and the eighteenth security review
+  // (20261025720000). Finding 2 (MEDIUM, probe p1_steps_closed): a business
+  // closed its job and rewrote its title, a step's title and prompt and the
+  // form's question into a GCash fee ask; every step page showed it, a draft
+  // sent "GCash ref 1234567890", and the record held "applied" only. The
+  // security review's s1_residual did the same with the job's location, its
+  // type and a new step's title. Finding 1 (MEDIUM, probe p2_messages): the
+  // Messages page named the business and the role as they are today, and a
+  // rename recorded nothing. Finding 3 (LOW-MEDIUM, probe
+  // p3_nowhere_to_report): a business that deleted its job left the people
+  // it asked for money nowhere to report it.
+  const R28 = (n) => `9d280000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const status = async (b) => (await one(`select public.business_status_of($1) as s`, [b])).s;
+  const kinds = async (b, u) => (await db.query(`select kind from private.business_contacts where employer_id = $1 and person_id = $2 order by kind`, [b, u])).rows.map((r) => r.kind).join(",");
+  const kindsOf = (b, people) => Promise.all(people.map((p) => kinds(b, p.u)));
+  const rang = async (title) => (await one(`select count(*)::int n from public.notifications n join public.platform_admins a on a.user_id = n.user_id where n.title = $1`, [title])).n;
+  const report = (u, job, details = "They asked me to pay a fee.", employer = undefined) =>
+    employer === undefined
+      ? as(user(u), `select public.report_employer($1, 'asked_for_money', $2) as id`, [job, details])
+      : as(user(u), `select public.report_employer($1, 'asked_for_money', $2, $3) as id`, [job, details, employer]);
+  const reportEach = async (people, job, details, employer) => {
+    const out = [];
+    for (const p of people) out.push(await report(p.u, job, details, employer));
+    return out;
+  };
+  const taken = (r) => r.ok && !!r.rows[0]?.id;
+  const moved = (r) => r.ok && r.rows.length === 1;
+  const edit = (who, job, set, params = []) => as(user(who), `update public.jobs set ${set} where id = $1 returning id`, [job, ...params]);
+  const FORM = JSON.stringify({ applicationAnswers: [{ questionId: "age_18_or_older", question: "Are you 18 or older?", answer: "Yes", type: "yes_no" }] });
+  const STEPS = [
+    { id: "s1", type: "application", title: "Application" },
+    { id: "s2", type: "video_intro", title: "Video introduction", description: "Tell us about you.", config: { prompt: "Record 60 seconds about yourself.", maxDuration: 60 } },
+  ];
+  const QUESTIONS = [{ id: "q1", type: "text", question: "Why do you want this job?", required: true }];
+  /** A confirmed business with a live job (a video step and a question) and n applicants, the first `sent` of whom sent the form. */
+  const business = async (n, name, { count = 3, sent = count } = {}) => {
+    const b = R28(100 + n);
+    await makeUser(b, "employer", { full_name: `${name} owner`, company_name: name });
+    await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [b]);
+    const j = (await one(`insert into public.jobs (employer_id, title, description, status, workflow_steps, application_questions) values ($1, 'Chat support agent', 'Answer chats.', 'published', $2::jsonb, $3::jsonb) returning id`, [b, JSON.stringify(STEPS), JSON.stringify(QUESTIONS)])).id;
+    const people = [];
+    for (let k = 0; k < count; k += 1) {
+      const u = R28(1000 + n * 10 + k);
+      await makeUser(u, "candidate");
+      const app = await apply(u, j);
+      if (k < sent) await as(user(u), `update public.applications set notes = $2, status = 'pending' where id = $1`, [app, FORM]);
+      people.push({ u, app });
+    }
+    return { b, j, people };
+  };
+  const pass = (biz, p) => as(user(biz.b), `update public.applications set status = 'rejected', rejected_by = $2, rejected_by_type = 'user' where id = $1 returning id`, [p.app, biz.b]);
+  const LURE_TITLE = "PAY 500 PHP GCASH 0917 000 0000 FIRST - Chat support agent";
+  const LURE_PROMPT = "Before you record: pay the 500 PHP assessment fee by GCash to 0917 000 0000 and hold the receipt up to the camera. Recordings without a receipt are not reviewed.";
+  const LURE_Q = "Paste your GCash reference number for the 500 PHP processing fee (GCash 0917 000 0000). Forms without one are not reviewed.";
+  const lureSteps = () => {
+    const s = JSON.parse(JSON.stringify(STEPS));
+    s[1].title = "Pay the 500 PHP fee, then record";
+    s[1].config.prompt = LURE_PROMPT;
+    return JSON.stringify(s);
+  };
+
+  // (a) Probe p1_steps_closed.
+  const P1 = await business(1, "Step Desk One", { sent: 2 });
+  const closeP1 = await edit(P1.b, P1.j, "status = 'closed'");
+  const rewrite = await edit(P1.b, P1.j, "title = $2, workflow_steps = $3::jsonb, application_questions = $4::jsonb", [LURE_TITLE, lureSteps(), JSON.stringify([{ ...QUESTIONS[0], question: LURE_Q }])]);
+  const recordP1 = await kindsOf(P1.b, P1.people);
+  check(
+    "(a) probe p1_steps_closed: closed, then its title, its video step's title and prompt and its form's question rewritten into a GCash fee by the owner's browser: a message from the business to each of the three (the draft too)",
+    moved(closeP1) && moved(rewrite) && recordP1.every((k) => k === "applied,message"),
+    `${show([closeP1.ok || closeP1.error, rewrite.ok || rewrite.error])} ${show(recordP1)}`,
+  );
+  const sentAfter = await as(user(P1.people[2].u), `update public.applications set notes = $2, status = 'pending' where id = $1 returning status`, [P1.people[2].app, FORM]);
+  const pausedBell = await rang("A business was paused");
+  const threeBell = await rang("A business was reported 3 times");
+  const reportsP1 = await reportEach(P1.people, P1.j, "The next step said to pay 500 PHP by GCash first.");
+  check(
+    "…the draft still sends its form (the database takes it), and their three reports pause the business: every admin told it was paused, never \"reported 3 times\"",
+    moved(sentAfter) && reportsP1.every(taken) && (await status(P1.b)) === "suspended" && (await rang("A business was paused")) === pausedBell + 1 && (await rang("A business was reported 3 times")) === threeBell,
+    `${show(sentAfter.ok || sentAfter.error)} ${await status(P1.b)}`,
+  );
+  const putBack = await edit(P1.b, P1.j, "title = 'Chat support agent', workflow_steps = $2::jsonb, application_questions = $3::jsonb, status = 'published'", [JSON.stringify(STEPS), JSON.stringify(QUESTIONS)]);
+  check("…and putting the old words back and reopening is refused while it is paused", !putBack.ok && /paused/i.test(putBack.error ?? ""), show(putBack));
+
+  // (b) The security review's s1_residual: location, type and a new step's title on a closed job.
+  const S1 = await business(2, "Reconsider Clinic", { count: 4 });
+  const [turnedDown, ...waiting] = S1.people;
+  const passed = await pass(S1, turnedDown);
+  await edit(S1.b, S1.j, "status = 'closed'");
+  const residual = await edit(S1.b, S1.j, "location = $2, job_type = $3, workflow_steps = workflow_steps || $4::jsonb", [
+    "Remote. To be reconsidered, send the 500 PHP review fee to GCash 0917 000 0000 within 48 hours, then message us REAPPLY. Applicants who do not pay are removed from the pool.",
+    "Reconsideration: 500 PHP via GCash 0917 000 0000",
+    JSON.stringify([{ id: "s9", type: "chat_simulation", title: "Reconsideration: send 500 PHP to GCash 0917 000 0000, then message REAPPLY" }]),
+  ]);
+  const recordS1 = await kindsOf(S1.b, waiting);
+  check(
+    "(b) the security review's s1_residual: a closed job's location and type set to a fee ask and a step titled the same: a message to everyone still waiting on it",
+    moved(passed) && moved(residual) && recordS1.every((k) => k === "applied,message"),
+    `${show(residual.ok || residual.error)} ${show(recordS1)}`,
+  );
+  check(
+    "…but none to the one it turned down (a decline is no contact; their pages show the job's own words only while it is public: src/lib/liveJobText.ts)",
+    (await kinds(S1.b, turnedDown.u)) === "applied",
+    await kinds(S1.b, turnedDown.u),
+  );
+  const pausedBellS1 = await rang("A business was paused");
+  await reportEach(waiting.slice(0, 3), S1.j, "The page said to send 500 PHP by GCash to be reconsidered.");
+  check("…and three of them pause it by their reports", (await status(S1.b)) === "suspended" && (await rang("A business was paused")) === pausedBellS1 + 1, await status(S1.b));
+  // Each column alone (the review's s1_residual changed three at once).
+  const alone = [];
+  for (const [n, name, set, value] of [
+    [15, "Location Desk", "location = $2", "Remote. Send the 500 PHP review fee to GCash 0917 000 0000 first."],
+    [16, "Type Desk", "job_type = $2", "Reconsideration: 500 PHP via GCash 0917 000 0000"],
+    [17, "Step Title Desk", "workflow_steps = jsonb_set(workflow_steps, '{1,title}', to_jsonb($2::text))", "Pay 500 PHP by GCash, then record"],
+  ]) {
+    const biz = await business(n, name, { count: 1 });
+    await edit(biz.b, biz.j, "status = 'closed'");
+    const r = await edit(biz.b, biz.j, set, [value]);
+    alone.push([name, moved(r) ? await kinds(biz.b, biz.people[0].u) : r.error]);
+  }
+  check("…its location alone, its type alone or a step's title alone is the same", alone.every(([, k]) => k === "applied,message"), show(alone));
+
+  // (c) What is not contact.
+  const C = await business(3, "Typo Desk", { count: 4 });
+  const [c0, c1, c2, c3] = C.people;
+  // c2 hired by the server (a move from a browser is contact of its own), c3 turned down.
+  await as(SERVICE, `update public.applications set status = 'hired' where id = $1`, [c2.app]);
+  await pass(C, c3);
+  const live = [
+    ["its title, on its public page", await edit(C.b, C.j, "title = 'Chat support agent (days)'")],
+    ["its description", await edit(C.b, C.j, "description = 'Answer chats, days only.'")],
+    ["a step's title and description (on the public page)", await edit(C.b, C.j, "workflow_steps = jsonb_set(jsonb_set(workflow_steps, '{1,title}', '\"Your video\"'), '{1,description}', '\"Say hello.\"')")],
+    ["its form question (on the public page)", await edit(C.b, C.j, "application_questions = $2::jsonb", [JSON.stringify([{ ...QUESTIONS[0], question: "Why this job?" }])])],
+  ];
+  const recordLive = await kindsOf(C.b, C.people);
+  check(
+    "(c) a live job's words the public page shows, changed and staying public: no contact with anyone (anyone can read them there)",
+    live.every(([, r]) => moved(r)) && recordLive.every((k) => k === "applied"),
+    `${show(live.map(([label, r]) => `${label}: ${r.ok || r.error}`))} ${show(recordLive)}`,
+  );
+  await db.query(`update private.job_public_text_edits set edited_at = now() - interval '2 days' where job_id = $1`, [C.j]).catch(() => null); // (no such note before 20261025720000)
+  await edit(C.b, C.j, "status = 'closed'");
+  check("…nor closing it more than a day after (the words were public for a day)", (await kindsOf(C.b, C.people)).every((k) => k === "applied"), show(await kindsOf(C.b, C.people)));
+  const quiet = [
+    ["a number in a step's settings (its time limit), closed", await edit(C.b, C.j, "workflow_steps = jsonb_set(workflow_steps, '{1,config,maxDuration}', '90')")],
+    ["a question made optional, closed", await edit(C.b, C.j, "application_questions = jsonb_set(application_questions, '{0,required}', 'false')")],
+    ["the same words saved again, closed", await edit(C.b, C.j, "title = title, description = description, workflow_steps = workflow_steps")],
+    ["the server's own write (service role), closed", await as(SERVICE, `update public.jobs set title = 'Pay 500 PHP first' where id = $1 returning id`, [C.j])],
+  ];
+  const recordQuiet = await kindsOf(C.b, C.people);
+  check(
+    "…nor a number or a switch, the same words saved again, or the server's own write",
+    quiet.every(([, r]) => moved(r)) && recordQuiet.every((k) => k === "applied"),
+    `${show(quiet.map(([label, r]) => `${label}: ${r.ok || r.error}`))} ${show(recordQuiet)}`,
+  );
+  const NOPERM = R28(500);
+  await makeUser(NOPERM, "team_member", { full_name: "Teammate who may not edit jobs" });
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_manage_pipeline, can_create_jobs, assigned_job_ids) values ($1, $2, $3, 'active', true, false, '{}'::uuid[])`, [NOPERM, C.b, emailOf(NOPERM)]);
+  const refused = await edit(NOPERM, C.j, "title = 'Pay 500 PHP first'");
+  check("…nor a teammate who may not edit jobs (refused)", refused.ok && refused.rows.length === 0 && (await kindsOf(C.b, C.people)).every((k) => k === "applied"), show(refused));
+  const MATE = R28(501);
+  await makeUser(MATE, "team_member", { full_name: "Teammate who writes jobs" });
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_manage_pipeline, can_create_jobs, assigned_job_ids) values ($1, $2, $3, 'active', false, true, '{}'::uuid[])`, [MATE, C.b, emailOf(MATE)]);
+  const mateEdit = await edit(MATE, C.j, "description = 'Send 500 PHP to GCash 0917 000 0000 to stay in the pool.'");
+  const recordMate = await kindsOf(C.b, C.people);
+  check(
+    "…a teammate who writes jobs, on the closed job: a message to those still waiting, never to the one hired or the one turned down",
+    moved(mateEdit) && recordMate[0] === "applied,message" && recordMate[1] === "applied,message" && recordMate[2] === "applied" && recordMate[3] === "applied",
+    `${show(mateEdit.ok || mateEdit.error)} ${show(recordMate)}`,
+  );
+
+  // (d) Words the public page never shows, on a live job.
+  const H = await business(4, "Prompt Desk", { count: 2 });
+  const hidden = await edit(H.b, H.j, "workflow_steps = jsonb_set(workflow_steps, '{1,config,prompt}', $2::jsonb)", [JSON.stringify(LURE_PROMPT)]);
+  const recordHidden = await kindsOf(H.b, H.people);
+  const H2 = await business(5, "Options Desk", { count: 2 });
+  const options = await edit(H2.b, H2.j, "application_questions = $2::jsonb", [JSON.stringify([{ id: "q1", type: "select", question: "How will you pay the fee?", options: ["GCash 0917 000 0000", "Maya"], required: true }])]);
+  check(
+    "(d) on a live job, words its public page never shows (a step's prompt, a question's options): a message to everyone still waiting on it",
+    moved(hidden) && recordHidden.every((k) => k === "applied,message") && moved(options) && (await kindsOf(H2.b, H2.people)).every((k) => k === "applied,message"),
+    `${show(recordHidden)} ${show(await kindsOf(H2.b, H2.people))}`,
+  );
+
+  // (e) Public for a moment, then off the public page.
+  const E = await business(6, "Blink Desk", { count: 2 });
+  await edit(E.b, E.j, "title = $2", [LURE_TITLE]);
+  const blinkBefore = await kindsOf(E.b, E.people);
+  await edit(E.b, E.j, "status = 'closed'");
+  const blinkAfter = await kindsOf(E.b, E.people);
+  check(
+    "(e) a fee ask put on the live job's public page and the job closed within the day: not contact while public, a message to everyone still waiting on it at the close",
+    blinkBefore.every((k) => k === "applied") && blinkAfter.every((k) => k === "applied,message"),
+    show({ blinkBefore, blinkAfter }),
+  );
+  const E2 = await business(7, "Deadline Desk", { count: 1 });
+  await edit(E2.b, E2.j, "title = $2", [LURE_TITLE]);
+  await edit(E2.b, E2.j, "application_deadline = now() + interval '2 hours'");
+  const E3 = await business(8, "Hidden Desk", { count: 1 });
+  await edit(E3.b, E3.j, "title = $2", [LURE_TITLE]);
+  await edit(E3.b, E3.j, "exclude_from_feed = true");
+  const E4 = await business(9, "Soon Desk", { count: 1 });
+  await edit(E4.b, E4.j, "application_deadline = now() + interval '3 hours'");
+  await edit(E4.b, E4.j, "title = $2", [LURE_TITLE]);
+  check(
+    "…the same when it leaves the public page by a deadline set inside the day or by being kept off the list, and an edit on a job whose deadline is inside the day is one at once",
+    (await kinds(E2.b, E2.people[0].u)) === "applied,message" && (await kinds(E3.b, E3.people[0].u)) === "applied,message" && (await kinds(E4.b, E4.people[0].u)) === "applied,message",
+    show([await kinds(E2.b, E2.people[0].u), await kinds(E3.b, E3.people[0].u), await kinds(E4.b, E4.people[0].u)]),
+  );
+  const notes = await as(user(E.b), `select * from private.job_public_text_edits`);
+  check("…and the note of when a job's public words last changed is the database's own (no browser reads it)", !notes.ok, show(notes));
+
+  // (f) Probe p2_messages: the Messages page, and a rename.
+  const M = await business(10, "Rename Desk", { count: 4 });
+  const [m0, m1, m2, gone] = M.people;
+  await pass(M, gone);
+  const N = "Rename Desk Fees: pay 500 PHP to GCash 0917 000 0000 to stay in the pool";
+  // The rename first, its job still live: the rename alone is the contact.
+  const rename = await as(user(M.b), `update public.profiles set company_name = $2 where user_id = $1 returning company_name`, [M.b, N]);
+  const recordM = await kindsOf(M.b, [m0, m1, m2]);
+  check(
+    "(f) probe p2_messages: a business's rename of itself from its browser is a message to everyone still waiting on any of its jobs, never to the one it turned down",
+    moved(rename) && recordM.every((k) => k === "applied,message") && (await kinds(M.b, gone.u)) === "applied",
+    `${show(rename.ok || rename.error)} ${show(recordM)} ${await kinds(M.b, gone.u)}`,
+  );
+  const T = "Chat support agent (reconsideration: send 500 PHP to GCash 0917 000 0000, then message us REAPPLY)";
+  await edit(M.b, M.j, "status = 'closed'");
+  await edit(M.b, M.j, "title = $2", [T]);
+  // What the Messages page reads now (useMessageableEmployers): the application's own names.
+  const row = await as(user(gone.u), `select a.applied_job_title, a.applied_company_name, j.employer_id from public.applications a left join public.jobs j on j.id = a.job_id where a.candidate_id = $1 order by a.created_at desc`, [gone.u]);
+  check(
+    "…and after the decline, the job closed and renamed and the business renamed, the Messages page's own columns still name \"Chat support agent\" and \"Rename Desk\" for the one turned down",
+    row.ok && row.rows[0]?.applied_job_title === "Chat support agent" && row.rows[0]?.applied_company_name === "Rename Desk" && row.rows[0]?.employer_id === M.b,
+    show(row),
+  );
+  const pausedBellM = await rang("A business was paused");
+  await reportEach([m0, m1, m2], M.j, "Messages said to send 500 PHP to GCash to stay in the pool.");
+  check("…so a rename followed by a fee ask cannot dodge the pause: their three reports pause it", (await status(M.b)) === "suspended" && (await rang("A business was paused")) === pausedBellM + 1, await status(M.b));
+  const M2 = await business(11, "Same Name Co", { count: 1 });
+  await as(user(M2.b), `update public.profiles set company_name = 'Same Name Co', full_name = 'New owner name' where user_id = $1`, [M2.b]);
+  await as(SERVICE, `update public.profiles set company_name = 'Same Name Co (by the server)' where user_id = $1`, [M2.b]);
+  check("…the same name saved again, or the server's own change, is not", (await kinds(M2.b, M2.people[0].u)) === "applied", await kinds(M2.b, M2.people[0].u));
+
+  // (g) Probe p3_nowhere_to_report: Fee Desk A deletes its job; Fee Desk B closes it and removes the three.
+  const ASK = "To keep your place, pay the 1,500 PHP onboarding fee by GCash to 0917 000 0000 today.";
+  const asked = async (n, name) => {
+    const biz = await business(n, name);
+    for (const p of biz.people) {
+      const m = await as(user(biz.b), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, $4) returning id`, [biz.b, p.u, p.app, ASK]);
+      if (!m.ok) throw new Error(`setup: message: ${m.error}`);
+    }
+    return biz;
+  };
+  const A = await asked(12, "Fee Desk A");
+  const deleted = await as(user(A.b), `delete from public.jobs where id = $1 returning id`, [A.j]);
+  const byJob = await report(A.people[0].u, A.j);
+  const choicesA = await as(user(A.people[0].u), `select employer_id, company_name, job_id, job_title from public.report_choices()`);
+  check(
+    "(g) probe p3_nowhere_to_report, Fee Desk A: it deleted its job, so a report on the job is refused as before; the business is still among the reporter's choices (no name today, no job)",
+    moved(deleted) && !byJob.ok && /report_job_unknown/.test(byJob.error) && choicesA.ok && show(choicesA.rows) === show([{ employer_id: A.b, company_name: null, job_id: null, job_title: null }]),
+    `${show(byJob.error)} ${show(choicesA)}`,
+  );
+  const pausedBellA = await rang("A job was reported");
+  const reportsA = await reportEach(A.people, A.j, "They asked me to pay 1,500 PHP by GCash.", A.b);
+  const filed = await db.query(`select employer_id, job_id from public.employer_reports where reporter_id = any($1::uuid[])`, [A.people.map((p) => p.u)]);
+  check(
+    "…a report naming the business is taken (its job none), every admin is told, and the three pause it",
+    reportsA.every(taken) && filed.rows.length === 3 && filed.rows.every((r) => r.employer_id === A.b && r.job_id === null) && (await rang("A job was reported")) === pausedBellA + 3 && (await status(A.b)) === "suspended",
+    `${show(reportsA.map((r) => r.ok || r.error))} ${show(filed.rows)} ${await status(A.b)}`,
+  );
+  const again = await as(user(A.b), `insert into public.jobs (employer_id, title, description, status) values ($1, 'Chat support agent', 'Answer chats.', 'published') returning id`, [A.b]);
+  check("…so it cannot post the same job again", !again.ok && /paused/i.test(again.error ?? ""), show(again));
+  const B = await asked(13, "Fee Desk B");
+  await edit(B.b, B.j, "status = 'closed'");
+  for (const p of B.people) await as(SERVICE, `select public.remove_applicant($1, $2, 'not a fit')`, [p.app, B.b]);
+  const reportsB = await reportEach(B.people, null, "They asked me to pay 1,500 PHP by GCash.", B.b);
+  check("…Fee Desk B, which closed its job and removed the three: their reports from the chat, naming the business, pause it", reportsB.every(taken) && (await status(B.b)) === "suspended", `${show(reportsB.map((r) => r.ok || r.error))} ${await status(B.b)}`);
+
+  // (h) Every report rule still holds.
+  const G = await asked(14, "Rule Desk");
+  const [g0, g1] = G.people;
+  const first = await report(g0.u, null, "First.", G.b);
+  const second = await report(g0.u, null, "They wrote again.", G.b);
+  const onJob = await report(g0.u, G.j, "On the job.");
+  check(
+    "(h) one open report per person per business when there is no job (a second adds to it), apart from their report on a job",
+    taken(first) && taken(second) && second.rows[0].id === first.rows[0].id && taken(onJob) && onJob.rows[0].id !== first.rows[0].id &&
+      (await one(`select details from public.employer_reports where id = $1`, [first.rows[0].id])).details === "First.\n\nThey wrote again.",
+    show([first, second, onJob]),
+  );
+  const viaMate = R28(502);
+  await makeUser(viaMate, "team_member", { full_name: "Teammate who writes" });
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_message_candidates, assigned_job_ids) values ($1, $2, $3, 'active', true, '{}'::uuid[])`, [viaMate, G.b, emailOf(viaMate)]);
+  const mateMsg = await as(user(viaMate), `insert into public.messages (sender_id, receiver_id, application_id, content) values ($1, $2, $3, 'Pay the fee.') returning id`, [viaMate, g1.u, g1.app]);
+  const viaChat = await report(g1.u, null, "Their teammate asked me to pay.", viaMate);
+  check(
+    "…a chat with someone on its team names their business",
+    moved(mateMsg) && taken(viaChat) && (await one(`select employer_id from public.employer_reports where id = $1`, [viaChat.rows[0].id])).employer_id === G.b,
+    show([mateMsg.ok || mateMsg.error, viaChat]),
+  );
+  const OUTSIDER = R28(600);
+  await makeUser(OUTSIDER, "candidate");
+  const RANDOM = R28(601);
+  await makeUser(RANDOM, "employer", { full_name: "Random owner", company_name: "Random Co 28" });
+  const refusals = [
+    ["a business they never applied to or heard from", await report(OUTSIDER, null, "x", G.b)],
+    ["an account that is no business", await report(g0.u, null, "x", OUTSIDER)],
+    ["a business they have no thread with", await report(g0.u, null, "x", RANDOM)],
+    ["no job and no business", await report(g0.u, null, "x", null)],
+    ["a visitor", await as(ANON, `select public.report_employer(null, 'asked_for_money', 'x', $1)`, [G.b])],
+  ];
+  check(
+    "…never a business they have no recorded contact or thread with, an account that is no business, nothing at all, or a visitor",
+    /report_business_unknown/.test(refusals[0][1].error ?? "") && /report_business_unknown/.test(refusals[1][1].error ?? "") && /report_business_unknown/.test(refusals[2][1].error ?? "") &&
+      /report_job_unknown/.test(refusals[3][1].error ?? "") && !refusals[4][1].ok,
+    show(refusals.map(([label, r]) => `${label}: ${r.ok || r.error}`)),
+  );
+  const own = await report(G.b, null, "x", viaMate);
+  check("…nor its own business (from its teammate's chat)", !own.ok && /report_own_job|report_business_unknown/.test(own.error ?? ""), show(own));
+  const others = await as(user(OUTSIDER), `select * from public.report_choices()`);
+  const visitor = await as(ANON, `select * from public.report_choices()`);
+  check("…report_choices lists only the caller's own (none for someone with no contact), and a visitor none at all", others.ok && others.rows.length === 0 && !visitor.ok, show([others, visitor]));
+  const L = R28(700);
+  await makeUser(L, "candidate");
+  const limitBiz = [];
+  for (let k = 0; k < 6; k += 1) {
+    const biz = R28(710 + k);
+    await makeUser(biz, "employer", { full_name: `Limit ${k}`, company_name: `Limit Co 28-${k}` });
+    await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [biz]);
+    const j = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Chat support agent', 'x', 'published') returning id`, [biz])).id;
+    await apply(L, j);
+    await as(user(biz), `delete from public.jobs where id = $1`, [j]);
+    limitBiz.push(biz);
+  }
+  const limited = [];
+  for (const biz of limitBiz) limited.push(await report(L, null, "x", biz));
+  check("…five reports a day, businesses with no job included", limited.slice(0, 5).every(taken) && /report_too_many/.test(limited[5].error ?? ""), show(limited.map((r) => r.ok || r.error)));
+  // The heard rule: an admin's reopen closes them; the same three count again only after new contact.
+  const reopen = await as(user(ADMIN), `select public.admin_set_business_status($1, 'approved')`, [A.b]);
+  const heardAgain = await reportEach(A.people, null, "Again.", A.b);
+  check(
+    "…and the heard rule: reopened by an admin, the same three reporting the business again leave it open (no contact since)",
+    reopen.ok && heardAgain.every(taken) && (await status(A.b)) === "approved",
+    `${show(reopen.ok || reopen.error)} ${await status(A.b)}`,
+  );
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

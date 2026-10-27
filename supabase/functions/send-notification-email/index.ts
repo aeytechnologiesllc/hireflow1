@@ -1111,12 +1111,17 @@ const handler = async (req: Request): Promise<Response> => {
           // "Application received": whether the job has steps after the form,
           // counted as the form's own page counts them (_shared/candidateJourney.ts,
           // the server's copy of the page's): the form, a quiz when it has
-          // one, its steps, the decision.
+          // one, its steps, the decision. Only on an auto-mode job: on a
+          // manual one the hiring team opens each next step itself, so
+          // "they are waiting for you ... please finish them soon" is untrue
+          // and the plain "Application Submitted" goes (the nineteenth Phase 5
+          // review, finding 4; the page's own mark follows the same rule).
           stepsAfterForm: async (applicationId) => {
-            const { data: row, error } = await supabase.from("applications").select("jobs(workflow_steps, quiz_questions)").eq("id", applicationId).maybeSingle();
+            const { data: row, error } = await supabase.from("applications").select("jobs(workflow_steps, quiz_questions, processing_mode)").eq("id", applicationId).maybeSingle();
             if (error || !row) return null;
-            const job = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as { workflow_steps?: unknown; quiz_questions?: unknown } | null;
+            const job = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as { workflow_steps?: unknown; quiz_questions?: unknown; processing_mode?: unknown } | null;
             if (!job) return null;
+            if (job.processing_mode !== "auto") return false;
             const steps = Array.isArray(job.workflow_steps) ? (job.workflow_steps as WorkflowStepLike[]) : [];
             return buildCandidateJourney(steps, { hasQuiz: Array.isArray(job.quiz_questions) && job.quiz_questions.length > 0 }).length > 2;
           },

@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
+import { appliedNames } from "@/lib/appliedNames";
 
 export interface ImprovementBlueprintData {
   summary: {
@@ -50,6 +51,16 @@ export interface ImprovementBlueprintData {
 // Permanent cache key - blueprints are locked forever after first generation
 const BLUEPRINT_CACHE_KEY = "improvement_blueprint";
 
+/** The report names the job as they applied to it (the application's own
+ *  applied_job_title), whatever the report kept: the server writes that since
+ *  the eighteenth security review (finding 1), and a report kept from before
+ *  carried the job's title then, which a business can change on a closed job
+ *  to anything. Its heading and the PDF's letterhead read this. */
+function namedAsApplied(report: ImprovementBlueprintData, application: { applied_job_title?: string | null } | null | undefined): ImprovementBlueprintData {
+  const jobTitle = appliedNames(application).jobTitle ?? "Your application";
+  return { ...report, metadata: { ...report.metadata, jobTitle } };
+}
+
 export function useImprovementBlueprint() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [blueprintData, setBlueprintData] = useState<ImprovementBlueprintData | null>(null);
@@ -61,7 +72,7 @@ export function useImprovementBlueprint() {
   const loadBlueprint = useCallback(async (applicationId: string): Promise<ImprovementBlueprintData | null> => {
     const { data: application, error: fetchError } = await supabase
       .from("applications")
-      .select("notes")
+      .select("notes, applied_job_title")
       .eq("id", applicationId)
       .single();
 
@@ -73,7 +84,7 @@ export function useImprovementBlueprint() {
     const notes = parseApplicationNotes(application?.notes as string | null);
 
     if (notes[BLUEPRINT_CACHE_KEY]) {
-      return notes[BLUEPRINT_CACHE_KEY] as ImprovementBlueprintData;
+      return namedAsApplied(notes[BLUEPRINT_CACHE_KEY] as ImprovementBlueprintData, application);
     }
 
     const { data, error } = await supabase.functions.invoke('ai-generate-performance-report', {
@@ -108,7 +119,7 @@ export function useImprovementBlueprint() {
       .update({ notes: JSON.stringify(updatedNotes) })
       .eq("id", applicationId);
 
-    return generated;
+    return namedAsApplied(generated, application);
   }, []);
 
   // Load the blueprint into state for an in-app view (no PDF, no download)

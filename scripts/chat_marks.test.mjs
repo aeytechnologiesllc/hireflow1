@@ -181,7 +181,9 @@ console.log("\nThe wiring");
   check("when the open chat leaves the list, the one beside it opens", /const beside = nextChatAfter\(rows, id\);/.test(page) && /if \(leaves\) setActiveId\(beside\);/.test(page) && /setConfirmDelete\(false\);\s*setActiveId\(beside\);/.test(page));
   check("an inbox emptied by deleting does not claim nobody ever wrote", /\{everDeleted \? "No chats in your Messages\." : "Nobody has written to you yet\."\}/.test(page));
   check("the chat stays open to read and write: nothing about the box depends on the status", !/partnerChip[\s\S]{0,80}disabled/.test(page) && /data-composer-box/.test(page));
-  check("on a phone the name keeps its room and the two actions are thumb-sized icons", /className="min-w-\[min\(100%,170px\)\] flex-1"/.test(page) && (page.match(/max-sm:!h-9 max-sm:!w-9 max-sm:!p-0/g) ?? []).length === 2 && (page.match(/<span className="max-sm:sr-only">/g) ?? []).length === 2);
+  // The two actions, and an applicant's Report on the chat with a business
+  // (the nineteenth Phase 5 review, finding 3): three in all.
+  check("on a phone the name keeps its room and the two actions (and an applicant's Report) are thumb-sized icons", /className="min-w-\[min\(100%,170px\)\] flex-1"/.test(page) && (page.match(/max-sm:!h-9 max-sm:!w-9 max-sm:!p-0/g) ?? []).length === 3 && (page.match(/<span className="max-sm:sr-only">/g) ?? []).length === 3 && /data-chat-report/.test(page));
   check("delete only turns red under the pointer", /\.ck-chat-action--danger:not\(:disabled\):hover \{ color: var\(--crit\); background: var\(--crit-bg\); border-color: transparent; \}/.test(css));
 }
 

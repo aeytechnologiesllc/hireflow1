@@ -124,6 +124,25 @@ export function previewTrustHandlers(
       return null;
     },
     report_employer: () => "rep-new",
+    // The businesses the caller may report without a job (20261025720000):
+    // each one behind an application of theirs, named as they applied.
+    report_choices: () => {
+      const jobs = rows("jobs");
+      const out = new Map<string, { employer_id: string; company_name: string | null; job_id: string | null; job_title: string | null; last_heard_at: string | null }>();
+      for (const a of rows("applications").filter((r) => r.candidate_id === me)) {
+        const job = jobs.find((j) => j.id === a.job_id);
+        const employer = typeof job?.employer_id === "string" ? job.employer_id : null;
+        if (!employer || out.has(employer)) continue;
+        out.set(employer, {
+          employer_id: employer,
+          company_name: typeof a.applied_company_name === "string" ? a.applied_company_name : null,
+          job_id: typeof a.job_id === "string" ? a.job_id : null,
+          job_title: typeof a.applied_job_title === "string" ? a.applied_job_title : null,
+          last_heard_at: typeof a.created_at === "string" ? a.created_at : null,
+        });
+      }
+      return [...out.values()];
+    },
     // The caller's careers page, made the first time (as ensure_business_page does).
     ensure_business_page: () => {
       const pages = rows("business_pages");

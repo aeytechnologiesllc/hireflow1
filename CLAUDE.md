@@ -487,9 +487,12 @@ these either; each has a guard or a test that CI runs:
   written by `business_contacts_remember` (AFTER INSERT on applications,
   messages, document_requests, documents, interviews), and both
   `business_has_contacted` and the pause's "applied" read it, never the live
-  rows: deleting its messages, requests, interviews, documents, the
-  application or the job no longer dodged the pause, and a removed
-  applicant's report still rings "reported 3 times". Guard
+  rows: deleting its messages, requests, interviews, documents or the
+  application no longer dodged the pause, and a removed applicant's report
+  still rings "reported 3 times". (Deleting the job did, until the
+  nineteenth Phase 5 review: it took the applications and every Report
+  button with it, and `report_employer` refused a job that no longer
+  exists; a report can name the business since, below.) Guard
   `contact-counts-as-made`; launch_locks_behaviour section 22. (The
   fifteenth Phase 5 review, `20261025680000`.) An admin's reopen holds:
   someone whose report on this business an admin closed (`closed_by`: the
@@ -558,11 +561,54 @@ these either; each has a guard or a test that CI runs:
   application id, so "Your application is not finished yet" goes. The
   decline card says "team" once (cards already sent left as they are). The
   Terms: "by an email its hiring team sends them other than turning them
-  down". Left: the job's location, type and step titles on those pages are
-  still today's. Guards `applicant-emails-name-the-job-as-applied`,
+  down". (Round 18 left the job's location, type and step titles on those
+  pages, the Messages page, the step pages and the Improvement Report on
+  today's words: the nineteenth review, below.) Guards
+  `applicant-emails-name-the-job-as-applied`,
   `applicant-pages-name-the-job-as-applied`, `decline-card-says-team-once`,
   `product-audit-fixes-hold`; notification_access section 4,
   continue_link_email section 4, launch_locks_behaviour section 27.
+  (The nineteenth Phase 5 review and the eighteenth security review,
+  `20261025720000`.) The class closed: a business's browser edit of the
+  words its applicants read, while they can read it and the public cannot,
+  is contact. A browser change of a job's title, description, requirements,
+  responsibilities, benefits, skills, experience level, location, type, form
+  questions, quiz or any step's title, description or settings is a
+  `message` for everyone still waiting on the job (not turned down or hired)
+  when the job is off its public page (`job_text_public`:
+  published_jobs_public's rule with the deadline a day away), or the words
+  are ones that page never shows (a step's prompt, a question's options),
+  or the job leaves its public page within a day of a public change
+  (`private.job_public_text_edits`); only words count, never a number or a
+  switch (`business_contacts_remember_text`, AFTER UPDATE on jobs, `WHEN
+  (current_user = 'authenticated')`, the owner or an active teammate). A
+  public change that stays public a day is not contact (any three throwaway
+  applicants could otherwise pause a business that fixes a typo). A
+  business's browser rename of itself is a `message` for everyone still
+  waiting on any of its jobs (`business_contacts_remember_name`). Where the
+  snapshot covers a page it is shown: the nine step pages, the step gate and
+  "Continue on your computer" name `applied_job_title`; the applicant's
+  Messages names each business and role from their own newest application
+  (`useMessageableEmployers`, no `employer_public_branding`); the two
+  overview pages show the job's location, type and step titles only for
+  someone still waiting or while the job is public (`src/lib/liveJobText.ts`;
+  otherwise none, and each step by its kind); the Improvement Report names
+  `applied_job_title` and takes the job's description, requirements and
+  skills into its prompt only while the job is public
+  (`_shared/performanceReportJob.ts`). A report can name the business:
+  `report_employer(p_job_id, p_reason, p_details, p_employer)` takes, when
+  the job is gone or none is named, a business from the reporter's own
+  `report_choices()` (their record of contact and message threads; a
+  teammate's account names its business), one open report per business
+  when there is no job, the pause, heard rule and five a day unchanged;
+  Report is on the applicant's Messages chat and on the "can't find that
+  application" screens. "Not finished yet" goes only on an auto-mode job
+  (`stepsAfterForm`, the form page's mark). Guards
+  `step-pages-name-the-job-as-applied`, `job-text-edit-is-contact`,
+  `business-rename-is-contact`, `report-names-the-business`, the widened
+  `applicant-pages-name-the-job-as-applied`, `product-audit-fixes-hold`;
+  launch_locks_behaviour section 28, `scripts/applicant_job_words.test.mjs`,
+  notification_access section 4.
 - HireFlow's own jobs have their own AI day
   (`ai_platform_business_daily_call_cap`, 6,000 of the platform's 10,000;
   `20261025300000_ai_budget_own_jobs.sql`): they were uncounted, so one
@@ -737,7 +783,10 @@ from it or its team, papers asked for, an interview) pause one by itself
 `20261025290000_reports_need_contact.sql`; contact counted as it was made,
 whatever the business deletes since, `20261025670000_contact_kept_when_made.sql`;
 an admin's reopen holds against the same reporters until the business is in
-touch with them again, `20261025680000_reports_heard_stay_heard.sql`;
+touch with them again, `20261025680000_reports_heard_stay_heard.sql`; a
+change of the words its applicants read where the public cannot, and its
+rename, are contact, and a report can name the business once its job is
+gone, `20261025720000_text_a_business_changes_is_contact.sql`;
 docs/BUSINESS-TRUST.md).
 No TIN check: no law requires one. Don't bring back an approval step.
 New businesses get one-time guided tips (`src/cockpit/tips`, table

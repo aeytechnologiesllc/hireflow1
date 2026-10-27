@@ -13,7 +13,24 @@ import { withVisitorTags } from "@/lib/hiringLink";
  * rude or unsafe. Sent through report_employer() (signed in only; one open
  * report per person per job; five a day). The business never sees who
  * reported it; HireFlow's admin is told.
+ *
+ * It can name a business instead of a job (the nineteenth Phase 5 review,
+ * finding 3): a business that asked people for money and then deleted its
+ * job took their applications with it, and every Report button with them.
+ * A business target sends report_employer's p_employer (the chat's contact,
+ * or a business from report_choices) and the job while it is still there;
+ * the database takes it only for a business the reporter has a recorded
+ * contact or a message thread with, and keeps one open report per business
+ * when there is no job.
  */
+
+/** What a report is about: a job (its page, an application), or a business with or without its job. */
+export interface ReportTarget {
+  key: string;
+  label: string;
+  jobId?: string | null;
+  employerId?: string | null;
+}
 
 export const REPORT_REASONS: ReadonlyArray<{ key: string; label: string }> = [
   { key: "asked_for_money", label: "They asked me to pay" },
@@ -27,6 +44,7 @@ export const REPORT_REASONS: ReadonlyArray<{ key: string; label: string }> = [
 export function reportErrorWords(message: string): string {
   if (/report_too_many/.test(message)) return "You have sent five reports today. Please try again tomorrow.";
   if (/report_own_job/.test(message)) return "This is your own job.";
+  if (/report_job_unknown|report_business_unknown/.test(message)) return "We could not find that job or business to report. Please use Contact us instead.";
   if (/not_signed_in/.test(message)) return "Please sign in again, then send it.";
   return "The report did not go through. Please try again.";
 }
@@ -34,18 +52,25 @@ export function reportErrorWords(message: string): string {
 export function ReportJobDialog({
   open,
   onClose,
-  jobs,
+  jobs = [],
   defaultJobId,
+  targets: givenTargets,
+  about = "job",
 }: {
   open: boolean;
   onClose: () => void;
   /** The jobs this report can be about (one on a job page, a business's open roles on its careers page). */
-  jobs: ReadonlyArray<{ id: string; title: string }>;
+  jobs?: ReadonlyArray<{ id: string; title: string }>;
   defaultJobId?: string | null;
+  /** Or what it can be about, a business among them (a chat, the screens of an application that is gone). */
+  targets?: ReadonlyArray<ReportTarget>;
+  /** The heading's word: "Report this job" or "Report this business". */
+  about?: "job" | "business";
 }) {
   const { user } = useAuth();
   const location = useLocation();
-  const [jobId, setJobId] = useState<string>(defaultJobId ?? jobs[0]?.id ?? "");
+  const targets: ReadonlyArray<ReportTarget> = givenTargets ?? jobs.map((j) => ({ key: j.id, label: j.title, jobId: j.id }));
+  const [jobId, setJobId] = useState<string>(defaultJobId ?? targets[0]?.key ?? "");
   const [reason, setReason] = useState<string>("");
   const [details, setDetails] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
@@ -56,7 +81,7 @@ export function ReportJobDialog({
   // they are typing or bring the form back after "Thank you".
   useEffect(() => {
     if (open) {
-      setJobId(defaultJobId ?? jobs[0]?.id ?? "");
+      setJobId(defaultJobId ?? targets[0]?.key ?? "");
       setReason("");
       setDetails("");
       setState("idle");
@@ -66,10 +91,16 @@ export function ReportJobDialog({
   }, [open]);
 
   const send = async () => {
-    if (!reason || !jobId || state === "sending") return;
+    const target = targets.find((t) => t.key === jobId);
+    if (!reason || !target || state === "sending") return;
     setState("sending");
     setError(null);
-    const { error: rpcError } = await supabase.rpc("report_employer" as never, { p_job_id: jobId, p_reason: reason, p_details: details.trim() || null } as never);
+    // A job's report sends the three arguments it always has; a business's
+    // adds p_employer (and its job, while there is one).
+    const args = target.employerId
+      ? { p_job_id: target.jobId ?? null, p_reason: reason, p_details: details.trim() || null, p_employer: target.employerId }
+      : { p_job_id: target.jobId ?? null, p_reason: reason, p_details: details.trim() || null };
+    const { error: rpcError } = await supabase.rpc("report_employer" as never, args as never);
     if (rpcError) {
       setState("idle");
       setError(reportErrorWords(rpcError.message));
@@ -85,7 +116,7 @@ export function ReportJobDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>{state === "sent" ? "Thank you" : "Report this job"}</DialogTitle>
+          <DialogTitle>{state === "sent" ? "Thank you" : about === "business" ? "Report this business" : "Report this job"}</DialogTitle>
           <DialogDescription>
             {state === "sent"
               ? "HireFlow will look at it. The business never sees who reported it."
@@ -106,18 +137,18 @@ export function ReportJobDialog({
           </div>
         ) : (
           <div className="space-y-3" data-report-form>
-            {jobs.length > 1 && (
+            {targets.length > 1 && (
               <label className="block text-sm">
-                <span className="mb-1 block text-muted-foreground">Which job?</span>
+                <span className="mb-1 block text-muted-foreground">{about === "business" ? "Which business?" : "Which job?"}</span>
                 <select
                   id="report-job"
                   className="w-full rounded-md border border-border bg-background px-3 py-2 text-base sm:text-sm"
                   value={jobId}
                   onChange={(e) => setJobId(e.target.value)}
                 >
-                  {jobs.map((j) => (
-                    <option key={j.id} value={j.id}>
-                      {j.title}
+                  {targets.map((t) => (
+                    <option key={t.key} value={t.key}>
+                      {t.label}
                     </option>
                   ))}
                 </select>

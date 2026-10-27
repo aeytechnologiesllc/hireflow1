@@ -229,7 +229,8 @@ function client() {
     if (table === "applications") {
       return world.applications.map((a) => {
         const job = world.jobs.find((j) => j.id === a.job_id) ?? null;
-        return { ...a, jobs: job ? { title: job.title, employer_id: job.employer_id, workflow_steps: job.workflow_steps ?? [], quiz_questions: job.quiz_questions ?? null } : null };
+        // processing_mode: the column's own default, "auto", unless the world sets it.
+        return { ...a, jobs: job ? { title: job.title, employer_id: job.employer_id, workflow_steps: job.workflow_steps ?? [], quiz_questions: job.quiz_questions ?? null, processing_mode: job.processing_mode === undefined ? "auto" : job.processing_mode } : null };
       });
     }
     return world[table] ?? [];
@@ -913,6 +914,23 @@ void quiet;
     r.status === 200 && !mail.html.includes(id(204)) && mail.html.includes(encodeURIComponent("/applications")) && !mail.html.includes(encodeURIComponent("/applications/")) && mail.subject === `Next steps for your ${TITLE_B} application`,
     `${mail?.subject} | ${(/redirect=([^"&]+)/.exec(mail?.html ?? "") ?? [])[1]}`,
   );
+
+  // The nineteenth Phase 5 review, finding 4: on a manual-mode job the hiring
+  // team opens each next step itself, and "Your application has more steps,
+  // and they are waiting for you ... please finish them soon" is untrue (the
+  // application page says "Saved — the hiring team opens your next step").
+  // The plain "Application Submitted" goes, whatever the page said.
+  for (const mode of ["manual", null]) {
+    r = await hush(async () => (reset((w) => { withSteps(w); w.jobs.find((j) => j.id === JOB_B).processing_mode = mode; }), ask("tok-ana", { type: "application_received", data: { job_title: TITLE_B, application_id: id(202), more_steps: "1" } })));
+    mail = world.sent[0];
+    check(
+      `a ${mode ?? "no-mode"} job with steps after the form: the plain "Application Submitted", never "not finished yet ... please finish them soon", whatever the page said`,
+      r.status === 200 && mail?.subject === `Application Submitted: ${TITLE_B}` && textOf(mail).startsWith("Application Submitted") && !/finish them soon|not finished yet|waiting for you/i.test(textOf(mail)),
+      `${mail?.subject} | ${textOf(mail ?? { html: "" }).slice(0, 80)}`,
+    );
+  }
+  r = await hush(async () => (reset((w) => { withSteps(w); w.jobs.find((j) => j.id === JOB_B).processing_mode = "auto"; }), ask("tok-ana", { type: "application_received", data: { job_title: TITLE_B, application_id: id(202) } })));
+  check("…and an auto-mode job with steps after it still says what is left", world.sent[0]?.subject === `Next steps for your ${TITLE_B} application`, world.sent[0]?.subject);
 
   // The decision itself, as the review's probe pr_received ran it.
   {

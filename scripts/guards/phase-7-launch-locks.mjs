@@ -478,10 +478,15 @@ export default [
         !/application_id: askedApp\?\.id,/.test(self)
       )
         detail.push("supabase/functions/_shared/notificationAccess.ts: \"application received\" no longer keeps \"more steps\" (from the job's steps, else the page's \"1\") or the caller's own application, so the first-step email never goes");
-      if (!/stepsAfterForm: async \(applicationId\) => \{[\s\S]{0,600}?return buildCandidateJourney\(steps, \{ hasQuiz: Array\.isArray\(job\.quiz_questions\) && job\.quiz_questions\.length > 0 \}\)\.length > 2;/.test(email))
+      if (!/stepsAfterForm: async \(applicationId\) => \{[\s\S]{0,800}?return buildCandidateJourney\(steps, \{ hasQuiz: Array\.isArray\(job\.quiz_questions\) && job\.quiz_questions\.length > 0 \}\)\.length > 2;/.test(email))
         detail.push("send-notification-email: whether more steps follow the form must be read from the job's own steps, counted as the form's page counts them (stepsAfterForm)");
+      // Only on an auto-mode job: on a manual one the team opens each next
+      // step, and "please finish them soon" was untrue (the nineteenth Phase 5
+      // review, finding 4).
+      if (!/stepsAfterForm: async \(applicationId\) => \{[\s\S]{0,800}?\.select\("jobs\(workflow_steps, quiz_questions, processing_mode\)"\)[\s\S]{0,400}?if \(job\.processing_mode !== "auto"\) return false;[\s\S]{0,300}?return buildCandidateJourney\(/.test(email))
+        detail.push("send-notification-email: on a manual-mode job \"not finished yet\" must not go (stepsAfterForm returns false unless processing_mode is \"auto\")");
       const form = strip(await read("src/pages/ApplicationFormPhase.tsx"));
-      if (!/moreSteps: journeyStep\.total > 2,/.test(form)) detail.push("src/pages/ApplicationFormPhase.tsx: the submitted email is no longer told when more steps follow");
+      if (!/moreSteps: isAutoPilot && journeyStep\.total > 2,/.test(form)) detail.push("src/pages/ApplicationFormPhase.tsx: the submitted email is no longer told when more steps follow, or is told so on a manual-mode job");
       const legal = strip(await read("src/components/LegalPage.tsx"));
       if (/navigate\(-1\) : navigate\("\/"\)\)/.test(legal) || !/window\.location\.assign\("\/"\)/.test(legal)) detail.push("src/components/LegalPage.tsx: Back from a tab with no history goes to the app's \"/\" (HireFlow's own job) again");
       return { ok: detail.length === 0, detail };

@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { appliedNames } from "@/lib/appliedNames";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useUpdateApplication } from "@/hooks/useApplications";
@@ -89,6 +90,11 @@ interface ApplicationDetails {
   resume_url: string | null;
   cover_letter: string | null;
   status: string;
+  /** The job's title and the business's name as they were when they applied
+   *  (set by the database, kept from every browser): the top of this page
+   *  names the job by them (src/lib/appliedNames.ts). */
+  applied_job_title?: string | null;
+  applied_company_name?: string | null;
   jobs: {
     title: string;
     processing_mode: string | null;
@@ -1150,10 +1156,13 @@ export default function ApplicationFormPhase() {
         // More steps after this one (the journey has the form, the decision and
         // something between): the email says to continue, never "submitted, we
         // will get back to you" (the Phase 7 product audit: applicants on a
-        // phone stopped after step 1 of 5, thinking they were done).
+        // phone stopped after step 1 of 5, thinking they were done). Only on
+        // an auto-mode job: on a manual one the hiring team opens the next
+        // step, so there is nothing waiting for them yet (the nineteenth
+        // Phase 5 review, finding 4; send-notification-email reads the same).
         void notifyApplicationSubmitted(application.job_id, application.candidate_id, candidateName, {
           applicationId: application.id,
-          moreSteps: journeyStep.total > 2,
+          moreSteps: isAutoPilot && journeyStep.total > 2,
         });
       }
 
@@ -1243,7 +1252,7 @@ export default function ApplicationFormPhase() {
       <StepAdvanceScreen
         advance={advance}
         applicationId={id!}
-        jobTitle={application.jobs?.title}
+        jobTitle={appliedNames(application).jobTitle ?? undefined}
         completedTitle={journeyStep.title}
       />
     );
@@ -1285,7 +1294,7 @@ export default function ApplicationFormPhase() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">
-            {application.jobs?.title || "This role"}
+            {appliedNames(application).jobTitle ?? "This role"}
           </p>
         </div>
 

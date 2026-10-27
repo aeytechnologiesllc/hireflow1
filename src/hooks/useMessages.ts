@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import type { Tables, TablesInsert } from "@/integrations/supabase/types";
 import { useEffect, useId } from "react";
+import { appliedNames } from "@/lib/appliedNames";
 
 export type Message = Tables<"messages"> & {
   file_url?: string | null;
@@ -32,10 +33,14 @@ export interface MessageableEmployer {
   employer_id: string;
   /** Not readable by an applicant (RLS); kept for older callers, always null here. */
   employer_profile: Tables<"profiles"> | null;
-  /** The business's public name (employer_public_branding). */
+  /** The business's name as it was when they applied (their newest
+   *  application to it: applied_company_name), never its name today. */
   company_name?: string | null;
+  /** The job's title as it was when they applied (applied_job_title), or "Your application". */
   job_title: string;
   application_id: string;
+  /** That application's job (a report from the chat names it while it is there). */
+  job_id?: string | null;
   /** Every one of their applications to this business. */
   application_ids?: string[];
 }
@@ -50,6 +55,19 @@ export interface MessageableCandidate {
 // Hook to get employers the candidate can message (from their applications).
 // Pass `enabled: false` for employer-side callers: the query is keyed on the
 // caller being the candidate, so it can only ever come back empty for them.
+//
+// Each business and role is named from the applicant's own application to it
+// (its newest), as they were when they applied: applied_company_name and
+// applied_job_title, set by the database (src/lib/appliedNames.ts), never the
+// business's name or the job's title today. Every applicant email, the
+// decline included, links here ("Message us in your account"), and a
+// business can close its job and rename it, or itself, to a fee ask after
+// turning people down: "Fee Clinic: pay 500 PHP to GCash 0917 000 0000 to
+// stay in the pool" was this page's name for it, beside "Chat support agent
+// (reconsideration: send 500 PHP ..., then message us REAPPLY)" (the
+// nineteenth Phase 5 review, finding 1, probe p2_messages; the eighteenth
+// security review, finding 1). The guard applicant-pages-name-the-job-as-applied
+// holds this hook to it.
 export function useMessageableEmployers(options: { enabled?: boolean } = {}) {
   const { user } = useAuth();
   const enabled = options.enabled ?? true;
@@ -57,52 +75,33 @@ export function useMessageableEmployers(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: ["messageable-employers", user?.id],
     queryFn: async () => {
-      // Get all applications for this candidate with job details
+      // Every application of theirs, newest first, with the business behind it.
       const { data: applications, error } = await supabase
         .from("applications")
-        .select("id, job_id, jobs(title, employer_id)")
-        .eq("candidate_id", user!.id);
+        .select("id, job_id, created_at, applied_job_title, applied_company_name, jobs(employer_id)")
+        .eq("candidate_id", user!.id)
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      // Get unique employer IDs
-      const employerIds = [...new Set(
-        applications
-          .map((app) => app.jobs?.employer_id)
-          .filter(Boolean)
-      )];
-
-      if (employerIds.length === 0) return [];
-
-      // Each business's public name: an applicant may not read a business's
-      // profile (RLS), so every chat used to read "Hiring team".
-      const { data: brands, error: brandsError } = await supabase
-        .from("employer_public_branding")
-        .select("user_id, company_name")
-        .in("user_id", employerIds);
-
-      if (brandsError) throw brandsError;
-
-      const nameOf = new Map(
-        ((brands ?? []) as { user_id: string | null; company_name: string | null }[])
-          .filter((b) => b.user_id && b.company_name?.trim())
-          .map((b) => [b.user_id as string, (b.company_name as string).trim()]),
-      );
-
       // Create messageable employers list
-      const employers: MessageableEmployer[] = applications
+      const employers: MessageableEmployer[] = (applications ?? [])
         .filter((app) => app.jobs?.employer_id)
-        .map((app) => ({
-          employer_id: app.jobs.employer_id,
-          employer_profile: null,
-          company_name: nameOf.get(app.jobs.employer_id) ?? null,
-          job_title: app.jobs.title,
-          application_id: app.id,
-          application_ids: applications.filter((a) => a.jobs?.employer_id === app.jobs.employer_id).map((a) => a.id),
-        }));
+        .map((app) => {
+          const named = appliedNames(app);
+          return {
+            employer_id: app.jobs!.employer_id,
+            employer_profile: null,
+            company_name: named.companyName,
+            job_title: named.jobTitle ?? "Your application",
+            application_id: app.id,
+            job_id: app.job_id,
+            application_ids: (applications ?? []).filter((a) => a.jobs?.employer_id === app.jobs!.employer_id).map((a) => a.id),
+          };
+        });
 
-      // Dedupe by employer_id (keep first occurrence with job title); every
-      // application stays findable through application_ids.
+      // Dedupe by employer_id (keep the newest application, first in the
+      // list); every application stays findable through application_ids.
       const seen = new Set<string>();
       return employers.filter((e) => {
         if (seen.has(e.employer_id)) return false;

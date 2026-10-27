@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { appliedNames } from "@/lib/appliedNames";
 import {
   functionErrorReply,
   gradingReplyOutcome,
@@ -66,6 +67,11 @@ interface ApplicationDetails {
   phase: string | null;
   notes: string | null;
   status: string;
+  /** The job's title and the business's name as they were when they applied
+   *  (set by the database, kept from every browser): the top of this page
+   *  names the job by them (src/lib/appliedNames.ts). */
+  applied_job_title?: string | null;
+  applied_company_name?: string | null;
   jobs: {
     title: string;
     processing_mode: string | null;
@@ -722,7 +728,7 @@ export default function TypingTestPhase() {
       <StepAdvanceScreen
         advance={advance}
         applicationId={id!}
-        jobTitle={application.jobs?.title}
+        jobTitle={appliedNames(application).jobTitle ?? undefined}
         completedTitle={journeyStep.title}
       />
     );
@@ -795,7 +801,7 @@ export default function TypingTestPhase() {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">
-            {application.jobs?.title || "This role"}
+            {appliedNames(application).jobTitle ?? "This role"}
           </p>
         </div>
 

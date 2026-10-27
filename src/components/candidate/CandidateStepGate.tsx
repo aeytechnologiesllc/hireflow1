@@ -7,6 +7,7 @@ import { stepIsDone } from "@/lib/journeyProgress";
 import { kindNeedsComputer, readThisDevice, stepNeedsComputer } from "@/lib/deviceGate";
 import type { DeviceKind } from "@/lib/connectionTest";
 import { parseApplicationNotes } from "@/utils/applicationNotes";
+import { appliedNames } from "@/lib/appliedNames";
 import { ContinueOnComputer } from "@/components/candidate/ContinueOnComputer";
 import {
   ComputerHandoverContext,
@@ -14,6 +15,7 @@ import {
   type ShowContinueOnComputer,
 } from "@/components/candidate/continueOnComputerContext";
 import { NextStepCard } from "@/components/candidate/NextStepCard";
+import { ReportBusinessNote } from "@/components/trust/ReportBusinessNote";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2, Clock, ArrowLeft, AlertTriangle } from "lucide-react";
@@ -21,7 +23,6 @@ import { Loader2, Clock, ArrowLeft, AlertTriangle } from "lucide-react";
 interface GateJob {
   workflow_steps?: unknown;
   quiz_questions?: unknown;
-  title?: string | null;
   /** false: an on-site job, where only a connection check the business added puts a step on a computer. */
   is_remote?: boolean | null;
 }
@@ -76,6 +77,11 @@ export default function CandidateStepGate({
   const [appStatus, setAppStatus] = useState<string | null>(null);
   const [appNotes, setAppNotes] = useState<unknown>(null);
   const [voiceResult, setVoiceResult] = useState<unknown>(null);
+  // The job's title as it was when they applied (the application's own
+  // applied_job_title), for "Continue on your computer": never the job's
+  // title today, which a business can change on a closed job to anything
+  // (the nineteenth Phase 5 review, finding 2).
+  const [appliedTitle, setAppliedTitle] = useState<string | null>(null);
   // This device, by the connection check's own reading (deviceGate.ts):
   // null until read. Read for every step, so a step page's requests can
   // carry it (withDeviceKind); only a gated step waits for it.
@@ -126,7 +132,7 @@ export default function CandidateStepGate({
     const load = async () => {
       const { data: app, error } = await supabase
         .from("applications")
-        .select("phase, status, notes, voice_interview_result, jobs:job_id ( workflow_steps, quiz_questions, title, is_remote )")
+        .select("phase, status, notes, voice_interview_result, applied_job_title, jobs:job_id ( workflow_steps, quiz_questions, is_remote )")
         .eq("id", applicationId)
         .maybeSingle();
 
@@ -146,9 +152,9 @@ export default function CandidateStepGate({
       setJob({
         workflow_steps: gateJob?.workflow_steps ?? [],
         quiz_questions: gateJob?.quiz_questions ?? [],
-        title: gateJob?.title ?? null,
         is_remote: gateJob?.is_remote ?? null,
       });
+      setAppliedTitle(appliedNames(app).jobTitle);
       setAppPhase(app.phase ?? null);
       setAppStatus(app.status ?? null);
       setAppNotes(app.notes ?? null);
@@ -247,6 +253,9 @@ export default function CandidateStepGate({
               <ArrowLeft className="h-4 w-4" />
               Back to your applications
             </Button>
+            {/* A business that deleted its job took this application with it:
+                Report still reaches it (the nineteenth Phase 5 review, finding 3). */}
+            <ReportBusinessNote />
           </CardContent>
         </Card>
       </div>
@@ -301,7 +310,7 @@ export default function CandidateStepGate({
         step={thisStep}
         index={resolution.index}
         total={steps.length}
-        jobTitle={job?.title}
+        jobTitle={appliedTitle}
         deviceKind={refusedHere?.kind ?? (kindNeedsComputer(deviceKind) ? deviceKind : null)}
         startedHere={!!refusedHere}
       />

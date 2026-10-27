@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase, SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "@/integrations/supabase/client";
+import { appliedNames } from "@/lib/appliedNames";
 import { useAuth } from "@/hooks/useAuth";
 import { useConversationDraft } from "@/hooks/useConversationDraft";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -118,6 +119,11 @@ interface ApplicationDetails {
   phase: string | null;
   notes: string | null;
   status: string;
+  /** The job's title and the business's name as they were when they applied
+   *  (set by the database, kept from every browser): the top of this page
+   *  names the job by them (src/lib/appliedNames.ts). */
+  applied_job_title?: string | null;
+  applied_company_name?: string | null;
   jobs: {
     title: string;
     description: string;
@@ -855,7 +861,7 @@ export default function SalesSimulationPhase() {
       <StepAdvanceScreen
         advance={advance}
         applicationId={id!}
-        jobTitle={application.jobs?.title}
+        jobTitle={appliedNames(application).jobTitle ?? undefined}
         completedTitle={journeyStep.title}
       />
     );
@@ -930,7 +936,7 @@ export default function SalesSimulationPhase() {
             Client Meeting
           </CardTitle>
           <p className="text-muted-foreground">
-            For: {application.jobs?.title}
+            {appliedNames(application).jobTitle ? `For: ${appliedNames(application).jobTitle}` : "This role"}
           </p>
           <span className="ck-num block pt-2 text-xs font-medium text-muted-foreground">
             Step {journeyStep.index + 1} of {journeyStep.total} — {journeyStep.title}

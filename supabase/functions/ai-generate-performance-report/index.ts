@@ -6,6 +6,7 @@ import { checkRateLimit, guardPublicAiCall } from "../_shared/rateLimit.ts";
 import { canAccessPerformanceReport } from "../_shared/performanceReportAccess.ts";
 import { withEvaluation } from "../_shared/applicationEvaluation.ts";
 import { validateBlueprintReport, REQUIRED_DEVELOPMENTAL_DISCLAIMER, type ImprovementBlueprintData } from "../_shared/blueprintReport.ts";
+import { reportJobSection, reportJobTitle } from "../_shared/performanceReportJob.ts";
 
 /** The page keeps the first report; this leaves room for a retry or two. */
 const REPORTS_PER_APPLICATION_PER_DAY = 6;
@@ -155,13 +156,16 @@ serve(async (req) => {
         resume_url,
         phase,
         status,
+        applied_job_title,
         jobs (
-          title,
           description,
           requirements,
           skills_required,
           workflow_steps,
-          passing_score
+          passing_score,
+          status,
+          exclude_from_feed,
+          application_deadline
         ),
         application_evaluations ( ai_score )
       `)
@@ -330,7 +334,9 @@ Return ONLY the JSON object described in the system prompt.`;
     // model returned under a "metadata" key, since it wasn't asked for one).
     reportData.metadata = {
       candidateName: profile?.full_name || 'Candidate',
-      jobTitle: jobData?.title || 'Position',
+      // As they applied to it, never the job's title today
+      // (_shared/performanceReportJob.ts; the eighteenth security review).
+      jobTitle: reportJobTitle(application.applied_job_title),
       // The hiring team's own score goes back only to the hiring team: an
       // applicant's copy of this report (it is cached in their own notes)
       // never carries it (application_evaluations, 2026-10-25).
@@ -595,24 +601,17 @@ function buildApplicationContext(application: any, parsedNotes: any, profile: an
   const sections: string[] = [];
 
   sections.push(`## Candidate: ${profile?.full_name || 'Unknown'}
-- Position: ${jobData?.title || 'Unknown'}
+- Position: ${reportJobTitle(application.applied_job_title, 'Unknown')}
 - Status: REJECTED`);
 
   // The actual job this candidate applied to — every gap named in the
-  // report must trace back to something in here, not a generic skill.
-  if (jobData) {
-    const jobLines = [`\n## This Job's Real Requirements`];
-    if (jobData.description) jobLines.push(`Description: ${String(jobData.description).slice(0, 600)}`);
-    if (jobData.requirements) jobLines.push(`Requirements: ${String(jobData.requirements).slice(0, 600)}`);
-    if (jobData.skills_required?.length) jobLines.push(`Skills required: ${jobData.skills_required.join(', ')}`);
-    if (jobData.workflow_steps?.length) {
-      const stepNames = jobData.workflow_steps
-        .map((s: any) => (typeof s === 'string' ? s : s?.type || s?.name))
-        .filter(Boolean);
-      if (stepNames.length) jobLines.push(`Actual screening steps used for this job: ${stepNames.join(', ')}`);
-    }
-    if (jobLines.length > 1) sections.push(jobLines.join('\n'));
-  }
+  // report must trace back to something in here, not a generic skill. The
+  // job's own words only while it is on its public page: a business can
+  // change them on a closed job to anything, and this is the turned-down
+  // applicant's report (_shared/performanceReportJob.ts; the eighteenth
+  // security review, finding 1).
+  const jobSection = reportJobSection(jobData);
+  if (jobSection) sections.push(jobSection);
 
   // Cover letter - provide context about length
   if (application.cover_letter) {

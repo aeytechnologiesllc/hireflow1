@@ -209,6 +209,18 @@ Since then:
   `buildCandidateJourney`; the page's "1" only when they cannot be read,
   never its text), and the application the button opens, only when the
   request names one of the caller's own.
+- **"Not finished yet" only on an auto-mode job** (the nineteenth Phase 5
+  review, finding 4). On a manual-mode job nothing moves after the form: the
+  hiring team opens each next step, and the application page says "Saved —
+  the hiring team opens your next step". The email told those applicants
+  their steps "are waiting for you ... please finish them soon". Now
+  `stepsAfterForm` answers false unless the job's `processing_mode` is
+  `auto` (the column's default; a job with none is manual, as the form's page
+  reads it), and the page's own mark is sent only on an auto-mode job
+  (`moreSteps: isAutoPilot && journeyStep.total > 2`), so a manual-mode job
+  gets the plain "Application Submitted ... The hiring team will review your
+  application and get back to you". `scripts/notification_access.test.mjs`
+  section 4.
 
 The hiring team's other kinds still name the job's own title and the
 business's own name today: each is contact (above), so three people it

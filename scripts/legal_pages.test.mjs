@@ -190,7 +190,7 @@ check("it tells people how to delete their account, by the button's own name", /
   })();
   check(
     "it names the note of how each business was in touch, kept for reports, and says it goes with the account, as the record's keys make it",
-    /So is a note of each business you applied to and of how it was in touch with you \(a message, an email, moving your application forward, a request for papers, a document or an interview\), with when each kind first and last happened\. It is kept so that a report you make about a business still counts if the business deletes them/.test(privacy) &&
+    /So is a note of each business you applied to and of how it was in touch with you \(a message, an email, moving your application forward, changing what its job or its own name says to you, a request for papers, a document or an interview\), with when each kind first and last happened\. It is kept so that a report you make about a business still counts if the business deletes them/.test(privacy) &&
       /employer_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/.test(contacts) && /person_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/.test(contacts),
   );
   // The sixteenth Phase 5 review (finding 4): since round 15 the note also
@@ -223,7 +223,7 @@ check("it tells people how to delete their account, by the button's own name", /
   const help = read("supabase/migrations/20261011180000_business_screens.sql");
   check(
     "\"What we collect\" names reports and what someone writes from Contact us, who reads them, and how long they are kept, as the tables keep them",
-    /If you report a job: which job, the reason you chose, what you wrote, when, and that it was you\. If you write to us from Contact us: what you write and our answers\. We read both\. The business you report never learns who reported it\. Both are kept until your account is deleted\./.test(privacy) &&
+    /If you report a job or a business: which one, the reason you chose, what you wrote, when, and that it was you\. If you write to us from Contact us: what you write and our answers\. We read both\. The business you report never learns who reported it\. Both are kept until your account is deleted\./.test(privacy) &&
       /your reports, your Contact us thread, your test records and your files are deleted with it\./.test(privacy) &&
       /reporter_id uuid NOT NULL REFERENCES auth\.users\(id\) ON DELETE CASCADE/.test(trust) && /details text CHECK \(details IS NULL OR char_length\(details\) <= 1000\)/.test(trust) &&
       /employer_id uuid NOT NULL REFERENCES auth\.users \(id\) ON DELETE CASCADE/.test(help),
@@ -286,7 +286,7 @@ check("it names no governing law or court (there is no company named to hang one
   })();
   check(
     "the pause rule says a report already looked at counts again only after the business is in touch again, as employer_reports_auto_pause reads it",
-    /When three different people the business has been in touch with \(by message, by an email its hiring team sends them other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview\) report it, it pauses by itself while we look/.test(terms) &&
+    /When three different people the business has been in touch with report it, it pauses by itself while we look\. A business is in touch with someone by message, by an email its hiring team sends them other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview\. So it is when it changes what its job, its steps or its own name say to them where the public cannot read it\./.test(terms) &&
       /Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that\./.test(terms) &&
       /AND NOT public\.report_already_heard\(NEW\.employer_id, r\.reporter_id\)/.test(heard) && /AND since\.last_at > done\.closed_at/.test(heard) &&
       // "by an email": the hiring team's emails are contact, but a decline (the sixteenth Phase 5 review).

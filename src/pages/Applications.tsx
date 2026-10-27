@@ -61,6 +61,7 @@ import { thisDeviceKind } from "@/lib/deviceGate";
 import { isFreshArrival, stepWaitingOnComputer } from "@/lib/resumeOnComputer";
 import { candidateInterviewWords, type CandidateInterviewWords } from "@/lib/candidateInterview";
 import { appliedNames } from "@/lib/appliedNames";
+import { liveJobWords } from "@/lib/liveJobText";
 import {
   InterviewSeal,
   InterviewSelectedMoment,
@@ -87,7 +88,9 @@ interface ApplicationCardProps {
 
 function journeyForCard(application: ApplicationWithJob) {
   const job = application.jobs;
-  const workflowSteps = (job?.workflow_steps as { id: string; type: string; title?: string }[] | null) || [];
+  // Its own titles only for someone still waiting on it, or while it is on
+  // its public page (src/lib/liveJobText.ts).
+  const workflowSteps = liveJobWords(application, job).workflowSteps;
   const quizQuestions = job?.quiz_questions;
   const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
   const steps = buildCandidateJourney(workflowSteps, { hasQuiz });
@@ -281,6 +284,11 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
   // are now (src/lib/appliedNames.ts; the seventeenth security review,
   // finding 1). Absent, not a placeholder, when the application has none.
   const { jobTitle, companyName } = appliedNames(application);
+  // The job's location and type today: for someone still waiting on it (a
+  // change of them is contact with them), or while it is on its public page;
+  // never for someone turned down or hired once nobody else can see it (the
+  // eighteenth security review, finding 1; src/lib/liveJobText.ts).
+  const words = liveJobWords(application, job);
 
   // Use shared display state utility - SINGLE SOURCE OF TRUTH
   const displayState = getApplicationDisplayState(application);
@@ -479,16 +487,16 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12px]" style={{ color: "var(--ink-3)" }}>
-        {job?.location && (
+        {words.location && (
           <span className="inline-flex min-w-0 items-center gap-1">
             <MapPin className="h-3.5 w-3.5 shrink-0" />
-            <span className="break-words [overflow-wrap:anywhere]">{job.location}</span>
+            <span className="break-words [overflow-wrap:anywhere]">{words.location}</span>
           </span>
         )}
-        {job?.job_type && (
+        {words.jobType && (
           <span className="inline-flex min-w-0 items-center gap-1">
             <Briefcase className="h-3.5 w-3.5 shrink-0" />
-            <span className="break-words [overflow-wrap:anywhere]">{jobTypeLabel(job.job_type) ?? job.job_type}</span>
+            <span className="break-words [overflow-wrap:anywhere]">{jobTypeLabel(words.jobType) ?? words.jobType}</span>
           </span>
         )}
         <span className="inline-flex min-w-0 items-center gap-1">

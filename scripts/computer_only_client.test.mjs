@@ -352,7 +352,7 @@ console.log("\nThe wiring — read from the source:\n");
   const screen = await read("src/components/candidate/ContinueOnComputer.tsx");
   const decide = gate.indexOf("needsComputer && kindNeedsComputer(deviceKind)");
   const children = gate.lastIndexOf("{children}");
-  check("the gate decides with the shared rule and the shared reading", /stepNeedsComputer\(steps, thisStep\.id, \{ onSite: job\?\.is_remote === false \}\)/.test(gate) && /readThisDevice\(\)/.test(gate) && /jobs:job_id \( workflow_steps, quiz_questions, title, is_remote \)/.test(gate));
+  check("the gate decides with the shared rule and the shared reading", /stepNeedsComputer\(steps, thisStep\.id, \{ onSite: job\?\.is_remote === false \}\)/.test(gate) && /readThisDevice\(\)/.test(gate) && /applied_job_title, jobs:job_id \( workflow_steps, quiz_questions, is_remote \)/.test(gate));
   check("…BEFORE the step page mounts (the screen is returned in place of children)", decide !== -1 && children !== -1 && decide < children && /<ContinueOnComputer\b/.test(gate));
   check("…and a gated step waits for the reading, so a phone never mounts it first", /if \(needsComputer && deviceKind === null\)/.test(gate));
   check("…a step behind them on a phone gets the live 'where things stand' card, not 'continue'", /stepBehind && !refusedHere/.test(gate) && /<NextStepCard\b/.test(gate));

@@ -47,6 +47,7 @@ import { buildCandidateJourney, positionFor, startLabelFor, titleFor } from "@/l
 import { stepHasResult, stepIsDone, stepRoute, whereCandidateStands } from "@/lib/journeyProgress";
 import { glyphForKind } from "@/components/glyphForKind";
 import { appliedNames } from "@/lib/appliedNames";
+import { liveJobWords } from "@/lib/liveJobText";
 
 interface WorkflowStep {
   id: string;
@@ -70,6 +71,7 @@ interface ApplicationDetails extends Tables<"applications"> {
 // throughout the product.
 
 import { SafetyNote } from "@/components/trust/SafetyNote";
+import { ReportBusinessNote } from "@/components/trust/ReportBusinessNote";
 import {
   candidatePhaseDisplayNames,
   phaseActionMessages as terminologyPhaseActionMessages
@@ -406,7 +408,11 @@ export default function CandidateApplicationDetail() {
   // the real steps, plus the one honest closing "Decision" stage. Nothing
   // synthetic beyond that (no standalone Review/Interview/Hired legs).
   const phases = (() => {
-    const workflowSteps = application?.jobs?.workflow_steps as WorkflowStep[] | undefined;
+    // Its own titles only for someone still waiting on it, or while it is on
+    // its public page: never, for someone turned down or hired, a title the
+    // business gave a step since nobody else could see it (the eighteenth
+    // security review, finding 1; src/lib/liveJobText.ts).
+    const workflowSteps = liveJobWords(application, application?.jobs).workflowSteps as WorkflowStep[];
     const quizQuestions = application?.jobs?.quiz_questions as Json[] | undefined;
     const hasQuiz = Array.isArray(quizQuestions) && quizQuestions.length > 0;
 
@@ -474,6 +480,8 @@ export default function CandidateApplicationDetail() {
 
   const job = application?.jobs;
   const companyName = named.companyName || "This employer";
+  // The job's location and type today, on the same rule as its steps' titles.
+  const words = liveJobWords(application, job);
 
   // Handle starting a phase action (quiz, typing test, etc.) — through the
   // one step-to-route map the step pages use too (journeyProgress.stepRoute).
@@ -539,6 +547,9 @@ export default function CandidateApplicationDetail() {
               <ArrowLeft className="h-4 w-4" />
               Back to Applications
             </Button>
+            {/* A business that deleted its job took this application with it:
+                Report still reaches it (the nineteenth Phase 5 review, finding 3). */}
+            <ReportBusinessNote />
           </CardContent>
         </Card>
       </div>
@@ -687,16 +698,16 @@ export default function CandidateApplicationDetail() {
             </p>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted-foreground">
-              {job?.location && (
+              {words.location && (
                 <span className="flex min-w-0 items-center gap-1">
                   <MapPin className="h-3.5 w-3.5 shrink-0" />
-                  <span className="break-words [overflow-wrap:anywhere]">{job.location}</span>
+                  <span className="break-words [overflow-wrap:anywhere]">{words.location}</span>
                 </span>
               )}
-              {job?.job_type && (
+              {words.jobType && (
                 <span className="flex min-w-0 items-center gap-1">
                   <Briefcase className="h-3.5 w-3.5 shrink-0" />
-                  <span className="break-words [overflow-wrap:anywhere]">{jobTypeLabel(job.job_type) ?? job.job_type}</span>
+                  <span className="break-words [overflow-wrap:anywhere]">{jobTypeLabel(words.jobType) ?? words.jobType}</span>
                 </span>
               )}
               <span className="flex min-w-0 items-center gap-1">
