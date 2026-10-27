@@ -1022,6 +1022,13 @@ reached function deployed):
   the caller checks clean; one MEDIUM left over (the job's location, type
   and step titles, the Messages page and the Improvement Report still show
   today's text after a decline), added to the Phase 5 round 19 fixer.
+  **Round 19** (`sec19_report.md`) found one HIGH, old but exposed live: an
+  upsert with "ignore duplicates" on another business's job id passes the
+  insert check, and the answer-key trigger files the rival's keys anyway,
+  so a rival could make the owner's applicants score 0 (the live job's five
+  keys were all written together on 2026-10-06 and never since: nothing
+  planted). And one MEDIUM: the chat interviewer reads a closed job's live
+  description. **Its fixer is running** (`sec19_fix_brief.md`).
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
