@@ -57,7 +57,7 @@ import {
   withRemoteFollowUps,
   detectFamily,
   generateJobFlow,
-  jobKindFollowUp,
+  jobKindFollowUps,
   loadDraft,
   saveDraft,
   type JobFlow,
@@ -185,8 +185,9 @@ export default function AvaCreateJob() {
   const inputMode: "voice" | "form" = canTalk ? chosenMode ?? "voice" : import.meta.env.DEV && chosenMode === "voice" ? "voice" : "form";
   const [fuIndex, setFuIndex] = useState(0);
   // After a voice brief: only "What kind of job is it?" (and, for customer
-  // service, the channel), then straight to building (the fifth Phase 4
-  // review: the voice path never asked, so the guess was final).
+  // service, the channel; for another kind of job, which is closest), then
+  // straight to building (the fifth Phase 4 review: the voice path never
+  // asked, so the guess was final; the forty-fourth, the family's guess).
   const [voiceConfirm, setVoiceConfirm] = useState(false);
   const [chipAnswers, setChipAnswers] = useState<Record<string, number>>(saved?.chipAnswers ?? {});
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
@@ -257,17 +258,20 @@ export default function AvaCreateJob() {
 
   const formBrief = useMemo(() => briefFromForm({ ...briefFields, followUps: [] }), [briefFields]);
   // Ava's first question: what kind of job, starting on her guess from the
-  // words; the answer decides the family (detectFamily reads it).
-  const jobKind = useMemo(() => jobKindFollowUp(formBrief), [formBrief]);
-  const family = useMemo(() => detectFamily({ ...formBrief, followUps: chipAnswersToBriefAnswers([jobKind], chipAnswers) }), [formBrief, jobKind, chipAnswers]);
+  // words; for "Another kind of job", which is closest, starting on her guess
+  // too (the forty-fourth Phase 4 review). The answers decide the family
+  // (detectFamily reads them), and the family's own questions follow.
+  const jobKind = useMemo(() => jobKindFollowUps(formBrief, chipAnswers), [formBrief, chipAnswers]);
+  const family = useMemo(() => detectFamily({ ...formBrief, followUps: chipAnswersToBriefAnswers(jobKind, chipAnswers) }), [formBrief, jobKind, chipAnswers]);
   const playbook = PLAYBOOKS[family];
   const workMode = formBrief.workMode;
   // The brief lets a follow-up start on what the business's own words point to (a dental office starts on "Medical or dental office").
+  // (After a voice brief, only the questions that decide the family, and the channel for customer service.)
   const followUps = useMemo(
     () =>
       voiceConfirm
-        ? [jobKind, ...(family === "customer_service" ? playbook.followUps(chipAnswers, formBrief).filter((f) => f.id === "cs-channel") : [])]
-        : [jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode)],
+        ? [...jobKind, ...(family === "customer_service" ? playbook.followUps(chipAnswers, formBrief).filter((f) => f.id === "cs-channel") : [])]
+        : [...jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode)],
     [voiceConfirm, family, jobKind, playbook, chipAnswers, workMode, formBrief],
   );
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
@@ -301,7 +305,7 @@ export default function AvaCreateJob() {
   const runGeneration = useCallback(async () => {
     setGenerating(true);
     setGenSource(null);
-    const followUpDefs = [jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), formBrief.workMode)];
+    const followUpDefs = [...jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), formBrief.workMode)];
     const brief = briefFromForm({
       ...briefFields,
       followUps: chipAnswersToBriefAnswers(followUpDefs, chipAnswers),

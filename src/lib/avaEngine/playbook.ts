@@ -991,7 +991,10 @@ function otherFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employm
   const head = headPhrase((brief.roleTitle ?? "").toLowerCase());
   const byTitle = familyOfWords(head);
   if (byTitle === "developer" || IT_DEPT_ROLE.test(head)) return "developer";
-  const fam = familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${brief.whatTheyDo}`.toLowerCase(), byTitle === "general" && !/\bmanagers?\b/.test(head));
+  // (What they do without its perks and how to apply, as isCustomerService reads it: "Benefits:\n- Career growth and
+  // development" made a cashier a developer, and "Apply in person at the HR office" an office job; the forty-fourth
+  // review. The rest is still only the guess, which the business confirms: jobFamilyFollowUp.)
+  const fam = familyOfWords(`${brief.roleTitle} ${brief.employmentType} ${(brief.whatTheyDo ?? "").toLowerCase().replace(PERKS, perkSetup).replace(HOW_TO_APPLY, " ")}`.toLowerCase(), byTitle === "general" && !/\bmanagers?\b/.test(head));
   // (A manager whose own part names no trade, "Manager - Coffee Shop", "Area Manager - Fast Food", is the till's when the
   // title names the till's place; the thirty-ninth review, H1.)
   const genericManager = /^((area|operations|general|deputy|senior|junior|night|day|assistant|regional|district|unit|branch|store|outlet|shift|duty)\s+)?managers?$/.test(head.trim());
@@ -1038,10 +1041,44 @@ export function jobKindFollowUp(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo"
   return { id: JOB_KIND_ID, question: "What kind of job is it?", chips: [...JOB_KIND_CHIPS], def: isCustomerService(brief) ? 0 : 1 };
 }
 
+/**
+ * For "Another kind of job", the next question: which is closest, starting on
+ * her guess from the words (otherFamily). The answer decides the family, as
+ * the job kind's answer decides customer service, so a wrong guess costs one
+ * click here too (the forty-fourth Phase 4 review: the guess reads any word
+ * anywhere in the post, so a cashier's "Schedule:" line made an office job, a
+ * benefits line's "career development" a developer and a front desk's
+ * "Coordinate with housekeeping" a cleaner, and no chip could change it; ten
+ * rounds of word rules showed that narrowing it never ends, each new rule
+ * breaking another class). Never asked for customer service, and never in the
+ * post: like every answer, it is for the plan only.
+ */
+export const JOB_FAMILY_ID = "job-family";
+export const JOB_FAMILY_CHIPS: ReadonlyArray<readonly [string, Exclude<Family, "customer_service">]> = [
+  ["Cleaning or housekeeping", "cleaner"],
+  ["Software, IT or technical", "developer"],
+  ["Office or admin", "admin"],
+  ["Front of house, till or sales", "cash"],
+  ["Something else", "general"],
+];
+
+export function jobFamilyFollowUp(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employmentType">): FollowUpDef {
+  const guess = JOB_FAMILY_CHIPS.findIndex(([, family]) => family === otherFamily(brief));
+  return { id: JOB_FAMILY_ID, question: "Which is closest?", chips: JOB_FAMILY_CHIPS.map(([label]) => label), def: guess >= 0 ? guess : JOB_FAMILY_CHIPS.length - 1 };
+}
+
+/** The questions that decide the family, in the order the builder asks them: the kind of job, then, for "Another kind of job", which is closest. */
+export function jobKindFollowUps(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employmentType">, answers: Record<string, number>): FollowUpDef[] {
+  const kind = jobKindFollowUp(brief);
+  return chipAnswersToBriefAnswers([kind], answers)[0].answer === JOB_KIND_CHIPS[1] ? [kind, jobFamilyFollowUp(brief)] : [kind];
+}
+
 export function detectFamily(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo" | "employmentType"> & { followUps?: JobBrief["followUps"] }): Family {
-  const kind = (brief.followUps ?? []).find((f) => f?.questionId === JOB_KIND_ID)?.answer;
+  const answer = (id: string) => (brief.followUps ?? []).find((f) => f?.questionId === id)?.answer;
+  const kind = answer(JOB_KIND_ID);
   if (kind === JOB_KIND_CHIPS[0]) return "customer_service";
-  if (kind === JOB_KIND_CHIPS[1]) return otherFamily(brief);
+  // (The business's answer to "Which is closest?" decides, whatever the words say; with no answer, or one no chip has, the guess.)
+  if (kind === JOB_KIND_CHIPS[1]) return JOB_FAMILY_CHIPS.find(([label]) => label === answer(JOB_FAMILY_ID))?.[1] ?? otherFamily(brief);
   return isCustomerService(brief) ? "customer_service" : otherFamily(brief);
 }
 

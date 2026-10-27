@@ -48,7 +48,8 @@ const bundle = await build({
     contents:
       'export { generateTemplateFlow } from "./src/lib/avaEngine/templateGenerator.ts";\n' +
       'export { generateJobFlow } from "./src/lib/avaEngine/flowGenerator.ts";\n' +
-      'export { PLAYBOOKS, briefFromForm, detectFamily, chipAnswersToBriefAnswers, withRemoteFollowUps, jobKindFollowUp, JOB_KIND_ID, JOB_KIND_CHIPS } from "./src/lib/avaEngine/playbook.ts";\n' +
+      'export { PLAYBOOKS, briefFromForm, detectFamily, chipAnswersToBriefAnswers, withRemoteFollowUps, jobKindFollowUp, JOB_KIND_ID, JOB_KIND_CHIPS, jobKindFollowUps, jobFamilyFollowUp, JOB_FAMILY_ID, JOB_FAMILY_CHIPS } from "./src/lib/avaEngine/playbook.ts";\n' +
+      'export { bankForFamily } from "./src/lib/avaEngine/questionBanks.ts";\n' +
       'export { CS_INDUSTRY_CHIPS, CS_CHANNEL_CHIPS, PHONE_INTERVIEW_QUESTIONS, packIdForBrief, channelForBrief, industryFromText, applyCustomerServicePack } from "./src/lib/avaEngine/customerService.ts";\n' +
       'export { SCENARIO_PACKS } from "./src/content/scenarioPacks/packs.ts";\n' +
       'export { createJobFromFlow } from "./src/lib/jobFromFlow.ts";\n',
@@ -1278,7 +1279,7 @@ for (const [title, work, want] of [
   check("no answer: the guess from the words", kind("Live chat agent", "") === "customer_service" && kind("Barista", "") !== "customer_service");
   const page = read("src/pages/AvaCreateJob.tsx");
   // The fifth review: the voice path never asked.
-  check("after a voice brief the builder asks the kind of job (and, for customer service, the channel) before building", /setVoiceConfirm\(true\);\s*setStep\(1\);/.test(page) && /voiceConfirm\s*\?\s*\[jobKind, \.\.\.\(family === "customer_service" \? playbook\.followUps\(chipAnswers, formBrief\)\.filter\(\(f\) => f\.id === "cs-channel"\) : \[\]\)\]/.test(page) && /if \(step === 1 && voiceConfirm\) \{\s*\/\/[^\n]*\n\s*setVoiceConfirm\(false\);\s*setStep\(3\);/.test(page));
+  check("after a voice brief the builder asks the kind of job (and, for customer service, the channel) before building", /setVoiceConfirm\(true\);\s*setStep\(1\);/.test(page) && /voiceConfirm\s*\?\s*\[\.\.\.jobKind, \.\.\.\(family === "customer_service" \? playbook\.followUps\(chipAnswers, formBrief\)\.filter\(\(f\) => f\.id === "cs-channel"\) : \[\]\)\]/.test(page) && /if \(step === 1 && voiceConfirm\) \{\s*\/\/[^\n]*\n\s*setVoiceConfirm\(false\);\s*setStep\(3\);/.test(page));
   // The sixth review: the voice session stays up through the confirm step, and the screening level follows the answer.
   check("Back from the confirm step clears the building state, so the voice brief carries on (the seventh review)", /if \(step === 0 && prevStep\.current === 1\) \{\s*finishing\.current = false;\s*handedOff\.current = false;\s*setCreating\(false\);/.test(read("src/components/ava/createFlow/TalkToAva.tsx")));
   check("the voice session stays mounted while the business confirms the kind of job (step 1)", /const voiceLed = inputMode === "voice" && !publishedCode && \(step === 0 \|\| \(step === 1 && voiceConfirm\) \|\| step === 3 \|\| step === 4\);/.test(page) && /if \(step === 1 \|\| step === 3\) return <div aria-hidden className="hidden" \/>;/.test(read("src/components/ava/createFlow/TalkToAva.tsx")));
@@ -1286,7 +1287,94 @@ for (const [title, work, want] of [
     const onComplete = page.slice(page.indexOf("onComplete={(payload) => {"), page.indexOf("onPreferType="));
     check("…and the voice path no longer locks the screening level before the answer (the family effect sets it)", /setRigorTouched\(false\);/.test(onComplete) && !/setRigor\(/.test(onComplete) && /if \(!rigorTouched\) setRigor\(playbook\.rigor\.recommended\);/.test(page));
   }
-  check("the builder asks it first, and the answer goes into the brief both plan builders read", /jobKindFollowUp\(formBrief\)/.test(page) && /\[jobKind, \.\.\.withRemoteFollowUps\(playbook\.followUps\(chipAnswers, formBrief\), workMode\)\]/.test(page) && /\[jobKind, \.\.\.withRemoteFollowUps\(playbook\.followUps\(chipAnswers, formBrief\), formBrief\.workMode\)\]/.test(page));
+  check("the builder asks it first, and the answer goes into the brief both plan builders read", /jobKindFollowUps\(formBrief, chipAnswers\)/.test(page) && /\[\.\.\.jobKind, \.\.\.withRemoteFollowUps\(playbook\.followUps\(chipAnswers, formBrief\), workMode\)\]/.test(page) && /\[\.\.\.jobKind, \.\.\.withRemoteFollowUps\(playbook\.followUps\(chipAnswers, formBrief\), formBrief\.workMode\)\]/.test(page));
+}
+
+// The forty-fourth Phase 4 review: for "Another kind of job" the family was the words' guess, read from any word anywhere in
+// the post (a schedule line, a benefits line, a qualification), and no chip could change it. "Which is closest?" puts a wrong
+// guess right with one click, as the job kind does. (Each check below fails on the code before it: there was no such
+// question, and detectFamily read no answer to it.)
+{
+  const OTHER = M.JOB_KIND_CHIPS[1];
+  const CLOSEST = [
+    ["Cleaning or housekeeping", "cleaner"],
+    ["Software, IT or technical", "developer"],
+    ["Office or admin", "admin"],
+    ["Front of house, till or sales", "cash"],
+    ["Something else", "general"],
+  ];
+  const safely = (f) => { try { return f(); } catch (e) { return `threw: ${e.message}`; } };
+  const post = (roleTitle, whatTheyDo) => ({ roleTitle, whatTheyDo, employmentType: "full_time" });
+  const asked = (b, answers = {}) => safely(() => M.jobKindFollowUps(b, answers).map((f) => f.id).join(","));
+  const answers = (kind, closest) => [...(kind === undefined ? [] : [{ questionId: M.JOB_KIND_ID, question: "", answer: kind }]), ...(closest === undefined ? [] : [{ questionId: "job-family", question: "", answer: closest }])];
+  const famBy = (b, kind, closest) => M.detectFamily({ ...b, followUps: answers(kind, closest) });
+  const startsOn = (b) => safely(() => { const q = M.jobFamilyFollowUp(b); return q.chips[q.def]; });
+  const TILL = "- Operate the cash register and process customer payments.\n- Issue official receipts and balance the till at the end of the shift.";
+  const ROAD = "- Deliver orders to customers on time.\n- Follow safety rules and company policies.";
+  // The review's posts: an ordinary line that is not the job's work decides the guess.
+  const cashierSchedule = post("Cashier", `${TILL}\nSchedule: Monday to Saturday, 8:00 AM - 5:00 PM`);
+  const cashierDevelopment = post("Cashier", `${TILL}\nWe support your professional development.`);
+  const driverCleanRecord = post("Delivery Driver", `${ROAD}\nMust have a valid license and a clean driving record.`);
+  const frontDeskHousekeeping = post("Front Desk Officer", "Job Description:\n- Welcome and register guests\n- Handle check-in and check-out\n- Answer phone calls and guest inquiries\n- Process payments and issue receipts\n- Coordinate with housekeeping");
+  check("'Which is closest?' comes after the kind of job for 'Another kind of job', guessed or chosen", asked(post("Barista", "")) === "job-kind,job-family" && asked(cashierSchedule) === "job-kind,job-family" && asked(post("Chat agent", ""), { [M.JOB_KIND_ID]: 1 }) === "job-kind,job-family", `${asked(post("Barista", ""))} / ${asked(post("Chat agent", ""), { [M.JOB_KIND_ID]: 1 })}`);
+  check("…never for customer service, guessed or chosen, and an answer left over from before is not read", asked(post("Chat agent", "")) === "job-kind" && asked(post("Barista", ""), { [M.JOB_KIND_ID]: 0, "job-family": 3 }) === "job-kind" && famBy(cashierSchedule, M.JOB_KIND_CHIPS[0], "Software, IT or technical") === "customer_service" && famBy(post("Live chat agent", ""), undefined, "Office or admin") === "customer_service", `${asked(post("Chat agent", ""))} / ${asked(post("Barista", ""), { [M.JOB_KIND_ID]: 0, "job-family": 3 })}`);
+  check("it asks 'Which is closest?' with one chip for each family, in order", safely(() => M.jobFamilyFollowUp(post("Barista", "")).question) === "Which is closest?" && safely(() => M.jobFamilyFollowUp(post("Barista", "")).chips.join("|")) === CLOSEST.map(([label]) => label).join("|") && JSON.stringify(M.JOB_FAMILY_CHIPS) === JSON.stringify(CLOSEST), safely(() => M.jobFamilyFollowUp(post("Barista", "")).chips.join("|")));
+  for (const [b, want] of [
+    [post("Janitor", ""), "Cleaning or housekeeping"],
+    [post("Web Developer", ""), "Software, IT or technical"],
+    [post("Admin Assistant", ""), "Office or admin"],
+    [post("Barista", ""), "Front of house, till or sales"],
+    [post("Delivery Rider", ROAD), "Something else"],
+    // The guess, even when it is wrong: the business puts it right.
+    [cashierSchedule, "Office or admin"],
+    [driverCleanRecord, "Cleaning or housekeeping"],
+  ]) check(`it starts on the guess: "${b.roleTitle}${b.whatTheyDo ? ` — ${b.whatTheyDo.split("\n").pop()}` : ""}" on "${want}"`, startsOn(b) === want && CLOSEST.find(([label]) => label === want)?.[1] === famBy(b, OTHER), startsOn(b));
+  for (const b of [cashierSchedule, cashierDevelopment, driverCleanRecord, frontDeskHousekeeping]) {
+    const got = CLOSEST.map(([label]) => famBy(b, OTHER, label));
+    check(`each answer gives its family whatever the words say: "${b.roleTitle} — ${b.whatTheyDo.split("\n").pop()}"`, got.join(",") === CLOSEST.map(([, family]) => family).join(","), got.join(","));
+  }
+  check("with no answer, or one no chip has, the family is the guess the question starts on", [cashierSchedule, cashierDevelopment, driverCleanRecord].every((b) => { const guess = CLOSEST.find(([label]) => label === startsOn(b))?.[1]; return guess !== undefined && famBy(b, OTHER) === guess && famBy(b, OTHER, "Retail") === guess && famBy(b, OTHER, "") === guess; }), [cashierSchedule, cashierDevelopment, driverCleanRecord].map((b) => `${startsOn(b)}→${famBy(b, OTHER)}`).join(" / "));
+  // The builder's own order (AvaCreateJob.tsx): the kind of job, which is closest, then the family's own questions.
+  const builderAsks = (b, a, workMode = "onsite") => safely(() => { const kind = M.jobKindFollowUps(b, a); const family = M.detectFamily({ ...b, followUps: M.chipAnswersToBriefAnswers(kind, a) }); return [...kind, ...M.withRemoteFollowUps(M.PLAYBOOKS[family].followUps(a, b), workMode)].map((f) => f.id).join(","); });
+  check("the family's own questions follow the answer", builderAsks(cashierSchedule, { [M.JOB_KIND_ID]: 1, "job-family": 3 }) === "job-kind,job-family,cash-team,cash-money,cash-pressure" && builderAsks(cashierSchedule, { [M.JOB_KIND_ID]: 1, "job-family": 1 }, "remote") === "job-kind,job-family,dev-stack,remote-internet,remote-equipment" && builderAsks(cashierSchedule, { [M.JOB_KIND_ID]: 1 }) === "job-kind,job-family,adm-sched,adm-records,adm-tools", builderAsks(cashierSchedule, { [M.JOB_KIND_ID]: 1, "job-family": 3 }));
+  // A draft reopened keeps its answer (chipAnswers are saved by the question's id); one saved before this question, the guess.
+  const fromDraft = (b, saved) => safely(() => M.detectFamily({ ...b, followUps: M.chipAnswersToBriefAnswers(M.jobKindFollowUps(b, saved), saved) }));
+  check("a draft reopened keeps its answer, an older draft keeps the guess, and one now customer service drops it", fromDraft(cashierSchedule, { [M.JOB_KIND_ID]: 1, "job-family": 3 }) === "cash" && fromDraft(cashierSchedule, { [M.JOB_KIND_ID]: 1, "adm-sched": 2 }) === "admin" && fromDraft(cashierSchedule, { [M.JOB_KIND_ID]: 0, "job-family": 3 }) === "customer_service", `${fromDraft(cashierSchedule, { [M.JOB_KIND_ID]: 1, "job-family": 3 })} / ${fromDraft(cashierSchedule, { [M.JOB_KIND_ID]: 1, "adm-sched": 2 })}`);
+  // Both plan builders read the answer from the brief, and it never reaches the post.
+  {
+    const b0 = M.briefFromForm({ role: cashierSchedule.roleTitle, location: "Calamba, Laguna", type: "Full-time · On-site", pay: "₱550/day", start: "ASAP", work: cashierSchedule.whatTheyDo });
+    const chosen = { [M.JOB_KIND_ID]: 1, "job-family": 3 };
+    const briefWith = (a) => safely(() => { const kind = M.jobKindFollowUps(b0, a); const family = M.detectFamily({ ...b0, followUps: M.chipAnswersToBriefAnswers(kind, a) }); return { ...b0, followUps: M.chipAnswersToBriefAnswers([...kind, ...M.PLAYBOOKS[family].followUps(a, b0)], a) }; });
+    const brief = briefWith(chosen);
+    const tpl = safely(() => M.generateTemplateFlow({ brief, rigor: "standard" }).flow);
+    const quiz = tpl?.phases?.find((p) => p.kind === "quiz")?.config.items.map((q) => q.scenario) ?? [];
+    check("the built-in plan is built from the answer: a cashier whose schedule line read as an office job gets the till's scenarios", quiz.length > 0 && quiz[0] === M.bankForFamily("cash").quiz[0].scenario && quiz[0] !== M.bankForFamily("admin").quiz[0].scenario, quiz[0]);
+    const realFetch = globalThis.fetch;
+    const realSupabase = globalThis.__fakeSupabase;
+    globalThis.__fakeSupabase = fakeSupabase();
+    let sent = null;
+    globalThis.fetch = async (_url, init) => {
+      sent = JSON.parse(init.body);
+      return new Response(JSON.stringify({ jobPost: { title: "Cashier", summary: "Run our till.", responsibilities: ["Operate the register"], requirements: ["Honest"], niceToHaves: [] }, application: ["Hours?", "Why?", "Experience?"], quiz: [], simulation: [], voiceQuestions: ["Why this job?"], voiceDimensions: [], shortlistWeights: [], phaseRationales: [] }), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+    const ai = await M.generateJobFlow({ brief, rigor: "standard" }).catch((e) => ({ error: e.message }));
+    const told = (sent?.brief?.followUps ?? []).map((f) => `${f.question}: ${f.answer}`);
+    check("the AI plan is told the answer, with the family's own questions after it", ai.source === "openai" && told.includes("Which is closest?: Front of house, till or sales") && told.some((t) => t.startsWith("Do they handle cash, the till, or daily deposits?")) && !told.some((t) => /scheduling/i.test(t)), told.join(" | "));
+    const row = await M.createJobFromFlow(tpl, brief, { status: "published", voiceInterview: false }).then(() => globalThis.__fakeSupabase.inserted[0]).catch((e) => ({ error: e.message }));
+    const shown = JSON.stringify([tpl?.jobPost, ai.flow?.jobPost, row]);
+    check("…and the answer never appears in the published post", typeof brief === "object" && !!row && !row.error && CLOSEST.every(([label]) => !shown.includes(label)) && !shown.includes("Which is closest"), row?.error ?? "");
+    globalThis.fetch = realFetch;
+    globalThis.__fakeSupabase = realSupabase;
+  }
+  // The voice brief's confirm step asks it too, before building, with the voice session kept open (the fifth and sixth reviews).
+  const page = read("src/pages/AvaCreateJob.tsx");
+  check("after a voice brief, the confirm step asks which is closest for another kind of job, and the answer reaches both plan builders", /const jobKind = useMemo\(\(\) => jobKindFollowUps\(formBrief, chipAnswers\), \[formBrief, chipAnswers\]\);/.test(page) && /const family = useMemo\(\(\) => detectFamily\(\{ \.\.\.formBrief, followUps: chipAnswersToBriefAnswers\(jobKind, chipAnswers\) \}\)/.test(page) && /voiceConfirm\s*\?\s*\[\.\.\.jobKind, /.test(page) && /const followUpDefs = \[\.\.\.jobKind, /.test(page) && asked(cashierSchedule) === "job-kind,job-family" && asked(post("Chat agent", "")) === "job-kind");
+  // The forty-fourth's free narrowing: the guess reads What they do as isCustomerService does, without the perks and how to apply.
+  {
+    const perk = famBy(post("Cashier", `${TILL}\nBenefits:\n- SSS, PhilHealth, Pag-IBIG\n- 13th month pay\n- Career growth and development`), OTHER);
+    const apply = famBy(post("Delivery Rider", `${ROAD}\nApply in person at the HR office.`), OTHER);
+    check("the guess skips the perks and how to apply: a cashier's 'Career growth and development' perk is no developer, 'Apply in person at the HR office' no office job", perk === "cash" && apply === "general", `${perk} / ${apply}`);
+  }
 }
 
 /* ── 2. The follow-ups, the pack and the channel a brief points to ───── */
@@ -1736,6 +1824,10 @@ console.log("\n-- the follow-ups and what they pick --");
     ["Order Taker", "Answer the landline of each branch.", "phone"],
     ["Chat Support Agent - Telco Account", "Handle our main line of postpaid plans and promos via chat.", "chat"],
     ["Chat Support Agent - Telco Account", "Answer phone lines installation questions via chat.", "chat"],
+    // The forty-fourth (LOW 2): no check held the forty-third's count (one to five or digits) after "of", or the bare
+    // "answer … phone lines" taking the same words after "of" as the landline does.
+    ["Order Taker", "Answer the landline of 2 branches.", "phone"],
+    ["Medical Receptionist", "Answer phone lines of each clinic and reply to patient emails.", "mixed"],
   ]) check(`"${title}${work ? ` — ${work}` : ""}" reads as ${want}`, ch(title, work) === want, ch(title, work));
   // (LOW 5 of the eighteenth: the hotline keeps its phone; the branches' messages still add a written channel beside it.)
   {
