@@ -1098,8 +1098,14 @@ reached function deployed):
   deployed and answering): the applicant's own two emails and two pages name
   the job and business as they applied, "not finished yet" goes again, a
   new decline card says "team" once (the 61 old cards are real users'
-  notifications and stay as they are). **Round 19 review running**
-  (`p5r19_brief.md`).
+  notifications and stay as they are). **Round 19** (`p5r19_report.md`)
+  found two MEDIUM and two lower, none a regression, all one class: the
+  applicant's Messages page and every step page show the job's and the
+  business's names and step text as they are today, a closed job's text can
+  be rewritten, and a deleted job leaves nowhere to report. **Its fixer is
+  running** (`p5r19_fix_brief.md`), told to close the class: a business's
+  browser edit of applicant-facing text, or its name, while applicants can
+  see it, is contact with them.
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
