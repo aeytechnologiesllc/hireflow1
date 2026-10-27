@@ -1,6 +1,6 @@
 /**
  * No age, birth date or marital status in what the job writers produce
- * (2026-10-25; the second to twenty-second Phase 6 reviews).
+ * (2026-10-25; the second to twenty-third Phase 6 reviews).
  *
  * Every application already starts with HireFlow's own "Are you 18 or
  * older?" (src/lib/ageCheck.ts), and RA 10911 Section 5(a) makes it unlawful
@@ -119,9 +119,13 @@
  * it ("A caller wants the senior fare. Confirm they are 65 or older."), her
  * own refill, and a practice's sample under "How to apply", and since the
  * twenty-second her own message replied to "using the information below:" or
- * before "Candidates must reply in this format: …". The same words put to
- * the applicant go ('Ask the candidate: "How old are you?"', "Number of
- * dependents:", 'Ask:
+ * before "Candidates must reply in this format: …", and since the twenty-third
+ * her own message under "Her ticket:" or "His chat:" after the case's customer,
+ * a customer's message after a sentence naming applicants in a job post's text
+ * ("Every applicant does a short customer chat practice. Sample: reply to this
+ * chat: …"), and a desk's "How many users are you managing on your plan?".
+ * The same words put to the applicant go ('Ask the candidate: "How old are
+ * you?"', "Number of dependents:", 'Ask:
  * "Are you married? Just for our records."', and since the tenth an unquoted
  * "Ask: How old are you? Let me confirm your schedule.": after a script's
  * colon only a plain identity check is a customer's; since the eleventh a
@@ -171,7 +175,12 @@
  * practice" before an age question, a template after a step of applying in
  * an earlier sentence of its line, "How many customers are you able to
  * handle in an 8-hour shift? How old are you?" and the applicant's own "Her
- * chat:"), and so does an
+ * chat:"; since the twenty-third a self-introduction given as a number beside
+ * a practice step ('To apply, complete a practice email, then reply to this
+ * email: "Hi, I'm Maria, 23 years old, single, from Cebu."'), after "with a
+ * short intro, for example:" or before "Applicants must reply in this exact
+ * format.", and in a job post's text the ask a later note puts to the
+ * applicant, not the note), and so does an
  * age in a hiring sentence however it is attached ("We want a 25-year-old
  * go-getter", "We hire students aged 18-24", "Retirees aged 55-70 wanted",
  * "Hiring 21-35 year old Patient Access Representatives"; the tenth; "With full benefits, we're
@@ -833,8 +842,13 @@ const NOT_THE_LISTENER = re([
   // review: the work's own count says a number or "can" as often ('"How many customers are you able to handle in an 8-hour
   // shift? How old are you?"', "…able to schedule in a day, and can you work nights?"), so "are you able", "used",
   // "comfortable" or "expected", or a work verb after "are you", is the work whatever follows; never "taking", which a desk
-  // asks of a customer's party as often ("How many guests are you taking on the 3 p.m. tour? Are you 21 or older?").
-  String.raw`\bhow many\s+(${CUSTOMER_PEOPLE})\s+(do|did|can|could|will|would|have|are)\s+you\b(?!(?<=\bare\s+you)(?!\s+((currently|now|typically|usually|normally|really)\s+)?(able|used|comfortable|expected|handling|helping|serving|supporting|assisting|managing|resolving|answering|scheduling)\b)(?=[^.?!]*(\d|\b(need|needs|must|can|may|get|gets|qualif\w*|eligib\w*|consent|discounts?|rates?|plans?|add|enrol\w*|join|apply)\b))|(?<=\b(do|would)\s+you)\s+((currently|already|now|still)\s+)?(want|like)\s+to\s+enrol\w*\b|\s+((currently|already|now|still)\s+)?((have|want to add|need to add|wish to add|plan to add|would like to add|like to add|want to cover|need to cover|need to enrol\w*)\b[^.?!]*\b(plans?|polic(y|ies)|accounts?|households?|famil(y|ies)|coverage|memberships?)\b|(have|want to add|need to add|wish to add|would like to add|like to add)\b[^.?!]*\b(in|on|to)\s+(your|the|this)\s+(party|booking|reservation)\b))`,
+  // asks of a customer's party as often ("How many guests are you taking on the 3 p.m. tour? Are you 21 or older?"). The
+  // twenty-third review: "managing", "supporting" and "helping" also name a desk's own count of a customer's plan, lease or
+  // enrolment ('"How many users are you managing on your plan? Are you 18 or older?"', "…members are you helping enroll
+  // today?", "…tenants are you managing on this lease, and are you 18 or older?"), so the work's verbs, as against "able",
+  // "used", "comfortable", "expected" and "handling", which were the twenty-second review's cases, are the work unless a
+  // plan, a lease or an enrolment follows them in the sentence.
+  String.raw`\bhow many\s+(${CUSTOMER_PEOPLE})\s+(do|did|can|could|will|would|have|are)\s+you\b(?!(?<=\bare\s+you)(?!\s+((currently|now|typically|usually|normally|really)\s+)?((able|used|comfortable|expected|handling)\b|(helping|serving|supporting|assisting|managing|resolving|answering|scheduling)\b(?![^.?!]*\b(plans?|leases?|enrol\w*)\b)))(?=[^.?!]*(\d|\b(need|needs|must|can|may|get|gets|qualif\w*|eligib\w*|consent|discounts?|rates?|plans?|add|enrol\w*|join|apply)\b))|(?<=\b(do|would)\s+you)\s+((currently|already|now|still)\s+)?(want|like)\s+to\s+enrol\w*\b|\s+((currently|already|now|still)\s+)?((have|want to add|need to add|wish to add|plan to add|would like to add|like to add|want to cover|need to cover|need to enrol\w*)\b[^.?!]*\b(plans?|polic(y|ies)|accounts?|households?|famil(y|ies)|coverage|memberships?)\b|(have|want to add|need to add|wish to add|would like to add|like to add)\b[^.?!]*\b(in|on|to)\s+(your|the|this)\s+(party|booking|reservation)\b))`,
   String.raw`\b(${CUSTOMER_PEOPLE})\s+(that\s+|who\s+)?you(['’]ll|['’]d| will| would)?\s+((also|be|mostly|often)\s+){0,2}(serve|serving|help|helping|support|supporting|handle|handling|talk|talking|speak|speaking|work|working|assist|assisting|answer|answering|chat|chatting)\b`,
   // The job's title, with the job named or applied for ("the Customer Service Representative role", "your application for
   // Patient Coordinator"), and an agent's own title as the fourteenth round read it ("Hi, I'm Ana, your Patient Coordinator"),
@@ -908,6 +922,16 @@ const aPracticeCase = (earlier: string) => ROLE_PLAY.test(earlier) || !NOT_A_PRA
 // (textWithout), never as a case's set-up (aPracticeCase).
 const PRACTICE_STEP = /\bpractice\s+(this\s+)?(e-?mails?|tickets?)\b|\bchat\s+practice\b/i;
 const setsUpAPractice = (text: string) => ROLE_PLAY.test(text) || PRACTICE_STEP.test(text);
+// A self-introduction's own shape (the twenty-third review): a name before the age ("Hi, I'm Maria, 23 years old", "My name
+// is Ana Reyes, 24"; a name, never "I'm very upset, 70 years old") or a civil status given as one ("…, single, from Cebu",
+// "…and married"; never "a single order" or "single-handedly"), in a message that names nothing of the speaker's own as a
+// customer does (A_CUSTOMERS_OWN: "Hi, I'm Rosa, 70, and my refill is late again." is hers). A practice step beside a step
+// of applying excused the step for any age given as a number, so the applicant's own introduction stayed in the job post
+// ('To apply, complete a practice email, then reply to this email: "Hi, I'm Maria, 23 years old, single, from Cebu."';
+// customersQuote, textWithout).
+const A_SELF_INTRO = /\b([Ii]['’]?m|[Ii] am|[Mm]y name is)\s+[A-Z][\w'’.-]*(\s+[A-Z][\w'’.-]*)?\s*,\s*\d{2}\b/;
+const A_CIVIL_STATUS_GIVEN = /(,|\band|\bi['’]?m|\bi am)\s+(single|married|separated|widowed|divorced)\b(?!-)/i;
+const selfIntroduction = (quote: string) => (A_SELF_INTRO.test(quote) || A_CIVIL_STATUS_GIVEN.test(quote)) && !A_CUSTOMERS_OWN.test(quote);
 // A label that answers someone's message: the quote is that message, never the speaker's own words ("Reply to: …", "Reply to
 // this chat: …", "Respond to this email: …", "Answer the chat: …"; OWN_AGE, the seventeenth review). The nineteenth review:
 // "reply", "answer" and "responding" also name what someone wrote, and in a reviewer's note that is the applicant's own reply
@@ -1086,9 +1110,15 @@ function customersQuote(names: RegExp, before: string, quote: string, after: str
   // …"', "How to apply: send your resume and do a short chat practice. Then reply to this email: …"; ai-generate-job-content
   // kept it in the job post), so a practice excuses the step only for an age the message gives as a number, as in the
   // twenty-first round's cases ('How to apply: answer a practice email: "I'm 70 years old and my refill is late again."'),
-  // never a blank or a placeholder, which no customer writes.
-  const toSomeoneApplying = () => !aPracticeCase(`${earlier} ${before}`) || applyingForAJob(`${earlier} ${before}`) || (A_STEP_OF_APPLYING.test(`${earlier} ${before}`) && (!setsUpAPractice(`${earlier} ${before}`) || (ownAge && !OWN_AGE_GIVEN.test(quote)))) || (SPOKEN_TO_AN_APPLICANT.test(after) && (THEIR_FORMAT.test(after) || (THEIR_FORMAT_FOR_BLANKS.test(after) && !OWN_AGE_GIVEN.test(quote)))) || asksToApply(quote);
-  const notHers = () => NOT_A_CUSTOMERS_MESSAGE.test(before) || (WHAT_TO_REPLY_WITH.test(before) && (!OWN_AGE_GIVEN.test(quote) || A_STEP_OF_APPLYING.test(`${earlier} ${before}`)));
+  // never a blank or a placeholder, which no customer writes. The twenty-third review: nor the applicant's own
+  // introduction given as a number ('To apply, complete a practice email, then reply to this email: "Hi, I'm Maria, 23 years
+  // old, single, from Cebu."'), which the twenty-second round's cases never had (A_SELF_INTRO). The same for the
+  // twenty-second round's endings and format notes, read before a template with blanks: a self-introduction given as a
+  // number is the applicant's there too ('Reply to this email with a short intro, for example: "Hi, I'm Maria, 23 years old,
+  // single, from Cebu."', '…" Applicants must reply in this exact format.').
+  const anIntroduction = () => !OWN_AGE_GIVEN.test(quote) || selfIntroduction(quote);
+  const toSomeoneApplying = () => !aPracticeCase(`${earlier} ${before}`) || applyingForAJob(`${earlier} ${before}`) || (A_STEP_OF_APPLYING.test(`${earlier} ${before}`) && (!setsUpAPractice(`${earlier} ${before}`) || (ownAge && anIntroduction()))) || (SPOKEN_TO_AN_APPLICANT.test(after) && (THEIR_FORMAT.test(after) || (THEIR_FORMAT_FOR_BLANKS.test(after) && anIntroduction()))) || asksToApply(quote);
+  const notHers = () => NOT_A_CUSTOMERS_MESSAGE.test(before) || (WHAT_TO_REPLY_WITH.test(before) && (anIntroduction() || A_STEP_OF_APPLYING.test(`${earlier} ${before}`)));
   if (ownAge && ANSWERS_A_MESSAGE.test(before) && !notHers() && !toSomeoneApplying()) return !applyingForAJob(upToTheAsk(quote));
   if (!names.test(`${before}${quote}${after}`) && !namedBefore()) return false;
   if (NAMES_A_CUSTOMER.test(outsideTheQuote(`${before}${after}`))) return true;
@@ -1114,11 +1144,17 @@ const namesTheCasesCustomer = (earlier: string) => THE_CASES_CUSTOMER.test(outsi
 // practice line quoted by a grader or the interview guide ('A customer asked about a refund. Her chat: "Hi, I'm 19 years old
 // and new here, sorry!"'), and a template with blanks is no customer's message ('A customer writes in about a refund. Chat:
 // "Hi, I'm ___, ___ years old, from ___."'), so neither is read as one.
-const A_LABEL_AFTER_A_CUSTOMER = /(^|["”.!?]\s*)\s*((the\s+)?(agent|rep|you|response)|(?!(her|his|their|your|my)\b)([\w'’-]+\s+){0,2}(ticket|chat))\s*:\s*$/i;
+// The twenty-third review: after a sentence naming the case's customer, "her" or "his" is hers as often, and her own
+// message under it was the applicant's again ('A member writes in about her plan. Her ticket: "I'm 64 years old and want
+// to know when my Medicare plan starts."', 'A player writes in about a refund. His chat: "Hi, I'm 15 years old and I
+// bought gems with my mom's card. …"'; generate-flow dropped the practice case whole). Such a label is the applicant's own
+// only where the message names nothing of the speaker's own as a customer does (A_CUSTOMERS_OWN), as in the
+// twenty-second round's cases ("Hi, I'm 19 years old and new here, sorry!").
+const A_LABEL_AFTER_A_CUSTOMER = /(^|["”.!?]\s*)\s*((the\s+)?(agent|rep|you|response)|((her|his|their|your|my)\s+)?([\w'’-]+\s+){0,2}(ticket|chat))\s*:\s*$/i;
 const A_CUSTOMERS_LINE = new RegExp(String.raw`(^|[.!?"”]\s*)\s*((the|a|an)\s+)?(${LINE_OWNERS})(['’]s)?\s*(\([^)]*\)\s*)?:\s*["“]`, "i");
 function afterACustomer(said: string, earlier: string, quote: string): boolean {
   const label = A_LABEL_AFTER_A_CUSTOMER.exec(said);
-  if (!label || (OWN_AGE.test(quote) && (label[4] || !OWN_AGE_GIVEN.test(quote)))) return false;
+  if (!label || (label[5] && !A_CUSTOMERS_OWN.test(quote)) || (OWN_AGE.test(quote) && (label[4] || !OWN_AGE_GIVEN.test(quote)))) return false;
   const before = `${earlier} ${said.slice(0, label.index)}`;
   return A_CUSTOMERS_LINE.test(before) || namesTheCasesCustomer(before);
 }
@@ -1441,7 +1477,12 @@ export function withoutAgeAsks<T>(items: readonly T[] | null | undefined, textOf
 const HOW_TO_APPLY_HEADING = /^\s*(#+\s*)?[*_]*\s*how\s+to\s+apply\s*[*_]*\s*:?\s*[*_]*\s*$/i;
 const A_HEADING = /^\s*(#+\s*\S.*|[*_]{2}[^*_\n]+[*_]{2}\s*:?|[A-Z][A-Z0-9 '’&/,-]{2,60}:?|([\w'’&/-]+\s+){0,3}[\w'’&/-]+\s*:|[A-Z][\w'’&/-]*(\s+[\w'’&/-]+){0,3})\s*$/;
 
-function textWithout(text: unknown, drops: (text: unknown) => boolean, headed = false): unknown {
+// Whether a sentence says an age, a birth date or a status in its own words, its quotes read as written (textWithout's
+// window; the twenty-third review), and for a reviewer's remark the remark's own words too.
+const saysAnAge = (text: string) => sentencesOf(text).some((sentence) => sentenceAsks(sentence, () => false));
+const marksOne = (text: string) => saysAnAge(text) || sentencesOf(text).some((sentence) => ABOUT_APPLICANT.test(numbersAsDigits(sentence)) || IN_HER_WORDS.test(numbersAsDigits(sentence)));
+
+function textWithout(text: unknown, drops: (text: unknown) => boolean, saysItself: (text: string) => boolean, headed = false): unknown {
   if (Array.isArray(text)) return text.filter((item) => !drops(typeof item === "string" ? item : JSON.stringify(item)));
   if (typeof text !== "string") return text;
   const out: string[] = [];
@@ -1483,13 +1524,36 @@ function textWithout(text: unknown, drops: (text: unknown) => boolean, headed = 
     // to this email: "Hi, I'm [Name], [Age] years old, …"', in a job post's description and generate-flow's summary). A
     // sentence also goes when it turns the line's previous sentences, up to four of them, into a drop; the window is bounded
     // so a long paragraph on one line stays linear.
+    // The twenty-third review: the window read past the templates it was built for, in two ways. A sentence naming
+    // applicants, a screening call or a video turned a customer's own message after it into a drop, so a job post lost the
+    // practice's sample ('Every applicant does a short customer chat practice before the interview. Sample: reply to this
+    // chat: "I'm 70 years old and my refill is late again."'), which every earlier round kept: an age the message gives as a
+    // number, in no self-introduction, goes only after a step of applying with no practice set up, as customersQuote reads
+    // the same two sentences. And the sentence that completes a drop went even when the age was an earlier one's ('…may I
+    // have your date of birth? The candidate then offers two new times.' lost its last sentence), so a sentence that says no
+    // age of its own (saysItself) stays, and the nearest one before it that does goes in its place, unless that one is gone
+    // already ("Script: For security, may I have your date of birth? The applicant must enter it on the application form."
+    // keeps only the note).
     const sentences = line.split(/(?<=[.!?;])\s+|\s+(?=[•·]\s)/);
-    const kept = sentences.filter((sentence, at) => {
-      if (drops(`${under}${sentence}`)) return false;
-      if (at === 0) return true;
-      const before = sentences.slice(Math.max(0, at - 4), at).join(" ");
-      return !drops(`${under}${before} ${sentence}`) || drops(`${under}${before}`);
-    }).join(" ");
+    const cut = sentences.map((sentence) => drops(`${under}${sentence}`));
+    for (let at = 1; at < sentences.length; at++) {
+      const sentence = sentences[at];
+      if (cut[at]) continue;
+      const from = Math.max(0, at - 4);
+      const before = sentences.slice(from, at).join(" ");
+      if (!drops(`${under}${before} ${sentence}`) || drops(`${under}${before}`)) continue;
+      if (!saysItself(sentence)) {
+        for (let earlier = at - 1; earlier >= from; earlier--) {
+          if (!saysItself(sentences[earlier])) continue;
+          cut[earlier] = true;
+          break;
+        }
+        continue;
+      }
+      if (OWN_AGE_GIVEN.test(sentence) && !selfIntroduction(sentence) && (setsUpAPractice(before) || (!A_STEP_OF_APPLYING.test(before) && !applyingForAJob(before)))) continue;
+      cut[at] = true;
+    }
+    const kept = sentences.filter((_, at) => !cut[at]).join(" ");
     if (kept.trim()) out.push(kept);
   }
   return out.join("\n");
@@ -1497,12 +1561,12 @@ function textWithout(text: unknown, drops: (text: unknown) => boolean, headed = 
 
 /** A paragraph (or a "• one\n• two" list) without the sentences or lines that do; a list as a list. */
 export function textWithoutAgeAsks(text: unknown): unknown {
-  return textWithout(text, asksAgeOrStatus, true);
+  return textWithout(text, asksAgeOrStatus, saysAnAge, true);
 }
 
 /** A reviewer's paragraph without the sentences that mark age, family or marital status (marksAgeOrFamily). */
 export function textWithoutAgeMarks(text: unknown): unknown {
-  return textWithout(text, marksAgeOrFamily);
+  return textWithout(text, marksAgeOrFamily, marksOne);
 }
 
 /** A "• one\n• two" bullet list without its age lines (the same rule as textWithoutAgeAsks). */
