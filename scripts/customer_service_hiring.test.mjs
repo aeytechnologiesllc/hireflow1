@@ -1298,9 +1298,9 @@ for (const [title, work, want] of [
   const OTHER = M.JOB_KIND_CHIPS[1];
   const CLOSEST = [
     ["Cleaning or housekeeping", "cleaner"],
-    ["Software, IT or technical", "developer"],
+    ["Software or IT", "developer"],
     ["Office or admin", "admin"],
-    ["Front of house, till or sales", "cash"],
+    ["Front of house or till", "cash"],
     ["Something else", "general"],
   ];
   const safely = (f) => { try { return f(); } catch (e) { return `threw: ${e.message}`; } };
@@ -1317,13 +1317,16 @@ for (const [title, work, want] of [
   const driverCleanRecord = post("Delivery Driver", `${ROAD}\nMust have a valid license and a clean driving record.`);
   const frontDeskHousekeeping = post("Front Desk Officer", "Job Description:\n- Welcome and register guests\n- Handle check-in and check-out\n- Answer phone calls and guest inquiries\n- Process payments and issue receipts\n- Coordinate with housekeeping");
   check("'Which is closest?' comes after the kind of job for 'Another kind of job', guessed or chosen", asked(post("Barista", "")) === "job-kind,job-family" && asked(cashierSchedule) === "job-kind,job-family" && asked(post("Chat agent", ""), { [M.JOB_KIND_ID]: 1 }) === "job-kind,job-family", `${asked(post("Barista", ""))} / ${asked(post("Chat agent", ""), { [M.JOB_KIND_ID]: 1 })}`);
-  check("…never for customer service, guessed or chosen, and an answer left over from before is not read", asked(post("Chat agent", "")) === "job-kind" && asked(post("Barista", ""), { [M.JOB_KIND_ID]: 0, "job-family": 3 }) === "job-kind" && famBy(cashierSchedule, M.JOB_KIND_CHIPS[0], "Software, IT or technical") === "customer_service" && famBy(post("Live chat agent", ""), undefined, "Office or admin") === "customer_service", `${asked(post("Chat agent", ""))} / ${asked(post("Barista", ""), { [M.JOB_KIND_ID]: 0, "job-family": 3 })}`);
+  check("…never for customer service, guessed or chosen, and an answer left over from before is not read", asked(post("Chat agent", "")) === "job-kind" && asked(post("Barista", ""), { [M.JOB_KIND_ID]: 0, "job-family": 3 }) === "job-kind" && famBy(cashierSchedule, M.JOB_KIND_CHIPS[0], "Software or IT") === "customer_service" && famBy(post("Live chat agent", ""), undefined, "Office or admin") === "customer_service", `${asked(post("Chat agent", ""))} / ${asked(post("Barista", ""), { [M.JOB_KIND_ID]: 0, "job-family": 3 })}`);
   check("it asks 'Which is closest?' with one chip for each family, in order", safely(() => M.jobFamilyFollowUp(post("Barista", "")).question) === "Which is closest?" && safely(() => M.jobFamilyFollowUp(post("Barista", "")).chips.join("|")) === CLOSEST.map(([label]) => label).join("|") && JSON.stringify(M.JOB_FAMILY_CHIPS) === JSON.stringify(CLOSEST), safely(() => M.jobFamilyFollowUp(post("Barista", "")).chips.join("|")));
+  // (The forty-fifth review, M1: no chip says "technical" or "sales". Every engineer and every sales title starts on the
+  // developer or the cash chip, whose plans are a software plan and a till's.)
+  check("no chip says 'technical' or 'sales', and the developer badge says software / IT", M.JOB_FAMILY_CHIPS.every(([label]) => !/technical|sales/i.test(label)) && M.PLAYBOOKS.developer.label === "software / IT", M.JOB_FAMILY_CHIPS.map(([l]) => l).join("|"));
   for (const [b, want] of [
     [post("Janitor", ""), "Cleaning or housekeeping"],
-    [post("Web Developer", ""), "Software, IT or technical"],
+    [post("Web Developer", ""), "Software or IT"],
     [post("Admin Assistant", ""), "Office or admin"],
-    [post("Barista", ""), "Front of house, till or sales"],
+    [post("Barista", ""), "Front of house or till"],
     [post("Delivery Rider", ROAD), "Something else"],
     // The guess, even when it is wrong: the business puts it right.
     [cashierSchedule, "Office or admin"],
@@ -1359,7 +1362,7 @@ for (const [title, work, want] of [
     };
     const ai = await M.generateJobFlow({ brief, rigor: "standard" }).catch((e) => ({ error: e.message }));
     const told = (sent?.brief?.followUps ?? []).map((f) => `${f.question}: ${f.answer}`);
-    check("the AI plan is told the answer, with the family's own questions after it", ai.source === "openai" && told.includes("Which is closest?: Front of house, till or sales") && told.some((t) => t.startsWith("Do they handle cash, the till, or daily deposits?")) && !told.some((t) => /scheduling/i.test(t)), told.join(" | "));
+    check("the AI plan is told the answer, with the family's own questions after it", ai.source === "openai" && told.includes("Which is closest?: Front of house or till") && told.some((t) => t.startsWith("Do they handle cash, the till, or daily deposits?")) && !told.some((t) => /scheduling/i.test(t)), told.join(" | "));
     const row = await M.createJobFromFlow(tpl, brief, { status: "published", voiceInterview: false }).then(() => globalThis.__fakeSupabase.inserted[0]).catch((e) => ({ error: e.message }));
     const shown = JSON.stringify([tpl?.jobPost, ai.flow?.jobPost, row]);
     check("…and the answer never appears in the published post", typeof brief === "object" && !!row && !row.error && CLOSEST.every(([label]) => !shown.includes(label)) && !shown.includes("Which is closest"), row?.error ?? "");

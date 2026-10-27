@@ -1056,9 +1056,12 @@ export function jobKindFollowUp(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo"
 export const JOB_FAMILY_ID = "job-family";
 export const JOB_FAMILY_CHIPS: ReadonlyArray<readonly [string, Exclude<Family, "customer_service">]> = [
   ["Cleaning or housekeeping", "cleaner"],
-  ["Software, IT or technical", "developer"],
+  // (The forty-fifth review, M1: no "technical" and no "sales". The developer's plan is a software plan and the cash
+  // family's a till's, and every engineer and every sales title starts on those chips, so the labels told a civil
+  // engineer's or a sales team's business that the coding or the till plan fit.)
+  ["Software or IT", "developer"],
   ["Office or admin", "admin"],
-  ["Front of house, till or sales", "cash"],
+  ["Front of house or till", "cash"],
   ["Something else", "general"],
 ];
 
@@ -1216,7 +1219,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
     },
   },
   developer: {
-    label: "software / technical",
+    label: "software / IT",
     // No code-test question: no applicant screen runs one (templateGenerator.ts).
     followUps: () => [
       { id: "dev-stack", question: "What's the core stack?", chips: ["Frontend", "Backend", "Full-stack", "Mobile"], def: 2 },

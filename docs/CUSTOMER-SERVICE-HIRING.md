@@ -21,8 +21,10 @@ Phase 4 review: four rounds of word rules still misread some titles, both
 ways.
 
 **For "Another kind of job", Ava asks one more question: "Which is
-closest?"** (Cleaning or housekeeping / Software, IT or technical / Office or
-admin / Front of house, till or sales / Something else), starting on her guess
+closest?"** (Cleaning or housekeeping / Software or IT / Office or admin /
+Front of house or till / Something else; no "technical" and no "sales", since
+those plans are a software plan and a till's, the forty-fifth review), starting
+on her guess
 of the family (`jobFamilyFollowUp`; `jobKindFollowUps` gives the builder both
 questions, in order). The answer decides the family, as the first answer
 decides customer service: `detectFamily` reads it from the brief, in both plan
