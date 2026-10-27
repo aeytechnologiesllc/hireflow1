@@ -1013,7 +1013,8 @@ reached function deployed):
   likes, with an ask in its renamed business name or job title and no
   contact recorded (the decline was left out of contact on purpose; the
   fix is a decline only for an application really turned down, once). It
-  goes to the Phase 5 round 17 fixer with that review's findings.
+  goes to the Phase 5 round 17 fixer with that review's findings, live in
+  f5b5ac17. **Round 17 review running** (`sec17_brief.md`).
 - **Phase 5 round 12** (`p5r12_report.md`) found one MEDIUM (one business
   and one throwaway applicant can flood the requested-papers removal queue,
   `document_file_trash`, which is read with no fair order, so a real ID
@@ -1076,7 +1077,15 @@ reached function deployed):
   MEDIUM (the decline email), **its fixer is running** (`p5r17_fix_brief.md`,
   migration 700000): the team's status moves become contact, and a decline
   goes once, for a real decline, naming the job and business as they were
-  when the person applied.
+  when the person applied. Fixed by f5b5ac17 (`decline_names_the_job_as_applied`
+  live 20261027043757, every body matching; send-notification-email
+  deployed after it): applications keep the job's title and the business's
+  name as they were when made, and the decline, offer, hire and step cards
+  and the decline email use them; a decline goes once, only for an
+  application turned down (the 62 sent before are marked); the team's
+  moves to interview, offer, hire or a new step are contact; a repeat
+  report keeps its newest words. **Round 18 review running**
+  (`p5r18_brief.md`).
 - **Product rounds 11–18** (2e4f3fbc, bbf8df0e, daac81e4, 841fe05e,
   3b3ca704, 90840167, cc7d54c4, 71048f2b): the documents flows for the
   owner and both kinds of teammate. A teammate who cannot send or review
@@ -1184,8 +1193,14 @@ reached function deployed):
   (every manager read as cash; "reply to Viber inquiries" beside calls lost
   its chat); fixed by its combined patch in 79758824 (cost 20 contrived
   rows). Rounds 35 and 38 each broke on a new rule reaching outside its own
-  class, so **round 39's review** (running, `p4r39_brief.md`) sweeps every
-  new rule against the classes it was not made for.
+  class, so round 39's review swept every new rule against the classes it
+  was not made for. **Round 39** (`p4r39_report.md`) found two HIGH there
+  (round 38's till-manager list dropped coffee shop, supermarket and
+  pharmacy managers from cash; its list of other trades still made "IT
+  Trainer" a developer) and two old MEDIUM (Viber replies beside a phone
+  title, "the office phone"); fixed by its combined patch in 7066b98e (an
+  allow-list of the IT department's own roles, the till's places; 1,038
+  rows better, 8 worse). **Round 40 review running** (`p4r40_brief.md`).
 - **Phase 6 rounds 12–13** (cfe849c1, 7516beeb). **Round 14**
   (`p6r14_report.md`) found one MEDIUM regression (an HR desk's hold or
   callback excused a call about a job); fixed by 66fc652e (the six
@@ -1234,7 +1249,11 @@ reached function deployed):
   MEDIUM with a number where it had a blank ("Hi, I'm Maria, 23 years old,
   single" beside the practice step in How to apply stays in the post), and
   one LOW–MEDIUM false drop of round 22's sentence window. **Its fixer is
-  running** (`age23_fix_brief.md`).
+  running** (`age23_fix_brief.md`). Fixed by ff078527 (a self-introduction,
+  a name before the age or a civil status, is never excused by the practice
+  step; round 22's window, labels and work verbs narrowed back to their
+  cases; six functions deployed and answering). **Round 24 review running**
+  (`p6r24_brief.md`).
 - 4f97fe25: the dev server's dependency scan reads `index.html` only
   (design mock-ups import "three", which the app does not install, and the
   failed scan made a cold dev server too slow for the smoke test).
