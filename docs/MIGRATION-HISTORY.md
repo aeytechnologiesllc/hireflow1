@@ -467,6 +467,7 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025710000_decline_card_says_team_once.sql` | `20261027060849` | `decline_card_says_team_once` |
 | `20261025720000_text_a_business_changes_is_contact.sql` | `20261027075002` | `text_a_business_changes_is_contact` |
 | `20261025730000_applicants_words_stay_as_applied.sql` | `20261027103728` | `applicants_words_stay_as_applied` |
+| `20261025740000_quiz_keys_only_for_own_job.sql` | `20261029183320` | `quiz_keys_only_for_own_job` |
 
 620000 and 630000 were applied after 640000, and 650000 and 660000 after 670000 (neither pair touches anything the later one changed; the behaviour test applies them in file order; document-cleanup was deployed between 650000 and 660000), each from its file through `supabase db query --linked --project-ref …`, in one transaction with its own history row (statements = the file), so nothing was copied by hand.
 
