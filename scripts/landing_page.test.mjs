@@ -79,7 +79,7 @@ check("its own share picture (HireFlow's), large", /<meta property="og:image" co
 }
 // 2026-10-25 (docs/LAUNCH-PLAN.md, Phase 3, task 3): customer service, chat
 // and phone, any business; no sweepstakes band, no casino story.
-check("customer service hiring, chat and phone, for any business", /<span class="tag gold">Customer service hiring · chat and phone<\/span>/.test(page) && /<h1><span class="ln"><span>Hire customer service agents<\/span><\/span><span class="ln"><span><em>while you sleep\.<\/em><\/span><\/span><\/h1>/.test(page) && /For any business that answers customers\./.test(page));
+check("customer service hiring, chat and email, for any business", /<span class="tag gold">Customer service hiring · chat and email<\/span>/.test(page) && /<h1><span class="ln"><span>Hire customer service agents<\/span><\/span><span class="ln"><span><em>while you sleep\.<\/em><\/span><\/span><\/h1>/.test(page) && /For any business that answers customers\./.test(page));
 check("…built for any team that answers customers, gaming one of them", /<span class="tag">Built for any team that answers customers<\/span>/.test(page) && ["Medical and dental", "Online stores", "Software", "Home services", "Gaming"].every((k) => page.includes(`<b>${k}</b>`)));
 check("…and no sweepstakes, casino, payout or player wording anywhere on the page", !/sweepstake|casino|payout|withdrawal|\bplayers?\b/i.test(page.replace(/<li><b>Gaming<\/b> Players, payments and account checks\.<\/li>/, "")));
 check("the story's test is an everyday one: an order six days late", /Her test: an order <em>six days late\.<\/em>/.test(page) && /Where is my order\?\?/.test(page) && /var REPLY = "I have your order from the 3rd open\./.test(page));

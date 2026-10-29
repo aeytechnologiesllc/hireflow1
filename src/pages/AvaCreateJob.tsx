@@ -22,7 +22,6 @@ import {
   MapPin,
   MessageSquare,
   MessageSquareText,
-  Mic,
   Pencil,
   QrCode,
   Share2,
@@ -55,9 +54,9 @@ import {
   chipAnswersToBriefAnswers,
   clearDraft,
   withRemoteFollowUps,
-  detectFamily,
   generateJobFlow,
-  jobKindFollowUps,
+  CHAT_AGENT_KIND,
+  JOB_KIND_ID,
   loadDraft,
   saveDraft,
   type JobFlow,
@@ -68,12 +67,10 @@ import { createJobFromFlow, fetchEmployerCompanyName } from "@/lib/jobFromFlow";
 import { EmailCheckDialog } from "@/components/business/EmailCheckDialog";
 import { isEmailNotVerifiedError, OWNER_MUST_CONFIRM_EMAIL } from "@/lib/emailCheck";
 import { geocodePlace, formatPlace } from "@/lib/geocode";
-import TalkToAva from "@/components/ava/createFlow/TalkToAva";
 import type { LucideIcon } from "lucide-react";
 import { candidateOrigin } from "@/lib/hosts";
 import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
-import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { claimSuggestedSlug } from "@/lib/jobSlugAvailability";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
@@ -164,7 +161,7 @@ export default function AvaCreateJob() {
   const resumeDraft = typeof window !== "undefined" && sessionStorage.getItem(DRAFT_SESSION_KEY) === "1";
   const saved = resumeDraft ? loadDraft() : null;
   // Dev-preview-only seam (src/dev-preview/): lets the /__preview picker land
-  // directly on a given step/mode (e.g. the voice readback screen) instead of
+  // directly on a given step instead of
   // requiring a click-through. `import.meta.env.DEV` is statically `false` in
   // production, so this never reads real query params there.
   const previewParams =
@@ -173,22 +170,9 @@ export default function AvaCreateJob() {
     const raw = previewParams?.get("__previewStep");
     return raw != null && !Number.isNaN(Number(raw)) ? Number(raw) : 0;
   });
-  // Talking to Ava is the platform's own account only (ava-voice-session
-  // refuses everyone else since 2026-10-11), so every other business starts
-  // on the typed form and is never offered voice.
-  const canTalk = usePlatformAdmin();
-  const [chosenMode, setInputMode] = useState<"voice" | "form" | null>(() => {
-    const raw = previewParams?.get("__previewInputMode");
-    return raw === "form" || raw === "voice" ? raw : null;
-  });
-  // (The offline preview can still show the voice screen: ?__previewInputMode=voice.)
-  const inputMode: "voice" | "form" = canTalk ? chosenMode ?? "voice" : import.meta.env.DEV && chosenMode === "voice" ? "voice" : "form";
+  // No talking to Ava (the owner, 2026-10-29): every business, the
+  // platform's own account included, tells her about the role in writing.
   const [fuIndex, setFuIndex] = useState(0);
-  // After a voice brief: only "What kind of job is it?" (and, for customer
-  // service, the channel; for another kind of job, which is closest), then
-  // straight to building (the fifth Phase 4 review: the voice path never
-  // asked, so the guess was final; the forty-fourth, the family's guess).
-  const [voiceConfirm, setVoiceConfirm] = useState(false);
   const [chipAnswers, setChipAnswers] = useState<Record<string, number>>(saved?.chipAnswers ?? {});
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
   const [rigorTouched, setRigorTouched] = useState(saved?.rigorTouched ?? false);
@@ -231,9 +215,6 @@ export default function AvaCreateJob() {
   const emailCheckRetryRef = useRef<{ companyNameOverride?: string } | null>(null);
   const [companyNameDraft, setCompanyNameDraft] = useState("");
   const [savingCompanyName, setSavingCompanyName] = useState(false);
-  // True once the Review-plan cards have actually finished animating in (real render signal) —
-  // gates Ava's "here's your plan" so she never announces it while the build loader is still up.
-  const [planVisible, setPlanVisible] = useState(false);
   const advanceBuildRef = useRef(false);
   // Belt-and-suspenders for the build screen itself: `generating` is meant to always settle
   // (flowGenerator.ts now bounds its own network call and falls back to a template on any
@@ -241,10 +222,6 @@ export default function AvaCreateJob() {
   // regression there must not leave the employer staring at "Building your hiring flow…"
   // with no way out.
   const [buildStuck, setBuildStuck] = useState(false);
-
-  useEffect(() => {
-    if (step !== 4) setPlanVisible(false);
-  }, [step]);
 
   useEffect(() => {
     if (step !== 3) setBuildStuck(false);
@@ -257,22 +234,19 @@ export default function AvaCreateJob() {
   }, [step, generating]);
 
   const formBrief = useMemo(() => briefFromForm({ ...briefFields, followUps: [] }), [briefFields]);
-  // Ava's first question: what kind of job, starting on her guess from the
-  // words; for "Another kind of job", which is closest, starting on her guess
-  // too (the forty-fourth Phase 4 review). The answers decide the family
-  // (detectFamily reads them), and the family's own questions follow.
-  const jobKind = useMemo(() => jobKindFollowUps(formBrief, chipAnswers), [formBrief, chipAnswers]);
-  const family = useMemo(() => detectFamily({ ...formBrief, followUps: chipAnswersToBriefAnswers(jobKind, chipAnswers) }), [formBrief, jobKind, chipAnswers]);
-  const playbook = PLAYBOOKS[family];
+  // Every job Ava builds is a chat or message agent's (the owner,
+  // 2026-10-29): the kind of job is not asked, and CHAT_AGENT_KIND carries it
+  // in the brief (an answer left from an older draft is not read).
+  const playbook = PLAYBOOKS.customer_service;
   const workMode = formBrief.workMode;
   // The brief lets a follow-up start on what the business's own words point to (a dental office starts on "Medical or dental office").
-  // (After a voice brief, only the questions that decide the family, and the channel for customer service.)
   const followUps = useMemo(
-    () =>
-      voiceConfirm
-        ? [...jobKind, ...(family === "customer_service" ? playbook.followUps(chipAnswers, formBrief).filter((f) => f.id === "cs-channel") : [])]
-        : [...jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode)],
-    [voiceConfirm, family, jobKind, playbook, chipAnswers, workMode, formBrief],
+    () => withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode),
+    [playbook, chipAnswers, workMode, formBrief],
+  );
+  const briefAnswers = useCallback(
+    (defs: typeof followUps) => chipAnswersToBriefAnswers([CHAT_AGENT_KIND, ...defs], { ...chipAnswers, [JOB_KIND_ID]: 0 }),
+    [chipAnswers],
   );
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
 
@@ -288,7 +262,7 @@ export default function AvaCreateJob() {
 
   useEffect(() => {
     if (!rigorTouched) setRigor(playbook.rigor.recommended);
-  }, [family, playbook.rigor.recommended, rigorTouched]);
+  }, [playbook.rigor.recommended, rigorTouched]);
 
   useEffect(() => {
     sessionStorage.setItem(DRAFT_SESSION_KEY, "1");
@@ -305,10 +279,9 @@ export default function AvaCreateJob() {
   const runGeneration = useCallback(async () => {
     setGenerating(true);
     setGenSource(null);
-    const followUpDefs = [...jobKind, ...withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), formBrief.workMode)];
     const brief = briefFromForm({
       ...briefFields,
-      followUps: chipAnswersToBriefAnswers(followUpDefs, chipAnswers),
+      followUps: briefAnswers(withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), formBrief.workMode)),
     });
     try {
       const result = await generateJobFlow({
@@ -324,7 +297,7 @@ export default function AvaCreateJob() {
     } finally {
       setGenerating(false);
     }
-  }, [briefFields, chipAnswers, playbook, rigor, formBrief, jobKind]);
+  }, [briefFields, chipAnswers, playbook, rigor, formBrief, briefAnswers]);
 
   useEffect(() => {
     if (step === 3) {
@@ -341,7 +314,6 @@ export default function AvaCreateJob() {
   const handlePublish = async (companyNameOverride?: string) => {
     if (!flow || publishing) return;
 
-    // Voice ("publish it") reaches here directly, so the guard lives here too.
     if (screeningCardCount === 0) {
       toast.error(NO_SCREENING_NOTE);
       return;
@@ -378,7 +350,7 @@ export default function AvaCreateJob() {
       const edited = applyReviewEdits(flow, reviewCards);
       const brief = briefFromForm({
         ...briefFields,
-        followUps: chipAnswersToBriefAnswers(followUps, chipAnswers),
+        followUps: briefAnswers(followUps),
       });
       const created = await createJobFromFlow(edited, brief, { status: "published", voiceInterview: hasVoiceInterviews });
       clearDraft();
@@ -435,28 +407,6 @@ export default function AvaCreateJob() {
     }
   };
 
-  // Real-time voice editing of the plan (Ava calls these via TalkToAva on the review step).
-  // These mutate the SAME reviewCards the manual buttons do — one source of truth.
-  const onEditPhase = useCallback((id: string, field: "title" | "candidate", value: string) => {
-    setReviewCards((arr) => arr.map((x) => (x.id === id ? { ...x, [field]: value } : x)));
-  }, []);
-  const onRemovePhase = useCallback((id: string) => {
-    setReviewCards((arr) => arr.filter((x) => x.id !== id));
-  }, []);
-  const onReorderPhases = useCallback((ids: string[]) => {
-    setReviewCards((arr) => {
-      const jobPost = arr.filter((x) => x.id === "job-post");
-      const rest = arr.filter((x) => x.id !== "job-post");
-      const ordered = ids.map((id) => rest.find((x) => x.id === id)).filter((x): x is ReviewPhaseCard => Boolean(x));
-      const remaining = rest.filter((x) => !ids.includes(x.id));
-      return [...jobPost, ...ordered, ...remaining];
-    });
-  }, []);
-
-  // Voice flow keeps Ava mounted across intake (0) → build (3) → review (4), so she's never cut off.
-  // Mounted through the voice path's confirm step too (step 1), so the session is not dropped (the sixth Phase 4 review).
-  const voiceLed = inputMode === "voice" && !publishedCode && (step === 0 || (step === 1 && voiceConfirm) || step === 3 || step === 4);
-
   // The chip that rides the rail is the job being built — initials of the role
   // the employer typed, the same way the applicant rail carries a candidate's.
   // Empty until there is a role, so the chip never shows a placeholder.
@@ -495,12 +445,6 @@ export default function AvaCreateJob() {
       setFuIndex((i) => i + 1);
       return;
     }
-    if (step === 1 && voiceConfirm) {
-      // The voice path chose its screening level already: build now.
-      setVoiceConfirm(false);
-      setStep(3);
-      return;
-    }
     if (step < STEPS.length - 1) setStep((s) => s + 1);
   };
 
@@ -521,8 +465,6 @@ export default function AvaCreateJob() {
 
   useEffect(() => {
     if (step === 1) setFuIndex(0);
-    // Back at the brief, the full set of questions applies again.
-    if (step === 0) setVoiceConfirm(false);
   }, [step]);
 
   const nextLabel = useMemo(() => {
@@ -579,7 +521,7 @@ export default function AvaCreateJob() {
         <Link to="/jobs" className="inline-flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-100" style={{ color: "hsl(var(--muted-foreground))" }}>
           <ArrowLeft className="h-3.5 w-3.5" /> Jobs
         </Link>
-        {!(step === 0 && inputMode === "voice") && <div className="hidden flex-1 sm:block"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>}
+        <div className="hidden flex-1 sm:block"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>
         {/* Once published it is live: the header said "Draft" over "Your role is live". */}
         {genSource && (
           <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: publishedCode || genSource === "openai" ? "hsl(var(--ck-action-bright))" : "hsl(var(--muted-foreground))" }}>
@@ -588,69 +530,28 @@ export default function AvaCreateJob() {
         )}
       </header>
 
-      {!(step === 0 && inputMode === "voice") && <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>}
+      <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>
 
       <main className="relative z-10 flex min-h-0 flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
         <div className="my-auto w-full max-w-5xl">
-          {/* Persistent voice presence — stays mounted across intake → build → review so Ava is
-              never cut off and can refine the plan with the employer by voice in real time. */}
-          {voiceLed && (
-            <TalkToAva
-              step={step}
-              planVisible={planVisible}
-              brief={briefFields}
-              reviewCards={reviewCards}
-              // (The voice brief writes the Type, whose on-site is its default for a local role, never one the business
-              // typed: briefFromForm; the seventeenth Phase 4 review.)
-              onBriefPatch={(patch) => setBriefFields((b) => ({ ...b, ...patch, typeChosen: false }))}
-              onComplete={(payload) => {
-                // Voice confirmed → skip Follow-ups + Rigor: map the brief, auto-pick the
-                // recommended rigor for the detected role family, and jump straight into the
-                // existing "Ava is building" step (which auto-runs generateJobFlow).
-                const merged = { ...briefFields, ...payload, typeChosen: false };
-                // Belt-and-suspenders: TalkToAva already refuses to call onComplete until the
-                // brief clears the same bar canContinueBrief holds the typed path to (role,
-                // location, pay, what they'll do) — never build a plan from here without it either.
-                const meetsBar = merged.role.trim().length > 1 && merged.location.trim() && merged.pay.trim() && merged.work.trim();
-                if (!meetsBar) return;
-                setBriefFields(merged);
-                // The screening level follows the kind of job the business confirms next
-                // (the effect on family), not the guess before it (the sixth Phase 4 review).
-                setRigorTouched(false);
-                // Confirm the kind of job (and the channel) with a click before building.
-                setVoiceConfirm(true);
-                setStep(1);
-              }}
-              onPreferType={() => setInputMode("form")}
-              onEditPhase={onEditPhase}
-              onRemovePhase={onRemovePhase}
-              onReorderPhases={onReorderPhases}
-              onConfirmPublish={() => void handlePublish()}
-            />
-          )}
           <AnimatePresence mode="wait">
-            <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }} onAnimationComplete={() => { if (step === 4) setPlanVisible(true); }}>
-              {step === 0 && inputMode === "form" && (
+            <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }}>
+              {step === 0 && (
                 <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
                   <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
                     <span className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--primary) / 0.3)", color: "hsl(var(--ck-brass))" }}>
                       <AvaSeal size={12} /> Ava · Hiring assistant
                     </span>
-                    <h1 className="mt-4 text-3xl leading-[1.1] sm:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Tell Ava what you're<br className="hidden sm:block" /> hiring for.</h1>
+                    <h1 className="mt-4 text-3xl leading-[1.1] sm:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Tell Ava about the<br className="hidden sm:block" /> chat agent you need.</h1>
                     <p className="mt-3 max-w-sm text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      A few details is all I need. I'll ask follow-ups, recommend screening rigor, then build your whole hiring flow.
+                      A few details about the role, then a few quick questions about your customers. I'll draft the job post and the tests that fit your business.
                     </p>
-                    {canTalk && (
-                      <button type="button" onClick={() => setInputMode("voice")} className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium transition hover:opacity-80" style={{ color: "hsl(var(--ck-brass))" }}>
-                        <Mic className="h-3.5 w-3.5" /> Talk to Ava instead
-                      </button>
-                    )}
                   </div>
                   <div className="rounded-2xl p-5 sm:p-6" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Role title</label>
-                        <input value={briefFields.role} onChange={(e) => setBrief("role", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Customer service agent, Chat support, Front desk…" />
+                        <input value={briefFields.role} onChange={(e) => setBrief("role", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Chat support agent, Email support, Patient messaging…" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Location</label>
@@ -685,7 +586,7 @@ export default function AvaCreateJob() {
                       </div>
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><FileText className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> What they'll do</label>
-                        <textarea value={briefFields.work} onChange={(e) => setBrief("work", e.target.value)} rows={2} className="mt-1.5 w-full resize-none rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="2–3 sentences in your own words: the day-to-day, who they work with, and what success looks like." />
+                        <textarea value={briefFields.work} onChange={(e) => setBrief("work", e.target.value)} rows={2} className="mt-1.5 w-full resize-none rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="2–3 sentences in your own words: what your customers write in about, and what a great reply does for them." />
                       </div>
                     </div>
                   </div>
@@ -919,7 +820,7 @@ export default function AvaCreateJob() {
         </div>
       )}
 
-      {step !== 3 && step !== 5 && !(step === 0 && inputMode === "voice") && (
+      {step !== 3 && step !== 5 && (
         <footer className="relative z-10 flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <button type="button" onClick={handleBack} disabled={step === 0} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-30" style={{ background: "hsl(var(--secondary))", border: "1px solid hsl(var(--border))" }}>
             <ArrowLeft className="h-4 w-4" /> Back

@@ -1,10 +1,41 @@
 # Customer-service hiring (Phase 4, 2026-10-25)
 
-HireFlow's niche is hiring customer service agents, chat and phone, for any
+HireFlow's niche is hiring customer service agents, chat and email, for any
 business (CLAUDE.md, "Positioning"). A business that types "chat agent for a
-dental office" or "phone support for an online store" gets the right
+dental office" or "email support for an online store" gets the right
 follow-ups, its industry's skills check and chat practice, and grading in its
 own words. docs/LAUNCH-PLAN.md, Phase 4, is the plan this follows.
+
+## Chat and message agents only (the owner, 2026-10-29)
+
+Ava's job builder (`src/pages/AvaCreateJob.tsx`) now makes chat and message
+agents only, and only in writing:
+
+- **No talking to Ava.** "Talk to Ava instead" (the platform's own account's
+  only) is gone from the builder; `TalkToAva` is left only in the founder's
+  lab page (`/flow-lab`).
+- **The kind of job is never asked.** The builder skips "What kind of job is
+  it?" and "Which is closest?" and asks the customer-service questions only.
+  Every brief carries `CHAT_AGENT_KIND` (the kind of job answered "Answering
+  customers by chat or email"), so both plan builders and generate-flow read
+  customer service whatever the words say; an answer left in an older draft is
+  not read.
+- **Chat and email only.** "How will they talk to your customers?" offers
+  Chat, Email, and Chat and email (`CHAT_AGENT_CHANNEL_CHIPS`; the last reads
+  as chat). It starts on Email when the words say email only, else on Chat
+  (words that say phone too). "How many chats or messages at once?" never says
+  "Besides calls", and "What will they work in?" offers no phone system
+  (Email and a chat box / A help desk tool / We'll train them, starting on the
+  last).
+- **What stays.** The other families' plans, the phone channel's plan and
+  every answer the plan builders read (`CS_CHANNEL_CHIPS`) stay, so a job
+  built before still reads right. Phone comes back with the phone practice
+  call (docs/LAUNCH-PLAN.md, "Later"). The front page, the share page and the
+  blog say "chat and email". Guard `job-builder-chat-agents-only` (it replaces
+  `voice-job-required-fields`).
+
+The sections below describe the builder as it was built, with every question
+it could ask; since 2026-10-29 it asks the customer-service ones only.
 
 ## What Ava asks
 

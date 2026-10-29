@@ -48,9 +48,9 @@ const bundle = await build({
     contents:
       'export { generateTemplateFlow } from "./src/lib/avaEngine/templateGenerator.ts";\n' +
       'export { generateJobFlow } from "./src/lib/avaEngine/flowGenerator.ts";\n' +
-      'export { PLAYBOOKS, briefFromForm, detectFamily, chipAnswersToBriefAnswers, withRemoteFollowUps, jobKindFollowUp, JOB_KIND_ID, JOB_KIND_CHIPS, jobKindFollowUps, jobFamilyFollowUp, JOB_FAMILY_ID, JOB_FAMILY_CHIPS } from "./src/lib/avaEngine/playbook.ts";\n' +
+      'export { PLAYBOOKS, briefFromForm, detectFamily, chipAnswersToBriefAnswers, withRemoteFollowUps, jobKindFollowUp, JOB_KIND_ID, JOB_KIND_CHIPS, CHAT_AGENT_KIND, jobKindFollowUps, jobFamilyFollowUp, JOB_FAMILY_ID, JOB_FAMILY_CHIPS } from "./src/lib/avaEngine/playbook.ts";\n' +
       'export { bankForFamily } from "./src/lib/avaEngine/questionBanks.ts";\n' +
-      'export { CS_INDUSTRY_CHIPS, CS_CHANNEL_CHIPS, PHONE_INTERVIEW_QUESTIONS, packIdForBrief, channelForBrief, industryFromText, applyCustomerServicePack } from "./src/lib/avaEngine/customerService.ts";\n' +
+      'export { CS_INDUSTRY_CHIPS, CS_CHANNEL_CHIPS, CHAT_AGENT_CHANNEL_CHIPS, PHONE_INTERVIEW_QUESTIONS, packIdForBrief, channelForBrief, industryFromText, applyCustomerServicePack } from "./src/lib/avaEngine/customerService.ts";\n' +
       'export { SCENARIO_PACKS } from "./src/content/scenarioPacks/packs.ts";\n' +
       'export { createJobFromFlow } from "./src/lib/jobFromFlow.ts";\n',
     resolveDir: ROOT,
@@ -1278,16 +1278,13 @@ for (const [title, work, want] of [
   check("…and then the words pick the other family (a cleaner stays a cleaner)", kind("Customer support for our cleaning crew", "Clean homes", M.JOB_KIND_CHIPS[1]) === "cleaner");
   check("no answer: the guess from the words", kind("Live chat agent", "") === "customer_service" && kind("Barista", "") !== "customer_service");
   const page = read("src/pages/AvaCreateJob.tsx");
-  // The fifth review: the voice path never asked.
-  check("after a voice brief the builder asks the kind of job (and, for customer service, the channel) before building", /setVoiceConfirm\(true\);\s*setStep\(1\);/.test(page) && /voiceConfirm\s*\?\s*\[\.\.\.jobKind, \.\.\.\(family === "customer_service" \? playbook\.followUps\(chipAnswers, formBrief\)\.filter\(\(f\) => f\.id === "cs-channel"\) : \[\]\)\]/.test(page) && /if \(step === 1 && voiceConfirm\) \{\s*\/\/[^\n]*\n\s*setVoiceConfirm\(false\);\s*setStep\(3\);/.test(page));
+  // Since 2026-10-29 (the owner): no talking to Ava, and the kind of job is never asked; every brief carries it answered.
+  check("the builder never asks the kind of job: every brief carries CHAT_AGENT_KIND answered as customer service, an older draft's answer not read", !/jobKindFollowUps|detectFamily|voiceConfirm/.test(page) && /const playbook = PLAYBOOKS\.customer_service;/.test(page) && /chipAnswersToBriefAnswers\(\[CHAT_AGENT_KIND, \.\.\.defs\], \{ \.\.\.chipAnswers, \[JOB_KIND_ID\]: 0 \}\)/.test(page) && kind("Barista", "Make coffee", M.chipAnswersToBriefAnswers([M.CHAT_AGENT_KIND], { [M.JOB_KIND_ID]: 0 })[0].answer) === "customer_service");
   // The sixth review: the voice session stays up through the confirm step, and the screening level follows the answer.
   check("Back from the confirm step clears the building state, so the voice brief carries on (the seventh review)", /if \(step === 0 && prevStep\.current === 1\) \{\s*finishing\.current = false;\s*handedOff\.current = false;\s*setCreating\(false\);/.test(read("src/components/ava/createFlow/TalkToAva.tsx")));
-  check("the voice session stays mounted while the business confirms the kind of job (step 1)", /const voiceLed = inputMode === "voice" && !publishedCode && \(step === 0 \|\| \(step === 1 && voiceConfirm\) \|\| step === 3 \|\| step === 4\);/.test(page) && /if \(step === 1 \|\| step === 3\) return <div aria-hidden className="hidden" \/>;/.test(read("src/components/ava/createFlow/TalkToAva.tsx")));
-  {
-    const onComplete = page.slice(page.indexOf("onComplete={(payload) => {"), page.indexOf("onPreferType="));
-    check("…and the voice path no longer locks the screening level before the answer (the family effect sets it)", /setRigorTouched\(false\);/.test(onComplete) && !/setRigor\(/.test(onComplete) && /if \(!rigorTouched\) setRigor\(playbook\.rigor\.recommended\);/.test(page));
-  }
-  check("the builder asks it first, and the answer goes into the brief both plan builders read", /jobKindFollowUps\(formBrief, chipAnswers\)/.test(page) && /\[\.\.\.jobKind, \.\.\.withRemoteFollowUps\(playbook\.followUps\(chipAnswers, formBrief\), workMode\)\]/.test(page) && /\[\.\.\.jobKind, \.\.\.withRemoteFollowUps\(playbook\.followUps\(chipAnswers, formBrief\), formBrief\.workMode\)\]/.test(page));
+  check("no talking to Ava: the builder mounts no voice session and offers none", !/TalkToAva|Talk to Ava|usePlatformAdmin|inputMode/.test(page));
+  check("the screening level follows the playbook's recommendation until the business picks one", /if \(!rigorTouched\) setRigor\(playbook\.rigor\.recommended\);/.test(page));
+  check("both the build and the publish send the brief with the kind of job answered", (page.match(/followUps: briefAnswers\(/g) ?? []).length === 2);
 }
 
 // The forty-fourth Phase 4 review: for "Another kind of job" the family was the words' guess, read from any word anywhere in
@@ -1372,9 +1369,9 @@ for (const [title, work, want] of [
     globalThis.fetch = realFetch;
     globalThis.__fakeSupabase = realSupabase;
   }
-  // The voice brief's confirm step asks it too, before building, with the voice session kept open (the fifth and sixth reviews).
+  // The builder no longer asks it (2026-10-29: chat agents only); the question still decides the family of a brief that answers it.
   const page = read("src/pages/AvaCreateJob.tsx");
-  check("after a voice brief, the confirm step asks which is closest for another kind of job, and the answer reaches both plan builders", /const jobKind = useMemo\(\(\) => jobKindFollowUps\(formBrief, chipAnswers\), \[formBrief, chipAnswers\]\);/.test(page) && /const family = useMemo\(\(\) => detectFamily\(\{ \.\.\.formBrief, followUps: chipAnswersToBriefAnswers\(jobKind, chipAnswers\) \}\)/.test(page) && /voiceConfirm\s*\?\s*\[\.\.\.jobKind, /.test(page) && /const followUpDefs = \[\.\.\.jobKind, /.test(page) && asked(cashierSchedule) === "job-kind,job-family" && asked(post("Chat agent", "")) === "job-kind");
+  check("the builder asks no family question any more, while a brief built before still gets which is closest for another kind of job", !/jobKindFollowUps|jobFamilyFollowUp/.test(page) && asked(cashierSchedule) === "job-kind,job-family" && asked(post("Chat agent", "")) === "job-kind");
   // The forty-fourth's free narrowing: the guess reads What they do as isCustomerService does, without the perks and how to apply.
   {
     const perk = famBy(post("Cashier", `${TILL}\nBenefits:\n- SSS, PhilHealth, Pag-IBIG\n- 13th month pay\n- Career growth and development`), OTHER);
@@ -1397,12 +1394,15 @@ console.log("\n-- the follow-ups and what they pick --");
   const plain = play.followUps({}, { roleTitle: "Customer service rep", whatTheyDo: "" });
   check("a brief that names no industry starts on 'Something else'", plain[1].chips[plain[1].def] === "Something else", plain[1].chips[plain[1].def]);
   const phoneByWords = play.followUps({}, { roleTitle: "Phone CSR", whatTheyDo: "Inbound calls about orders" });
-  check("a phone brief starts the channel on Phone (the Phase 4 review: it always started on Chat)", phoneByWords[0].chips[phoneByWords[0].def] === "Phone", phoneByWords[0].chips[phoneByWords[0].def]);
+  check("chat and messages only (2026-10-29): the channel chips are Chat, Email and Chat and email, and a phone brief starts on Chat", phoneByWords[0].chips.join("|") === "Chat|Email|Chat and email" && phoneByWords[0].chips[phoneByWords[0].def] === "Chat", phoneByWords[0].chips.join("|"));
+  const emailOnly = play.followUps({}, { roleTitle: "Email Support Specialist", whatTheyDo: "Reply to customer emails and tickets" });
+  check("…an email-only brief starts on Email", emailOnly[0].chips[emailOnly[0].def] === "Email", emailOnly[0].chips[emailOnly[0].def]);
+  check("…and no question mentions calls", play.followUps({ "cs-channel": 2 }, { roleTitle: "Phone CSR", whatTheyDo: "Inbound calls" }).every((f) => !/calls?\b|phone/i.test(`${f.question} ${f.chips.join(" ")}`)));
   const chatOnly = play.followUps({}, { roleTitle: "Support agent", whatTheyDo: "Chat only, no phone calls" });
   check("'chat only, no phone calls' starts on Chat", chatOnly[0].chips[chatOnly[0].def] === "Chat");
   check("'team player' and 'bring your A game' are not a game company", M.industryFromText("We want a team player who brings their A game") === "general" && M.industryFromText("Player support for our mobile game") === "gaming");
   const phone = play.followUps({ "cs-channel": 1 }, { roleTitle: "CSR", whatTheyDo: "" });
-  check("phone: the tools question starts on the phone system", phone.find((f) => f.id === "cs-tools").chips[phone.find((f) => f.id === "cs-tools").def] === "A phone system");
+  check("the tools question offers no phone system and starts on 'We'll train them'", !phone.find((f) => f.id === "cs-tools").chips.includes("A phone system") && phone.find((f) => f.id === "cs-tools").chips[phone.find((f) => f.id === "cs-tools").def] === "We'll train them");
   check("every industry chip names a pack that exists", M.CS_INDUSTRY_CHIPS.every(([, id]) => id in M.SCENARIO_PACKS));
   const answered = (industryLabel, channelLabel) => ({
     roleTitle: "Support agent",
@@ -1415,6 +1415,7 @@ console.log("\n-- the follow-ups and what they pick --");
   for (const [label, id] of M.CS_INDUSTRY_CHIPS) check(`answer "${label}" picks the ${id} pack`, M.packIdForBrief(answered(label, "Chat")) === id);
   check("the answer wins over the brief's own words", M.packIdForBrief({ ...answered("Online store", "Chat"), whatTheyDo: "dental clinic" }) === "store");
   check("answer 'Phone' is the phone channel", M.channelForBrief(answered("Online store", "Phone")) === "phone");
+  check("answer 'Chat and email' is the chat channel (the builder's own chip since 2026-10-29)", M.channelForBrief(answered("Online store", "Chat and email")) === "chat" && M.CHAT_AGENT_CHANNEL_CHIPS.every(([, ch]) => ch !== "phone" && ch !== "mixed"));
   check("no answer: 'inbound calls' reads as phone", M.channelForBrief({ roleTitle: "CSR", whatTheyDo: "Inbound calls", followUps: [] }) === "phone");
   check("no answer, no clue: chat", M.channelForBrief({ roleTitle: "Support agent", whatTheyDo: "", followUps: [] }) === "chat");
   const ch = (roleTitle, whatTheyDo) => M.channelForBrief({ roleTitle, whatTheyDo, followUps: [] });

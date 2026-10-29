@@ -2,13 +2,12 @@
 
 > **Current work: [`docs/LAUNCH-PLAN.md`](docs/LAUNCH-PLAN.md).** Seven
 > phases toward the customer-service-hiring launch, with the owner's rules
-> for how each phase is done (build → verify → re-check → lock down → ship,
-> autonomously, until a re-check finds nothing). Read its Rules, Known facts
-> and Progress log before starting anything, then continue the first phase
-> that is not closed.
-> **The 2026-10-25 session stopped mid-loop** (weekly credits): its top
-> Progress-log entry ("HANDOFF") lists the work in flight (two agent
-> worktrees and three reviews) and how to pick each up. Start there.
+> for how each phase is done (build → verify → re-check → lock down → ship).
+> Read its Rules (including **the stop rule**, 2026-10-29: one final review
+> per loop, no open-ended review rounds), Known facts and Progress log before
+> starting anything. **As of 2026-10-29 every review loop is closed**; Phase
+> 7 waits on the owner's live end-to-end run, then the CSP is enforced (the
+> top Progress-log entry says what is left).
 
 > ⚠️ The project ref below is load-bearing. It was previously wrong here
 > (`kcotpxlggfvgclwksmhl`), and that wrong value was copied into a database
@@ -77,9 +76,14 @@ call" are from this run.
 
 ## Positioning (owner, 2026-10-24)
 
-HireFlow's niche is **hiring customer service agents, chat and phone, for any
-kind of business** (the owner's example: a doctor's office). Ava should build
-the tests to fit the business and the channel. Not a sweepstakes pitch, and
+HireFlow's niche is **hiring customer service agents for any kind of
+business** (the owner's example: a doctor's office). Ava should build
+the tests to fit the business and the channel. **Since 2026-10-29: chat and
+email agents only** (the owner: "it's just chat agents"). Ava's job builder
+asks no kind of job, offers Chat / Email / Chat and email, and has no "Talk
+to Ava" (docs/CUSTOMER-SERVICE-HIRING.md, "Chat and message agents only";
+guard `job-builder-chat-agents-only`). Phone comes back with the phone
+practice call (docs/LAUNCH-PLAN.md, "Later"). Not a sweepstakes pitch, and
 not main-street roles like barista or cashier. The owner doesn't want the
 green look; blue doesn't feel right to them either.
 

@@ -55,7 +55,7 @@ export default [
   {
     id: "customer-service-family-exists",
     why:
-      "HireFlow's niche is hiring customer service agents, chat and phone, for any business (CLAUDE.md, Positioning). " +
+      "HireFlow's niche is hiring customer service agents, chat and email, for any business (CLAUDE.md, Positioning). " +
       "A brief that says so must get the customer_service family (checked before every other), its follow-ups, its " +
       "industry pack's keyed skills check and chat cases in BOTH plan generators, saved by Publish with the answers " +
       "(moved to the server by strip_quiz_answer_keys) and the step's pack, and graded by the server with the pack it knows.",

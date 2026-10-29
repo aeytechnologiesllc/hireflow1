@@ -246,7 +246,8 @@ for (const [text, code] of [
   check("a remote place still decides over a chosen on-site Type", mode("Customer Service Representative", "Full-time · On-site only", undefined, "", "Remote") === "remote" && mode("Customer Service Representative", "Part-time · On-site", true, "", "Remote (Philippines)") === "remote");
   check("DEFAULT_JOB_TYPE is the Type the builder starts on", M.DEFAULT_JOB_TYPE === "Full-time · On-site");
   const builder = (await import("node:fs")).readFileSync(path.join(ROOT, "src/pages/AvaCreateJob.tsx"), "utf8");
-  check("the builder starts on DEFAULT_JOB_TYPE untouched, marks a Type the business types, and a voice brief's Type as its default", /type: DEFAULT_JOB_TYPE,[\s\S]{0,400}typeChosen: false,/.test(builder) && /setBriefFields\(\(b\) => \(\{ \.\.\.b, type, typeChosen: true \}\)\)/.test(builder) && /onBriefPatch=\{\(patch\) => setBriefFields\(\(b\) => \(\{ \.\.\.b, \.\.\.patch, typeChosen: false \}\)\)\}/.test(builder) && /const merged = \{ \.\.\.briefFields, \.\.\.payload, typeChosen: false \};/.test(builder));
+  // (No voice brief since 2026-10-29: the builder is typed only.)
+  check("the builder starts on DEFAULT_JOB_TYPE untouched and marks a Type the business types", /type: DEFAULT_JOB_TYPE,[\s\S]{0,400}typeChosen: false,/.test(builder) && /setBriefFields\(\(b\) => \(\{ \.\.\.b, type, typeChosen: true \}\)\)/.test(builder) && !/onBriefPatch|TalkToAva/.test(builder));
 }
 // A title that says on site is on site again whatever WFH it mentions (the sixteenth's placeSaysHybrid let them be remote),
 // with only on-site training, onboarding or orientation taken out first, the sixteenth's evidence.

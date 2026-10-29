@@ -130,8 +130,7 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "phase-portfolio", group: "Candidate phase pages", label: "Portfolio upload", role: "candidate", path: `/applications/${APP_PORTFOLIO_ID}/portfolio/${STEP_PORTFOLIO}` },
 
   // ------------------------------------------------------------------ create job
-  { id: "create-job-typed", group: "Create job", label: "Typed", role: "employer", path: "/jobs/create?__previewInputMode=form&__previewStep=0" },
-  { id: "create-job-voice-readback", group: "Create job", label: "Voice readback (follow-up questions)", role: "employer", path: "/jobs/create?__previewInputMode=voice&__previewStep=1" },
+  { id: "create-job-typed", group: "Create job", label: "Typed", role: "employer", path: "/jobs/create?__previewStep=0" },
 
   // ------------------------- on-site and hybrid jobs, uploaded files to sign
   // (the sixth product review: __previewJob reshapes the scenario's jobs,

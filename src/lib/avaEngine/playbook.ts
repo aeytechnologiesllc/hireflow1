@@ -3,7 +3,7 @@
  * lines keyed off the brief (mirrors AvaFlowPreview prototype).
  */
 import type { BriefAnswer, JobBrief, Rigor } from "./types";
-import { CS_CHANNEL_CHIPS, CS_INDUSTRY_CHIPS, HOW_TO_APPLY, channelForBrief, industryFromText } from "./customerService.ts";
+import { CHAT_AGENT_CHANNEL_CHIPS, CS_INDUSTRY_CHIPS, HOW_TO_APPLY, channelForBrief, industryFromText } from "./customerService.ts";
 import { A_COUNTRY, US_STATE_NAMES, isFullyRemoteText, placeSaysHybrid, placeSaysRemote } from "../jobLocation.ts";
 
 export type Family = "customer_service" | "cash" | "cleaner" | "admin" | "developer" | "general";
@@ -1035,11 +1035,20 @@ function familyOfWords(s: string, cleanliness = true): Family {
  * plan builders read it through detectFamily.
  */
 export const JOB_KIND_ID = "job-kind";
-export const JOB_KIND_CHIPS = ["Answering customers by chat, phone or email", "Another kind of job"] as const;
+export const JOB_KIND_CHIPS = ["Answering customers by chat or email", "Another kind of job"] as const;
 
 export function jobKindFollowUp(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo">): FollowUpDef {
   return { id: JOB_KIND_ID, question: "What kind of job is it?", chips: [...JOB_KIND_CHIPS], def: isCustomerService(brief) ? 0 : 1 };
 }
+
+/**
+ * Since 2026-10-29 every job Ava builds is a chat or message agent's (the
+ * owner: "it's just chat agents"), so the builder never asks the kind of job.
+ * This answer travels in its brief instead, so both plan builders
+ * (detectFamily) and generate-flow read customer service whatever the words
+ * say. The other families' plans and questions stay for jobs built before.
+ */
+export const CHAT_AGENT_KIND: FollowUpDef = { id: JOB_KIND_ID, question: "What kind of job is it?", chips: [...JOB_KIND_CHIPS], def: 0 };
 
 /**
  * For "Another kind of job", the next question: which is closest, starting on
@@ -1089,20 +1098,18 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
   customer_service: {
     label: "customer service",
     followUps: (a, brief) => {
-      // The channel starts on what the business's own words say ("Phone CSR", "inbound calls"), like the industry.
-      const channelDefault = Math.max(0, ["chat", "phone", "email", "mixed"].indexOf(channelForBrief({ roleTitle: brief?.roleTitle ?? "", whatTheyDo: brief?.whatTheyDo ?? "", followUps: [] })));
-      const channel = a["cs-channel"] ?? channelDefault;
+      // Chat and messages only since 2026-10-29 (CHAT_AGENT_CHANNEL_CHIPS): the channel starts on Email when the
+      // business's own words say email only ("Email Support Specialist"), else on Chat; words that say phone start on
+      // Chat too, since phone is no longer offered.
+      const channelDefault = channelForBrief({ roleTitle: brief?.roleTitle ?? "", whatTheyDo: brief?.whatTheyDo ?? "", followUps: [] }) === "email" ? 1 : 0;
       const industryDefault = CS_INDUSTRY_CHIPS.findIndex(([, id]) => id === industryFromText(`${brief?.roleTitle ?? ""} ${brief?.whatTheyDo ?? ""}`));
       const industry = a["cs-industry"] ?? industryDefault;
-      const phone = channel === 1;
-      // Phone, or a mix with phones in it: the agent takes calls too.
-      const takesCalls = channel === 1 || channel === 3;
       return [
-        { id: "cs-channel", question: "How will they talk to your customers?", chips: [...CS_CHANNEL_CHIPS], def: channelDefault },
+        { id: "cs-channel", question: "How will they talk to your customers?", chips: CHAT_AGENT_CHANNEL_CHIPS.map(([label]) => label), def: channelDefault },
         { id: "cs-industry", question: "What kind of business is it?", chips: CS_INDUSTRY_CHIPS.map(([label]) => label), def: industryDefault },
         {
           id: "cs-load",
-          question: takesCalls ? "Besides calls, how many chats or messages at once?" : "How many chats or messages at once?",
+          question: "How many chats or messages at once?",
           chips: ["One at a time", "Two or three", "Four or more"],
           def: 1,
         },
@@ -1113,7 +1120,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
           chips: ["Nothing sensitive", "Payment details", "Health details", "ID documents"],
           def: CS_INDUSTRY_CHIPS[industry]?.[1] === "medical" ? 2 : CS_INDUSTRY_CHIPS[industry]?.[1] === "store" ? 1 : 0,
         },
-        { id: "cs-tools", question: "What will they work in?", chips: ["Email and a chat box", "A help desk tool", "A phone system", "We'll train them"], def: phone ? 2 : 3 },
+        { id: "cs-tools", question: "What will they work in?", chips: ["Email and a chat box", "A help desk tool", "We'll train them"], def: 2 },
       ];
     },
     reasoning: [

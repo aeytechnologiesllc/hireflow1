@@ -957,7 +957,7 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
-### 2026-10-29 — the stop rule; security round 19's HIGH fixed; the final reviews
+### 2026-10-29 — the stop rule; every review loop closed; Ava builds chat agents only
 
 A new session (Opus 5.5) picked the loop up after the 2026-10-27 session
 ran out of credits at about 07:10 EDT. Of what was in flight then, nothing
@@ -993,11 +993,79 @@ of MEDIUM or worse.
   `quiz-keys-only-for-own-job`, `interviewers-read-job-as-applied`;
   launch_locks_behaviour section 30 (7 of its checks fail without the
   migration, and the attack scores 0 there), `applicant_job_words` section 3.
-- **The final reviews** (the stop rule): Phase 4 (`p4final_brief` is
-  `p4r47_brief.md` with the stop rule; report `p4final_report.md`), Phase 6
-  (`p6r27_brief.md`, report `p6final_report.md`), Phase 5 (`p5r21_brief.md`,
-  report `p5final_report.md`) and security (`sec20_brief.md`, report
-  `sec20_report.md`).
+- **The final reviews, and the loops closed** (the stop rule):
+  - **Security (`sec20_report.md`): CLOSES yes.** Round 19's fix held under
+    every statement shape (ignore and merge duplicates, a bulk insert mixing
+    an own and a foreign id, a conflict on `job_code`, direct writes, the
+    team after people applied). One old MEDIUM, fixed as the rule requires:
+    the hiring team's browser could write an applicant's `applications.notes`,
+    shown to the applicant as the Improvement Report on a declined card and
+    raised by the chat interviewer as "what to improve", with no contact
+    recorded. `20261025750000_applicant_notes_not_the_teams.sql` refuses a
+    browser's notes write by anyone but the applicant (no staff page writes
+    notes; the server's writes are not held); it also closes the review's LOW
+    1 (file checks that trust paths listed in notes). Guard
+    `applicant-notes-not-the-teams`; launch_locks_behaviour section 31.
+    **The security loop is closed.**
+  - **Phase 5 (`p5final_report.md`): CLOSES yes.** One old MEDIUM with the
+    reviewer's tested patch, taken as it is: the step-words lock compared a
+    flat list of strings, so unused keys planted before anyone applied could
+    be swapped into view (`20261025760000_job_words_keep_their_keys.sql`,
+    `job_words_tree`); its LOW 2 (nothing caught a lock that let a save back
+    to draft through) is a check now. Guard `step-words-fixed-once-applied`
+    updated; launch_locks_behaviour section 32 (the probe's exact swap is
+    taken by the old lock and refused by the new). Left as a known limit (its
+    LOW 3): on a closed or past-deadline job the chat interviewer and its
+    grader read the job as applied, so a description written after the
+    title is not in its context. **Phase 5 is closed.**
+  - **Phase 4 (`p4final_report.md`): CLOSES yes.** No HIGH, no regression;
+    every round-46 sentence right. Known limits K1–K8 are in the report
+    (the client country named noun-first in the Location field; the family's
+    default; the phone-only "Besides calls" question; customer service or
+    not on law-firm intake and insurance claims; channel and place misses).
+    The chat-agents-only builder (below) makes K2, K3 and most of K4 moot:
+    the family and the kind of job are no longer asked, and no phone channel
+    is offered. **Phase 4 is closed.**
+  - **Phase 6 (`p6final_report.md`): closed under the stop rule with known
+    limits.** The review returned "CLOSES: no" on two MEDIUM misses, each a
+    regression against one earlier round only and each a trade-off between
+    rounds (an applicant's sample introduction in a job post keeping her age
+    when it names a "check word" such as her BPO account, or a fresh
+    graduate's negative about her work); neither has a narrowing or revert,
+    and each fix brings back the other round's false drops, so both are
+    known limits with their counts. Its validated patch for two LOW–MEDIUM
+    false drops (a customer's own work negative beside whom she served; a
+    customer's "customers like me") is taken as it is
+    (`p6final/patch_both.diff`), with checks that fail without it. The filter
+    is the second line behind the prompt rule ("never ask age"), which every
+    applicant-facing prompt carries. **Phase 6 is closed.**
+- **The job builder is chat and message agents only** (the owner,
+  2026-10-29: take out making a job by voice; "it's just chat agents"; asked,
+  they chose chat and messages only, and removing the other kinds of job).
+  No "Talk to Ava"; no "What kind of job is it?" or "Which is closest?"
+  (`CHAT_AGENT_KIND` carries customer service in every brief); the channel
+  is Chat, Email, or Chat and email; no question mentions calls or a phone
+  system; the intake reads "Tell Ava about the chat agent you need." The
+  front page, share page and blog say "chat and email". The engine's phone
+  and family plans stay for jobs built before. Checked in the dev preview at
+  desktop and phone width (all eight questions, the rigor screen, no console
+  errors); customer_service_hiring 2,637 checks; guard
+  `job-builder-chat-agents-only` replaces `voice-job-required-fields`
+  (docs/CUSTOMER-SERVICE-HIRING.md, "Chat and message agents only").
+- **Live** (every body md5-matched to its file first and after): migrations
+  `quiz_keys_only_for_own_job` 20261029183320,
+  `applicant_notes_not_the_teams` 20261029192948,
+  `job_words_keep_their_keys` 20261029192952; ai-chat-interview,
+  ai-chat-simulation and ava-voice-session deployed for `jobAsApplied`, and
+  the six functions that import `ageWording.ts` for the age patch.
+- **Phase status.** Phases 1–6 are closed. Phase 7's security, product and
+  growth loops are closed. Phase 7 is left with what only the owner can
+  start: the live end-to-end run (task 5: sign up a business, confirm the
+  email, post a chat agent job, apply from a phone, finish the chat
+  practice, get the email), after which the CSP is enforced
+  (`node scripts/csp.mjs --write --enforce`) if that run reports nothing that
+  should be allowed. Still deferred to "Later": the RLS performance rewrite,
+  the internal job columns, the sales practice's recorded turns, Stripe.
 - **Phase 7 leftovers.** CSP: since 2026-10-25 the report-only policy logged
   one kind of report, `script-src wasm-eval` twice on /candidate/auth in
   Chrome (2026-10-27); the app uses no WebAssembly, so it is a visitor's

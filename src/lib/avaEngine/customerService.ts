@@ -27,10 +27,22 @@ export const CS_INDUSTRY_CHIPS: ReadonlyArray<readonly [string, ScenarioPackId]>
   ["Something else", "general"],
 ];
 
-/** The "How will they talk to your customers?" chips, in order. */
+/** Every answer to "How will they talk to your customers?" the plan builders read, in order (jobs built before 2026-10-29 may carry any of them). */
 export const CS_CHANNEL_CHIPS = ["Chat", "Phone", "Email", "A mix of these"] as const;
 export type CsChannel = "chat" | "phone" | "email" | "mixed";
 const CHANNELS: readonly CsChannel[] = ["chat", "phone", "email", "mixed"];
+/**
+ * The chips the builder offers since 2026-10-29: Ava builds chat and message
+ * agents only (the owner: "it's just chat agents"). Phone waits for the phone
+ * practice call (docs/LAUNCH-PLAN.md, "Later"); until then a phone hire got
+ * the chat practice and a written interview anyway. Chat and email together
+ * read as chat, as the words "chat and email" always did (channelForBrief).
+ */
+export const CHAT_AGENT_CHANNEL_CHIPS: ReadonlyArray<readonly [string, CsChannel]> = [
+  ["Chat", "chat"],
+  ["Email", "email"],
+  ["Chat and email", "chat"],
+];
 
 /** The industry the business's own words point to, before they answer the chip. */
 export function industryFromText(text: string): ScenarioPackId {
@@ -140,6 +152,8 @@ export function channelForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" 
   const chosen = answerTo(brief, "cs-channel");
   const index = CS_CHANNEL_CHIPS.findIndex((label) => label === chosen);
   if (index >= 0) return CHANNELS[index];
+  const offered = CHAT_AGENT_CHANNEL_CHIPS.find(([label]) => label === chosen)?.[1];
+  if (offered) return offered;
   const title = (brief.roleTitle ?? "").toLowerCase().replace(/\bon[- ]call\b/g, " ").replace(/\b(brand|tone of) voice\b/g, " ");
   const rawWork = (brief.whatTheyDo ?? "").toLowerCase();
   // How to apply ("send your CV by email or call us") and a voice that is not

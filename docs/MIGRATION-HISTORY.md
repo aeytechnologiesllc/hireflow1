@@ -468,6 +468,8 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025720000_text_a_business_changes_is_contact.sql` | `20261027075002` | `text_a_business_changes_is_contact` |
 | `20261025730000_applicants_words_stay_as_applied.sql` | `20261027103728` | `applicants_words_stay_as_applied` |
 | `20261025740000_quiz_keys_only_for_own_job.sql` | `20261029183320` | `quiz_keys_only_for_own_job` |
+| `20261025750000_applicant_notes_not_the_teams.sql` | `20261029192948` | `applicant_notes_not_the_teams` |
+| `20261025760000_job_words_keep_their_keys.sql` | `20261029192952` | `job_words_keep_their_keys` |
 
 620000 and 630000 were applied after 640000, and 650000 and 660000 after 670000 (neither pair touches anything the later one changed; the behaviour test applies them in file order; document-cleanup was deployed between 650000 and 660000), each from its file through `supabase db query --linked --project-ref …`, in one transaction with its own history row (statements = the file), so nothing was copied by hand.
 

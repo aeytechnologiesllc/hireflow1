@@ -480,7 +480,7 @@ ${others.length ? `<section class="more" aria-label="More guides"><h2>More guide
 
 export function indexPage(posts) {
   const canonical = `${SITE}/blog`;
-  const description = "Plain guides to hiring chat and phone customer service agents: the job post, what to test, how to screen and what not to ask.";
+  const description = "Plain guides to hiring chat and email customer service agents: the job post, what to test, how to screen and what not to ask.";
   const graph = [
     ORG,
     {
@@ -569,7 +569,7 @@ export function feed(posts) {
   <title>HireFlow guides</title>
   <link>${SITE}/blog</link>
   <atom:link href="${SITE}/blog/feed.xml" rel="self" type="application/rss+xml"/>
-  <description>Guides to hiring chat and phone customer service agents.</description>
+  <description>Guides to hiring chat and email customer service agents.</description>
   <language>en</language>
 ${posts
   .slice(0, 20)
