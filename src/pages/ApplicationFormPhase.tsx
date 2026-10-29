@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { appliedNames } from "@/lib/appliedNames";
+import { asksForEmail, asksForPhone } from "@/lib/formPrefill";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useUpdateApplication } from "@/hooks/useApplications";
@@ -587,12 +588,13 @@ export default function ApplicationFormPhase() {
       }
       
       // Email
-      if ((normalizeQuestionType(q.type) === "email" || questionLower.includes("email")) && profile.email) {
+      // (Only a question asking for the address itself: src/lib/formPrefill.ts.)
+      if (asksForEmail(q.question, normalizeQuestionType(q.type)) && profile.email) {
         prefilled[q.id] = profile.email;
       }
       
       // Phone
-      if ((normalizeQuestionType(q.type) === "phone" || questionLower.includes("phone")) && profile.phone) {
+      if (asksForPhone(q.question, normalizeQuestionType(q.type)) && profile.phone) {
         // A saved number may carry its code, spaced ("+63 917 …") or not
         // ("+639171234567"): the known codes decide where the code ends.
         const split = splitStoredPhone(profile.phone, defaultDialCode, KNOWN_DIAL_CODES);
