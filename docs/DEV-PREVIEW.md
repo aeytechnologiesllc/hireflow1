@@ -49,11 +49,22 @@ code.
    guard and hook along the way runs exactly as it does in production —
    the iframe is just a normal HireFlow tab that happens to be talking to a
    fixture client instead of Supabase.
-6. **`src/pages/AvaCreateJob.tsx`** carries one small additional seam: two
-   `DEV`-only query params, `?__previewStep=` and `?__previewInputMode=`, set
-   that page's initial local state (step / voice-vs-typed) so the picker can
-   land directly on the "voice readback" screen instead of requiring a
-   click-through. Both default to the page's normal behavior when absent.
+6. **`src/pages/AvaCreateJob.tsx`** carries one small additional seam: a
+   `DEV`-only query param, `?__previewStep=`, sets that page's first step so
+   the picker can land directly on a later screen instead of requiring a
+   click-through. (`?__previewInputMode=` went with talking to Ava,
+   2026-10-29.)
+7. **`src/dev-preview/previewChatAgent.ts`** (2026-10-29, for a filmed
+   walk-through of a chat agent's hiring): `?__previewJob=chat-agent` turns
+   the café's Barista job, which every applicant step page is parked on, into
+   Bright Smile Dental's remote "Chat Support Agent" (the dental pack's skills
+   check and patient case, three form questions), and its Server job into the
+   "Billing Email Agent"; `?__previewAi=sample` answers generate-flow (as when
+   it is down: the built-in plan), the patient chat and the written interview
+   (fixed, scripted lines, streamed like the real ones) and the typing test's
+   server calls, so nothing reaches the live functions. Sample words, not the
+   model's. Example:
+   `/applications/30000000-0000-4000-8000-000000000005/chat-simulation/wf-chatsim?__preview=1&__previewRole=candidate&__previewJob=chat-agent&__previewAi=sample`.
 
 ## Running it
 

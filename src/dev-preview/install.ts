@@ -15,6 +15,7 @@ import { previewHiring, previewRequests } from "./previewRequests";
 import { LUCKY_USER, previewAppliedToBoth, previewBusinesses } from "./previewBusinesses";
 import { previewTrustHandlers } from "./previewTrust";
 import { previewPushHandlers, previewPushInvoke } from "./previewPush";
+import { installPreviewSampleAi, previewChatAgentJob, previewSampleInvoke } from "./previewChatAgent";
 import {
   APP_QUIZ_ID,
   APP_ZULU_RETAKE_ID,
@@ -1574,6 +1575,9 @@ export function install(params: URLSearchParams): void {
 
   const tables = buildFixtureTables(scenario);
   previewJobShape(tables, params.get("__previewJob"), params.get("__previewPlace"));
+  // A dental office's chat agent job in place of the café's Barista, and sample AI answers (previewChatAgent.ts).
+  previewChatAgentJob(tables, params.get("__previewJob"));
+  installPreviewSampleAi(SUPABASE_URL, params.get("__previewAi") === "sample");
   previewCrowd(tables, params.get("__previewCrowd"));
   previewInterviewTimes(tables, params.get("__previewWhen"));
   // Signing in as the second business's owner (`?__previewEmployer=lucky`,
@@ -1644,6 +1648,8 @@ export function install(params: URLSearchParams): void {
           await new Promise((resolve) => setTimeout(resolve, 150));
           return { data: { success: true }, error: null };
         }
+        const sampled = previewSampleInvoke(name, options, params.get("__previewAi") === "sample");
+        if (sampled) return sampled;
         const generated = previewJobGeneration(name, options);
         if (generated) return generated;
         const guide = interviewGuide(name, options);
