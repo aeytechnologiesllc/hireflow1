@@ -1058,6 +1058,19 @@ of MEDIUM or worse.
   `job_words_keep_their_keys` 20261029192952; ai-chat-interview,
   ai-chat-simulation and ava-voice-session deployed for `jobAsApplied`, and
   the six functions that import `ageWording.ts` for the age patch.
+- **A filmed walk-through, and what it found** (the owner asked for a video
+  of two chat jobs and two applications; with no account allowed on the
+  live site, it was filmed on the practice screens). The dev preview gained
+  a dental office's chat agent job and offline sample AI
+  (`?__previewJob=chat-agent&__previewAi=sample`, docs/DEV-PREVIEW.md), and
+  the 6:40 video (Ava building and publishing two jobs, an applicant through
+  every step, the business's review) went to the owner. Filming it found a
+  real bug, fixed in e8e421da: the application form filled any question that
+  mentioned "email" with the applicant's address (and "phone" with their
+  number), so a chat agent job's "Tell us about the chat or email support
+  you've done" started with the address typed in (`src/lib/formPrefill.ts`,
+  `scripts/form_prefill.test.mjs`). The real run, with accounts the owner
+  makes himself, is still Phase 7 task 5.
 - **Phase status.** Phases 1–6 are closed. Phase 7's security, product and
   growth loops are closed. Phase 7 is left with what only the owner can
   start: the live end-to-end run (task 5: sign up a business, confirm the
