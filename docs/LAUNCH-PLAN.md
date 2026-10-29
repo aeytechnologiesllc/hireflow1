@@ -1070,7 +1070,7 @@ of MEDIUM or worse.
   number), so a chat agent job's "Tell us about the chat or email support
   you've done" started with the address typed in (`src/lib/formPrefill.ts`,
   `scripts/form_prefill.test.mjs`). The real run, with accounts the owner
-  makes himself, is still Phase 7 task 5.
+  makes themselves, is still Phase 7 task 5.
 - **Phase status.** Phases 1–6 are closed. Phase 7's security, product and
   growth loops are closed. Phase 7 is left with what only the owner can
   start: the live end-to-end run (task 5: sign up a business, confirm the
