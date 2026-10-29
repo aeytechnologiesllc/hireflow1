@@ -1019,7 +1019,10 @@ const tellsHerTrouble = (quote: string) => A_CUSTOMERS_TROUBLE.test(quote) || A_
 // applicant's there without a new one. The status's end of clause is the twenty-fourth round's again, as it was; the
 // twenty-fifth review's introductions with no name that give a status so are known items.
 const A_CIVIL_STATUS_GIVEN = /(,|\band|\bi['’]?m|\bi am)\s+(single|married|separated|widowed|divorced)\b(?!-)(?=\s*([,.;:!?"”)]|$|(and|with|from|but|no|mother|mom|father|dad|parent)\b))/i;
-const selfIntroduction = (quote: string) => (A_SELF_INTRO.test(quote) || (THE_NAME_THEN_HER_AGE.test(quote) && !tellsHerTrouble(quote)) || A_CIVIL_STATUS_GIVEN.test(quote)) && !A_CUSTOMERS_OWN.test(quote);
+// The final Phase 6 review: the introduction line below (customersQuote) reads a negative as the twenty-fifth round did, so
+// a customer's own "I haven't worked for two years" beside "after 30 years helping customers at a bank" is never the
+// applicant's there (herOwnWork false); everywhere else her own negative about her work or study is no trouble.
+const selfIntroduction = (quote: string, herOwnWork = true) => (A_SELF_INTRO.test(quote) || (THE_NAME_THEN_HER_AGE.test(quote) && !(herOwnWork ? tellsHerTrouble(quote) : A_CUSTOMERS_TROUBLE.test(quote) || A_NEGATIVE.test(quote))) || A_CIVIL_STATUS_GIVEN.test(quote)) && !A_CUSTOMERS_OWN.test(quote);
 // A label that answers someone's message: the quote is that message, never the speaker's own words ("Reply to: …", "Reply to
 // this chat: …", "Respond to this email: …", "Answer the chat: …"; OWN_AGE, the seventeenth review). The nineteenth review:
 // "reply", "answer" and "responding" also name what someone wrote, and in a reviewer's note that is the applicant's own reply
@@ -1116,7 +1119,12 @@ const NAMES_A_BENEFIT = new RegExp(String.raw`\b(${APPLYING_FOR_A_BENEFIT})\b`, 
 // ending in "-ing" ("helping", "serving", "talking to") or what she fixes for them ("problems for customers"); "making",
 // and the care, help, support, service or assistance a customer asks for or gets ("I care for patients", "Is there help
 // for senior members?"), which none of them used, are not read.
-const WHOM_SHE_SERVES = new RegExp(String.raw`\b((helping|serving|assisting|supporting|handling|(talking|speaking|chatting|working|dealing|connecting)\s+(to|with)|caring\s+for)\s+|(problems?|issues?|solutions?|answers?)\s+(for|to)\s+)([\w'’-]+\s+){0,2}?(${CUSTOMER_PEOPLE})\b`, "gi");
+// The final Phase 6 review: a customer thanks or blames the business for how it treats people like her ('How to apply:
+// answer a practice email: "Hi, I'm Harold, 81 years old. Thank you for always helping customers like me."', "Is anyone
+// handling customers like me today?", "Thanks for caring for patients like me."; 384 of 512 such messages beside a practice
+// step, where the twenty-fourth round kept all but 64), so the customers she names "like me" or "like us" are never whom
+// she serves.
+const WHOM_SHE_SERVES = new RegExp(String.raw`\b((helping|serving|assisting|supporting|handling|(talking|speaking|chatting|working|dealing|connecting)\s+(to|with)|caring\s+for)\s+|(problems?|issues?|solutions?|answers?)\s+(for|to)\s+)([\w'’-]+\s+){0,2}?(${CUSTOMER_PEOPLE})\b(?!\s+(like|such\s+as)\s+(me|us|myself|ourselves)\b)`, "gi");
 const asksToApply = (quote: string) => ASKS_TO_APPLY.test(quote) || (ASKS_TO_APPLY_BARE.test(quote) && !NAMES_A_BENEFIT.test(quote));
 
 /**
@@ -1241,7 +1249,7 @@ function customersQuote(names: RegExp, before: string, quote: string, after: str
   // (the review's tested fix); every other quote goes on to those readings as before.
   if (!names.test(`${before}${quote}${after}`) && !namedBefore()) return false;
   if (NAMES_A_CUSTOMER.test(outsideTheQuote(`${before}${after}`))) return true;
-  if (ownAge && OWN_AGE_GIVEN.test(quote) && selfIntroduction(quote)) {
+  if (ownAge && OWN_AGE_GIVEN.test(quote) && selfIntroduction(quote, false)) {
     const aside = setAside(quote);
     const withoutTheWork = aside.replace(WHOM_SHE_SERVES, "the work");
     if (withoutTheWork !== aside && !NAMES_A_CUSTOMER.test(withoutTheWork) && toSomeoneApplying()) return false;

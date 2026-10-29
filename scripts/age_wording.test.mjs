@@ -3086,6 +3086,37 @@ for (const [line, drops, why, fn = "asksAgeOrStatus"] of [
   check(`(26th review, known) ${drops ? "dropped" : "kept"}: ${JSON.stringify(line)}: ${why}`, got === drops);
 }
 
+console.log("\nThe final Phase 6 review's cases\n");
+{
+  // Finding 3 (a regression against both earlier rounds): a customer's own message whose only negative is about her work,
+  // naming whom she served with an "-ing" word, read as the applicant's beside a practice step. Finding 4: a customer
+  // thanking the business for "helping customers like me" read the same way. Both are fixed by the review's patch
+  // (p6final/patch_both.diff): the introduction line reads a negative as the twenty-fifth round did, and customers "like
+  // me" or "like us" are never whom she serves.
+  const names = ["Harold", "Margaret", "Linda Park", "Mrs. Cruz"];
+  const ctx = [(m) => `How to apply: answer a practice email: "${m}"`, (m) => `To apply, do a short chat practice, then reply to this chat: "${m}"`, (m) => `Candidates do a short chat practice. Reply to this chat: "${m}"`];
+  const retiree = names.flatMap((n) => [
+    `Hello, my name is ${n}, I'm 66 years old. I haven't worked for two years, after 30 years helping customers at a bank, and now I need help with the pension form.`,
+    `Hi, I'm ${n}, 70 years old. I haven't worked since 2019, after years serving customers at the store, and my benefits card was declined.`,
+  ]);
+  const likeMe = names.flatMap((n) => [
+    `Hi, I'm ${n}, 81 years old. Thank you for always helping customers like me.`,
+    `Hello, my name is ${n}, I'm 72 years old. Is anyone handling customers like me today? I can't log in.`,
+    `Hi, I'm ${n} and I'm 67 years old. Thanks for caring for patients like me.`,
+  ]);
+  for (const [label, msgs] of [["a customer's own work negative beside whom she served (finding 3)", retiree], ["a customer's \"customers like me\" (finding 4)", likeMe]]) {
+    const lines = msgs.flatMap((m) => ctx.map((f) => f(m)));
+    const dropped = lines.filter((line) => A.asksAgeOrStatus(line));
+    check(`(final review) ${label} is hers, beside a practice step or after "Candidates …" (${lines.length} lines)`, dropped.length === 0, dropped.slice(0, 2).join(" | "));
+    const posts = msgs.map((m) => [`We are hiring a Chat Support Agent for Bright Clinic.\n\nHow to apply: answer a practice email: "${m}"\n\nWe review every application within 3 days.`, m]);
+    const lost = posts.filter(([t, m]) => !A.textWithoutAgeAsks(t).includes(m));
+    check(`(final review) …and a job post keeps it as the practice's sample (${posts.length} posts)`, lost.length === 0, lost.slice(0, 1).map(([t]) => JSON.stringify(A.textWithoutAgeAsks(t))).join(" | "));
+  }
+  // An applicant's own introduction naming whom she serves still goes, as before the patch.
+  const intro = `How to apply: answer a practice email, then send a short intro, for example: "Hi, I'm Ana, 24 years old, from Cebu. I love helping customers."`;
+  check("(final review) …while an applicant's own introduction naming whom she serves still goes", A.asksAgeOrStatus(intro), intro);
+}
+
 console.log("\nThe three job writers\n");
 const flow = read("supabase/functions/generate-flow/index.ts");
 check("generate-flow tells the model the rule", /from "\.\.\/_shared\/ageWording\.ts"/.test(flow) && /for phone work, include interview questions about handling calls\. " \+\s*AGE_RULE;/.test(flow));

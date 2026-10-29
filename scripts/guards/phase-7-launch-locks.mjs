@@ -46,6 +46,10 @@
  *     that is already a job before it files any key, and no browser writes
  *     job_quiz_keys (the nineteenth security review;
  *     20261025740000_quiz_keys_only_for_own_job.sql).
+ *   - applicant-notes-not-the-teams: an application's notes are written by
+ *     the applicant and the server only, never the hiring team's browser
+ *     (the twentieth security review;
+ *     20261025750000_applicant_notes_not_the_teams.sql).
  *   - interviewers-read-job-as-applied: the chat interviewer, the chat
  *     practice and the voice interview read a job's own words only while it
  *     is on its public page, else the application's snapshot
@@ -690,6 +694,32 @@ export default [
         const src = strip(await ctx.read(`supabase/functions/${fn}/index.ts`));
         if (!src.includes('from "../_shared/jobAsApplied.ts"') || !patterns.every((re) => re.test(src))) detail.push(`supabase/functions/${fn}/index.ts: must read the job through jobAsApplied (its own words only while it is on its public page)`);
       }
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "applicant-notes-not-the-teams",
+    why:
+      "protect_application_columns lets the job's owner and its pipeline teammates write anything, so the team's browser " +
+      "wrote an applicant's notes: a \"report\" with a GCash fee ask shown as HireFlow's Improvement Report on a declined " +
+      "card, or \"what to improve\" the chat interviewer raises, with nothing recorded as contact (the twentieth security " +
+      "review). A browser's write of an application's notes is refused unless it is the applicant's own.",
+    run: async (ctx) => {
+      const detail = [
+        ...(await triggerProblems(ctx, {
+          name: "applications_notes_not_the_teams",
+          table: "applications",
+          timing: "BEFORE",
+          event: "UPDATE",
+          fn: "applications_notes_not_the_teams",
+          when: "current_user IN ('anon', 'authenticated') AND OLD.notes IS DISTINCT FROM NEW.notes",
+        })),
+      ];
+      const fn = await latestDefinition(ctx, "applications_notes_not_the_teams");
+      const body = (fn?.body ?? "").replace(/\s+/g, " ");
+      if (!fn?.securityDefiner || !/IF auth\.uid\(\) IS NOT DISTINCT FROM OLD\.candidate_id THEN RETURN NEW; END IF; RAISE EXCEPTION/.test(body))
+        detail.push(`${fn?.rel ?? "supabase/migrations"}: applications_notes_not_the_teams must let only the applicant's own write through and refuse every other browser write`);
+      for (const rel of await grantsToBrowser(ctx, "applications_notes_not_the_teams")) detail.push(`${rel}: applications_notes_not_the_teams granted to a browser role`);
       return { ok: detail.length === 0, detail };
     },
   },

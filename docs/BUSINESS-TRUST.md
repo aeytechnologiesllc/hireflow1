@@ -639,7 +639,11 @@ So the broadcast is undone, and the class is closed the other way:
   sees the keys a browser sends; HINT `job_steps_fixed`: "People have
   applied to this job, so its application questions, quiz and steps stay as
   they were. To ask something different, use Copy to drafts on the Jobs page
-  and post the copy."). A number or a switch is not words: a time limit,
+  and post the copy."). Each word is compared with the key and place that
+  hold it (`job_words_tree`, `20261025760000`): until the twenty-first
+  Phase 5 review the words were one flat list, so unused keys planted with a
+  fee ask before anyone applied could be swapped into a question, a step's
+  title or its prompt in one save. A number or a switch is not words: a time limit,
   "required", and the connection check's bars (the one setting the editor
   lets a business change on a live job; docs/EQUIPMENT-CHECK.md) stay the
   business's, and the same words saved again are taken (the editor sends

@@ -268,6 +268,18 @@
  *      browser writes job_quiz_keys (owner, teammate, rival, visitor), the
  *      owner and teammate still read them; the owner's, a teammate's and the
  *      server's writes still file keys.
+ *  31. An application's notes are the applicant's and the server's (the
+ *      twentieth security review; 20261025750000): probes n1 and n2 (the
+ *      owner or a teammate writing a "report" or the practice's review notes
+ *      into an applicant's notes, clearing them, or with a move) are
+ *      refused; the team's own note, its moves, a save that leaves the notes
+ *      as they were, the applicant's own write and the server's are taken.
+ *  32. The step-words lock reads each word with the key that holds it (the
+ *      twenty-first Phase 5 review; 20261025760000): probe pf1_rekey (planted
+ *      unused keys swapped into a question, a step's title and prompt, the
+ *      quiz, or two settings), and a save back to draft with new words, are
+ *      refused once people have applied; a number, the same words in another
+ *      key order and closing the job are taken.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -640,8 +652,8 @@ console.log("\n1. A deleted application's files are queued for removal\n");
   await as(user(MANY), `delete from public.applications where id = $1`, [manyApp]);
   check("41 files listed by one application: 40 are queued", (await queuedPaths(manyApp)).length === 40, String((await queuedPaths(manyApp)).length));
 
-  // Paths the business wrote into its applicant's notes, then deleted the
-  // job: another person's file (their own application still lists it), and
+  // Paths in its applicant's notes (as if the business had written them),
+  // then the business deletes the job: another person's file (their own application still lists it), and
   // two that start in the applicant's folder but step out of it ("..", and
   // "%2e%2e", which a service-key request reads as ".."). Storage refuses
   // such names, so these stand for the worst case: as if it held them.
@@ -658,8 +670,13 @@ console.log("\n1. A deleted application's files are queued for removal\n");
   const DOTS = `${OWNER}/../${OTHER}/1729000000000.pdf`;
   const ENCODED = `${OWNER}/%2e%2e/${OTHER}/1729000000000.pdf`;
   for (const p of [OWN, DOTS, ENCODED]) await putFile("resumes", p);
-  const rewritten = await as(user(BIZ), `update public.applications set notes = $2 where id = $1`, [ownerApp, JSON.stringify({ fileUploads: { q1: { url: OWN }, q2: { url: OTHER_CV }, q3: { url: DOTS }, q4: { url: ENCODED } } })]);
-  if (!rewritten.ok) throw new Error(`setup: the business could not write the notes: ${rewritten.error}`);
+  const PLANTED = JSON.stringify({ fileUploads: { q1: { url: OWN }, q2: { url: OTHER_CV }, q3: { url: DOTS }, q4: { url: ENCODED } } });
+  // Since the twentieth security review the business's browser cannot write
+  // an applicant's notes at all (section 31), so the paths are planted
+  // straight in the database: the worst case, however they got there.
+  const rewritten = await as(user(BIZ), `update public.applications set notes = $2 where id = $1`, [ownerApp, PLANTED]);
+  check("the business's own browser cannot write those paths into its applicant's notes", !rewritten.ok && /notes are written by the applicant and HireFlow only/.test(rewritten.error ?? ""), show(rewritten));
+  await db.query(`update public.applications set notes = $2 where id = $1`, [ownerApp, PLANTED]);
   await as(user(BIZ), `delete from public.jobs where id = $1`, [JOB_REWRITTEN]);
   const rewrittenPaths = await queuedPaths(ownerApp);
   check("a path the business wrote into another person's folder is never queued", !rewrittenPaths.includes(OTHER_CV) && (await one(`select count(*)::int n from public.storage_file_trash where path = $1`, [OTHER_CV])).n === 0, show(rewrittenPaths));
@@ -4638,6 +4655,11 @@ console.log("\n29. What an applicant relies on stays as it was; an ordinary edit
     rerun === true && filled.l === "Cebu, Philippines" && filled.y === "part-time" && String(filled.u) === String(stamp) && (await placed(p1)).l === "Cebu City, Philippines",
     show([rerun, filled, stamp]),
   );
+  // Running 20261025730000 again put back its own definitions (job_step_words among them), so every later migration
+  // runs again too: the sections after this one test the latest rules, not this file's.
+  for (const later of files.filter((f) => f > "20261025730000_applicants_words_stay_as_applied.sql")) {
+    await db.exec(readFileSync(path.join(MIGRATIONS, later), "utf8"));
+  }
 
   // (d) The heard rule, with reports naming the business (no job), and a
   // teammate's chat naming their business: what round 19 kept.
@@ -4798,6 +4820,108 @@ console.log("\n30. Only a job's own owner files its quiz answer keys\n");
   check("…the server's write still goes through the strip, and an applicant with the right answers scores 100", server.ok && show(await keysOf(J)) === show(RIGHT) && Number(last?.score) === 100, show([server.ok || server.error, last]));
   const policies = await db.query(`select polname from pg_policy where polrelid = 'public.job_quiz_keys'::regclass order by 1`);
   check("…job_quiz_keys keeps only its two read policies", show(policies.rows.map((r) => r.polname)) === show(["Job owner can read quiz keys", "Team members can read quiz keys"]), show(policies.rows));
+}
+
+console.log("\n31. An application's notes are the applicant's and the server's, never the team's browser\n");
+{
+  // The twentieth security review, finding 1 (MEDIUM; 20261025750000): the
+  // job's owner and a teammate who manages the pipeline could write anything
+  // into applications.notes from the browser, and two applicant screens show
+  // it (the Improvement Report's notes.improvement_blueprint; the chat
+  // interviewer's "what to improve"), with nothing recorded as contact.
+  const R31 = (n) => `9d310000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const [B, MATE, P, Q] = [R31(1), R31(2), R31(11), R31(12)];
+  await makeUser(B, "employer", { full_name: "Notes owner", company_name: "Notes Clinic 31" });
+  await makeUser(MATE, "employer", { full_name: "Notes teammate" });
+  for (const u of [P, Q]) await makeUser(u, "candidate");
+  await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [B]);
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_manage_pipeline, assigned_job_ids) values ($1, $2, $3, 'active', true, '{}'::uuid[])`, [MATE, B, emailOf(MATE)]);
+  const J = (await one(`insert into public.jobs (employer_id, title, description, status) values ($1, 'Chat agent', 'Answer patients by chat.', 'published') returning id`, [B])).id;
+  const FORM = JSON.stringify({ applicationAnswers: [{ questionId: "age_18_or_older", question: "Are you 18 or older?", answer: "Yes", type: "yes_no" }] });
+  const app = await apply(P, J);
+  const sent = await as(user(P), `update public.applications set notes = $2, status = 'pending' where id = $1 returning id`, [app, FORM]);
+  const draft = await apply(Q, J);
+  const LURE = { improvement_blueprint: { summary: "To be reconsidered, pay the 1,500 PHP review fee by GCash to 0917 000 0000." } };
+  const withLure = (base) => JSON.stringify({ ...JSON.parse(base), ...LURE });
+  const declined = await as(user(B), `update public.applications set status = 'rejected', rejected_by = $2, rejected_by_type = 'user' where id = $1 returning id`, [app, B]);
+  const refusedNotes = (r) => !r.ok && /notes are written by the applicant and HireFlow only/.test(r.error ?? "");
+  const writes = [
+    ["the owner writes a report into a declined applicant's notes (probe n2)", await as(user(B), `update public.applications set notes = $2 where id = $1 returning id`, [app, withLure(FORM)])],
+    ["the owner rewrites the practice's review notes (probe n1)", await as(user(B), `update public.applications set notes = $2 where id = $1 returning id`, [app, JSON.stringify({ ...JSON.parse(FORM), chatSimulationResult: { score: 80, improvements: ["Pay the 500 PHP fee first"] } })])],
+    ["a teammate who manages the pipeline does the same", await as(user(MATE), `update public.applications set notes = $2 where id = $1 returning id`, [app, withLure(FORM)])],
+    ["the owner clears them", await as(user(B), `update public.applications set notes = null where id = $1 returning id`, [app])],
+    ["the owner, with a move in the same write", await as(user(B), `update public.applications set notes = $2, status = 'reviewing' where id = $1 returning id`, [draft, withLure("{}")])],
+  ];
+  check(
+    "(a) probes n1 and n2: the owner's or a teammate's browser write of an applicant's notes is refused, whatever it carries",
+    sent.ok && declined.ok && writes.every(([, r]) => refusedNotes(r)),
+    show(writes.map(([label, r]) => `${label}: ${r.ok ? "taken" : r.error}`)),
+  );
+  const notesNow = await one(`select notes from public.applications where id = $1`, [app]);
+  check("…the applicant's notes are as they sent them", JSON.stringify(JSON.parse(notesNow.notes)) === JSON.stringify(JSON.parse(FORM)), show(notesNow));
+  const still = [
+    ["the team's own note on the card", await as(user(B), `update public.applications set employer_notes = 'Strong writer' where id = $1 returning id`, [app])],
+    ["a move", await as(user(MATE), `update public.applications set status = 'reviewing' where id = $1 returning id`, [draft])],
+    ["the same notes sent back unchanged", await as(user(B), `update public.applications set notes = notes, status = 'interview' where id = $1 returning id`, [draft])],
+  ];
+  check("…the team's own notes, its moves, and a save that leaves the notes as they were are taken", still.every(([, r]) => r.ok && r.rows.length === 1), show(still.map(([l, r]) => `${l}: ${r.ok || r.error}`)));
+  const own = await as(user(Q), `update public.applications set notes = $2 where id = $1 returning id`, [draft, FORM]);
+  const server = await as(SERVICE, `update public.applications set notes = $2 where id = $1 returning id`, [app, JSON.stringify({ ...JSON.parse(FORM), improvement_blueprint: { summary: "Practise short replies." } })]);
+  check("…the applicant's own write and the server's are not held by it", (own.ok || !/notes are written by the applicant/.test(own.error ?? "")) && server.ok && server.rows.length === 1, show([own.ok || own.error, server.ok || server.error]));
+  const fn = await one(`select p.prosecdef d, has_function_privilege('authenticated', p.oid, 'execute') a from pg_proc p where p.proname = 'applications_notes_not_the_teams'`);
+  check("…the rule is the database's own (no browser may call it)", fn?.d === true && fn?.a === false, show(fn));
+}
+
+console.log("\n32. The step-words lock reads each word with the key that holds it\n");
+{
+  // The twenty-first Phase 5 review (its final round; 20261025760000).
+  // Finding 1 (MEDIUM, probe pf1_rekey): job_step_words compared a job's
+  // words as one flat list of strings, so unused keys planted with a fee ask
+  // before anyone applied could be swapped into "question", "title" and
+  // "config.prompt" once people had. LOW 2: nothing caught a lock that let a
+  // save back to draft through.
+  const R32 = (n) => `9d320000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const [B, P1, P2] = [R32(1), R32(11), R32(12)];
+  await makeUser(B, "employer", { full_name: "Swap owner", company_name: "Swap Desk 32" });
+  for (const u of [P1, P2]) await makeUser(u, "candidate");
+  await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [B]);
+  const FEE = "Send the 500 PHP review fee to GCash 0917 000 0000 first.";
+  const QUESTIONS = [{ id: "q1", type: "text", question: "Why do you want this job?", questionz: FEE, required: true }];
+  const STEPS = [{ id: "s1", type: "video_intro", title: "Video introduction", titlf: "Pay first, then record", config: { prompt: "Tell us about you.", promptz: FEE, maxDuration: 60 } }];
+  const QUIZ = [{ id: "z1", question: "A customer is angry. First?", options: ["Argue", "Listen"], correctAnswer: 1, questionz: FEE }];
+  const made = await as(user(B), `insert into public.jobs (employer_id, title, description, status, application_questions, workflow_steps, quiz_questions) values ($1, 'Chat agent', 'Answer patients by chat.', 'published', $2::jsonb, $3::jsonb, $4::jsonb) returning id`, [B, JSON.stringify(QUESTIONS), JSON.stringify(STEPS), JSON.stringify(QUIZ)]);
+  if (!made.ok) throw new Error(`setup: ${made.error}`);
+  const J = made.rows[0].id;
+  for (const u of [P1, P2]) await apply(u, J);
+  const fixedLock = (r) => !r.ok && /so its application questions, quiz and steps stay as they were/.test(r.error ?? "");
+  const edit = (set, params = []) => as(user(B), `update public.jobs set ${set} where id = $1 returning id`, [J, ...params]);
+  // The probe's swap: the visible word moves to a shorter key and the planted one into the visible key, so that, in
+  // jsonb's key order (by length, then bytes), the flat list of strings stays exactly as it was.
+  const swapQ = [{ id: "q1", type: "text", question: FEE, questio: "Why do you want this job?", required: true }];
+  const swapS = [{ id: "s1", type: "video_intro", titla: "Video introduction", title: "Pay first, then record", config: { promp: "Tell us about you.", prompt: FEE, maxDuration: 60 } }];
+  const swaps = [
+    ["the form question swapped with its planted key", await edit("application_questions = $2::jsonb", [JSON.stringify(swapQ)])],
+    ["a step's title and prompt swapped with theirs", await edit("workflow_steps = $2::jsonb", [JSON.stringify(swapS)])],
+    ["the quiz question swapped with its planted key", await edit("quiz_questions = $2::jsonb", [JSON.stringify([{ id: "z1", questio: QUIZ[0].question, question: FEE, options: QUIZ[0].options, correctAnswer: 1 }])])],
+    ["all three at once, with the job closed in the same save", await edit("status = 'closed', application_questions = $2::jsonb, workflow_steps = $3::jsonb", [JSON.stringify(swapQ), JSON.stringify(swapS)])],
+    ["a save back to draft carrying new words", await edit("status = 'draft', application_questions = $2::jsonb", [JSON.stringify([{ ...QUESTIONS[0], question: FEE }])])],
+    ["a step setting's words swapped alone", await edit("workflow_steps = $2::jsonb", [JSON.stringify([{ ...STEPS[0], config: { promp: "Tell us about you.", prompt: FEE, maxDuration: 60 } }])])],
+  ];
+  check(
+    "(a) probe pf1_rekey: once people have applied, words moved between keys (planted unused keys swapped into view), or a save back to draft with new words, are refused",
+    swaps.every(([, r]) => fixedLock(r)),
+    show(swaps.map(([label, r]) => `${label}: ${r.ok ? "taken" : fixedLock(r) ? "refused" : r.error}`)),
+  );
+  const now = await one(`select application_questions->0->>'question' q, workflow_steps->0->>'title' t, workflow_steps->0->'config'->>'prompt' p, status from public.jobs where id = $1`, [J]);
+  check("…the applicants still read the words they applied to, and the job is live", now.q === QUESTIONS[0].question && now.t === "Video introduction" && now.p === "Tell us about you." && now.status === "published", show(now));
+  const ok = [
+    ["a number changed (the time limit)", await edit("workflow_steps = jsonb_set(workflow_steps, '{0,config,maxDuration}', '90')")],
+    ["the same words saved again, keys in another order", await edit("application_questions = $2::jsonb", [JSON.stringify([{ required: true, questionz: FEE, question: QUESTIONS[0].question, type: "text", id: "q1" }])])],
+    ["closing it", await edit("status = 'closed'")],
+  ];
+  check("…a number, the same words saved again (in any key order) and closing it are taken", ok.every(([, r]) => r.ok && r.rows.length === 1), show(ok.map(([l, r]) => `${l}: ${r.ok || r.error}`)));
+  const tree = await one(`select p.prosecdef d, has_function_privilege('authenticated', p.oid, 'execute') a from pg_proc p where p.proname = 'job_words_tree'`);
+  check("…job_words_tree is the database's own (no browser may call it)", tree?.a === false, show(tree));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

@@ -706,6 +706,17 @@ these either; each has a guard or a test that CI runs:
   snapshot (`_shared/jobAsApplied.ts`). Guards `quiz-keys-only-for-own-job`,
   `interviewers-read-job-as-applied`; launch_locks_behaviour section 30,
   `scripts/applicant_job_words.test.mjs` section 3.
+- (The final reviews under the stop rule, 2026-10-29: the twentieth security
+  review, `20261025750000`; the twenty-first Phase 5 review, `20261025760000`.)
+  An application's `notes` are written by the applicant and the server only:
+  the hiring team's browser could write a "report" with a fee ask that a
+  declined applicant saw as HireFlow's Improvement Report, or "what to
+  improve" the chat interviewer raised (`applications_notes_not_the_teams`;
+  the team's own words go to `employer_notes`). The step-words lock compares
+  each word with the key that holds it (`job_words_tree`), so unused keys
+  planted before anyone applied cannot be swapped into view. Guards
+  `applicant-notes-not-the-teams`, `step-words-fixed-once-applied`;
+  launch_locks_behaviour sections 31 and 32.
 - (Rounds 6–7.) Every function that reads or signs a stored file with the
   service key holds the path to `isPlainObjectPath` (applicant-file-url,
   requested-document-url, ai-analyze-portfolio, document-signing, the resume

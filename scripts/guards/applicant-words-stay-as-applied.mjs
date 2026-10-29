@@ -207,15 +207,25 @@ export default [
       }
       const words = plain((await latestDefinition(ctx, "job_step_words"))?.body);
       if (
-        !/jsonb_build_array\( p_questions,/.test(words) ||
-        (words.match(/- ARRAY\['correct_answer', 'correctAnswer', 'correct_answers', 'fit_context'\]/g) ?? []).length !== 2 ||
-        !/'strict \$\.\*\* \? \(@\.type\(\) == "string"\)'/.test(words)
+        !/SELECT coalesce\(public\.job_words_tree\( jsonb_build_array\( p_questions,/.test(words) ||
+        (words.match(/- ARRAY\['correct_answer', 'correctAnswer', 'correct_answers', 'fit_context'\]/g) ?? []).length !== 2
       )
-        detail.push("supabase/migrations: job_step_words must read every string of the form questions, the quiz and the steps, leaving out only the quiz's answer fields");
+        detail.push("supabase/migrations: job_step_words must read every string of the form questions, the quiz and the steps through job_words_tree, leaving out only the quiz's answer fields");
+      // Each word with the key and place that hold it (the twenty-first Phase 5
+      // review: a flat list let planted unused keys be swapped into view).
+      const tree = await latestDefinition(ctx, "job_words_tree");
+      const treeBody = plain(tree?.body);
+      if (
+        !/WHEN 'string' THEN RETURN p;/.test(treeBody) ||
+        !/out_obj := out_obj \|\| jsonb_build_object\(k, e\);/.test(treeBody) ||
+        !/out_arr := out_arr \|\| jsonb_build_array\(e\);/.test(treeBody) ||
+        !/ELSE RETURN NULL; END CASE;/.test(treeBody)
+      )
+        detail.push(`${tree?.rel ?? "supabase/migrations"}: job_words_tree must keep every string at its key and place (an array's places kept), and read nothing else as a word`);
       const keys = plain((await latestDefinition(ctx, "job_answer_keys_sent"))?.body);
       if (!/'__quiz_questions__'::text AS step_id/.test(keys) || !/'__step_' \|\| \(s\.n - 1\)::text/.test(keys) || !/'__idx_' \|\| x\.idx::text/.test(keys))
         detail.push("supabase/migrations: job_answer_keys_sent must name each key as extract_quiz_answer_keys files it in job_quiz_keys");
-      for (const f of ["jobs_applicant_words_fixed", "job_step_words", "job_answer_keys_sent"]) {
+      for (const f of ["jobs_applicant_words_fixed", "job_step_words", "job_answer_keys_sent", "job_words_tree"]) {
         const browser = await grantsToBrowser(ctx, f);
         if (browser.length) detail.push(`${browser.join(", ")}: grants ${f} to a browser role`);
       }
