@@ -41,6 +41,15 @@
  *     email switches that do something, the editor's own first screen, the
  *     offer letter from the job, the certificate's claim, plain step buttons
  *     and sign-up autocomplete.
+ *   - quiz-keys-only-for-own-job: no browser files quiz answer keys for a
+ *     job that is not its own: the strip trigger refuses an insert of an id
+ *     that is already a job before it files any key, and no browser writes
+ *     job_quiz_keys (the nineteenth security review;
+ *     20261025740000_quiz_keys_only_for_own_job.sql).
+ *   - interviewers-read-job-as-applied: the chat interviewer, the chat
+ *     practice and the voice interview read a job's own words only while it
+ *     is on its public page, else the application's snapshot
+ *     (_shared/jobAsApplied.ts; the nineteenth security review).
  */
 
 /* -------------------------------------------------------------------------
@@ -617,6 +626,70 @@ export default [
       const rules = (await latestDefinition(ctx, "applications_applicant_write_rules"))?.body ?? "";
       if (!rules.includes(`(listed.p #>> '{}') ${NOT_PLAIN}`) || !/RAISE EXCEPTION 'file_path_not_plain'/.test(rules) || !["'lax $.uploads.*.url'", "'lax $.uploads.*.fileUrl'", "'lax $.uploads.*.imageUrls[*]'", "'lax $.pages[*]'"].every((p) => rules.includes(p)))
         detail.push("applications_applicant_write_rules no longer refuses a form file path (fileUploads' url, fileUrl, imageUrls, resumeImageUrls) that is not plain");
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "quiz-keys-only-for-own-job",
+    why:
+      "extract_quiz_answer_keys runs BEFORE INSERT on jobs with full rights and files answer keys under the row's id " +
+      "before the row exists: an insert of another business's job id with ON CONFLICT (id) DO NOTHING skipped the row " +
+      "and kept the keys, so any sign-up could make that job's applicants with the right answers score 0 (the " +
+      "nineteenth security review, HIGH). The insert branch refuses an id that is already a job first, and no browser " +
+      "writes job_quiz_keys (20261025740000_quiz_keys_only_for_own_job.sql).",
+    run: async (ctx) => {
+      const detail = [];
+      const def = await latestDefinition(ctx, "extract_quiz_answer_keys");
+      const body = def?.body ?? "";
+      const refuse = body.search(/IF\s+TG_OP\s*=\s*'INSERT'\s+AND\s+EXISTS\s*\(\s*SELECT\s+1\s+FROM\s+public\.jobs\s+j\s+WHERE\s+j\.id\s*=\s*NEW\.id\s*\)\s+THEN\s+RAISE\s+EXCEPTION/i);
+      const firstKey = body.search(/INSERT\s+INTO\s+public\.job_quiz_keys/i);
+      if (!def?.securityDefiner || refuse < 0 || firstKey < 0 || refuse > firstKey)
+        detail.push(`${def?.rel ?? "supabase/migrations"}: extract_quiz_answer_keys must refuse an insert of an id that is already a job before it files any key`);
+      // No later migration lets a browser write job_quiz_keys again.
+      const texts = await migrationTexts(ctx);
+      const fixed = texts.findIndex(({ rel }) => rel.endsWith("20261025740000_quiz_keys_only_for_own_job.sql"));
+      if (fixed < 0) detail.push("20261025740000_quiz_keys_only_for_own_job.sql is missing");
+      const fixedSql = fixed >= 0 ? texts[fixed].sql : "";
+      if (!/DROP POLICY IF EXISTS "Job owner can write quiz keys" ON public\.job_quiz_keys;/.test(fixedSql) || !/DROP POLICY IF EXISTS "Team members can write quiz keys" ON public\.job_quiz_keys;/.test(fixedSql) ||
+          !/REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON public\.job_quiz_keys FROM anon, authenticated;/.test(fixedSql))
+        detail.push("20261025740000: both browser write policies on job_quiz_keys must be dropped and the write grants revoked");
+      texts.forEach(({ rel, sql }, file) => {
+        if (file <= fixed) return;
+        if (/CREATE\s+POLICY[^;]*\bON\s+(?:public\.)?"?job_quiz_keys"?\s+(?:AS\s+\w+\s+)?FOR\s+(?:ALL|INSERT|UPDATE|DELETE)\b/i.test(sql)) detail.push(`${rel}: a write policy on job_quiz_keys`);
+        for (const m of sql.matchAll(/\bGRANT\s+([^;]*?)\s+ON\s+(?:TABLE\s+)?([^;]*?)\s+TO\s+([^;]*);/gi)) {
+          const [privs, target, roles] = [m[1], m[2], m[3]];
+          if (!/\b(anon|authenticated|public)\b/i.test(roles) || !/\b(ALL|INSERT|UPDATE|DELETE)\b/i.test(privs)) continue;
+          if (/job_quiz_keys/i.test(target) || /ALL\s+TABLES\s+IN\s+SCHEMA\s+public/i.test(target)) detail.push(`${rel}: grants a browser write on job_quiz_keys`);
+        }
+      });
+      return { ok: detail.length === 0, detail };
+    },
+  },
+  {
+    id: "interviewers-read-job-as-applied",
+    why:
+      "The chat interviewer read a closed job's live description under \"Use this to answer candidate questions\", and " +
+      "the chat practice and the voice interview its live title: a business could rewrite a closed job into a fee ask " +
+      "its waiting applicants would hear, with nothing recorded as contact (the nineteenth security review). They read " +
+      "the job through _shared/jobAsApplied.ts: its own words only while it is on its public page, else the " +
+      "application's snapshot.",
+    run: async (ctx) => {
+      const detail = [];
+      const strip = (t) => (t ?? "").replace(/\/\/[^\n]*/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+      const shared = strip(await ctx.read("supabase/functions/_shared/jobAsApplied.ts"));
+      if (!/import \{ jobOnItsPublicPage \} from "\.\/performanceReportJob\.ts";/.test(shared) || !/if \(jobOnItsPublicPage\(job, now\)\) return \{ shown: true, job, companyName: liveCompanyName \};/.test(shared) ||
+          !["description", "requirements", "responsibilities", "benefits", "skills_required", "experience_level", "salary_min", "salary_max", "salary_currency", "salary_period"].every((k) => shared.includes(`"${k}"`)) ||
+          !/out\.title = appliedText\(a\.applied_job_title, 200\);/.test(shared))
+        detail.push("supabase/functions/_shared/jobAsApplied.ts: off its public page a job must give its title, location and type as applied and none of its other words");
+      const fns = {
+        "ai-chat-interview": [/\$\{APPLIED_COLUMNS\}, jobs\([^`]*\$\{JOB_PUBLIC_PAGE_COLUMNS\}\)/, /job: interviewJobFrom\(shownJob\)/, /const interviewJobTitle = serverJob \? \(serverJob\.title \?\? "this role"\) : jobTitle;/, /const interviewJobDescription = serverJob \? \(serverJob\.description \?\? ""\) : jobDescription;/],
+        "ai-chat-simulation": [/\$\{APPLIED_COLUMNS\}, jobs\([^`]*\$\{JOB_PUBLIC_PAGE_COLUMNS\}\)/, /const job = jobAsApplied\(liveJob, data as Record<string, unknown>\)\.job;/],
+        "ava-voice-session": [/skills_required, \$\{JOB_PUBLIC_PAGE_COLUMNS\}\)/, /application\.jobs = asApplied\.job;\s*const employerProfile = \{ company_name: asApplied\.companyName \};/],
+      };
+      for (const [fn, patterns] of Object.entries(fns)) {
+        const src = strip(await ctx.read(`supabase/functions/${fn}/index.ts`));
+        if (!src.includes('from "../_shared/jobAsApplied.ts"') || !patterns.every((re) => re.test(src))) detail.push(`supabase/functions/${fn}/index.ts: must read the job through jobAsApplied (its own words only while it is on its public page)`);
+      }
       return { ok: detail.length === 0, detail };
     },
   },

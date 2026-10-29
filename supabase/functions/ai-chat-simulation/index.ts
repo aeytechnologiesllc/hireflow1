@@ -89,6 +89,7 @@ import {
   counterpartFor,
 } from "./prompts.ts";
 import { isHomeBusiness } from "../_shared/homeBusiness.ts";
+import { APPLIED_COLUMNS, JOB_PUBLIC_PAGE_COLUMNS, jobAsApplied } from "../_shared/jobAsApplied.ts";
 import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, isRefusedStep, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
@@ -207,7 +208,7 @@ async function loadPracticeJob(
   try {
     const { data, error } = await admin
       .from("applications")
-      .select("candidate_id, jobs(title, description, experience_level, workflow_steps, employer_id)")
+      .select(`candidate_id, ${APPLIED_COLUMNS}, jobs(title, description, experience_level, workflow_steps, employer_id, ${JOB_PUBLIC_PAGE_COLUMNS})`)
       .eq("id", applicationId)
       .maybeSingle();
     if (error || !data) {
@@ -216,8 +217,11 @@ async function loadPracticeJob(
     }
     const row = data as { candidate_id?: unknown; jobs?: unknown };
     if (row.candidate_id !== userId) return null;
-    const job = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as Record<string, unknown> | null | undefined;
-    if (!job || typeof job !== "object") return null;
+    const liveJob = (Array.isArray(row.jobs) ? row.jobs[0] : row.jobs) as Record<string, unknown> | null | undefined;
+    if (!liveJob || typeof liveJob !== "object") return null;
+    // The job's own words only while it is on its public page, else as they
+    // applied to it (_shared/jobAsApplied.ts; the nineteenth security review).
+    const job = jobAsApplied(liveJob, data as Record<string, unknown>).job;
     const text = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
     return {
       title: text(job.title),

@@ -260,6 +260,14 @@
  *      holds updated_at); and the heard rule with reports naming the business,
  *      and with a teammate's chat, counts again only after the business
  *      writes to them after the reopen.
+ *  30. Only a job's own owner files its quiz answer keys (the nineteenth
+ *      security review; 20261025740000): probe k2 (a rival's insert of
+ *      another business's job id with ignore-duplicates, merge-duplicates or
+ *      none, the top-level quiz or a quiz step, is refused and plants nothing;
+ *      applicants with the right answers score 100 before and after); no
+ *      browser writes job_quiz_keys (owner, teammate, rival, visitor), the
+ *      owner and teammate still read them; the owner's, a teammate's and the
+ *      server's writes still file keys.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -4685,6 +4693,111 @@ console.log("\n29. What an applicant relies on stays as it was; an ordinary edit
     t2open && t2.all && t2.status === "approved" && t3.all && t3.status === "suspended",
     show({ t2, t3 }),
   );
+}
+
+console.log("\n30. Only a job's own owner files its quiz answer keys\n");
+{
+  // The nineteenth security review (20261025740000). Finding 1 (HIGH, probes
+  // k1_quiz_keys_cross_tenant and k2_quiz_grading_cross_tenant): the strip
+  // trigger filed answer keys under an insert's id before the row existed, so
+  // a rival's insert of another business's job id with ON CONFLICT (id) DO
+  // NOTHING planted its own keys and that job's applicants with the right
+  // answers scored 0. And its LOW: the owner and a teammate could write
+  // job_quiz_keys straight from the browser, past round 20's lock.
+  const R30 = (n) => `9d300000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const [B, RIVAL, MATE, P1, P2, P3] = [R30(1), R30(2), R30(3), R30(11), R30(12), R30(13)];
+  await makeUser(B, "employer", { full_name: "Keys owner", company_name: "Keys Clinic 30" });
+  await makeUser(RIVAL, "employer", { full_name: "Rival owner", company_name: "Rival Desk 30" });
+  await makeUser(MATE, "employer", { full_name: "Keys teammate" });
+  for (const u of [P1, P2, P3]) await makeUser(u, "candidate");
+  await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id in ($1, $2)`, [B, RIVAL]);
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_create_jobs, can_manage_pipeline, assigned_job_ids) values ($1, $2, $3, 'active', true, true, '{}'::uuid[])`, [MATE, B, emailOf(MATE)]);
+  const QUIZ = [
+    { id: "qa", question: "A customer is angry. First?", options: ["Argue", "Acknowledge"], correct_answer: "Acknowledge" },
+    { id: "qb", question: "Refund policy?", options: ["Promise anything", "Check the policy"], correct_answer: "Check the policy" },
+  ];
+  const STEP = { id: "s7", type: "quiz", title: "Short quiz", config: { questions: [{ id: "k1", question: "Hold or transfer?", options: ["Hang up", "Hold"], correctAnswer: 1 }] } };
+  const made = await as(user(B), `insert into public.jobs (employer_id, title, description, status, quiz_questions, workflow_steps) values ($1, 'Chat agent', 'Answer patients by chat.', 'published', $2::jsonb, $3::jsonb) returning id`, [B, JSON.stringify(QUIZ), JSON.stringify([STEP])]);
+  if (!made.ok) throw new Error(`setup: the owner could not create a job: ${made.error}`);
+  const J = made.rows[0].id;
+  const keysOf = async (job) => (await db.query(`select step_id, question_id, key from public.job_quiz_keys where job_id = $1 order by step_id, question_id`, [job])).rows;
+  const RIGHT = [
+    { step_id: "__quiz_questions__", question_id: "qa", key: { correct_answer: "Acknowledge" } },
+    { step_id: "__quiz_questions__", question_id: "qb", key: { correct_answer: "Check the policy" } },
+    { step_id: "s7", question_id: "k1", key: { correctAnswer: 1 } },
+  ];
+  check("(a) the owner's own create files the keys (top-level quiz and a quiz step) and strips them from the row", show(await keysOf(J)) === show(RIGHT) &&
+    !/correct_?[aA]nswer/.test(JSON.stringify(await one(`select quiz_questions q, workflow_steps s from public.jobs where id = $1`, [J]))), show(await keysOf(J)));
+  const grade = async (who) => {
+    const app = await apply(who, J);
+    // The job's quiz step is the one graded (submit_quiz_attempt takes the first quiz step).
+    const r = await as(user(who), `select public.submit_quiz_attempt($1, 's7', '{"qa":1,"qb":1,"k1":1}') r`, [app]);
+    return r.ok ? r.rows[0].r : { error: r.error };
+  };
+  const before = await grade(P1);
+  check("…and an applicant with the right answers scores 100", Number(before?.score) === 100 && before?.passed === true, show(before));
+
+  // (b) Probe k2: the rival reads the job id and question ids as a visitor, then plants.
+  const seen = await as(ANON, `select id, quiz_questions from public.published_jobs_public where id = $1`, [J]);
+  const ids = seen.ok ? (seen.rows[0]?.quiz_questions ?? []).map((q) => q.id) : [];
+  const WRONG = JSON.stringify([{ id: "qa", correct_answer: "Argue" }, { id: "qb", correct_answer: "Promise anything" }]);
+  const WRONG_STEP = JSON.stringify([{ ...STEP, config: { questions: [{ id: "k1", correctAnswer: 0 }] } }]);
+  const refusedDup = (r) => !r.ok && /duplicate key value violates unique constraint "jobs_pkey"/.test(r.error ?? "");
+  const plants = [
+    ["ignore duplicates (on conflict do nothing), the top-level quiz", await as(user(RIVAL), `insert into public.jobs (id, employer_id, title, description, status, quiz_questions) values ($1, $2, 'x', 'x', 'draft', $3::jsonb) on conflict (id) do nothing returning id`, [J, RIVAL, WRONG])],
+    ["ignore duplicates, a quiz step", await as(user(RIVAL), `insert into public.jobs (id, employer_id, title, description, status, workflow_steps) values ($1, $2, 'x', 'x', 'draft', $3::jsonb) on conflict do nothing returning id`, [J, RIVAL, WRONG_STEP])],
+    ["merge duplicates (on conflict do update)", await as(user(RIVAL), `insert into public.jobs (id, employer_id, title, description, status, quiz_questions) values ($1, $2, 'x', 'x', 'draft', $3::jsonb) on conflict (id) do update set title = excluded.title returning id`, [J, RIVAL, WRONG])],
+    ["a plain insert of the same id", await as(user(RIVAL), `insert into public.jobs (id, employer_id, title, description, status, quiz_questions) values ($1, $2, 'x', 'x', 'draft', $3::jsonb) returning id`, [J, RIVAL, WRONG])],
+    ["the job's own owner re-inserting its id (no path does)", await as(user(B), `insert into public.jobs (id, employer_id, title, description, status, quiz_questions) values ($1, $2, 'x', 'x', 'draft', $3::jsonb) on conflict (id) do nothing returning id`, [J, B, WRONG])],
+  ];
+  check(
+    "(b) probe k2: with the job id and question ids a visitor reads, every insert of an existing job's id is refused as a duplicate, ignore-duplicates included",
+    show(ids) === show(["qa", "qb"]) && plants.every(([, r]) => refusedDup(r)),
+    show(plants.map(([label, r]) => `${label}: ${r.ok ? `taken ${r.rows.length}` : r.error}`)),
+  );
+  check("…the keys are the owner's, and the job is still its", show(await keysOf(J)) === show(RIGHT) && (await one(`select employer_id from public.jobs where id = $1`, [J])).employer_id === B, show(await keysOf(J)));
+  const after = await grade(P2);
+  check("…and the next applicant with the right answers still scores 100", Number(after?.score) === 100 && after?.passed === true, show(after));
+
+  // (c) The LOW: no browser writes job_quiz_keys, the job's own team included.
+  const writes = [
+    ["the owner inserts a key", await as(user(B), `insert into public.job_quiz_keys (job_id, step_id, question_id, key) values ($1, '__quiz_questions__', 'qz', '{"correct_answer":"x"}') returning job_id`, [J])],
+    ["the owner updates one", await as(user(B), `update public.job_quiz_keys set key = '{"correct_answer":"Argue"}' where job_id = $1 returning job_id`, [J])],
+    ["the owner deletes them", await as(user(B), `delete from public.job_quiz_keys where job_id = $1 returning job_id`, [J])],
+    ["the owner upserts (on conflict do update)", await as(user(B), `insert into public.job_quiz_keys (job_id, step_id, question_id, key) values ($1, '__quiz_questions__', 'qa', '{"correct_answer":"Argue"}') on conflict (job_id, step_id, question_id) do update set key = excluded.key returning job_id`, [J])],
+    ["a teammate who creates jobs updates one", await as(user(MATE), `update public.job_quiz_keys set key = '{"correct_answer":"Argue"}' where job_id = $1 returning job_id`, [J])],
+    ["the rival inserts one", await as(user(RIVAL), `insert into public.job_quiz_keys (job_id, step_id, question_id, key) values ($1, '__quiz_questions__', 'qa', '{"correct_answer":"Argue"}') returning job_id`, [J])],
+    ["a visitor deletes them", await as(ANON, `delete from public.job_quiz_keys where job_id = $1 returning job_id`, [J])],
+  ];
+  check(
+    "(c) a browser's insert, update, upsert or delete of job_quiz_keys is refused (the owner, a teammate who creates jobs, a rival, a visitor)",
+    writes.every(([, r]) => !r.ok && /permission denied/.test(r.error ?? "")),
+    show(writes.map(([label, r]) => `${label}: ${r.ok ? `taken ${r.rows.length}` : r.error}`)),
+  );
+  const reads = await Promise.all([B, MATE, RIVAL].map((u) => as(user(u), `select count(*)::int n from public.get_job_quiz_keys($1)`, [J])));
+  const direct = await Promise.all([B, MATE, RIVAL].map((u) => as(user(u), `select count(*)::int n from public.job_quiz_keys where job_id = $1`, [J])));
+  check(
+    "…the owner and the teammate still read the keys (get_job_quiz_keys and the table), the rival reads none",
+    reads[0].ok && reads[0].rows[0].n === 3 && reads[1].ok && reads[1].rows[0].n === 3 && (!reads[2].ok || reads[2].rows[0].n === 0) &&
+      direct.map((r) => r.ok && r.rows[0].n).join() === "3,3,0",
+    show([reads, direct]),
+  );
+
+  // (d) The owner's own edits still file keys: a new job before anyone applied, and the server's write after.
+  const fresh = await as(user(B), `insert into public.jobs (employer_id, title, description, status) values ($1, 'Phone agent', 'Answer the phone.', 'draft') returning id`, [B]);
+  const J2 = fresh.rows?.[0]?.id;
+  const edited = await as(user(B), `update public.jobs set quiz_questions = $2::jsonb where id = $1 returning id`, [J2, JSON.stringify(QUIZ)]);
+  const byMate = await as(user(MATE), `update public.jobs set quiz_questions = $2::jsonb where id = $1 returning id`, [J2, JSON.stringify([{ ...QUIZ[0], correct_answer: "Argue" }, QUIZ[1]])]);
+  check(
+    "(d) the owner's edit of a job nobody has applied to files its keys, and so does a teammate who creates jobs",
+    fresh.ok && edited.ok && byMate.ok && show((await keysOf(J2)).map((k) => k.key)) === show([{ correct_answer: "Argue" }, { correct_answer: "Check the policy" }]),
+    show([fresh.ok || fresh.error, edited.ok || edited.error, byMate.ok || byMate.error, await keysOf(J2)]),
+  );
+  const server = await as(SERVICE, `update public.jobs set workflow_steps = $2::jsonb where id = $1 returning id`, [J, JSON.stringify([{ ...STEP, config: { questions: [{ id: "k1", question: "Hold or transfer?", options: ["Hang up", "Hold"], correctAnswer: 1 }] } }])]);
+  const last = await grade(P3);
+  check("…the server's write still goes through the strip, and an applicant with the right answers scores 100", server.ok && show(await keysOf(J)) === show(RIGHT) && Number(last?.score) === 100, show([server.ok || server.error, last]));
+  const policies = await db.query(`select polname from pg_policy where polrelid = 'public.job_quiz_keys'::regclass order by 1`);
+  check("…job_quiz_keys keeps only its two read policies", show(policies.rows.map((r) => r.polname)) === show(["Job owner can read quiz keys", "Team members can read quiz keys"]), show(policies.rows));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

@@ -88,6 +88,7 @@ import { counterpartFor, type Counterpart } from "../_shared/counterpart.ts";
 import { scenarioPack } from "../_shared/scenarioPacks.ts";
 import { customerServiceStepOf } from "../_shared/interviewGuide.ts";
 import { isHomeBusiness } from "../_shared/homeBusiness.ts";
+import { APPLIED_COLUMNS, JOB_PUBLIC_PAGE_COLUMNS, jobAsApplied } from "../_shared/jobAsApplied.ts";
 import { MAX_PRACTICE_BODY_BYTES, candidateIdLoader, readJsonWithin, isRefusedStep, oversizedPracticeField, practiceTurnVerdict } from "../_shared/practiceTurnGuard.ts";
 
 const corsHeaders = {
@@ -241,7 +242,7 @@ async function loadInterviewRecord(
     const { data, error } = await admin
       .from("applications")
       .select(
-        "candidate_id, notes, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions, employer_id, workflow_steps)",
+        `candidate_id, notes, ${APPLIED_COLUMNS}, jobs(title, description, requirements, responsibilities, benefits, skills_required, location, job_type, experience_level, required_wpm, salary_min, salary_max, salary_currency, salary_period, quiz_questions, employer_id, workflow_steps, ${JOB_PUBLIC_PAGE_COLUMNS})`,
       )
       .eq("id", applicationId)
       .maybeSingle();
@@ -252,9 +253,12 @@ async function loadInterviewRecord(
     const row = data as { candidate_id?: unknown; notes?: unknown; jobs?: unknown };
     if (row.candidate_id !== userId) return null;
     const jobRow = Array.isArray(row.jobs) ? row.jobs[0] : row.jobs;
+    // The job's own words only while it is on its public page, else as they
+    // applied to it (_shared/jobAsApplied.ts; the nineteenth security review).
+    const shownJob = jobRow && typeof jobRow === "object" ? jobAsApplied(jobRow as Record<string, unknown>, data as Record<string, unknown>).job : jobRow;
     return {
       notes: parseNotesObject(row.notes),
-      job: interviewJobFrom(jobRow),
+      job: interviewJobFrom(shownJob),
       homeBusiness: await isHomeBusiness(admin, (jobRow as { employer_id?: unknown } | null)?.employer_id),
       // The job's business: its daily AI budget pays for the interview (_shared/aiBudget.ts).
       employerId: (() => {
@@ -747,8 +751,10 @@ serve(async (req) => {
       experienceLevel: typeof jobDetails?.experienceLevel === "string" ? jobDetails.experienceLevel : null,
       requiredWpm: typeof jobDetails?.requiredWpm === "number" && Number.isFinite(jobDetails.requiredWpm) ? jobDetails.requiredWpm : null,
     };
-    const interviewJobTitle = serverJob?.title ?? jobTitle;
-    const interviewJobDescription = serverJob?.description ?? jobDescription;
+    // With the server's row, never the request's words (a closed job's are
+    // left out on purpose: _shared/jobAsApplied.ts).
+    const interviewJobTitle = serverJob ? (serverJob.title ?? "this role") : jobTitle;
+    const interviewJobDescription = serverJob ? (serverJob.description ?? "") : jobDescription;
     // A team lead job (a lead of a chat/support team, by its title or
     // description: never by the "Lead / Principal" seniority level alone)
     // gets the lead plan and the lead marks.

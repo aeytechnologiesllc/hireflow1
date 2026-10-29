@@ -695,6 +695,17 @@ these either; each has a guard or a test that CI runs:
   `resolveDocumentRole`, and any other teammate is told so: the eleventh).
   The prompt fence's markers
   carry a word made when the function starts (`_shared/promptFence.ts`).
+- (The nineteenth security review, `20261025740000`.) Only a job's own owner
+  files its quiz answer keys: `extract_quiz_answer_keys` refuses an insert of
+  an id that is already a job before it files a key (a rival's
+  `on conflict (id) do nothing` with another business's job id had replaced
+  its keys, so applicants with the right answers scored 0; the live keys
+  were checked untouched), and no browser writes `job_quiz_keys`. The chat
+  interviewer, the chat practice and the voice interview read a job's own
+  words only while it is on its public page, else the application's
+  snapshot (`_shared/jobAsApplied.ts`). Guards `quiz-keys-only-for-own-job`,
+  `interviewers-read-job-as-applied`; launch_locks_behaviour section 30,
+  `scripts/applicant_job_words.test.mjs` section 3.
 - (Rounds 6–7.) Every function that reads or signs a stored file with the
   service key holds the path to `isPlainObjectPath` (applicant-file-url,
   requested-document-url, ai-analyze-portfolio, document-signing, the resume

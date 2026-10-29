@@ -8,6 +8,7 @@ import { computeSessionTimeLimitMinutes, HARD_CAP_MINUTES } from "../_shared/voi
 import { computerRequiredBody, deviceKindOfRequest, needsComputer, stepNeedsComputer } from "../_shared/deviceKind.ts";
 import { takeDailyAiBudget } from "../_shared/aiBudget.ts";
 import { withEvaluation } from "../_shared/applicationEvaluation.ts";
+import { JOB_PUBLIC_PAGE_COLUMNS, jobAsApplied } from "../_shared/jobAsApplied.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1350,7 +1351,7 @@ Keep greetings to ONE short sentence - don't ramble.`;
         .from("applications")
         .select(`
           *,
-          jobs (title, description, requirements, responsibilities, employer_id, location, job_type, salary_min, salary_max, salary_currency, benefits, skills_required)
+          jobs (title, description, requirements, responsibilities, employer_id, location, job_type, salary_min, salary_max, salary_currency, benefits, skills_required, ${JOB_PUBLIC_PAGE_COLUMNS})
         `)
         .eq("id", applicationId)
         .single();
@@ -1371,11 +1372,18 @@ Keep greetings to ONE short sentence - don't ramble.`;
         .eq("user_id", application.candidate_id)
         .single();
 
-      const { data: employerProfile } = await supabaseClient
+      const { data: liveEmployerProfile } = await supabaseClient
         .from("profiles")
         .select("company_name")
         .eq("user_id", application.jobs.employer_id)
         .single();
+      // The job's own words, and the business's name, only while the job is on
+      // its public page, else as they applied to it (_shared/jobAsApplied.ts;
+      // the nineteenth security review). Its steps stay: they are fixed once
+      // anyone has applied.
+      const asApplied = jobAsApplied(application.jobs ?? {}, application, liveEmployerProfile?.company_name ?? null);
+      application.jobs = asApplied.job;
+      const employerProfile = { company_name: asApplied.companyName };
 
       // Parse notes for ALL previous phase data
       const notes = typeof application.notes === 'string' ? JSON.parse(application.notes || '{}') : (application.notes || {});

@@ -665,12 +665,17 @@ So the broadcast is undone, and the class is closed the other way:
   review the voice interview's page and transcript and the applicant's
   Documents page do too (they read the job's title and the business's name
   today).
-- What is left, the same class. The interviews and practices an applicant
-  takes (ai-chat-interview, ava-voice-session) read the job's own
-  description, requirements, responsibilities, benefits and skills into the
-  interviewer's context, closed job or not; a closed job's words can reach
-  someone still waiting through what the interviewer says. Voice is
-  HireFlow's own account's only (never paused). The emails and cards of an
+- The interviews and practices (the nineteenth security review, finding
+  2). The chat interviewer, the chat practice and the voice interview read
+  the job's own words (its title, description, requirements,
+  responsibilities, benefits, skills, level and pay) only while the job is
+  on its public page (`jobOnItsPublicPage`, the Improvement Report's rule);
+  once it is not, they read the job's title, location and type and the
+  business's name as the person applied (`_shared/jobAsApplied.ts`), and
+  none of its other words. Until then a closed job's description reached
+  someone still waiting under "Use this to answer candidate questions".
+  Its steps and quiz stay: they are fixed once anyone has applied.
+- What is left, the same class. The emails and cards of an
   interview (`interview_confirmed`, `interview_reminder`, the interview
   bell) name the job's title today; each follows an interview, which is
   contact. Any applicant can read every column of a job they applied to
