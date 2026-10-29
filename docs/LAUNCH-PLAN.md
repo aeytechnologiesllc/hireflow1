@@ -57,6 +57,18 @@ Pass C finds nothing new.
      only the diff and this phase's checklist) and act on what it finds.
   If anything turns up, fix it, then run Pass C again from step 1. The phase
   closes on a Pass C that finds nothing.
+- **The stop rule (the owner, 2026-10-29).** Replaces "closes on a Pass C
+  that finds nothing" for every loop still open on that day (security,
+  Phase 5's reports and legal, Phase 4's job builder guesses, Phase 6's age
+  filter). The rule above could not end for the two word-rule loops: a fresh
+  reviewer always finds one more wording, and from Phase 4's round 34 and
+  Phase 6's round 14 nearly every finding was the previous round's own new
+  rule (46 and 26 rounds). So each open loop gets **one final review**. It
+  closes if that review finds no HIGH and no regression of MEDIUM or worse.
+  Anything it finds is fixed once (a reviewer's validated patch, taken as it
+  is, or a narrowing or revert of the last round) or written down as a known
+  limit with its reason; a fix does not start another round, except that a
+  security finding of MEDIUM or worse is always fixed and its fix checked.
 - **Pass D — Lock down.** Make the fix unable to silently regress:
   - a guard under `scripts/guards/<name>.mjs` (one file per shipped fix; it
     must fail on the old code and pass on the fix — `scripts/guards/README.md`);
@@ -944,6 +956,57 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
+
+### 2026-10-29 — the stop rule; security round 19's HIGH fixed; the final reviews
+
+A new session (Opus 5.5) picked the loop up after the 2026-10-27 session
+ran out of credits at about 07:10 EDT. Of what was in flight then, nothing
+had been saved: the security round 19 fixer had not started changing files
+(no worktree or branch holds its work), and the Phase 4 round 47, Phase 5
+round 21 and Phase 6 round 27 reviews had written no report (their folders
+`r50/`, `p5r21/`, `p6r27/` hold partial probes only). The newer clone is
+`/Users/zack/HireFlow`; `/Users/zack/HireFlow 1` stopped on 2026-10-11.
+
+**Why it was taking so long** (the owner asked). The Rules closed a phase
+only on a review that found nothing. For the two loops over free text (Phase
+4's job-type guesses, 46 rounds; Phase 6's age filter, 26 rounds) a fresh
+reviewer always finds one more wording, and from Phase 4's round 34 and
+Phase 6's round 14 nearly every finding was the round before's own new rule.
+Each round also cost several agents, each copying the repo and sweeping
+hundreds of thousands of rows (`review-materials/` is 20 GB; 58 old agent
+worktrees are 14 GB more). The owner chose **the stop rule** (Rules, "The
+loop"): one final review per open loop, closing on no HIGH and no regression
+of MEDIUM or worse.
+
+- **Security round 19, fixed** (`sec19_report.md`). HIGH: any business
+  account could replace another business's quiz answer keys with an insert
+  of that job's id and `on conflict (id) do nothing`, so its applicants with
+  the right answers scored 0. Checked live first: the one live quiz's five
+  keys were written together on 2026-10-06 and never since, so nothing was
+  planted. Fixed by migration `20261025740000_quiz_keys_only_for_own_job.sql`
+  (the strip trigger refuses an id that is already a job before it files a
+  key; `job_quiz_keys` loses its browser write policies and grants: its LOW).
+  MEDIUM: the chat interviewer read a closed job's live description as what
+  to answer candidates from; now the chat interviewer, the chat practice and
+  the voice interview read a job's own words only while it is on its public
+  page, else the application's snapshot (`_shared/jobAsApplied.ts`). Guards
+  `quiz-keys-only-for-own-job`, `interviewers-read-job-as-applied`;
+  launch_locks_behaviour section 30 (7 of its checks fail without the
+  migration, and the attack scores 0 there), `applicant_job_words` section 3.
+- **The final reviews** (the stop rule): Phase 4 (`p4final_brief` is
+  `p4r47_brief.md` with the stop rule; report `p4final_report.md`), Phase 6
+  (`p6r27_brief.md`, report `p6final_report.md`), Phase 5 (`p5r21_brief.md`,
+  report `p5final_report.md`) and security (`sec20_brief.md`, report
+  `sec20_report.md`).
+- **Phase 7 leftovers.** CSP: since 2026-10-25 the report-only policy logged
+  one kind of report, `script-src wasm-eval` twice on /candidate/auth in
+  Chrome (2026-10-27); the app uses no WebAssembly, so it is a visitor's
+  extension, nothing to allow. But the site had 5–50 page views a day since,
+  and almost no applicant flow ran under the policy, so it stays report-only
+  until the owner's live run (task 5) has gone through under it. npm audit:
+  26 moderate, all under Tiptap 2 and React Router 6, whose fixes are the
+  majors left on purpose in 34ce7302; React Router's backslash open redirect
+  does not reach the app (`inAppPath` refuses "/\").
 
 ### 2026-10-26 (morning) — the owner said "keep looping"; product down to one-line fixes
 
