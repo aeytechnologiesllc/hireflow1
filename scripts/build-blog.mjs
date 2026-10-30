@@ -279,8 +279,9 @@ export function ctaHref(campaign, medium = "article") {
   return `${SIGNUP}&utm_source=blog&utm_medium=${encodeURIComponent(medium)}&utm_campaign=${encodeURIComponent(campaign)}`;
 }
 
+// The logo's own mark: the jade rising line on the deep green tile (scripts/make-app-icons.mjs).
 const MARK =
-  '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#14120E"/><rect x="0.5" y="0.5" width="63" height="63" rx="13.5" fill="none" stroke="rgba(224,185,106,0.28)"/><path d="M13 46 L25 19 L37 39 L51 17" fill="none" stroke="#E0B96A" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0C2A21"/><rect x="0.5" y="0.5" width="63" height="63" rx="13.5" fill="none" stroke="rgba(63,206,151,0.28)"/><path d="M13 46 L25 19 L37 39 L51 17" fill="none" stroke="#3FCE97" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 /* The front page's two worlds (public/landing.html): the night for the bar
    and the title, the morning's ivory paper for the reading, one brass accent. */
@@ -371,15 +372,15 @@ function head({ title, description, canonical, type, extraMeta = "", graph, camp
 <meta property="og:image" content="${SHARE_IMAGE}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="HireFlow: hire customer service agents while you sleep">
+<meta property="og:image:alt" content="HireFlow: hundreds apply, three land on your desk">
 ${extraMeta}<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="${escapeHtml(title)}">
 <meta name="twitter:description" content="${escapeHtml(description)}">
 <meta name="twitter:image" content="${SHARE_IMAGE}">
 <link rel="alternate" type="application/rss+xml" title="HireFlow guides" href="${SITE}/blog/feed.xml">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=7">
-<link rel="alternate icon" href="/favicon.ico?v=7" sizes="any">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=7">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=8">
+<link rel="alternate icon" href="/favicon.ico?v=8" sizes="any">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=8">
 <script type="application/ld+json">${jsonLd({ "@context": "https://schema.org", "@graph": graph })}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -420,7 +421,7 @@ function card(post) {
 
 function endBlock(campaign, medium = "article") {
   return `<aside class="end" aria-label="Post a job">
-  <div><h2>Hiring a customer service agent?</h2><p>Post the role and share its link tonight. By morning your applicants have handled a realistic customer conversation, been scored and ranked.</p></div>
+  <div><h2>Hiring a customer service agent?</h2><p>Post the role and share its link. Every applicant handles a realistic customer conversation, and Ava scores and ranks them, with her reasons.</p></div>
   <span class="go"><a class="btn" href="${ctaHref(campaign, medium)}">Post your first job free</a><small>First job free. No card.</small></span>
 </aside>`;
 }

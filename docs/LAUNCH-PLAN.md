@@ -957,6 +957,25 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-30 (latest) — The Desk front page and the green logo
+
+The owner turned down the night-shift canvas hero ("looks too AI generated"; never a light on the
+mouse pointer), then three typographic heroes, an ink page with an ivory app window ("too high
+contrast ... like a square screen") and a deep-green page. A judged round of five directions picked
+**The Desk**: application letters land on a sage desk and Ava's green wax seal stamps three
+("Hundreds apply. Three land on your desk."; no night or morning: "this is just not about morning or
+night"). Below the hero, static cards were turned down too; the story now keeps playing as you scroll
+(one pinned desk, four chapters: Post the job, Share the link, Ava reads every reply, Three worth a
+call; an ending envelope whose postage is the sign-up stamp). A polish round added the seal press,
+stamp impacts, damped scroll and phone fixes. Built into `public/landing.html` with every job of the
+old page kept (beacon then carry-source, the sign-up ids, the signed-in Applications swap, the head,
+structured data, About, the pinned "one button" bar); `landing_page.test.mjs` guards the new page.
+The logo is green again (jade line `#3FCE97` on the deep green tile `#0C2A21`) in the app, icons,
+share pictures and guides; `app_icons.test.mjs` checks the icon pixels. Docs: docs/LANDING.md,
+BRANDING.md. In-between sizes (tablets, short laptops, phones turned sideways) got their own
+layouts without moving the approved ones (docs/LANDING.md, "Sizes"). The owner looked at the built page
+and said "Yes, push it".
+
 ### 2026-10-30 (later) — the new green, locked
 
 A day after Warm gold went live (996f0f7a) the owner found it "starting to look more like a black and

@@ -4,10 +4,14 @@
  *   - applicant-rail-is-four-milestones: "where they are" on the applicants
  *     list and the first-hire guide is Applied → Tested → Interview → Hired
  *     (the owner chose Option C), never one dot per step again.
- *   - one-logo-mark: the brass rising line on the ink tile, in the icons, the
- *     app's wordmark and the front page.
- *   - landing-single-cta-pinned: one button, "Post your first job free", in a
- *     bar pinned for the whole page, the opening and the end.
+ *   - one-logo-mark: the jade rising line on the deep green tile (green again
+ *     since 2026-10-30; brass on ink from 2026-10-25), in the icons, the app's
+ *     wordmark, the loader, the start screen, the share pictures, the blog and
+ *     the front page, with every icon link on the current ?v=.
+ *   - landing-single-cta-pinned: one button to the sign-up tab, everywhere:
+ *     "Post a job", a small stamp in the bar pinned for the whole page, and
+ *     the big stamp "Post your first job, free" in the hero and again at the
+ *     end (The Desk, 2026-10-30; docs/LANDING.md).
  *   - share-image-neutral-for-other-businesses: a job or careers link from any
  *     business shows the plain picture, never "remote"/"work from home".
  *   - no-jade-tokens-left: colour tokens are named for what they mean; the old
@@ -20,8 +24,12 @@
  *     rename left the rail asking for --gem-teal, which no longer existed).
  */
 
-const MARK_TILE = "#14120E";
-const MARK_LINE = "#E0B96A";
+const MARK_TILE = "#0C2A21";
+const MARK_LINE = "#3FCE97";
+/** The brass-on-ink mark of 2026-10-25 to 2026-10-30, which must not come back as the logo. */
+const OLD_MARK = /fill="#14120E"|stroke="#E0B96A"|MARK_(?:TILE|LINE) = "#(?:14120E|E0B96A)"/i;
+/** The icon links' cache-buster: bump it here and everywhere when the icon changes. */
+const ICON_VERSION = "8";
 
 /** [r, g, b] 0-255 from #rgb / #rrggbb, rgb()/rgba(), or a bare "H S% L%". */
 function rgbOf(value) {
@@ -57,21 +65,55 @@ export default [
   {
     id: "one-logo-mark",
     why:
-      "One logo everywhere (docs/LAUNCH-PLAN.md, Phase 3, task 1): the brass rising line on the ink tile. " +
-      "scripts/make-app-icons.mjs draws every icon from it, Wordmark.tsx draws it in the app, and the front " +
-      "page's bar carries the same drawing (the old ivory 'H' tile is gone).",
+      "One logo everywhere (docs/LAUNCH-PLAN.md, Phase 3, task 1): the jade rising line (#3FCE97) on the deep " +
+      "green tile (#0C2A21), green again since 2026-10-30 (the owner: \"I thought we'd keep it in the green\"; " +
+      "it was brass on ink from 2026-10-25). scripts/make-app-icons.mjs draws every icon from it, Wordmark.tsx " +
+      "and BrandLoader.tsx draw it in the app, index.html's start screen, the share pictures and the blog carry " +
+      "the same drawing, and so does the front page's bar (the old ivory 'H' tile is gone). Every icon link " +
+      "carries the current ?v= so no browser keeps the old icon.",
     run: async ({ read }) => {
       const detail = [];
       const icons = (await read("scripts/make-app-icons.mjs")) ?? "";
-      if (!icons.includes(`const TILE = "${MARK_TILE}", LINE = "${MARK_LINE}";`)) detail.push("scripts/make-app-icons.mjs: the icon is not the brass line on the ink tile");
+      if (!icons.includes(`const TILE = "${MARK_TILE}", LINE = "${MARK_LINE}";`)) detail.push("scripts/make-app-icons.mjs: the icon is not the jade line on the deep green tile");
       const svg = (await read("public/favicon.svg")) ?? "";
       if (!svg.includes(`fill="${MARK_TILE}"`) || !svg.includes(`stroke="${MARK_LINE}"`)) detail.push("public/favicon.svg: not regenerated from the mark (run node scripts/make-app-icons.mjs)");
       const word = (await read("src/cockpit/components/Wordmark.tsx")) ?? "";
       if (!word.includes(`const MARK_TILE = "${MARK_TILE}";`) || !word.includes(`const MARK_LINE = "${MARK_LINE}";`)) detail.push("Wordmark.tsx: the in-app mark is not the icon's colours");
+      const loader = (await read("src/components/BrandLoader.tsx")) ?? "";
+      if (!loader.includes(`background: ${MARK_TILE};`) || !loader.includes(`stroke="${MARK_LINE}"`)) detail.push("BrandLoader.tsx: the loading mark is not the icon's colours");
+      const shell = (await read("index.html")) ?? "";
+      const boot = /<div id="hf-boot"[\s\S]*?<\/svg>/.exec(shell)?.[0] ?? "";
+      if (!boot.includes(`fill="${MARK_TILE}"`) || !boot.includes(`stroke="${MARK_LINE}"`)) detail.push("index.html: the start screen (#hf-boot) does not draw the mark");
+      for (const file of ["scripts/make-share-images.mjs", "scripts/build-blog.mjs"]) {
+        const text = (await read(file)) ?? "";
+        if (!text.includes(`fill="${MARK_TILE}"`) || !text.includes(`stroke="${MARK_LINE}"`)) detail.push(`${file}: its MARK is not the icon's colours`);
+      }
       const landing = (await read("public/landing.html")) ?? "";
       if (/<b>H<\/b>HireFlow/.test(landing) || !landing.includes(`stroke="${MARK_LINE}"`)) detail.push("public/landing.html: the bar does not carry the mark");
-      for (const file of ["index.html", "public/landing.html", "public/site.webmanifest"]) {
-        if (/\?v=6\b/.test((await read(file)) ?? "")) detail.push(`${file}: icon links still ?v=6 (bump when the icon changes)`);
+      for (const file of [
+        "index.html",
+        "src/cockpit/components/Wordmark.tsx",
+        "src/components/BrandLoader.tsx",
+        "scripts/make-app-icons.mjs",
+        "scripts/make-share-images.mjs",
+        "scripts/build-blog.mjs",
+        "public/favicon.svg",
+      ]) {
+        const text = (await read(file)) ?? "";
+        if (OLD_MARK.test(text)) detail.push(`${file}: the brass-on-ink mark (#E0B96A on #14120E) is back; the logo is the jade line on the deep green tile`);
+      }
+      const iconLink = /\/(?:favicon(?:-16|-32)?\.(?:svg|ico|png)|icon-(?:192|512)\.png|maskable-512\.png|apple-touch-icon\.png|app-icon\.png|site\.webmanifest)\?v=(\d+)/g;
+      for (const file of [
+        "index.html",
+        "public/landing.html",
+        "public/site.webmanifest",
+        "scripts/build-blog.mjs",
+        "public/hireflow-sw.js",
+        "src/cockpit/push/PushPrompt.tsx",
+      ]) {
+        const text = (await read(file)) ?? "";
+        const stale = [...new Set([...text.matchAll(iconLink)].filter((m) => m[1] !== ICON_VERSION).map((m) => m[0]))];
+        if (stale.length) detail.push(`${file}: icon links not on ?v=${ICON_VERSION} (bump when the icon changes): ${stale.join(", ")}`);
       }
       return detail.length ? { ok: false, detail } : { ok: true };
     },
@@ -79,15 +121,18 @@ export default [
   {
     id: "landing-single-cta-pinned",
     why:
-      "The front page has one button, 'Post your first job free' (to the sign-up tab), in a bar pinned for the " +
-      "whole page, as the opening's main button and again at the end (docs/LAUNCH-PLAN.md, Phase 3, task 3).",
+      "The front page has one button, to the sign-up tab, everywhere: 'Post a job', a small stamp in the bar " +
+      "pinned for the whole page (id startFree), and the big stamp 'Post your first job, free' as the hero's " +
+      "main button (heroStart) and again at the end, as your envelope's postage (endStart, the page's own link " +
+      "moved there, never a copy, so it keeps the visitor's tags) (docs/LAUNCH-PLAN.md, Phase 3, task 3; " +
+      "docs/LANDING.md, The Desk, 2026-10-30).",
     run: async ({ read }) => {
       const detail = [];
       const page = (await read("public/landing.html")) ?? "";
       if (!/\.bar \{ position: fixed;/.test(page)) detail.push("the bar is not pinned (position: fixed)");
       const ctas = page.match(/href="https:\/\/staff\.hireflownow\.com\/auth\?mode=signup" id="(startFree|heroStart|endStart)"/g) ?? [];
       if (ctas.length !== 3) detail.push(`expected the one button in the bar, the opening and the end; found ${ctas.length}`);
-      if (/Watch it again|Start hiring free/.test(page)) detail.push("an old second call to action is back");
+      if (/Watch it again|Watch one night|Start hiring free/.test(page)) detail.push("an old second call to action is back");
       if (/sweepstake|casino|payout/i.test(page)) detail.push("sweepstakes/casino/payout wording is back on the front page");
       return detail.length ? { ok: false, detail } : { ok: true };
     },

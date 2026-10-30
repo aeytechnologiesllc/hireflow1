@@ -1,17 +1,29 @@
 # HireFlow — App Icon & Brand Mark
 
-## Current app icon — "A: the logo's own mark" (chosen 2026-10-11), in ink and brass since 2026-10-25
+## Current app icon — "A: the logo's own mark" (chosen 2026-10-11), green again since 2026-10-30
 
-**2026-10-25:** the colour the owner locked on 2026-10-24 (ink and ivory,
-brass accent; docs/LAUNCH-PLAN.md, Phase 3) recoloured the mark: the same
-rising line, **brass `#E0B96A` on an ink tile `#14120E`**. One logo
-everywhere: the app's `Wordmark.tsx`, every icon size, the front page's bar
-and both share pictures (`scripts/make-share-images.mjs`). Icon links are
-`?v=7`. The history below is kept as it was.
+**2026-10-30: the mark is green again.** The owner: "I thought we'd keep it
+in the green." The rising line is the **bright jade `#3FCE97` on the deep
+green tile `#0C2A21`**, the mark of 2026-10-11 (every icon file came out
+byte for byte as it was before 2026-10-25). One logo everywhere: the app's
+`Wordmark.tsx` (with a faint jade hairline so the tile holds on the Night
+ground), the loader (`BrandLoader.tsx`), the start screen in `index.html`,
+every icon size, the front page's bar, both share pictures
+(`scripts/make-share-images.mjs`) and the blog (`scripts/build-blog.mjs`).
+`theme-color`, the Windows tile colour and the manifest's colours are the
+tile's `#0C2A21`. Icon links are `?v=8`. The same day the owner locked the new
+green for the app itself (jade on ivory, with the thin journey line and a
+jade "good"), after a day of Warm gold. Brass stays the accent (Ava's seal,
+the score, anything that costs money); it is no longer the logo. Guard
+`one-logo-mark` (scripts/guards/phase-3-launch-locks.mjs) holds the mark's
+colours in every one of those places and every icon link on the current
+`?v=`. It is the rising line, never the retired orb: "DO NOT REVIVE" below
+still stands.
 
-**2026-10-30:** the owner locked the new green for the app (jade on ivory, with
-the thin journey line and a jade "good"), after a day of Warm gold; the mark
-itself is unchanged.
+**2026-10-25 to 2026-10-30 (retired):** the colour the owner locked on
+2026-10-24 (ink and ivory, brass accent; docs/LAUNCH-PLAN.md, Phase 3) had
+recoloured the mark: the same rising line, brass `#E0B96A` on an ink tile
+`#14120E`, icon links `?v=7`. The history below is kept as it was.
 
 The owner, 2026-10-10: "I'm not really loving this HireFlow app icon ... Logo
 is fine. The app icon and the favicon, we need to [change]." Of four options
@@ -30,9 +42,12 @@ the phone now match.
   (1024), `apple-touch-icon.png`, `app-icon.png`, `src/assets/app-icon-new.png`.
 - **Maskable** (Android): `maskable-512.png`, the line at 72% so it stays in
   the safe circle.
-- Icon links use `?v=6` (`index.html`, `public/landing.html`,
-  `public/site.webmanifest`); bump them whenever the icon changes. The
-  manifest's install name is "HireFlow" (it was "Zulu Support Team").
+- Icon links use `?v=8` (`index.html`, `public/landing.html`,
+  `public/site.webmanifest`, the blog's head in `scripts/build-blog.mjs`, the
+  push notification's icon and badge in `public/hireflow-sw.js` and the sample
+  in `PushPrompt.tsx`); bump them all whenever the icon changes (and
+  `ICON_VERSION` in the `one-logo-mark` guard). The manifest's install name is
+  "HireFlow" (it was "Zulu Support Team").
 
 The previous icon, "Direction 4" (an ivory tile with the jade Ava orb, chosen
 for home-screen prominence), is retired with it: it did not match the logo and

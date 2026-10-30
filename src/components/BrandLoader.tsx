@@ -1,10 +1,12 @@
 /**
  * BrandLoader — the one loading moment, everywhere.
  *
- * The rising line draws itself inside the ink tile, glints, and draws again:
- * applications come in flat, Ava lifts the ones worth your time — the logo
- * telling its own story while you wait. Fully token-driven, so it is ivory by
- * Day and ink by Night, and correct on candidate surfaces too.
+ * The jade rising line draws itself inside the deep green tile, glints, and
+ * draws again: applications come in flat, Ava lifts the ones worth your time —
+ * the logo telling its own story while you wait. The mark keeps the icon's own
+ * colours (Wordmark.tsx, scripts/make-app-icons.mjs) in both themes; the
+ * ground and the words follow the theme's tokens, so it is ivory by Day and
+ * warm ink by Night, and correct on candidate surfaces too.
  *
  * Replaces two loaders that predated the design: a WebGL orb on hardcoded
  * the old dark tile at sign-in, and a lone seal breathing on the route
@@ -28,8 +30,8 @@ export function BrandLoader({
       <style>{`
         .hf-loader .tile {
           width: 64px; height: 64px; border-radius: 14px;
-          background: var(--slab, #1B1813);
-          box-shadow: var(--shadow-md, 0 10px 22px -14px rgba(23,21,15,.34));
+          background: #0C2A21;
+          box-shadow: var(--shadow-md, 0 10px 22px -14px rgba(23,21,15,.34)), inset 0 0 0 1px rgba(63, 206, 151, 0.22);
           display: flex; align-items: center; justify-content: center;
         }
         .hf-loader .rise {
@@ -60,7 +62,7 @@ export function BrandLoader({
               className="rise"
               d="M4 18 L9 7 L14 15 L20 6"
               pathLength={1}
-              stroke="#E0B96A"
+              stroke="#3FCE97"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"

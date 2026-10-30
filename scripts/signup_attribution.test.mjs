@@ -109,12 +109,12 @@ function runCarryPage({ path: pagePath = "/", search = "", referrer = "", beacon
   return Object.fromEntries(anchors.map((a) => [a.raw, a.href]));
 }
 // The front page's own links, as public/landing.html has them.
-const FRONT_LINKS = ["/blog", "/open-jobs", "https://staff.hireflownow.com/auth", "https://staff.hireflownow.com/auth?mode=signup", "/privacy", "#night"];
+const FRONT_LINKS = ["/blog", "/open-jobs", "https://staff.hireflownow.com/auth", "https://staff.hireflownow.com/auth?mode=signup", "/privacy", "#about", "#hero"];
 {
   const counted = runCarryPage({ search: "?utm_source=youtube&utm_medium=video", referrer: "", beacon: { counted: true }, hrefs: FRONT_LINKS });
   check("the front page puts seen=1 on its links onward (Guides, Open jobs) when beacon.js counted its view", counted["/blog"] === "https://hireflownow.com/blog?utm_source=youtube&utm_medium=video&seen=1" && counted["/open-jobs"] === "https://hireflownow.com/open-jobs?utm_source=youtube&utm_medium=video&seen=1", JSON.stringify(counted));
   check("…never on a sign-up or sign-in link: those get the three tags and ref only", counted["https://staff.hireflownow.com/auth?mode=signup"] === "https://staff.hireflownow.com/auth?mode=signup&utm_source=youtube&utm_medium=video" && !counted["https://staff.hireflownow.com/auth"].includes("seen") && JSON.stringify(src.signupSourceFrom(counted["https://staff.hireflownow.com/auth?mode=signup"])) === JSON.stringify({ utm_source: "youtube", utm_medium: "video" }), JSON.stringify(counted));
-  check("…nor on Privacy, Terms or the page's own anchors", counted["/privacy"] === "https://hireflownow.com/privacy" && counted["#night"] === "https://hireflownow.com/#night");
+  check("…nor on Privacy, Terms or the page's own anchors", counted["/privacy"] === "https://hireflownow.com/privacy" && counted["#about"] === "https://hireflownow.com/#about" && counted["#hero"] === "https://hireflownow.com/#hero");
   const direct = runCarryPage({ referrer: "", beacon: { counted: true }, hrefs: FRONT_LINKS });
   check("…a direct visitor, with nothing else to carry, gets it too (typed hireflownow.com → Open jobs → Post a job free counted twice)", direct["/open-jobs"] === "https://hireflownow.com/open-jobs?seen=1" && direct["https://staff.hireflownow.com/auth?mode=signup"] === "https://staff.hireflownow.com/auth?mode=signup", JSON.stringify(direct));
   const moved = runCarryPage({ search: "?ref=www.quora.com", referrer: "https://hireflownow.com/blog/a-guide", beacon: { counted: false }, hrefs: FRONT_LINKS });

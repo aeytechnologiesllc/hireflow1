@@ -7,17 +7,19 @@ interface WordmarkProps {
 }
 
 /** The mark's own colours: the app icon's (scripts/make-app-icons.mjs), in both themes. */
-const MARK_TILE = "#14120E";
-const MARK_LINE = "#E0B96A";
+const MARK_TILE = "#0C2A21";
+const MARK_LINE = "#3FCE97";
 
 /**
- * HireFlow — a brass rising line on an ink tile, then the name (one logo
- * everywhere since 2026-10-25: the app icon, the favicon, the front page, the
- * share picture; docs/LAUNCH-PLAN.md, Phase 3, task 1).
+ * HireFlow — a jade rising line on a deep green tile, then the name. One logo
+ * everywhere (the app icon, the favicon, the front page, the share pictures,
+ * the blog; docs/LAUNCH-PLAN.md, Phase 3, task 1); green again since
+ * 2026-10-30 (the owner: "I thought we'd keep it in the green"), after five
+ * days as a brass line on an ink tile.
  *
  * The line is the product: applications come in flat and Ava lifts the ones
  * worth your time. Drawn in code so it stays crisp at any size. The tile keeps
- * the icon's colours in both themes; at night a hairline keeps it from
+ * the icon's colours in both themes; at night a jade hairline keeps it from
  * melting into the dark ground.
  */
 export function Wordmark({ size = 26, markOnly = false, className }: WordmarkProps) {
@@ -31,7 +33,7 @@ export function Wordmark({ size = 26, markOnly = false, className }: WordmarkPro
           height: size,
           borderRadius: "var(--r-ctl, 8px)",
           background: MARK_TILE,
-          boxShadow: "var(--shadow-sm), inset 0 0 0 1px rgba(224, 185, 106, 0.22)",
+          boxShadow: "var(--shadow-sm), inset 0 0 0 1px rgba(63, 206, 151, 0.22)",
         }}
       >
         <svg

@@ -126,7 +126,7 @@ export function PushPrompt() {
       </p>
       {!needsHomeScreen && (
         <div className="ck-push__sample" aria-hidden>
-          <img src="/icon-192.png?v=6" alt="" width={28} height={28} />
+          <img src="/icon-192.png?v=8" alt="" width={28} height={28} />
           <div className="min-w-0">
             <b>New applicant</b>
             <span>Alex just finished the typing test.</span>

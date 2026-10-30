@@ -58,7 +58,7 @@
 
 ## Branding / App Icon
 
-The app icon is **the logo's own mark**: the brass rising line `#E0B96A` on the ink tile `#14120E`, the same mark as `Wordmark.tsx` and the front page's bar (recoloured 2026-10-25 when the owner locked the colours; it was the jade line on a dark jade tile, chosen 2026-10-11).
+The app icon is **the logo's own mark**: the bright jade rising line `#3FCE97` on the deep green tile `#0C2A21`, the same mark as `Wordmark.tsx`, `BrandLoader.tsx`, the start screen in `index.html`, the front page's bar, both share pictures and the blog. **Green again since 2026-10-30** (the owner: "I thought we'd keep it in the green"); it was the brass line `#E0B96A` on the ink tile `#14120E` from 2026-10-25 to 2026-10-30, and this same green mark from 2026-10-11. Icon links are `?v=8`; guard `one-logo-mark` holds the mark everywhere and every icon link on the current `?v=`. Brass is the accent, not the logo.
 
 **The colours are locked (owner, 2026-10-30): the new green.** Jade on ivory and cream by Day, jade on warm ink at Night, with a brass accent: the original green of before 2026-10-25, with that day's fixes kept: "good" has its own token (`--good`, the same jade; `--success` too) for a 70+ score, a passed test and a finished step; a test under its bar is copper (`--under`); the journey is the thin "Checked" line on the profile, the list and the dashboard (docs/APPLICANT-PROFILE.md, "The thin line"). The owner: "it looks a lot more polished and better for the inside ... lock this one up." (Between 2026-10-25 and 2026-10-30 the app was ink and ivory, then Warm gold for a day; the owner found both too black and white.) The front page is its own design (docs/LAUNCH-PLAN.md). The app follows the device (Day: jade on ivory; Night: jade on warm ink). The action colour is `--action` (the jade; tokens are named for what they mean, so the palette changes in one place); brass is Ava's seal and anything that costs money, never a plain button. Guards `no-jade-tokens-left` (no colour-named token comes back) and `brass-only-for-ava-score-money` (the action colour and good are the jade; brass is never a button) hold it. Every size is made by `node scripts/make-app-icons.mjs`; docs in [`BRANDING.md`](BRANDING.md). **Do NOT revive the old dark-tile orb icon** (removed 2026-06-30) — see the "DO NOT REVIVE" section in BRANDING.md. Direction 5 (brass flow) is kept as a backup at `branding/backup-icon-flow.png`.
 
@@ -84,8 +84,8 @@ asks no kind of job, offers Chat / Email / Chat and email, and has no "Talk
 to Ava" (docs/CUSTOMER-SERVICE-HIRING.md, "Chat and message agents only";
 guard `job-builder-chat-agents-only`). Phone comes back with the phone
 practice call (docs/LAUNCH-PLAN.md, "Later"). Not a sweepstakes pitch, and
-not main-street roles like barista or cashier. The owner doesn't want the
-green look; blue doesn't feel right to them either.
+not main-street roles like barista or cashier. Blue doesn't feel right to the owner. The app is the new green since
+2026-10-30, and the front page is The Desk (docs/LANDING.md).
 
 ## Distribution & billing state (updated 2026-09-16, first set 2026-09-04)
 

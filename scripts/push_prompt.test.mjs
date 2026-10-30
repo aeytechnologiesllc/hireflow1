@@ -111,7 +111,7 @@ const eventWith = (extra) => {
   await wait(push);
   const n = w.shown[0];
   check("a push shows one notification with title and body", w.shown.length === 1 && n.title === "New applicant" && n.options.body === "Maria applied");
-  check("with the HireFlow icon and badge", n.options.icon === "/icon-192.png?v=6" && n.options.badge === "/favicon-32.png?v=6");
+  check("with the HireFlow icon and badge", n.options.icon === "/icon-192.png?v=8" && n.options.badge === "/favicon-32.png?v=8");
   check("the tag is the notification's id, the link is kept for the tap", n.options.tag === "n-1" && n.options.data.url === "/applicants/abc?tab=1");
 
   const bare = eventWith({ data: null });

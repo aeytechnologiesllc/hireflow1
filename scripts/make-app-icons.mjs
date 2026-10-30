@@ -4,10 +4,13 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { writeFileSync } from "node:fs";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-// Icon A (chosen 2026-10-11): the logo's own mark, the rising line. Since
-// 2026-10-25 in ink and brass (the colour the owner locked on 2026-10-24: ink
-// and ivory, brass accent; docs/LAUNCH-PLAN.md, Phase 3, task 1).
-const TILE = "#14120E", LINE = "#E0B96A";
+// Icon A (chosen 2026-10-11): the logo's own mark, the rising line: the bright
+// jade line on the deep green tile. Green again since 2026-10-30 (the owner: "I
+// thought we'd keep it in the green"), after five days in ink and brass
+// (2026-10-25 to 2026-10-30; docs/LAUNCH-PLAN.md, Phase 3, task 1). Icon links
+// are ?v=8 (index.html, public/landing.html, public/site.webmanifest, the blog,
+// the push notifications); bump them whenever the icon changes.
+const TILE = "#0C2A21", LINE = "#3FCE97";
 const line = (scale = 1) => {
   // The logo's line on a 64 grid, centred; scale < 1 for the maskable safe zone.
   const c = 32, pts = [[13, 46], [25, 19], [37, 39], [51, 17]].map(([x, y]) => [c + (x - c) * scale, c + (y - c) * scale]);
