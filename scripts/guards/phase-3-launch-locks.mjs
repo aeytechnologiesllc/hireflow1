@@ -222,13 +222,15 @@ export default [
     why:
       "Brass is Ava's verdict, the score and anything that costs money (src/index.css, the owner's lock " +
       "of 2026-10-25). The action colour is ink by day and ivory at night: --action, --primary, --ring, " +
-      "--success, --ck-action and --hf-action stay near grey in both themes, the default button and the " +
+      "--ck-action and --hf-action stay near grey in both themes, the default button and the " +
       "action pill fill with the action colour, and keyboard focus rings are the action colour, so " +
-      "brass never reads as a plain button or as \"this will be charged\" on Pass, Hire or Save.",
+      "brass never reads as a plain button or as \"this will be charged\" on Pass, Hire or Save. " +
+      "Since Warm gold (2026-10-30) \"good\" has its own gold (--good; --success is the same colour, " +
+      "for a passed test, a good score, a finished step), and no button is filled with it.",
     run: async ({ read }) => {
       const detail = [];
       const css = (await read("src/index.css")) ?? "";
-      const actionTokens = ["action", "action-bright", "primary", "ring", "success", "ck-action", "ck-action-bright", "hf-action"];
+      const actionTokens = ["action", "action-bright", "primary", "ring", "ck-action", "ck-action-bright", "hf-action"];
       for (const name of actionTokens) {
         const found = [...css.matchAll(new RegExp(`--${name}:\\s*([^;]+);`, "g"))];
         if (found.length < 2) detail.push(`src/index.css: --${name} is not set for both Day and Night`);
@@ -239,7 +241,18 @@ export default [
           if (chroma > 0.15) detail.push(`src/index.css: --${name}: ${m[1].trim()} is a colour, not ink or ivory (chroma ${chroma.toFixed(2)})`);
         }
       }
+      // "Good" is gold in both themes, and --success says the same.
+      for (const name of ["good", "success"]) {
+        const found = [...css.matchAll(new RegExp(`--${name}:\\s*([^;]+);`, "g"))];
+        if (found.length < 2) detail.push(`src/index.css: --${name} is not set for both Day and Night`);
+        for (const m of found) {
+          const rgb = rgbOf(m[1]);
+          const hc = rgb && hueChroma(rgb);
+          if (!hc || hc.chroma < 0.2 || hc.hue < 25 || hc.hue > 60) detail.push(`src/index.css: --${name}: ${m[1].trim()} is not the gold of "good"`);
+        }
+      }
       const variants = (await read("src/components/ui/button-variants.ts")) ?? "";
+      if (/bg-success|--good/.test(variants)) detail.push("button-variants.ts: a button is filled with the colour of \"good\"");
       const defaultButton = /default: "([^"]*)"/.exec(variants)?.[1] ?? "";
       if (!/^bg-primary text-primary-foreground/.test(defaultButton) || /brass|gold|amber/.test(defaultButton)) detail.push("button-variants.ts: the default button is not the primary (action) colour, or carries brass");
       const tailwind = (await read("tailwind.config.ts")) ?? "";

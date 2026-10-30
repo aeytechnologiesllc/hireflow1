@@ -84,6 +84,8 @@ export interface GemRailNode {
   state?: "done" | "below" | "now" | "left" | "skipped" | "upcoming";
   /** Hover / keyboard tooltip. Also becomes the node's accessible name. */
   tooltip?: string;
+  /** "stopped": the journey ended here (a declined applicant's decision). */
+  tone?: "stopped";
 }
 
 export interface GemRailProps {
@@ -103,6 +105,11 @@ export interface GemRailProps {
   /** Calm only. "draw" plays the opening once when the rail mounts; "none"
    *  shows it in place. */
   entrance?: "draw" | "none";
+  /** "gem" (the default): the large gems with their glyphs. "thin": the thin
+   *  "Checked" line the owner chose for the applicant profile on 2026-10-30 (a
+   *  2px line, small circles with a check, the traveller a small light that
+   *  runs to where they are and fades). Same states, same motion. */
+  variant?: "gem" | "thin";
 }
 
 export function GemRail({
@@ -115,6 +122,7 @@ export function GemRail({
   className,
   motion = "walk",
   entrance = "draw",
+  variant = "gem",
 }: GemRailProps) {
   const calm = motion === "calm";
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -179,7 +187,7 @@ export function GemRail({
         el.style.left = `${x0}px`;
         el.style.top = `${pts[0].y}px`;
         el.style.width = `${width}px`;
-        el.style.marginTop = "-5px"; // half the 10px track height
+        el.style.marginTop = `${-(el.offsetHeight || 10) / 2}px`; // half the track's own height (10px, or the thin line's 2px)
         el.style.transformOrigin = "left center";
       }
     }
@@ -430,7 +438,7 @@ export function GemRail({
   const shown = calm ? target : visualIndex;
 
   return (
-    <div ref={rootRef} className={cn("ck-rail-outer", calm && "ck-rail-calm", className)}>
+    <div ref={rootRef} className={cn("ck-rail-outer", calm && "ck-rail-calm", variant === "thin" && "ck-rail-thin", className)}>
       <div className="ck-rail-band" ref={zoneRef}>
         <div className="ck-rail-track" ref={trackRef} aria-hidden="true" />
         {calm ? (
@@ -480,6 +488,8 @@ export function GemRail({
                   node.decision && "is-decision"
                 )}
                 style={{ "--node-color": node.color ?? gem.color, "--node-ink": node.ink ?? gem.ink } as CSSProperties}
+                data-state={node.state}
+                data-tone={node.tone}
               >
                 <div className="ck-rail-dot" style={dotStyle} ref={(el) => { dotRefs.current[i] = el; }}>
                   {node.decision ? (
@@ -487,7 +497,7 @@ export function GemRail({
                     // Calm: the traveller stands on the seal, so the verdict
                     // under it is what presses in (is-stamped below).
                     <span key={`seal-${sealBeat}`} className={calm ? "ck-seal" : "ck-seal ck-seal-press"}>
-                      <AvaSeal size={28} tilt={node.sealTilt ?? 0} />
+                      <AvaSeal size={variant === "thin" ? 22 : 28} tilt={node.sealTilt ?? 0} />
                     </span>
                   ) : Icon ? (
                     <Icon className="ck-rail-glyph" strokeWidth={2} />

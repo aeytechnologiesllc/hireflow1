@@ -14,7 +14,7 @@ import { notTakenGroups, SHORT_LABEL_MAX, type TestTile, type TestTileRow } from
  */
 
 const TONE: Record<string, string> = {
-  good: "var(--action)",
+  good: "var(--good)",
   amber: "var(--amber-fg)",
   ink: "var(--ink)",
   muted: "var(--ink-3)",

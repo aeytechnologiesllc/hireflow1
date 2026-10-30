@@ -1,11 +1,13 @@
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { Bookmark, ChevronRight, ShieldAlert, StickyNote } from "lucide-react";
+import { Bookmark, Check, ChevronRight, ShieldAlert, StickyNote, X } from "lucide-react";
 import { noteTitle } from "../lib/applicantNotes";
 import { TONE_VAR, type ApplicantDot, type ApplicantListRow, type DotState, type LineSegment } from "../lib/applicantList";
 import { MILESTONE_LABELS, type MilestoneView } from "../lib/milestones";
 import { samePhoneWords } from "../lib/blockedApplicants";
 import { applicantPath, useJobScope } from "../lib/jobScope";
+import { initialsTint } from "../lib/initialsTint";
+import { gemPosition } from "../lib/gemRail";
 
 /**
  * One applicant on the Applicants list (docs/APPLICANTS-LIST.md §2): a row of
@@ -31,43 +33,60 @@ export const APPLICANT_TABLE_MIN = 768 + 5 * 16 + 2 * 20 + 2;
 
 /* ── Where they are ───────────────────────────────────────────────────── */
 
-/** A milestone not reached, and the line to it: --ink-3 at 75% is at least
- *  3:1 on the card in both themes (--hair and --track were under 2.4:1,
- *  third Pass C review). */
+/** A milestone not reached: --ink-3 at 75% is at least 3:1 on the card in
+ *  both themes (--hair and --track were under 2.4:1, third Pass C review).
+ *  The line to it is quieter: it is a line, not a mark. */
 const UNLIT = "color-mix(in srgb, var(--ink-3) 75%, transparent)";
+const UNLIT_LINE = "color-mix(in srgb, var(--ink-3) 30%, transparent)";
 
 /**
  * "Where they are": four milestones, Applied → Tested → Interview → Hired
- * (lib/milestones.ts; the owner's Option C, 2026-10-24). Solid dots on a line
- * for what is behind them, the one they are at larger, and its name stressed
- * under it; the step detail is the line under the rail. Hired, once reached,
- * is the one brass moment; a declined applicant's dot is drawn stopped.
+ * (lib/milestones.ts; the owner's Option C, 2026-10-24), drawn as the thin
+ * "Checked" line the owner chose on 2026-10-30: a 2px line warming from
+ * bronze to gold, each milestone behind them a small circle with a check, the
+ * one they are at a size larger with a soft halo, and its name stressed under
+ * it. Hired, once reached, is the gold one; a declined applicant's circle is
+ * drawn stopped, with a cross.
  */
 export function MilestoneRail({ view, labels = true, size = 9 }: { view: MilestoneView; labels?: boolean; size?: number }) {
-  const big = size + 4;
+  const big = size + 6;
+  const stopped = view.tone === "stopped";
   return (
-    <div aria-label={`Where they are: ${view.tone === "stopped" ? "Declined" : view.at === 3 && view.tone !== "won" ? "Offer" : MILESTONE_LABELS[view.at]}`} role="img">
+    <div aria-label={`Where they are: ${stopped ? "Declined" : view.at === 3 && view.tone !== "won" ? "Offer" : MILESTONE_LABELS[view.at]}`} role="img">
       <div className="flex items-center" style={{ height: big + 6 }}>
         {MILESTONE_LABELS.map((label, i) => {
           const lit = i < view.lit;
           const here = i === view.at;
           const won = view.tone === "won" && i === 3;
-          const fill = won ? "var(--brass)" : lit ? "var(--ink)" : "transparent";
-          const ring = won ? "var(--brass)" : here && view.tone === "stopped" ? "var(--crit)" : lit || here ? "var(--ink)" : UNLIT;
-          const d = here ? big : size;
+          const color = gemPosition(i, MILESTONE_LABELS.length).color;
+          const ink = gemPosition(i, MILESTONE_LABELS.length).ink;
+          const d = here ? big : lit ? size + 2 : size;
+          const dot: CSSProperties = here && stopped
+            ? { background: "var(--hf-surface)", boxShadow: "inset 0 0 0 2px var(--crit)", color: "var(--crit)" }
+            : won
+              ? { background: "radial-gradient(circle at 34% 30%, #FFF3D6, var(--gem-4) 55%, var(--gem-3))", color: "var(--gem-ink-4)", boxShadow: "0 0 10px 1px color-mix(in srgb, var(--gem-4) 55%, transparent)" }
+              : lit
+                ? { background: color, color: ink, boxShadow: here ? `0 0 0 3px color-mix(in srgb, ${color} 18%, transparent)` : undefined }
+                : here
+                  ? { background: "var(--hf-surface)", boxShadow: "inset 0 0 0 2px var(--gem-3), 0 0 0 3px color-mix(in srgb, var(--gem-3) 16%, transparent)" }
+                  : { background: "transparent", boxShadow: `inset 0 0 0 1.5px ${UNLIT}` };
           return (
             <span key={label} className={`flex items-center ${i === 0 ? "" : "min-w-0 flex-1"}`}>
-              {i > 0 && <span className="h-[2px] min-w-[8px] flex-1" style={{ background: i < view.lit ? "var(--ink)" : UNLIT }} />}
-              <span
-                className="shrink-0 rounded-full"
-                style={{
-                  width: d,
-                  height: d,
-                  background: fill,
-                  border: `2px solid ${ring}`,
-                  boxShadow: here && view.tone !== "stopped" ? `0 0 0 3px color-mix(in srgb, ${won ? "var(--brass)" : "var(--ink)"} 14%, transparent)` : undefined,
-                }}
-              />
+              {i > 0 && (
+                <span
+                  className="h-[2px] min-w-[8px] flex-1 rounded-full"
+                  style={{ background: i < view.lit || (here && !stopped) ? `linear-gradient(90deg, ${gemPosition(i - 1, MILESTONE_LABELS.length).color}, ${color})` : UNLIT_LINE }}
+                />
+              )}
+              <span className="grid shrink-0 place-items-center rounded-full" style={{ width: d, height: d, ...dot }}>
+                {here && stopped ? (
+                  <X aria-hidden className="h-[62%] w-[62%]" strokeWidth={3.2} />
+                ) : lit || won ? (
+                  <Check aria-hidden className="h-[64%] w-[64%]" strokeWidth={3.6} />
+                ) : here ? (
+                  <span className="block h-[38%] w-[38%] rounded-full" style={{ background: "var(--gem-4)" }} />
+                ) : null}
+              </span>
             </span>
           );
         })}
@@ -78,11 +97,11 @@ export function MilestoneRail({ view, labels = true, size = 9 }: { view: Milesto
             <span
               key={label}
               style={{
-                color: i === view.at ? (view.tone === "stopped" ? "var(--crit)" : view.tone === "won" ? "var(--brass)" : "var(--ink)") : "var(--ink-3)",
+                color: i === view.at ? (stopped ? "var(--crit)" : view.tone === "won" ? "var(--good)" : "var(--ink)") : "var(--ink-3)",
                 fontWeight: i === view.at ? 600 : 400,
               }}
             >
-              {i === view.at && view.tone === "stopped" ? "Declined" : i === 3 && view.at === 3 && view.tone !== "won" ? "Offer" : label}
+              {i === view.at && stopped ? "Declined" : i === 3 && view.at === 3 && view.tone !== "won" ? "Offer" : label}
             </span>
           ))}
         </div>
@@ -274,7 +293,7 @@ function Who({ row, size = 38 }: { row: ApplicantListRow; size?: number }) {
         <span
           aria-hidden
           className="grid place-items-center rounded-full text-[13px] font-semibold"
-          style={{ width: size, height: size, background: "var(--surface-2)", border: "1px solid var(--line)", color: "var(--ink-2)" }}
+          style={{ width: size, height: size, border: "1px solid", ...initialsTint(row.initials) }}
         >
           {row.initials}
         </span>
@@ -283,7 +302,7 @@ function Who({ row, size = 38 }: { row: ApplicantListRow; size?: number }) {
         <span
           aria-hidden
           className="absolute -right-[1px] -top-[1px] block h-[10px] w-[10px] rounded-full"
-          style={{ background: "var(--action)", boxShadow: "0 0 0 2px var(--hf-surface)" }}
+          style={{ background: "var(--good)", boxShadow: "0 0 0 2px var(--hf-surface)" }}
         />
       )}
     </span>

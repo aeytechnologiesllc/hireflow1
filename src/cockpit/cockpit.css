@@ -722,35 +722,36 @@ main.ck-scroll,
 
 :root {
   /* the journey spectrum the track flows through and every cleared gem draws
-     its fill from — ink leading through warm stone to the gold that hands off
-     into the brass Decision seal (2026-10-25: ink and ivory, brass accent; it
-     ran green to gold until 2026-10-25). Day runs dark to light on ivory; Night
-     runs light to bright on ink, so the first gem never sinks into the
-     ground. */
-  --gem-1: #2A2620;
-  --gem-2: #5E574B;
-  --gem-3: #8C8473;
-  --gem-4: #B8860B;
+     its fill from — umber through bronze and amber to the gold that hands off
+     into the brass Decision seal (2026-10-30, Warm gold; it was ink through
+     grey stone from 2026-10-25, and green to gold before). Day runs dark to
+     light on ivory; Night runs light to bright on ink, so the first gem never
+     sinks into the ground. */
+  --gem-1: #5E4126;
+  --gem-2: #8F6131;
+  --gem-3: #B98638;
+  --gem-4: #D5A646;
 
   /* the glyph ink that reads best against each stop: the two dark stops take
      an ivory glyph, the light ones ink. */
-  --gem-ink-1: #F4EFE3;
-  --gem-ink-2: #F4EFE3;
-  --gem-ink-3: #14100a;
-  --gem-ink-4: #14100a;
+  --gem-ink-1: #FBF4E6;
+  --gem-ink-2: #FBF4E6;
+  --gem-ink-3: #211910;
+  --gem-ink-4: #211910;
 
   /* untraveled track — a whisper of the page's own ink, so the groove reads
      as "muted" on ivory Day and on near-black Night without a second token */
   --rail-track-base: color-mix(in srgb, var(--ink) 9%, transparent);
 }
 .dark {
-  --gem-1: #A69C88;
-  --gem-2: #C7BEAA;
-  --gem-3: #E3DAC6;
-  --gem-4: #E0B96A;
-  --gem-ink-1: #14100a;
-  --gem-ink-2: #14100a;
-  --gem-ink-3: #14100a;
+  --gem-1: #9C7A52;
+  --gem-2: #C39455;
+  --gem-3: #DEAE5C;
+  --gem-4: #F1CB76;
+  --gem-ink-1: #16110B;
+  --gem-ink-2: #16110B;
+  --gem-ink-3: #16110B;
+  --gem-ink-4: #16110B;
 }
 
 .ck-rail-outer { margin-bottom: 14px; }
@@ -1194,12 +1195,13 @@ main.ck-scroll,
    up with the first and last dot's centers by coincidence. */
 .ck-mini-rail-track {
   position: absolute;
-  top: 15px;
+  /* through the middle of the circles: under the count (20px) and half the 26px slot */
+  top: 32px;
   height: 2px;
   border-radius: 999px;
   z-index: 1;
   background: linear-gradient(90deg, var(--gem-1), var(--gem-2), var(--gem-3), var(--gem-4));
-  opacity: 0.5;
+  opacity: 0.85;
 }
 
 .ck-mini-rail-nodes {
@@ -1218,32 +1220,48 @@ main.ck-scroll,
   text-align: center;
 }
 
-.ck-mini-rail-dot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  border: 1.5px solid var(--line);
-  background: color-mix(in srgb, var(--ink) 5%, transparent);
+/* The thin "Checked" line (the owner's pick, 2026-10-30): the count sits over
+   the line in the serif, each step with people on it is a small circle with a
+   check, an empty step a hollow ring, and Hired the gold one. */
+.ck-mini-rail-count {
+  height: 20px;
+  font: 600 15px/20px "Fraunces", Georgia, serif;
   color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.ck-mini-rail-node.is-active .ck-mini-rail-count { color: var(--ink); }
+.ck-mini-rail-node.is-won .ck-mini-rail-count { color: var(--good); }
+
+.ck-mini-rail-dot {
+  display: grid;
+  place-items: center;
+  width: 11px;
+  height: 11px;
+  margin: 7.5px 0;
+  border-radius: 50%;
+  background: var(--hf-surface);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink-3) 75%, transparent), 0 0 0 3px var(--hf-surface);
+  color: var(--node-ink, #14100a);
 }
 .ck-mini-rail-node.is-active .ck-mini-rail-dot {
-  border-color: transparent;
-  background: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, 0.4), var(--node-color, var(--gem-1)) 68%);
-  color: var(--node-ink, #14100a);
-  box-shadow:
-    0 0 0 1px rgba(255, 255, 255, 0.14) inset,
-    0 0 10px 1px color-mix(in srgb, var(--node-color, var(--gem-1)) 45%, transparent);
+  width: 15px;
+  height: 15px;
+  margin: 5.5px 0;
+  background: var(--node-color, var(--gem-1));
+  box-shadow: 0 0 0 3px var(--hf-surface);
+}
+.ck-mini-rail-node.is-won .ck-mini-rail-dot {
+  width: 19px;
+  height: 19px;
+  margin: 3.5px 0;
+  background: radial-gradient(circle at 34% 30%, #FFF3D6, var(--gem-4) 55%, var(--gem-3));
+  color: var(--gem-ink-4);
+  box-shadow: 0 0 0 3px var(--hf-surface), 0 0 12px 1px color-mix(in srgb, var(--gem-4) 55%, transparent);
 }
 
 .ck-mini-rail-label {
   margin-top: 6px;
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.25;
   color: var(--ink-3);
@@ -1257,8 +1275,7 @@ main.ck-scroll,
 .ck-mini-rail-node.is-active .ck-mini-rail-label { color: var(--ink); }
 
 @media (max-width: 480px) {
-  .ck-mini-rail-track { top: 13px; }
-  .ck-mini-rail-dot { width: 26px; height: 26px; font-size: 11px; }
+  .ck-mini-rail-count { font-size: 13px; }
   .ck-mini-rail-label { font-size: 9px; margin-top: 5px; }
 }
 
@@ -1455,6 +1472,112 @@ button.ckp-tile:focus-visible { outline: 2px solid var(--action); outline-offset
 [data-profile-layout] .ck-rail-node:first-child > .absolute { left: 0; --tw-translate-x: 0; }
 .ck-rail-wide .ck-rail-node:last-child > .absolute,
 [data-profile-layout] .ck-rail-node:last-child > .absolute { left: auto; right: 0; --tw-translate-x: 0; }
+
+/* ── THE THIN LINE: the applicant profile's journey (GemRail variant="thin") ──
+   2026-10-30. The owner, on the gems: "go back to how it used to be. It used
+   to be the skinnier one ... keep it skinny, in a line, going across
+   horizontal, just nicer." Of four thin versions they chose "Checked": a 2px
+   line warming from bronze to gold, each finished step a small circle in its
+   place on that ramp with a check in it, the step they are on a size larger
+   with a soft halo, a step under its bar copper, the decision Ava's small
+   seal. The traveller is a small light that runs to where they are and fades.
+   Same states and the same calm motion as the gems above; only the drawing is
+   thinner. Gem sizes from the narrow-panel and wide rules are overridden here
+   (this block comes after both). */
+.ck-rail-thin .ck-rail-band { min-height: 0; padding: 8px 2px 2px; }
+.ck-rail-thin .ck-rail-track,
+.ck-rail-thin.ck-rail-calm .ck-rail-fill-clip { height: 2px; }
+.ck-rail-thin .ck-rail-track { background: color-mix(in srgb, var(--ink-3) 28%, transparent); }
+.ck-rail-thin.ck-rail-calm .ck-rail-fill { box-shadow: none; }
+.ck-rail-thin .ck-rail-dot,
+.ck-rail-wide.ck-rail-thin .ck-rail-dot {
+  width: 11px;
+  height: 11px;
+  margin: 4px 0;
+  border: 0;
+  background: var(--ground);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--ink-3) 75%, transparent), 0 0 0 3px var(--ground);
+}
+.ck-rail-thin .ck-rail-glyph { display: none; }
+.ck-rail-thin .ck-rail-node.is-cleared .ck-rail-dot,
+.ck-rail-wide.ck-rail-thin .ck-rail-node.is-cleared .ck-rail-dot {
+  width: 15px;
+  height: 15px;
+  margin: 2px 0;
+  background: var(--node-color, var(--gem-1));
+  box-shadow: 0 0 0 3px var(--ground);
+}
+/* The check fills the circle, in the circle's own ink. */
+.ck-rail-thin .ck-rail-check {
+  inset: 0;
+  top: 0;
+  right: 0;
+  width: auto;
+  height: auto;
+  padding: 3px;
+  background: transparent;
+  color: var(--node-ink, #14100a);
+  box-shadow: none;
+}
+.ck-rail-thin .ck-rail-node.is-current .ck-rail-dot,
+.ck-rail-wide.ck-rail-thin .ck-rail-node.is-current .ck-rail-dot {
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  background: var(--ground);
+  box-shadow: inset 0 0 0 2.5px var(--gem-3), 0 0 0 3px var(--ground);
+}
+.ck-rail-thin .ck-rail-node.is-current:not(.is-decision) .ck-rail-dot > :not(.ck-rail-check) { display: none; }
+.ck-rail-thin .ck-rail-node.is-current:not(.is-decision) .ck-rail-dot { background: radial-gradient(circle, var(--gem-4) 0 3.5px, var(--ground) 4px); }
+.ck-rail-thin.ck-rail-calm .ck-rail-dot::after { inset: -7px; background: radial-gradient(circle, var(--gem-3) 0%, transparent 70%); }
+.ck-rail-thin.ck-rail-calm .ck-rail-dot::before { inset: -5px; border-color: var(--gem-3); }
+/* Left the test, skipped: still a hollow ring, said by its line. */
+.ck-rail-thin .ck-rail-node[data-state="left"] .ck-rail-dot { box-shadow: inset 0 0 0 2px var(--ink-3), 0 0 0 3px var(--ground); }
+.ck-rail-thin .ck-rail-node[data-state="skipped"] .ck-rail-dot { background: transparent; box-shadow: none; border: 1.5px dashed var(--ink-3); }
+/* The decision: Ava's seal, small. */
+.ck-rail-thin .ck-rail-node.is-decision .ck-rail-dot,
+.ck-rail-wide.ck-rail-thin .ck-rail-node.is-decision .ck-rail-dot { width: 22px; height: 22px; margin: -1.5px 0; background: transparent; box-shadow: none; }
+.ck-rail-thin .ck-rail-node[data-tone="stopped"] .ck-rail-dot { opacity: 0.7; }
+
+.ck-rail-thin .ck-rail-label,
+.ck-rail-wide.ck-rail-thin .ck-rail-label { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.ck-rail-thin .ck-rail-node.is-current .ck-rail-label { color: var(--ink); }
+/* The result under each name, in the serif, gold; copper under its bar. */
+.ck-rail-thin .ck-rail-receipt,
+.ck-rail-wide.ck-rail-thin .ck-rail-receipt {
+  margin-top: 2px;
+  font: 600 13px/1.25 "Fraunces", Georgia, serif;
+  letter-spacing: 0;
+  color: var(--good);
+}
+.ck-rail-thin .ck-rail-node[data-state="below"] .ck-rail-receipt { color: var(--under); }
+.ck-rail-thin .ck-rail-node[data-state="skipped"] .ck-rail-receipt,
+.ck-rail-thin .ck-rail-node[data-state="left"] .ck-rail-receipt,
+.ck-rail-thin .ck-rail-node[data-state="upcoming"] .ck-rail-receipt { font: 500 11.5px/1.3 Inter, system-ui, sans-serif; color: var(--ink-3); }
+/* Waiting on you: the plain words, not the verdict's gold. */
+.ck-rail-thin .ck-rail-node.is-decision .ck-rail-receipt:not(.is-sealed) { font: 500 11.5px/1.3 Inter, system-ui, sans-serif; color: var(--ink-2); }
+/* The verdict reads as the word, in gold (no pill on the thin line). */
+.ck-rail-thin .ck-rail-receipt.show.is-sealed,
+.ck-rail-wide.ck-rail-thin .ck-rail-receipt.show.is-sealed { padding: 0; background: none; color: var(--good); font: 600 13px/1.25 "Fraunces", Georgia, serif; }
+.ck-rail-thin .ck-rail-node[data-tone="stopped"] .ck-rail-receipt.show.is-sealed { color: var(--crit); }
+
+/* The traveller: a small light that runs along the line when the profile
+   opens and fades where they are. */
+.ck-rail-thin .ck-rail-chip { top: 0; width: 10px; height: 10px; opacity: 0; }
+.ck-rail-thin[data-entrance] .ck-rail-chip { opacity: 1; }
+.ck-rail-thin .ck-rail-chip-core {
+  width: 10px;
+  height: 10px;
+  font-size: 0;
+  color: transparent;
+  background: #FFF3D6;
+  box-shadow: 0 0 10px 3px color-mix(in srgb, var(--gem-4) 60%, transparent);
+}
+@media (max-width: 560px) {
+  .ck-rail-thin .ck-rail-label { font-size: 10px; }
+  .ck-rail-thin .ck-rail-receipt,
+  .ck-rail-thin .ck-rail-receipt.show.is-sealed { font-size: 11px; }
+}
 
 /* The column layout's sticky foot: the decision card's own buttons, shown
    only once the card has scrolled out of view, so the two are never on

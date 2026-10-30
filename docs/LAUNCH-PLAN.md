@@ -957,6 +957,21 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-10-30 — Warm gold and the thin "Checked" journey (branch `warm-gold-journey`, not shipped)
+
+The owner found the app "black and white", Day worst: green had been the only
+hue, and on 2026-10-25 every "good" (a 70+ score, a passed test, a finished
+step) was pointed at the button colour, so a 78 looked like a 40 and a 69 in
+brass looked better than both; the gem ramp had become grey stone. Of three
+directions shown on the real screens they chose Warm gold, and of several
+journey designs the thin "Checked" line. Built: warmer tokens in both themes,
+`--good` (gold) and `--under` (copper) with contrast pairs, the score ladder
+(gold 70+, ink 50–69, softer ink under 50), tinted initials circles, warmer
+message bubbles, the thin line on the profile (`GemRail variant="thin"`), the
+list's milestones and the dashboard's pipeline. The brass guard now holds
+"no button filled with the gold of good". Waiting on the owner's OK of the
+screens before it is merged and pushed.
+
 ### 2026-10-29 — the stop rule; every review loop closed; Ava builds chat agents only
 
 A new session (Opus 5.5) picked the loop up after the 2026-10-27 session

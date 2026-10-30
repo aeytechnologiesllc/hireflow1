@@ -9,6 +9,9 @@ everywhere: the app's `Wordmark.tsx`, every icon size, the front page's bar
 and both share pictures (`scripts/make-share-images.mjs`). Icon links are
 `?v=7`. The history below is kept as it was.
 
+**2026-10-30 (Warm gold):** the app's palette warmed (warm paper and greys, a
+warm espresso ink, gold for "good"); the mark itself is unchanged.
+
 The owner, 2026-10-10: "I'm not really loving this HireFlow app icon ... Logo
 is fine. The app icon and the favicon, we need to [change]." Of four options
 (https://claude.ai/artifact/8bREyawrQQqTqrggg94dtL) they chose **A**: the very

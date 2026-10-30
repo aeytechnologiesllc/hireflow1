@@ -139,7 +139,7 @@ export const TAB_LABELS: Record<ApplicantTab, string> = {
 export type ListTone = "good" | "brass" | "amber" | "crit" | "ink" | "soft" | "muted";
 
 export const TONE_VAR: Record<ListTone, string> = {
-  good: "var(--action)",
+  good: "var(--good)",
   brass: "var(--brass)",
   amber: "var(--amber-fg)",
   crit: "var(--crit)",
@@ -981,7 +981,7 @@ export function listRowFor(
     below,
     score,
     scoreKind,
-    scoreTone: score == null ? "muted" : score >= 70 ? "good" : score >= 50 ? "brass" : "ink",
+    scoreTone: score == null ? "muted" : score >= 70 ? "good" : score >= 50 ? "ink" : "soft",
     scoreWords: scoreKind === "so_far" ? "so far" : scoreKind === "none" ? "not scored yet" : null,
     recommendedAction,
     interviewAt: interviewMs != null ? new Date(interviewMs).toISOString() : null,

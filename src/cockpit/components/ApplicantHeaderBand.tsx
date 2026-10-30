@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { ApplicantScore, AvaSuggestion, HeaderLine } from "../lib/applicantProfile";
 import { scoreColor } from "../lib/applicantProfile";
+import { initialsTint } from "../lib/initialsTint";
 
 /**
  * The desktop profile's header band (docs/APPLICANT-PROFILE.md), no box:
@@ -10,7 +11,7 @@ import { scoreColor } from "../lib/applicantProfile";
  */
 
 const LINE_TONE: Record<HeaderLine["tone"], string> = {
-  good: "var(--action-soft-fg)",
+  good: "var(--good-fg)",
   amber: "var(--amber-fg)",
   crit: "var(--crit)",
   muted: "var(--ink-3)",
@@ -22,7 +23,7 @@ export const SUGGESTION_SHOWN_MS = 8000;
 /** The suggestion's box: a solid tint of its tone over the page's ground
  *  (no translucent panel), the words in the tone's readable shade. */
 const SUGGEST_STYLE: Record<AvaSuggestion["tone"], { background: string; color: string }> = {
-  good: { background: "color-mix(in srgb, var(--action) 14%, var(--ground))", color: "var(--action-soft-fg)" },
+  good: { background: "color-mix(in srgb, var(--good) 14%, var(--ground))", color: "var(--good-fg)" },
   amber: { background: "color-mix(in srgb, var(--amber-fg) 14%, var(--ground))", color: "var(--amber-fg)" },
   crit: { background: "color-mix(in srgb, var(--crit) 13%, var(--ground))", color: "var(--crit)" },
 };
@@ -62,7 +63,7 @@ export function ApplicantHeaderBand({
         {avatarUrl ? (
           <img src={avatarUrl} alt="" className="block h-16 w-16 rounded-full object-cover" style={{ boxShadow: "inset 0 0 0 1px var(--line)" }} />
         ) : (
-          <span aria-hidden className="grid h-16 w-16 place-items-center rounded-full text-[20px] font-semibold" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }}>
+          <span aria-hidden className="grid h-16 w-16 place-items-center rounded-full border text-[20px] font-semibold" style={initialsTint(initials)}>
             {initials}
           </span>
         )}

@@ -40,7 +40,7 @@ import { externalHref, openExternal } from "@/lib/safeLink";
 type Mood = "good" | "brass" | "amber" | "crit" | "neutral";
 
 const moodBg: Record<Mood, string> = {
-  good: "var(--action-soft)",
+  good: "var(--good-soft)",
   brass: "var(--amber-bg)", // brass has no soft fill token; amber-bg reads as warm parchment, not alarm
   amber: "var(--amber-bg)",
   crit: "var(--crit-bg)",
@@ -48,7 +48,7 @@ const moodBg: Record<Mood, string> = {
 };
 
 const moodFg: Record<Mood, string> = {
-  good: "var(--action-soft-fg)",
+  good: "var(--good-fg)",
   brass: "var(--brass)",
   amber: "var(--amber-fg)",
   crit: "var(--crit)",

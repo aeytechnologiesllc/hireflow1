@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react
 import { useNavigate } from "react-router-dom";
 import { format, isSameDay, startOfDay } from "date-fns";
 import {
+  Check,
   ChevronRight,
   Video,
   AlertCircle,
@@ -231,7 +232,7 @@ function SealedRow({
         <div className="min-w-[58px] shrink-0 text-right">
           <div
             className="ck-num font-semibold"
-            style={{ fontSize: 38, lineHeight: 0.85, color: "var(--action)" }}
+            style={{ fontSize: 38, lineHeight: 0.85, color: candidate.overall >= 70 ? "var(--good)" : "var(--ink)" }}
           >
             <CountUp value={candidate.overall} duration={700} delay={350 + index * 260} />
           </div>
@@ -356,7 +357,7 @@ function CompanyNameGuide({ onDismiss }: { onDismiss: () => void }) {
 type NeedTone = "good" | "brass" | "muted";
 
 const NEED_TONE_COLOR: Record<NeedTone, string> = {
-  good: "var(--action)",
+  good: "var(--good)",
   brass: "var(--brass)",
   muted: "var(--hf-text-muted)",
 };
@@ -539,13 +540,17 @@ function MiniJourneyRail({ stages }: { stages: JourneyPipelineStage[] }) {
         {stages.map((stage, i) => {
           const active = stage.count > 0;
           const { color, ink } = gemPosition(i, total);
+          // The thin "Checked" line (2026-10-30): the count over each step, a
+          // small circle on the line, the last step (Hired) the gold one.
+          const last = i === total - 1;
           return (
-            <div key={stage.key} className={`ck-mini-rail-node${active ? " is-active" : ""}`}>
+            <div key={stage.key} className={`ck-mini-rail-node${active ? " is-active" : ""}${active && last ? " is-won" : ""}`}>
+              <div className="ck-mini-rail-count">{stage.count}</div>
               <div
                 className="ck-mini-rail-dot"
                 style={active ? { ["--node-color" as string]: color, ["--node-ink" as string]: ink } : undefined}
               >
-                {stage.count}
+                {active ? <Check aria-hidden className="h-[64%] w-[64%]" strokeWidth={3.6} /> : null}
               </div>
               <div className="ck-mini-rail-label">{stage.label}</div>
             </div>

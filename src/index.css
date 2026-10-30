@@ -30,24 +30,24 @@
 
   :root {
     /* ── The system, by name ───────────────────────────────────────────────── */
-    --ground: #F0EBDF;
-    --ground-2: #E9E2D2;
-    --sidebar: #E7E0CE;
-    --surface: #FCFAF4;
-    --surface-2: #E4DCC7;
-    --line: #D6CDB6;
-    --line-soft: #E2DAC6;
-    --hair: #C6B893;
-    --track: #E9E2D2;
+    --ground: #F1E8D6;
+    --ground-2: #EADFC8;
+    --sidebar: #E9DDC3;
+    --surface: #FDF9EF;
+    --surface-2: #EFE4CB;
+    --line: #DDCDAC;
+    --line-soft: #E7DBC0;
+    --hair: #CDB582;
+    --track: #EADFC8;
 
-    --ink: #17150F;
-    --ink-2: #45413A;
-    --ink-3: #66615A;
+    --ink: #211910;
+    --ink-2: #4D4032;
+    --ink-3: #6B5F51;
 
     /* The ink slab sunk into the paper — Ava's read. The signature moment. */
-    --slab: #1B1813;
+    --slab: #22180E;
     --slab-ink: #F2EFE5;
-    --slab-ink-2: #B9B1A0;
+    --slab-ink-2: #C9BBA0;
     /* The action colour as it reads on the slab, which stays dark in both
        themes (the video and call panels, Ava's strip): always ivory. */
     --slab-action: #F2EDE1;
@@ -55,13 +55,21 @@
     /* The action colour is ink (2026-10-25: ink and ivory, brass accent —
        the owner's lock; it was ink). Brass stays Ava's, the score's,
        "hired"'s and money's. */
-    --action: #17150F;
-    --action-bright: #2B2620;
-    --action-soft: #E9E3D5;
-    --action-soft-fg: #17150F;
+    --action: #2B1F13;
+    --action-bright: #3C2C1B;
+    --action-soft: #EFE2C6;
+    --action-soft-fg: #2B1F13;
 
-    --brass: #84601F;
-    --brass-line: #C9A45E;
+    --brass: #8A6118;
+    --brass-line: #CFA65A;
+    /* "Good" has its own colour (2026-10-30, Warm gold): a good score, a passed
+       test, a finished step. It used to borrow the button colour, so every
+       good thing read as plain ink. A test under its bar is copper. */
+    --good: #865C10;
+    --good-soft: #F6E5BD;
+    --good-fg: #6D4A0C;
+    --under: #9E4A18;
+    --under-soft: #F5DFCB;
 
     --amber-bg: #F6E7C6;
     --amber-fg: #7A5410;
@@ -69,12 +77,12 @@
     --crit-bg: #F4DEDA;
     --btn-fg: #F7F4EB;
 
-    --seal-disc: #1B1813;
+    --seal-disc: #22180E;
     --seal-ring: #C9A45E;
     --seal-shadow: rgba(23, 21, 15, 0.32);
 
     --amb-a: rgba(23, 21, 15, 0.06);
-    --amb-b: rgba(201, 164, 94, 0.11);
+    --amb-b: rgba(201, 150, 60, 0.16);
 
     /* ── The type scale ───────────────────────────────────────────────────────
        The mockup's steps, verbatim. Every size in the app has to land on one of
@@ -102,30 +110,30 @@
     --s4: 16px;
 
     /* ── shadcn / Tailwind (HSL triplets) ──────────────────────────────────── */
-    --background: 42 36% 91%;
-    --foreground: 45 21% 7%;
+    --background: 40 49% 89%;
+    --foreground: 32 35% 10%;
 
-    --card: 45 57% 97%;
-    --card-foreground: 45 21% 7%;
+    --card: 43 78% 96%;
+    --card-foreground: 32 35% 10%;
 
-    --popover: 45 57% 97%;
-    --popover-foreground: 45 21% 7%;
+    --popover: 43 78% 96%;
+    --popover-foreground: 32 35% 10%;
 
     /* Ink is the action colour (it was ink until 2026-10-25). */
-    --primary: 45 21% 7%;
+    --primary: 30 39% 12%;
     --primary-foreground: 45 43% 95%;
 
-    --secondary: 43 35% 84%;
-    --secondary-foreground: 45 21% 7%;
+    --secondary: 42 53% 87%;
+    --secondary-foreground: 32 35% 10%;
 
-    --muted: 42 34% 87%;
-    --muted-foreground: 40 6% 38%;
+    --muted: 41 45% 85%;
+    --muted-foreground: 32 14% 37%;
 
-    --accent: 42 24% 88%;
-    --accent-foreground: 45 21% 7%;
+    --accent: 41 56% 86%;
+    --accent-foreground: 32 35% 10%;
 
-    --success: 45 21% 7%;
-    --success-foreground: 45 43% 95%;
+    --success: 39 79% 29%;
+    --success-foreground: 43 78% 96%;
 
     --warning: 38 77% 27%;
     --warning-foreground: 45 43% 95%;
@@ -133,15 +141,15 @@
     --destructive: 5 60% 41%;
     --destructive-foreground: 45 43% 95%;
 
-    --border: 43 28% 78%;
-    --input: 43 28% 78%;
-    --ring: 45 21% 7%;
+    --border: 40 42% 77%;
+    --input: 40 42% 77%;
+    --ring: 30 39% 12%;
 
     --radius: 0.625rem;
 
     --gradient-primary: linear-gradient(135deg, hsl(45 21% 7%) 0%, hsl(40 12% 18%) 100%);
     --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, var(--amb-a) 0%, transparent 60%), var(--ground);
-    --gradient-card: linear-gradient(180deg, #FCFAF4 0%, #F7F3E9 100%);
+    --gradient-card: linear-gradient(180deg, #FDF9EF 0%, #F8F0DF 100%);
     --gradient-bg: radial-gradient(ellipse 70% 50% at 88% 8%, var(--amb-a) 0%, transparent 55%),
                    radial-gradient(ellipse 60% 45% at 8% 92%, var(--amb-b) 0%, transparent 55%),
                    var(--ground);
@@ -152,47 +160,47 @@
     --shadow-xl: 0 3px 6px rgba(23, 21, 15, 0.08), 0 28px 56px -26px rgba(23, 21, 15, 0.42);
     --shadow-glow: 0 0 40px rgba(23, 21, 15, 0.10);
 
-    --sidebar-background: 43 34% 86%;
-    --sidebar-foreground: 45 21% 7%;
-    --sidebar-primary: 45 21% 7%;
+    --sidebar-background: 41 46% 84%;
+    --sidebar-foreground: 32 35% 10%;
+    --sidebar-primary: 30 39% 12%;
     --sidebar-primary-foreground: 45 43% 95%;
-    --sidebar-accent: 43 35% 84%;
-    --sidebar-accent-foreground: 45 21% 7%;
-    --sidebar-border: 43 28% 78%;
-    --sidebar-ring: 45 21% 7%;
+    --sidebar-accent: 42 53% 87%;
+    --sidebar-accent-foreground: 32 35% 10%;
+    --sidebar-border: 40 42% 77%;
+    --sidebar-ring: 30 39% 12%;
 
     /* ── Cockpit tokens (--ck-*, HSL) ──────────────────────────────────────── */
-    --ck-bg: 42 36% 91%;
-    --ck-sidebar: 43 34% 86%;
-    --ck-surface: 45 57% 97%;
-    --ck-surface-2: 43 35% 84%;
-    --ck-line: 43 28% 78%;
-    --ck-cream: 45 21% 7%;     /* the reading colour, dark on paper */
-    --ck-sub: 40 6% 38%;
-    --ck-action: 45 21% 7%;
-    --ck-action-bright: 36 15% 15%;
+    --ck-bg: 40 49% 89%;
+    --ck-sidebar: 41 46% 84%;
+    --ck-surface: 43 78% 96%;
+    --ck-surface-2: 42 53% 87%;
+    --ck-line: 40 42% 77%;
+    --ck-cream: 32 35% 10%;     /* the reading colour, dark on paper */
+    --ck-sub: 32 14% 37%;
+    --ck-action: 30 39% 12%;
+    --ck-action-bright: 31 38% 17%;
     --ck-brass: 38 62% 33%;
     /* Day has no use for a pale brass: every use is text on paper, so it is the readable one (4.5:1 on the ground). */
     --ck-brass-bright: 38 62% 30%;
 
     /* ── Premium tokens (--hf-*, hex) ──────────────────────────────────────── */
-    --hf-bg: #F0EBDF;
-    --hf-bg-soft: #E9E2D2;
-    --hf-surface: #FCFAF4;
-    --hf-surface-raised: #FCFAF4;
-    --hf-surface-strong: #E4DCC7;
-    --hf-border: #D6CDB6;
-    --hf-border-strong: #C6B893;
-    --hf-text: #17150F;
-    --hf-text-soft: #45413A;
-    --hf-text-muted: #66615A;
-    --hf-action: #17150F;
-    --hf-action-soft: #E9E3D5;
-    --hf-action-border: rgba(23, 21, 15, 0.28);
-    --hf-gold: #84601F;
+    --hf-bg: #F1E8D6;
+    --hf-bg-soft: #EADFC8;
+    --hf-surface: #FDF9EF;
+    --hf-surface-raised: #FDF9EF;
+    --hf-surface-strong: #EFE4CB;
+    --hf-border: #DDCDAC;
+    --hf-border-strong: #CDB582;
+    --hf-text: #211910;
+    --hf-text-soft: #4D4032;
+    --hf-text-muted: #6B5F51;
+    --hf-action: #2B1F13;
+    --hf-action-soft: #EFE2C6;
+    --hf-action-border: rgba(43, 31, 19, 0.28);
+    --hf-gold: #8A6118;
     --hf-gold-hover: #7A5410;
     --hf-gold-soft: #F6E7C6;
-    --hf-gold-border: #C9A45E;
+    --hf-gold-border: #CFA65A;
     --hf-danger: #A8352A;
     --hf-warning: #7A5410;
     --hf-shadow-soft: 0 1px 2px rgba(23, 21, 15, 0.06), 0 10px 22px -14px rgba(23, 21, 15, 0.34);
@@ -207,32 +215,37 @@
 
   .dark {
     /* ── NIGHT — the true counterpart. The ivory becomes the text. ─────────── */
-    --ground: #17140F;
-    --ground-2: #1C1813;
-    --sidebar: #120F0B;
-    --surface: #221D17;
-    --surface-2: #2C2620;
-    --line: rgba(244, 239, 227, 0.15);
-    --line-soft: rgba(244, 239, 227, 0.085);
-    --hair: rgba(201, 164, 94, 0.42);
-    --track: rgba(244, 239, 227, 0.10);
+    --ground: #16110B;
+    --ground-2: #1C160F;
+    --sidebar: #110D08;
+    --surface: #241C13;
+    --surface-2: #30261B;
+    --line: rgba(240, 218, 178, 0.15);
+    --line-soft: rgba(240, 218, 178, 0.085);
+    --hair: rgba(214, 170, 90, 0.42);
+    --track: rgba(246, 238, 221, 0.10);
 
-    --ink: #F4EFE3;
-    --ink-2: #C3BBA9;
-    --ink-3: #948B7C;
+    --ink: #F6EEDD;
+    --ink-2: #CDBFA6;
+    --ink-3: #9E907A;
 
-    --slab: #0E0C09;
+    --slab: #0F0B07;
     --slab-ink: #F2EFE5;
-    --slab-ink-2: #B5AD9B;
+    --slab-ink-2: #B8A98D;
     --slab-action: #F2EDE1;
 
-    --action: #F2EDE1;
-    --action-bright: #FBF7EE;
-    --action-soft: rgba(244, 239, 227, 0.12);
-    --action-soft-fg: #F4EFE3;
+    --action: #F4E9D2;
+    --action-bright: #FBF5E8;
+    --action-soft: rgba(240, 218, 178, 0.12);
+    --action-soft-fg: #F6EEDD;
 
-    --brass: #E0B96A;
-    --brass-line: rgba(224, 185, 106, 0.55);
+    --brass: #E8BF6C;
+    --brass-line: rgba(232, 191, 108, 0.55);
+    --good: #EDC66C;
+    --good-soft: rgba(237, 198, 108, 0.16);
+    --good-fg: #F2D088;
+    --under: #EE9A62;
+    --under-soft: rgba(238, 154, 98, 0.15);
 
     --amber-bg: rgba(224, 170, 80, 0.16);
     --amber-fg: #E4B76E;
@@ -241,38 +254,38 @@
        tinted pair in NIGHT clears comfortably. Same warm red, 5.4:1. */
     --crit: #E58A78;
     --crit-bg: rgba(217, 113, 95, 0.14);
-    --btn-fg: #17140F;
+    --btn-fg: #16110B;
 
-    --seal-disc: #2A251D;
+    --seal-disc: #2A2117;
     --seal-ring: #D9B876;
     --seal-shadow: rgba(0, 0, 0, 0.55);
 
     --amb-a: rgba(244, 239, 227, 0.05);
-    --amb-b: rgba(224, 185, 106, 0.08);
+    --amb-b: rgba(232, 180, 90, 0.09);
 
-    --background: 38 21% 7%;
-    --foreground: 42 44% 92%;
+    --background: 33 33% 6%;
+    --foreground: 41 58% 92%;
 
-    --card: 33 19% 11%;
-    --card-foreground: 42 44% 92%;
+    --card: 32 31% 11%;
+    --card-foreground: 41 58% 92%;
 
-    --popover: 33 19% 11%;
-    --popover-foreground: 42 44% 92%;
+    --popover: 32 31% 11%;
+    --popover-foreground: 41 58% 92%;
 
-    --primary: 43 40% 92%;
-    --primary-foreground: 38 21% 7%;
+    --primary: 41 61% 89%;
+    --primary-foreground: 33 33% 6%;
 
-    --secondary: 30 16% 15%;
-    --secondary-foreground: 42 44% 92%;
+    --secondary: 31 28% 15%;
+    --secondary-foreground: 41 58% 92%;
 
-    --muted: 33 19% 9%;
-    --muted-foreground: 37 10% 53%;
+    --muted: 32 30% 8%;
+    --muted-foreground: 37 16% 55%;
 
-    --accent: 30 16% 15%;
-    --accent-foreground: 42 44% 92%;
+    --accent: 31 28% 15%;
+    --accent-foreground: 41 58% 92%;
 
-    --success: 43 40% 92%;
-    --success-foreground: 38 21% 7%;
+    --success: 42 78% 68%;
+    --success-foreground: 33 33% 6%;
 
     --warning: 37 69% 66%;
     --warning-foreground: 38 21% 7%;
@@ -286,9 +299,9 @@
        against the ink ground. This is now the same visual weight as --hf-border
        (rgba(244,239,227,.15) over #17140F), so a raw 1px border is a quiet
        hairline. The three sites that DO pass an alpha were raised to match. */
-    --border: 42 12% 22%;
-    --input: 30 16% 15%;
-    --ring: 43 40% 92%;
+    --border: 36 18% 21%;
+    --input: 32 28% 15%;
+    --ring: 41 61% 89%;
 
     --gradient-primary: linear-gradient(135deg, hsl(43 40% 92%) 0%, hsl(40 30% 82%) 100%);
     --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, var(--amb-a) 0%, transparent 60%), var(--ground);
@@ -303,44 +316,44 @@
     --shadow-xl: 0 4px 8px rgba(0, 0, 0, 0.6), 0 30px 64px -28px rgba(0, 0, 0, 0.95);
     --shadow-glow: 0 0 40px rgba(244, 239, 227, 0.08);
 
-    --sidebar-background: 34 24% 6%;
-    --sidebar-foreground: 42 44% 92%;
-    --sidebar-primary: 43 40% 92%;
-    --sidebar-primary-foreground: 38 21% 7%;
-    --sidebar-accent: 30 16% 15%;
-    --sidebar-accent-foreground: 42 44% 92%;
+    --sidebar-background: 33 36% 5%;
+    --sidebar-foreground: 41 58% 92%;
+    --sidebar-primary: 41 61% 89%;
+    --sidebar-primary-foreground: 33 33% 6%;
+    --sidebar-accent: 31 28% 15%;
+    --sidebar-accent-foreground: 41 58% 92%;
     --sidebar-border: 30 16% 15%;
-    --sidebar-ring: 43 40% 92%;
+    --sidebar-ring: 41 61% 89%;
 
-    --ck-bg: 38 21% 7%;
-    --ck-sidebar: 34 24% 6%;
-    --ck-surface: 33 19% 11%;
-    --ck-surface-2: 30 16% 15%;
+    --ck-bg: 33 33% 6%;
+    --ck-sidebar: 33 36% 5%;
+    --ck-surface: 32 31% 11%;
+    --ck-surface-2: 31 28% 15%;
     --ck-line: 30 16% 18%;
-    --ck-cream: 42 44% 92%;
-    --ck-sub: 37 10% 53%;
-    --ck-action: 43 40% 92%;
-    --ck-action-bright: 40 50% 97%;
-    --ck-brass: 40 66% 65%;
+    --ck-cream: 41 58% 92%;
+    --ck-sub: 37 16% 55%;
+    --ck-action: 41 61% 89%;
+    --ck-action-bright: 41 70% 95%;
+    --ck-brass: 40 73% 67%;
     --ck-brass-bright: 37 69% 66%;
 
-    --hf-bg: #17140F;
-    --hf-bg-soft: #1C1813;
-    --hf-surface: #221D17;
-    --hf-surface-raised: #2C2620;
-    --hf-surface-strong: #332C24;
-    --hf-border: rgba(244, 239, 227, 0.15);
-    --hf-border-strong: rgba(244, 239, 227, 0.26);
-    --hf-text: #F4EFE3;
-    --hf-text-soft: #C3BBA9;
-    --hf-text-muted: #948B7C;
-    --hf-action: #F2EDE1;
-    --hf-action-soft: rgba(244, 239, 227, 0.12);
+    --hf-bg: #16110B;
+    --hf-bg-soft: #1C160F;
+    --hf-surface: #241C13;
+    --hf-surface-raised: #30261B;
+    --hf-surface-strong: #3A2E20;
+    --hf-border: rgba(240, 218, 178, 0.15);
+    --hf-border-strong: rgba(240, 218, 178, 0.26);
+    --hf-text: #F6EEDD;
+    --hf-text-soft: #CDBFA6;
+    --hf-text-muted: #9E907A;
+    --hf-action: #F4E9D2;
+    --hf-action-soft: rgba(240, 218, 178, 0.12);
     --hf-action-border: rgba(244, 239, 227, 0.30);
-    --hf-gold: #E0B96A;
+    --hf-gold: #E8BF6C;
     --hf-gold-hover: #E9C983;
     --hf-gold-soft: rgba(224, 170, 80, 0.16);
-    --hf-gold-border: rgba(224, 185, 106, 0.55);
+    --hf-gold-border: rgba(232, 191, 108, 0.55);
     --hf-danger: #E58A78;   /* stays in step with --crit above */
     --hf-warning: #E4B76E;
     --hf-shadow-soft: 0 2px 4px rgba(0, 0, 0, 0.5), 0 12px 28px -16px rgba(0, 0, 0, 0.9);

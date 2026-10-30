@@ -46,7 +46,7 @@ export default function CandidateOnboardingWizard({ onComplete }: CandidateOnboa
   const handleComplete = () => {
     if (completing) return;
     setCompleting(true);
-    const colors = ["#17150F", "#8C8473", "#C9A45E", "#E9E3D5"];
+    const colors = ["#5E4126", "#B98638", "#D5A646", "#EFE2C6"];
     confetti({ particleCount: 70, spread: 65, origin: { y: 0.55, x: 0.3 }, colors });
     setTimeout(() => confetti({ particleCount: 70, spread: 65, origin: { y: 0.55, x: 0.7 }, colors }), 140);
     setTimeout(() => confetti({ particleCount: 90, spread: 100, origin: { y: 0.45 }, colors }), 280);

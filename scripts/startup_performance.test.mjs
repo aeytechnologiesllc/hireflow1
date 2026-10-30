@@ -59,7 +59,7 @@ check("...nor does the 'still filling in' check", /from "@\/cockpit\/lib\/applic
 console.log("\nThe page shell");
 const html = await read("index.html");
 check("the brand fonts load beside the page, not in front of it", /<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^"]+" media="print" onload="this\.media='all'" \/>/.test(html) && !/<link href="https:\/\/fonts\.googleapis\.com[^"]+" rel="stylesheet" \/>/.test(html));
-check("a start screen shows at once (the app's mark on its ground)", /<div id="root"><div id="hf-boot" aria-hidden="true"><svg/.test(html) && /html,body\{background:#17140F/.test(html));
+check("a start screen shows at once (the app's mark on its ground)", /<div id="root"><div id="hf-boot" aria-hidden="true"><svg/.test(html) && /html,body\{background:#16110B/.test(html));
 check("...and it fades in once, never loops", /animation:hf-boot-in \.4s ease-out \.15s 1 forwards/.test(html));
 
 console.log("\nSigning in");

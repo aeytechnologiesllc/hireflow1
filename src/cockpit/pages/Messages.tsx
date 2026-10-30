@@ -116,7 +116,7 @@ function FilterPill({
   onClick: () => void;
 }) {
   const dot =
-    tone === "amber" ? "var(--amber-fg)" : tone === "good" ? "var(--action)" : "var(--ink-3)";
+    tone === "amber" ? "var(--amber-fg)" : tone === "good" ? "var(--good)" : "var(--ink-3)";
   return (
     <button
       type="button"
@@ -267,15 +267,18 @@ function Bubble({
       style={
         mine
           ? {
+              // Yours in the warm ink of the buttons, theirs on a soft gold
+              // tint (Warm gold, 2026-10-30: both were beige on ivory).
               alignSelf: "flex-end",
-              background: "var(--action-soft)",
-              color: "var(--action-soft-fg)",
+              background: "var(--action)",
+              color: "var(--btn-fg)",
               borderBottomRightRadius: 6,
             }
           : {
               alignSelf: "flex-start",
-              background: "var(--surface-2)",
+              background: "color-mix(in srgb, var(--gem-3) 16%, var(--surface))",
               color: "var(--ink)",
+              border: "1px solid color-mix(in srgb, var(--gem-3) 22%, var(--line))",
               borderBottomLeftRadius: 6,
             }
       }
@@ -1205,7 +1208,7 @@ export default function CockpitMessages() {
                       className="ck-btn ck-btn-primary shrink-0 !rounded-full !px-5 !py-2 !text-[13.5px]"
                       onClick={() => void handleSend()}
                       disabled={isSending || !draft.trim()}
-                      style={isSending || !draft.trim() ? { opacity: 0.55 } : undefined}
+                      style={isSending || !draft.trim() ? { opacity: 0.7 } : undefined}
                       data-composer-send
                     >
                       {isSending ? "Sending…" : "Send"}

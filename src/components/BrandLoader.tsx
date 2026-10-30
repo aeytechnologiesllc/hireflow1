@@ -23,7 +23,7 @@ export function BrandLoader({
   return (
     <div
       className="hf-loader flex min-h-[100dvh] flex-col items-center justify-center gap-6 px-6"
-      style={{ background: "var(--ground, #F0EBDF)", color: "var(--ink, #17150F)" }}
+      style={{ background: "var(--ground, #F1E8D6)", color: "var(--ink, #211910)" }}
     >
       <style>{`
         .hf-loader .tile {

@@ -19,7 +19,8 @@ import {
  * Where they are in the job's process, on the full profile — the shared
  * <GemRail>, with every gem decided by the applicant's RECORD (see
  * journeyDots in ../lib/applicantProfile.ts), the same rule as the list's
- * dots: done (ink), done below the job's bar (brass), on it now (ring),
+ * dots: done (its place on the bronze-to-gold ramp, with a check), done
+ * below the job's bar (copper), on it now (ring),
  * skipped (dashed: a step they went past with no result on file, such as one
  * the job gained after they passed it — it says "Skipped", never "Completed"),
  * not reached (empty). Never by position.
@@ -49,12 +50,14 @@ function glyphFor(stepType: string): Glyph {
   return glyph;
 }
 
-/** The gem's fill for its state. --ground is the ink on both: deep on Night's
- *  light ink and brass, ivory on Day's dark ones. */
+/** The circle's fill for its state. A finished step takes its place on the
+ *  rail's own bronze-to-gold ramp (GemRail's gemPosition) and a step under its
+ *  bar is copper (2026-10-30, Warm gold; both were the button colour, so every
+ *  finished step was the same black disc). --ground is the check's ink on
+ *  copper: ivory by Day, deep ink at Night. */
 function paint(dot: JourneyDot): Pick<GemRailNode, "color" | "ink"> {
   if (dot.id === DECISION_STAGE_ID) return { color: "var(--brass)" };
-  if (dot.state === "below") return { color: "var(--brass)", ink: "var(--ground)" };
-  if (dot.state === "done" || dot.state === "now") return { color: "var(--action)", ink: "var(--ground)" };
+  if (dot.state === "below") return { color: "var(--under)", ink: "var(--ground)" };
   return {};
 }
 
@@ -119,6 +122,7 @@ export function ApplicantJourneyRail({
       sealed: isDecision && !!outcome,
       decision: isDecision,
       sealTilt: isDecision && status === "rejected" ? -4 : 0,
+      tone: isDecision && status === "rejected" ? "stopped" : undefined,
       state: dot.state === "done" ? "done" : dot.state === "below" ? "below" : dot.state === "now" ? (dot.left ? "left" : "now") : dot.state === "skipped" ? "skipped" : "upcoming",
       ...paint(dot),
       tooltip: [
@@ -142,6 +146,7 @@ export function ApplicantJourneyRail({
       className={wide ? "ck-rail-wide" : undefined}
       motion="calm"
       entrance={entrance}
+      variant="thin"
     />
   );
 }

@@ -79,6 +79,10 @@ const PAIRS = [
   ["muted-foreground", "background", 4.5], ["muted-foreground", "card", 4.5],
   ["accent-foreground", "accent", 4.5], ["card-foreground", "card", 4.5],
   ["ck-brass", "background", 4.5], ["ck-brass-bright", "background", 4.5], ["ck-brass-bright", "card", 4.5],
+  // Warm gold (2026-10-30): the gold of "good" and the copper of "under its bar" are words too.
+  ["good", "ground", 4.5], ["good", "surface", 4.5], ["good-fg", "good-soft", 4.5], ["good-fg", "ground", 4.5],
+  ["under", "ground", 4.5], ["under", "surface", 4.5],
+  ["success", "background", 4.5], ["success", "card", 4.5],
 ];
 
 for (const [theme, t] of [["Day", day], ["Night", night]]) {

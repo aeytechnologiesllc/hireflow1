@@ -44,7 +44,7 @@ export function ApplicantIntegrityPanel({ record, onOpen }: { record: Assessment
         </div>
       ) : (
         <p className="flex items-start gap-2.5 text-[13px] leading-[1.5]" style={{ color: "var(--ink-2)" }}>
-          <ShieldCheck aria-hidden className="mt-[2px] h-4 w-4 shrink-0" style={{ color: "var(--action)" }} strokeWidth={2} />
+          <ShieldCheck aria-hidden className="mt-[2px] h-4 w-4 shrink-0" style={{ color: "var(--good)" }} strokeWidth={2} />
           <span>No flags on any test so far.</span>
         </p>
       )}
