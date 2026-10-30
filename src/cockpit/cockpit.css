@@ -722,36 +722,36 @@ main.ck-scroll,
 
 :root {
   /* the journey spectrum the track flows through and every cleared gem draws
-     its fill from — umber through bronze and amber to the gold that hands off
-     into the brass Decision seal (2026-10-30, Warm gold; it was ink through
-     grey stone from 2026-10-25, and green to gold before). Day runs dark to
-     light on ivory; Night runs light to bright on ink, so the first gem never
-     sinks into the ground. */
-  --gem-1: #5E4126;
-  --gem-2: #8F6131;
-  --gem-3: #B98638;
-  --gem-4: #D5A646;
+     its fill from — jade through mint and teal to the gold that hands off
+     into the brass Decision seal (the owner's green, locked again on
+     2026-10-30 after a day of Warm gold and five of ink through grey stone).
+     Day runs dark to light on ivory; Night runs light to bright on ink, so the
+     first gem never sinks into the ground. */
+  --gem-1: #0F6B4F;
+  --gem-2: #1C9A72;
+  --gem-3: #1F7A78;
+  --gem-4: #B8860B;
 
   /* the glyph ink that reads best against each stop: the two dark stops take
      an ivory glyph, the light ones ink. */
-  --gem-ink-1: #FBF4E6;
-  --gem-ink-2: #FBF4E6;
-  --gem-ink-3: #211910;
-  --gem-ink-4: #211910;
+  --gem-ink-1: #F4EFE3;
+  --gem-ink-2: #14100a;
+  --gem-ink-3: #F4EFE3;
+  --gem-ink-4: #14100a;
 
   /* untraveled track — a whisper of the page's own ink, so the groove reads
      as "muted" on ivory Day and on near-black Night without a second token */
   --rail-track-base: color-mix(in srgb, var(--ink) 9%, transparent);
 }
 .dark {
-  --gem-1: #9C7A52;
-  --gem-2: #C39455;
-  --gem-3: #DEAE5C;
-  --gem-4: #F1CB76;
-  --gem-ink-1: #16110B;
-  --gem-ink-2: #16110B;
-  --gem-ink-3: #16110B;
-  --gem-ink-4: #16110B;
+  --gem-1: #4FBF95;
+  --gem-2: #3FCE97;
+  --gem-3: #2FA3A0;
+  --gem-4: #E0B96A;
+  --gem-ink-1: #14100a;
+  --gem-ink-2: #14100a;
+  --gem-ink-3: #14100a;
+  --gem-ink-4: #14100a;
 }
 
 .ck-rail-outer { margin-bottom: 14px; }
@@ -1477,7 +1477,7 @@ button.ckp-tile:focus-visible { outline: 2px solid var(--action); outline-offset
    2026-10-30. The owner, on the gems: "go back to how it used to be. It used
    to be the skinnier one ... keep it skinny, in a line, going across
    horizontal, just nicer." Of four thin versions they chose "Checked": a 2px
-   line warming from bronze to gold, each finished step a small circle in its
+   line running from jade to gold, each finished step a small circle in its
    place on that ramp with a check in it, the step they are on a size larger
    with a soft halo, a step under its bar copper, the decision Ava's small
    seal. The traveller is a small light that runs to where they are and fades.

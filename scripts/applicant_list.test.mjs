@@ -494,7 +494,7 @@ console.log("\n2. One row per state");
   check("…country from the form's draft, 'started 5 min ago'", r["Eve Bello"].country === "Jamaica" && r["Eve Bello"].appliedWords === "started 5 min ago" && r["Eve Bello"].onForm);
   check("on the form, quiet, no attempt: 'Filling in the form', Part-way, Unknown country", r["Finn Tan"].lineText === "Filling in the form" && r["Finn Tan"].tab === "part-way" && r["Finn Tan"].country === "Unknown");
   check("finished, Ava says interview: the suffix in the action colour", r["Gia Siddiqui"].lineText === "Finished every test · Ava suggests: interview" && r["Gia Siddiqui"].line.at(-1).tone === "good");
-  check("…'Done 40 min ago', 86 final in the gold of good", r["Gia Siddiqui"].activeWords === "Done 40 min ago" && r["Gia Siddiqui"].scoreTone === "good" && r["Gia Siddiqui"].scoreKind === "final");
+  check("…'Done 40 min ago', 86 final in the colour of good", r["Gia Siddiqui"].activeWords === "Done 40 min ago" && r["Gia Siddiqui"].scoreTone === "good" && r["Gia Siddiqui"].scoreKind === "final");
   check("interview: chip Interview, 'Moved to interview', every dot done (connection below the bar)", r["Hal Wanjiru"].chip?.label === "Interview" && r["Hal Wanjiru"].lineText === "Moved to interview" && dots(r["Hal Wanjiru"]) === "done done below done done done done");
   check("…'Interview Thu 3 PM' when one is booked", r["Hal Wanjiru"].activeWords === "Interview Thu 3 PM", r["Hal Wanjiru"].activeWords);
   check("offered: chip Offer, 'Decided yesterday'", r["Ivy Reyes"].chip?.label === "Offer" && r["Ivy Reyes"].lineText === "Offer made" && r["Ivy Reyes"].activeWords === "Decided yesterday", r["Ivy Reyes"].activeWords);

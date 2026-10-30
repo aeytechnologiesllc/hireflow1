@@ -267,8 +267,8 @@ function Bubble({
       style={
         mine
           ? {
-              // Yours in the warm ink of the buttons, theirs on a soft gold
-              // tint (Warm gold, 2026-10-30: both were beige on ivory).
+              // Yours in the jade of the buttons, theirs on a soft tint of the
+              // gem ramp (2026-10-30: both were beige on ivory).
               alignSelf: "flex-end",
               background: "var(--action)",
               color: "var(--btn-fg)",

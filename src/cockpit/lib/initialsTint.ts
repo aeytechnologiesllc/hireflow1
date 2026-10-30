@@ -1,5 +1,5 @@
 /**
- * A warm tint for an initials circle (Warm gold, 2026-10-30): one of the four
+ * A tint for an initials circle (2026-10-30): one of the four
  * gem stops, picked from the initials so a person keeps the same one on the
  * list and on their profile. They were all the same grey disc.
  *

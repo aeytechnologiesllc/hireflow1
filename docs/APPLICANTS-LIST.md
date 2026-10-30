@@ -186,10 +186,10 @@ Desktop columns: Applicant · Where they are · Last active · Flags · Score ·
   (a decision is a staff write); that is its only use on the list.
 - **Flags**: shield + "3 flags" in amber, or "None". The tooltip lists them
   ("Left the window 3 times · 1 copy").
-- **Score**: `ai_score` as a big Fraunces number over "/100": the gold of
+- **Score**: `ai_score` as a big Fraunces number over "/100": the jade of
   "good" (`--good`) at 70+, plain ink 50–69, the softer ink (`--ink-2`) under
-  50 (2026-10-30, Warm gold: 70+ had been the button colour, so a 78 looked
-  like a 40 and a 69 in brass looked better than both). "so far" under it when
+  50 (2026-10-30: under the ink-and-ivory lock 70+ was the button colour,
+  black, so a 78 looked like a 40 and a 69 in brass looked better than both). "so far" under it when
   `ai_scorecard.decisionState = needs_more_evidence`. "—" and "not scored yet"
   when `ai_score` is null. Never a quiz percentage standing in for it.
 
@@ -219,7 +219,7 @@ Decision; "done" counts done, done below the bar and skipped.
 | withdrawn | not on the list (withdrawing deletes the application) | | | |
 
 Since 2026-10-30 the rail is the thin "Checked" line the owner chose: a 2px
-line warming from bronze to gold (the gem ramp, `--gem-1..4`), each milestone
+line running from jade through mint and teal to gold (the gem ramp, `--gem-1..4`), each milestone
 behind them a small circle in its place on that ramp with a check, the one
 they are at a size larger with a soft halo, Hired once reached the gold one,
 and a declined applicant's circle a red ring with a cross. Milestones not

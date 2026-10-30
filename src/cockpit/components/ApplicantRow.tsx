@@ -42,8 +42,8 @@ const UNLIT_LINE = "color-mix(in srgb, var(--ink-3) 30%, transparent)";
 /**
  * "Where they are": four milestones, Applied → Tested → Interview → Hired
  * (lib/milestones.ts; the owner's Option C, 2026-10-24), drawn as the thin
- * "Checked" line the owner chose on 2026-10-30: a 2px line warming from
- * bronze to gold, each milestone behind them a small circle with a check, the
+ * "Checked" line the owner chose on 2026-10-30: a 2px line running from
+ * jade to gold, each milestone behind them a small circle with a check, the
  * one they are at a size larger with a soft halo, and its name stressed under
  * it. Hired, once reached, is the gold one; a declined applicant's circle is
  * drawn stopped, with a cross.

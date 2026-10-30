@@ -957,7 +957,18 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
-### 2026-10-30 — Warm gold and the thin "Checked" journey (branch `warm-gold-journey`, not shipped)
+### 2026-10-30 (later) — the new green, locked
+
+A day after Warm gold went live (996f0f7a) the owner found it "starting to look more like a black and
+white" and asked for the original green. Shown on the real screens beside Warm gold, they chose the
+original jade and ivory with that day's fixes kept ("it looks a lot more polished and better for the
+inside ... lock this one up"): the jade action colour and a jade `--good`, the ivory and cream grounds,
+jade-mint-teal-gold gems, and the thin "Checked" line, the score ladder, the copper "under its bar",
+tinted initials and warmer bubbles from Warm gold. The guards now hold "the action colour and good are
+the jade; brass is never a button" and "no colour-named token comes back". The front page is being
+redesigned separately (an animated night-shift hero).
+
+### 2026-10-30 — Warm gold and the thin "Checked" journey (shipped as 996f0f7a)
 
 The owner found the app "black and white", Day worst: green had been the only
 hue, and on 2026-10-25 every "good" (a 70+ score, a passed test, a finished

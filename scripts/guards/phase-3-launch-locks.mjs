@@ -10,10 +10,11 @@
  *     bar pinned for the whole page, the opening and the end.
  *   - share-image-neutral-for-other-businesses: a job or careers link from any
  *     business shows the plain picture, never "remote"/"work from home".
- *   - no-jade-tokens-left: ink and ivory with a brass accent (the owner locked
- *     it 2026-10-25); no jade token, class or green colour value comes back.
- *   - brass-only-for-ava-score-money: the action colour is ink by day and
- *     ivory at night; brass never becomes a button, the primary or a focus ring.
+ *   - no-jade-tokens-left: colour tokens are named for what they mean; the old
+ *     colour-named tokens never come back (green itself is the owner's again
+ *     since 2026-10-30).
+ *   - brass-only-for-ava-score-money: the action colour and "good" are the
+ *     jade; brass never becomes a button, the primary or a focus ring.
  *   - every-css-variable-is-defined: a var(--x) with no fallback names a token
  *     that exists, and the gem rail's stops are tokens in both themes (the
  *     rename left the rail asking for --gem-teal, which no longer existed).
@@ -51,11 +52,6 @@ function hueChroma([r, g, b]) {
   return { hue, chroma: c / 255 };
 }
 
-/** Green, as the old jade/mint/teal family was: hue 90-200 and clearly not grey. */
-const isGreen = (rgb) => {
-  const { hue, chroma } = hueChroma(rgb);
-  return hue >= 90 && hue <= 200 && chroma > 0.08;
-};
 
 export default [
   {
@@ -139,78 +135,25 @@ export default [
   {
     id: "no-jade-tokens-left",
     why:
-      "The owner locked the colours on 2026-10-25: ink and ivory with a brass accent, and no green " +
-      "anywhere (\"I didn't like the green landing page\"). Every jade token was renamed for what it " +
-      "means (--jade → --action, --hf-green → --hf-action, --ck-jade/mint → --ck-action/-bright, " +
-      "--gem-jade… → --gem-1..4) and every green value replaced. A green colour value, an old token or " +
-      "Tailwind class, or the old candidate-jade.css coming back fails here. Google's own logo green " +
-      "(#34A853) on the sign-in button is the one exception.",
+      "Colour tokens are named for what they mean, not for their colour (2026-10-25: --jade → --action, " +
+      "--hf-green → --hf-action, --ck-jade/mint → --ck-action/-bright, --gem-jade… → --gem-1..4, " +
+      "candidate-jade.css → candidate-theme.css), so a palette can change in one place. On 2026-10-30 " +
+      "the owner locked the new green again (\"it looks a lot more polished and better for the inside\"), " +
+      "so a green value is allowed; an old colour-named token or Tailwind class, or the old " +
+      "candidate-jade.css, coming back fails here.",
     run: async ({ read, walk }) => {
       const detail = [];
       const rels = [
         ...(await walk("src", [".ts", ".tsx", ".css"])),
         "index.html",
         "public/landing.html",
-        "public/site.webmanifest",
         "tailwind.config.ts",
-        "scripts/make-app-icons.mjs",
-        "scripts/make-share-images.mjs",
       ];
       const tokens = /--(?:jade|hf-green|ck-jade|ck-mint|an-jade|gem-(?:jade|mint|teal|gold))\b|\b(?:bg|text|border|ring|from|to|via|fill|stroke|outline|shadow|decoration)-(?:jade|mint)\b|candidate-jade\.css|auth-jade\b/;
-      const values = /#[0-9a-f]{6}\b|#[0-9a-f]{3}\b|rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+|hsla?\(\s*\d+(?:\.\d+)?(?:deg)?\s*,\s*\d+(?:\.\d+)?%\s*,\s*\d+(?:\.\d+)?%|(?<![\w.-])\d{2,3}(?:\.\d+)?\s+\d{1,3}(?:\.\d+)?%\s+\d{1,3}(?:\.\d+)?%/gi;
-      // Greens by name: a Tailwind palette class, or a CSS colour keyword used as a value.
-      const greenClass = /\b(?:bg|text|border|ring|stroke|fill|from|to|via|outline|shadow|decoration|accent|caret|divide|placeholder)-(?:green|emerald|teal|lime)-\d{2,3}\b/;
-      const greenWord = /[:=(,]\s*["'`]?(?:sea|forest|lime|spring|lawn|dark|light|medium|mediumsea|mediumspring|pale|yellow|olive|darksea|darkolive|lightsea)?green["'`]?\s*[;)"'`,]/i;
-      const oklch = /oklch\(\s*([\d.]+)%?\s+([\d.]+)\s+([\d.]+)/gi;
       for (const rel of rels) {
         const text = (await read(rel)) ?? "";
         text.split("\n").forEach((line, i) => {
-          const where = `${rel}:${i + 1}`;
-          if (tokens.test(line)) detail.push(`${where}  old jade token or class: ${line.trim().slice(0, 110)}`);
-          if (greenClass.test(line)) detail.push(`${where}  a green Tailwind class: ${line.trim().slice(0, 100)}`);
-          // (tidyMessage.ts holds a list of everyday words, not colours.)
-          if (rel !== "src/cockpit/lib/tidyMessage.ts" && greenWord.test(line)) detail.push(`${where}  a green colour by name: ${line.trim().slice(0, 100)}`);
-          for (const m of line.matchAll(oklch)) {
-            const [chroma, hue] = [Number(m[2]), Number(m[3])];
-            if (chroma > 0.05 && hue >= 120 && hue <= 200) detail.push(`${where}  a green oklch colour: ${m[0]}`);
-          }
-          for (const m of line.matchAll(values)) {
-            if (/^#34A853$/i.test(m[0])) continue; // Google's logo
-            const rgb = rgbOf(m[0]);
-            if (rgb && isGreen(rgb)) detail.push(`${where}  green colour ${m[0]}: ${line.trim().slice(0, 100)}`);
-          }
-        });
-      }
-      // What the server draws: emails, the signing certificate and the
-      // improvement report (product audit, round 2: the email button, its
-      // link and the certificate were still green). A PDF writes colours as
-      // fractions, rgb(0.13, 0.55, 0.13), or as { r: 0x0f, g: 0x6b, b: 0x4f }.
-      const fraction = /\brgb\(\s*([01]?(?:\.\d+)?)\s*,\s*([01]?(?:\.\d+)?)\s*,\s*([01]?(?:\.\d+)?)\s*\)/g;
-      const channels = /\{\s*r:\s*(0x[0-9a-f]{1,2}|\d{1,3})\s*,\s*g:\s*(0x[0-9a-f]{1,2}|\d{1,3})\s*,\s*b:\s*(0x[0-9a-f]{1,2}|\d{1,3})\s*\}/gi;
-      for (const rel of await walk("supabase/functions", [".ts"])) {
-        if (/\.test\.ts$/.test(rel)) continue;
-        const text = (await read(rel)) ?? "";
-        text.split("\n").forEach((line, i) => {
-          const where = `${rel}:${i + 1}`;
-          const found = [];
-          for (const m of line.matchAll(values)) found.push([m[0], rgbOf(m[0])]);
-          for (const m of line.matchAll(fraction)) found.push([m[0], m.slice(1, 4).map((v) => Math.round(Number(v) * 255))]);
-          for (const m of line.matchAll(channels)) found.push([m[0], m.slice(1, 4).map((v) => Number(v))]);
-          for (const [value, rgb] of found) {
-            if (rgb && isGreen(rgb)) detail.push(`${where}  green colour ${value}: ${line.trim().slice(0, 100)}`);
-          }
-        });
-      }
-      // The app's own PDFs (the certificate, the audit export, the signature
-      // burner) draw with jsPDF's setTextColor(34, 139, 34) or pdf-lib's
-      // rgb(0.13, 0.55, 0.13): green there too (the third product audit).
-      const jspdf = /set(?:Text|Fill|Draw)Color\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*\)/g;
-      const pdflib = /\brgb\(\s*([01]?\.\d+|[01])\s*,\s*([01]?\.\d+|[01])\s*,\s*([01]?\.\d+|[01])\s*\)/g;
-      for (const rel of await walk("src", [".ts", ".tsx"])) {
-        const text = (await read(rel)) ?? "";
-        text.split("\n").forEach((line, i) => {
-          for (const m of line.matchAll(jspdf)) if (isGreen(m.slice(1, 4).map(Number))) detail.push(`${rel}:${i + 1}  green PDF colour ${m[0]}`);
-          for (const m of line.matchAll(pdflib)) if (isGreen(m.slice(1, 4).map((v) => Math.round(Number(v) * 255)))) detail.push(`${rel}:${i + 1}  green PDF colour ${m[0]}`);
+          if (tokens.test(line)) detail.push(`${rel}:${i + 1}  old colour-named token or class: ${line.trim().slice(0, 110)}`);
         });
       }
       if ((await read("src/styles/candidate-jade.css")) != null) detail.push("src/styles/candidate-jade.css is back (it is candidate-theme.css)");
@@ -220,39 +163,27 @@ export default [
   {
     id: "brass-only-for-ava-score-money",
     why:
-      "Brass is Ava's verdict, the score and anything that costs money (src/index.css, the owner's lock " +
-      "of 2026-10-25). The action colour is ink by day and ivory at night: --action, --primary, --ring, " +
-      "--ck-action and --hf-action stay near grey in both themes, the default button and the " +
-      "action pill fill with the action colour, and keyboard focus rings are the action colour, so " +
-      "brass never reads as a plain button or as \"this will be charged\" on Pass, Hire or Save. " +
-      "Since Warm gold (2026-10-30) \"good\" has its own gold (--good; --success is the same colour, " +
-      "for a passed test, a good score, a finished step), and no button is filled with it.",
+      "Brass is Ava's verdict, the score's seal and anything that costs money, never a plain button. " +
+      "Since 2026-10-30 (the owner's new green, locked) the action colour is the jade in both themes: " +
+      "--action, --primary, --ring, --ck-action and --hf-action, and \"good\" (--good, --success: a " +
+      "passed test, a 70+ score, a finished step) is the same jade. The default button and the action " +
+      "pill fill with the action colour and focus rings are the action colour, so brass never reads " +
+      "as a plain button or as \"this will be charged\" on Pass, Hire or Save.",
     run: async ({ read }) => {
       const detail = [];
       const css = (await read("src/index.css")) ?? "";
-      const actionTokens = ["action", "action-bright", "primary", "ring", "ck-action", "ck-action-bright", "hf-action"];
-      for (const name of actionTokens) {
-        const found = [...css.matchAll(new RegExp(`--${name}:\\s*([^;]+);`, "g"))];
-        if (found.length < 2) detail.push(`src/index.css: --${name} is not set for both Day and Night`);
-        for (const m of found) {
-          const rgb = rgbOf(m[1]);
-          if (!rgb) { detail.push(`src/index.css: --${name}: ${m[1]} is not a colour this guard can read`); continue; }
-          const { chroma } = hueChroma(rgb);
-          if (chroma > 0.15) detail.push(`src/index.css: --${name}: ${m[1].trim()} is a colour, not ink or ivory (chroma ${chroma.toFixed(2)})`);
-        }
-      }
-      // "Good" is gold in both themes, and --success says the same.
-      for (const name of ["good", "success"]) {
+      // The action colour and "good" are the jade, Day and Night.
+      for (const name of ["action", "action-bright", "primary", "ring", "ck-action", "ck-action-bright", "hf-action", "good", "success"]) {
         const found = [...css.matchAll(new RegExp(`--${name}:\\s*([^;]+);`, "g"))];
         if (found.length < 2) detail.push(`src/index.css: --${name} is not set for both Day and Night`);
         for (const m of found) {
           const rgb = rgbOf(m[1]);
           const hc = rgb && hueChroma(rgb);
-          if (!hc || hc.chroma < 0.2 || hc.hue < 25 || hc.hue > 60) detail.push(`src/index.css: --${name}: ${m[1].trim()} is not the gold of "good"`);
+          if (!hc || hc.chroma < 0.15 || hc.hue < 140 || hc.hue > 175) detail.push(`src/index.css: --${name}: ${m[1].trim()} is not the jade`);
         }
       }
       const variants = (await read("src/components/ui/button-variants.ts")) ?? "";
-      if (/bg-success|--good/.test(variants)) detail.push("button-variants.ts: a button is filled with the colour of \"good\"");
+      if (/brass|gold|amber/.test(variants)) detail.push("button-variants.ts: a button carries brass");
       const defaultButton = /default: "([^"]*)"/.exec(variants)?.[1] ?? "";
       if (!/^bg-primary text-primary-foreground/.test(defaultButton) || /brass|gold|amber/.test(defaultButton)) detail.push("button-variants.ts: the default button is not the primary (action) colour, or carries brass");
       const tailwind = (await read("tailwind.config.ts")) ?? "";

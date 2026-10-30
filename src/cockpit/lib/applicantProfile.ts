@@ -451,7 +451,7 @@ export function applicantScore(app: { ai_score?: unknown; ai_scorecard?: unknown
 }
 
 export function scoreColor(band: ApplicantScore["band"]): string {
-  // The list's ScoreCell colours (TONE_VAR in applicantList.ts): gold at 70
+  // The list's ScoreCell colours (TONE_VAR in applicantList.ts): good at 70
   // and up, plain ink from 50, the softer ink under 50 (docs/APPLICANTS-LIST.md §2).
   return band === "hi" ? "var(--good)" : band === "mid" ? "var(--ink)" : band === "lo" ? "var(--ink-2)" : "var(--ink-3)";
 }

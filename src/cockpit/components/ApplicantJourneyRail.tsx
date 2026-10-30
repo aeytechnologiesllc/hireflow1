@@ -19,7 +19,7 @@ import {
  * Where they are in the job's process, on the full profile — the shared
  * <GemRail>, with every gem decided by the applicant's RECORD (see
  * journeyDots in ../lib/applicantProfile.ts), the same rule as the list's
- * dots: done (its place on the bronze-to-gold ramp, with a check), done
+ * dots: done (its place on the jade-to-gold ramp, with a check), done
  * below the job's bar (copper), on it now (ring),
  * skipped (dashed: a step they went past with no result on file, such as one
  * the job gained after they passed it — it says "Skipped", never "Completed"),
@@ -51,9 +51,9 @@ function glyphFor(stepType: string): Glyph {
 }
 
 /** The circle's fill for its state. A finished step takes its place on the
- *  rail's own bronze-to-gold ramp (GemRail's gemPosition) and a step under its
- *  bar is copper (2026-10-30, Warm gold; both were the button colour, so every
- *  finished step was the same black disc). --ground is the check's ink on
+ *  rail's own jade-to-gold ramp (GemRail's gemPosition) and a step under its
+ *  bar is copper (2026-10-30; under the ink-and-ivory lock both were the
+ *  button colour, so every finished step was the same black disc). --ground is the check's ink on
  *  copper: ivory by Day, deep ink at Night. */
 function paint(dot: JourneyDot): Pick<GemRailNode, "color" | "ink"> {
   if (dot.id === DECISION_STAGE_ID) return { color: "var(--brass)" };

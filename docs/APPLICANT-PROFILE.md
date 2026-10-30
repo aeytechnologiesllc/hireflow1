@@ -120,7 +120,7 @@ The owner, on the large gems: "go back to how it used to be. It used to be the
 skinnier one ... keep it skinny, in a line, going across horizontal, just
 nicer." Of four thin versions (Pearl, Hairline, Checked, Gold thread) they
 chose **Checked**: `GemRail variant="thin"` (the `.ck-rail-thin` block in
-cockpit.css). A 2px line warming from bronze to gold (`--gem-1..4`); each
+cockpit.css). A 2px line from jade through mint and teal to gold (`--gem-1..4`); each
 finished step a 15px circle in its place on that ramp with a check in it; a
 step under its bar copper (`--under`); the step they are on a 19px ring with a
 gold centre and the still halo; skipped dashed, left a quiet ring, not reached
