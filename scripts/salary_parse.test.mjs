@@ -57,7 +57,23 @@ const builder = readFileSync(path.join(ROOT, "src/lib/jobFromFlow.ts"), "utf8");
 // (The sixteenth Phase 4 review: the fifteenth's second test, a place or Type that says remote and a post that does too, never
 // decided anything; remote_from_location.test.mjs holds why. Remote is the brief's work mode, so hybrid is never remote.)
 check("a hybrid job is saved as not remote, as it is built (the fifth product review), and the post's words never make an on-site job remote (the fifteenth Phase 4 review): remote is the brief's work mode (the sixteenth)", /const isRemote = brief\.workMode === "remote";/.test(builder) && !/isFullyRemoteText\(/.test(builder));
-check("the job builder stores what the parser reads, and a remote job's place picks no currency (the third product audit)", /const sal = parseSalary\(payText, isRemote \? undefined : countryCode \?\? undefined\);/.test(builder) && /const salaryCurrency = sal\.currency \?\? \(!isRemote && countryCode === "US" \? "USD" : null\);/.test(builder));
+// (2026-10-31: the rule moved into salaryForJob, which the job builder's "On your post:" line reads too; the lock is the
+// same: Publish stores what the parser reads, and a remote job's place picks no currency.)
+const { salaryForJob } = await import("../src/lib/salaryParse.ts");
+const parseFile = readFileSync(path.join(ROOT, "src/lib/salaryParse.ts"), "utf8");
+check(
+  "the job builder stores what the parser reads, and a remote job's place picks no currency (the third product audit)",
+  /const sal = salaryForJob\(payText, isRemote, countryCode\);/.test(builder) &&
+    /const salaryCurrency = sal\.currency;/.test(builder) &&
+    /const sal = parseSalary\(payText, isRemote \? undefined : countryCode \?\? undefined\);/.test(parseFile) &&
+    /currency: sal\.currency \?\? \(!isRemote && countryCode === "US" \? "USD" : null\)/.test(parseFile),
+);
+check(
+  "salaryForJob: \"5/hr\" at \"Remote - Philippines\" has no currency; on site the country's (PHP), and US dollars when none is written",
+  same(salaryForJob("5/hr", true, "PH"), { min: 5, max: 5, currency: null, period: "HOUR" }) &&
+    same(salaryForJob("20,000 monthly", false, "PH"), { min: 20000, max: 20000, currency: "PHP", period: "MONTH" }) &&
+    same(salaryForJob("18 an hour", false, "US"), { min: 18, max: 18, currency: "USD", period: "HOUR" }),
+);
 const page = readFileSync(path.join(ROOT, "src/pages/JobDetails.tsx"), "utf8");
 check("the job page says pay with the shared words (no USD guessed)", /payWords\(\{ salary_min: min, salary_max: max, salary_currency: currency, salary_period: period \}\)/.test(page) && !/currency \|\| "USD"/.test(page));
 const migration = readFileSync(path.join(ROOT, "supabase/migrations/20261025330000_salary_keeps_cents.sql"), "utf8");

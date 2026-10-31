@@ -893,6 +893,53 @@ allow-list) so the post, the application and the interview are written for
 that industry, in plain English for any country, with the pack's word for
 the other person. `ai-generate-job-content` has the same rule.
 
+## The brief card (2026-10-31)
+
+The owner tried the builder's first card live: "location part isn't clear,
+like location I'm hiring from or location where they're going to be working
+in", and of the pay, "Do I type $500 a month, or what do I type?"; "United
+States" read "Couldn't pinpoint that exactly" beside a Type still on
+"Full-time · On-site". The card now says what each field means, offers a few
+picks (real buttons, the jade when chosen) and reads back what the post will
+say, by Publish's own rules (`src/lib/briefPicks.ts`, pure;
+`scripts/brief_picks.test.mjs`):
+
+- **Where they'll work** (was Location), with "Most chat and email agents
+  work from home." Picks: Remote, anywhere (fills "Remote (worldwide)": no
+  country, so no job feed, as before, and never sent to the geocoder,
+  `placeNamesNothing`), Remote, Philippines and Remote, United States (remote,
+  with the country the feeds need), At our office (asks for the city). The
+  line under it is never an error: a country or a well-known city is placed
+  without the geocoder ("Remote, from the United States.", "In person:
+  London, United Kingdom."; `wellKnownCity`, the whole place only, also used
+  by Publish's fallback, `fallbackLocationFields`, now in jobLocation.ts),
+  the geocoder is asked only about anything else, and what nobody can place
+  reads "Your post will say “…”.".
+- **Type** starts on "Full-time · Remote" and follows the place until the
+  business types in it (`typeForPlace`): remote words, then hybrid, then the
+  office picked; a country and nothing more is remote unless the title says
+  on site; any other place goes back to `DEFAULT_JOB_TYPE`, where the title
+  and What they do still decide, as above.
+- **Pay** stays free text and required. Picks follow the place's country
+  (Philippines: $500 a month, $3 an hour, ₱30,000 a month; United States:
+  $18 an hour, $3,200 a month; else $500 a month, $4 an hour), and "On your
+  post: USD 500 a month" is read by `salaryForJob` (the rule Publish stores,
+  moved out of jobFromFlow.ts) and `payWords` (the job page's words): a
+  guessed period shows, a remote job's missing currency asks for one, and
+  words with no amount say "Write it like $500 a month or $4 an hour".
+- **Start** keeps its default, Within a few weeks, with picks (As soon as
+  possible, which the brief now reads as asap, Within a few weeks, Next
+  month).
+- **What they'll do** offers "Start from an example" while empty: two
+  sentences from the title and the business, no AI call (`exampleWork`).
+- Narrow windows: the builder centres with auto margins (never
+  `justify-center` on its scroller, which cuts an overflowing column at the
+  left), its columns can shrink, and the card sits beside the heading from
+  1280 px only (one centred column below).
+
+`TalkToAva`'s older "Location or remote" field is left as it was: it is
+mounted only on the founder's lab page (`/flow-lab`), never in the builder.
+
 ## Where the job is
 
 `src/lib/jobLocation.ts` reads the place the business typed (and the Type

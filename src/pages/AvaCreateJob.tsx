@@ -2,7 +2,7 @@
  * AvaCreateJob — REAL create-job flow (Ava Engine MVP slice 1).
  * Route: /jobs/create (full-screen, auth required).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
@@ -49,7 +49,6 @@ import { DISPLAY, FOCUS_CSS, STEPS, useWide } from "@/components/ava/createFlow/
 import {
   PLAYBOOKS,
   RIGOR_OPTIONS,
-  DEFAULT_JOB_TYPE,
   briefFromForm,
   chipAnswersToBriefAnswers,
   clearDraft,
@@ -68,8 +67,22 @@ import { EmailCheckDialog } from "@/components/business/EmailCheckDialog";
 import { isEmailNotVerifiedError, OWNER_MUST_CONFIRM_EMAIL } from "@/lib/emailCheck";
 import { PublishPaymentDialog } from "@/components/billing/PublishPaymentDialog";
 import { isPaymentRequiredError, PUBLISH_PAYMENT_WORDS } from "@/lib/billing";
-import { geocodePlace, formatPlace } from "@/lib/geocode";
-import { placeSaysHybrid, placeSaysRemote } from "@/lib/jobLocation";
+import { geocodePlace } from "@/lib/geocode";
+import { placeNamesNothing } from "@/lib/jobLocation";
+import {
+  PAY_EXAMPLE,
+  PLACE_PICKS,
+  REMOTE_JOB_TYPE,
+  START_PICKS,
+  exampleWork,
+  payPicks,
+  pickedPlace,
+  placeForOfficePick,
+  readPay,
+  readPlace,
+  typeForPlace,
+  type PlacePickId,
+} from "@/lib/briefPicks";
 import type { LucideIcon } from "lucide-react";
 import { candidateOrigin } from "@/lib/hosts";
 import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
@@ -242,14 +255,37 @@ function applyReviewEdits(flow: JobFlow, cards: ReviewPhaseCard[]): JobFlow {
 
 const DRAFT_SESSION_KEY = "ava-create-active";
 
-/** The Type that goes with a place while the business has not typed its own:
- *  "Remote" beside "Full-time · On-site" was a contradiction the owner had to
- *  notice and retype (the run-through of 2026-10-31). Read as briefFromForm
- *  reads the place: remote first, then partly at home. */
-function typeForPlace(location: string): string {
-  if (placeSaysRemote(location) === "remote") return "Full-time · Remote";
-  if (placeSaysHybrid(location)) return "Full-time · Hybrid";
-  return DEFAULT_JOB_TYPE;
+// The brief's fields: one look for every label and box.
+const FIELD_LABEL = "block text-xs font-semibold uppercase tracking-[0.14em]";
+const FIELD_INPUT = "mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none";
+const FIELD_STYLE = { background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" } as const;
+
+/** A quick pick under a brief field: a real button, the follow-up chips' look
+ *  (the jade when chosen, never brass), smaller. */
+function BriefPick({ label, on, icon, onPick }: { label: string; on?: boolean; icon?: ReactNode; onPick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onPick}
+      aria-pressed={on === undefined ? undefined : on}
+      className="inline-flex min-h-[30px] items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] leading-tight transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--action)]"
+      style={on ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", border: "1px solid var(--action)", fontWeight: 600 } : { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}
+    >
+      {on ? <Check className="h-3.5 w-3.5" aria-hidden /> : icon}
+      {label}
+    </button>
+  );
+}
+
+/** The line under a field that says what the post will show: the jade with a check when it is read, else quiet words
+ *  (never an error's tone: nothing the business typed is wrong). */
+function ReadBack({ tone, children }: { tone: "found" | "plain" | "hint"; children: ReactNode }) {
+  return (
+    <p className="mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-snug" style={{ color: tone === "found" ? "hsl(var(--ck-action-bright))" : "hsl(var(--muted-foreground))" }}>
+      {tone === "found" && <Check className="mt-[1px] h-3.5 w-3.5 shrink-0" aria-hidden />}
+      <span className="min-w-0">{children}</span>
+    </p>
+  );
 }
 
 export default function AvaCreateJob() {
@@ -290,10 +326,13 @@ export default function AvaCreateJob() {
     saved?.briefFields ?? {
       role: "",
       location: "",
-      type: DEFAULT_JOB_TYPE,
-      // The Type starts as the builder's default, which the title and What they do may overrule; once the business types in
-      // it, its own on-site decides (briefFromForm; the seventeenth Phase 4 review).
+      // The Type starts remote, as most chat and email agents work (2026-10-31), and follows Where they'll work
+      // (typeForPlace, below) until the business types in it: a place in a city puts it back on the builder's default,
+      // DEFAULT_JOB_TYPE, which the title and What they do may overrule; once the business types in it, its own on-site
+      // decides (briefFromForm; the seventeenth Phase 4 review).
+      type: REMOTE_JOB_TYPE,
       typeChosen: false,
+      atOffice: false,
       pay: "",
       start: "Within a few weeks",
       work: "",
@@ -366,14 +405,53 @@ export default function AvaCreateJob() {
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
 
   const setBrief = (k: string, v: string) => setBriefFields((b) => ({ ...b, [k]: v }));
+  const placeInputRef = useRef<HTMLInputElement>(null);
+  const workInputRef = useRef<HTMLTextAreaElement>(null);
+  const atOffice = !!briefFields.atOffice;
+
+  // The Type follows Where they'll work while the business has not typed in it (typeChosen false; an older draft
+  // with no record keeps what it has).
+  useEffect(() => {
+    if (briefFields.typeChosen !== false) return;
+    const next = typeForPlace(briefFields.location, { atOffice, role: briefFields.role });
+    if (next !== briefFields.type) setBriefFields((b) => ({ ...b, type: next }));
+  }, [briefFields.typeChosen, briefFields.location, briefFields.role, briefFields.type, atOffice]);
+
+  // What the post will say about the place and the pay, by Publish's own rules (src/lib/briefPicks.ts).
+  const placeReading = useMemo(
+    () => readPlace(briefFields.location, { workMode, atOffice, geo: geoPreview }),
+    [briefFields.location, workMode, atOffice, geoPreview],
+  );
+  const payReading = useMemo(
+    () => readPay(briefFields.pay, { remote: workMode === "remote", countryCode: placeReading?.countryCode ?? null }),
+    [briefFields.pay, workMode, placeReading?.countryCode],
+  );
+  const placePicked = pickedPlace(briefFields.location, atOffice);
+  const pickPlace = (id: PlacePickId, value: string) => {
+    setGeoPreview(null);
+    if (id === "office") {
+      // An office is a city to type: a remote place's words go, anything already typed for an office stays.
+      setBriefFields((b) => ({ ...b, atOffice: true, location: placeForOfficePick(b.location) }));
+      window.requestAnimationFrame(() => placeInputRef.current?.focus());
+      return;
+    }
+    setBriefFields((b) => ({ ...b, atOffice: false, location: value }));
+  };
+
+  // The geocoder is asked only about a place the builder cannot place itself (a country, a well-known city and
+  // "Remote, anywhere" are known here), and its answer counts only for the words it was asked about.
+  const latestPlaceRef = useRef(briefFields.location);
+  useEffect(() => {
+    latestPlaceRef.current = briefFields.location;
+  }, [briefFields.location]);
   const resolveLocation = useCallback(async () => {
     const q = (briefFields.location ?? "").trim();
-    if (q.length < 2 || /^remote$/i.test(q)) { setGeoPreview(null); return; }
+    if (q.length < 2 || placeNamesNothing(q) || !readPlace(q, { workMode, atOffice, geo: null })?.lookUp) { setGeoPreview(null); return; }
     setGeoLoading(true);
     const p = await geocodePlace(q);
     setGeoLoading(false);
-    setGeoPreview(p);
-  }, [briefFields.location]);
+    if (latestPlaceRef.current.trim() === q) setGeoPreview(p);
+  }, [briefFields.location, workMode, atOffice]);
 
   useEffect(() => {
     if (!rigorTouched) setRigor(playbook.rigor.recommended);
@@ -581,7 +659,7 @@ export default function AvaCreateJob() {
 
   const handleNext = () => {
     if (step === 0 && !canContinueBrief) {
-      toast.message("Add the job title, location, pay, and what they'll do.");
+      toast.message("Add the job title, where they'll work, the pay, and what they'll do.");
       return;
     }
     if (step === 1 && fuIndex < followUps.length - 1) {
@@ -668,7 +746,7 @@ export default function AvaCreateJob() {
         <Link to="/jobs" className="inline-flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-100" style={{ color: "hsl(var(--muted-foreground))" }}>
           <ArrowLeft className="h-3.5 w-3.5" /> Jobs
         </Link>
-        <div className="hidden flex-1 sm:block"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>
+        <div className="hidden min-w-0 flex-1 sm:block"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>
         {/* Once published it is live: the header said "Draft" over "Your role is live". */}
         {genSource && (
           <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: publishedCode || genSource === "openai" ? "hsl(var(--ck-action-bright))" : "hsl(var(--muted-foreground))" }}>
@@ -682,13 +760,13 @@ export default function AvaCreateJob() {
       {/* The builder's own scroller holds the wheel at its ends, so reaching
           the end of the plan never moves anything behind it (the shell's main
           does not scroll on this route; scripts/guards/no-scroll-traps.mjs). */}
-      <main className="relative z-10 flex min-h-0 flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10" style={{ overscrollBehaviorY: "contain" }}>
-        <div className="my-auto w-full max-w-5xl">
+      <main className="relative z-10 flex min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-10" style={{ overscrollBehaviorY: "contain" }}>
+        <div className="mx-auto my-auto w-full min-w-0 max-w-6xl">
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }}>
               {step === 0 && (
-                <div className="grid items-center gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-14">
-                  <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+                <div className="grid items-center gap-6 sm:gap-8 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] xl:gap-12">
+                  <div className="flex min-w-0 flex-col items-center text-center xl:items-start xl:text-left">
                     <span className="mt-4 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--primary) / 0.3)", color: "hsl(var(--ck-brass))" }}>
                       <AvaSeal size={12} /> Ava · Hiring assistant
                     </span>
@@ -697,46 +775,93 @@ export default function AvaCreateJob() {
                       A few details about the job, then a few quick questions about your customers. I'll draft the job post and the tests that fit your business.
                     </p>
                   </div>
-                  <div className="rounded-2xl p-5 sm:p-6" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Job title</label>
-                        <input value={briefFields.role} onChange={(e) => setBrief("role", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Chat support agent, Email support, Patient messaging…" />
+                  <div className="mx-auto w-full min-w-0 max-w-2xl rounded-2xl p-5 sm:p-6 xl:max-w-none" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
+                    <div className="grid gap-4 sm:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+                      <div className="min-w-0 sm:col-span-2">
+                        <label htmlFor="brief-role" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Job title</label>
+                        <input id="brief-role" value={briefFields.role} onChange={(e) => setBrief("role", e.target.value)} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="Chat support agent, Email support, Patient messaging…" />
                       </div>
-                      <div>
-                        <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Location</label>
-                        <input value={briefFields.location} onChange={(e) => { const location = e.target.value; setBriefFields((b) => ({ ...b, location, ...(b.typeChosen ? {} : { type: typeForPlace(location) }) })); setGeoPreview(null); }} onBlur={resolveLocation} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Any city or country — e.g. Makati, Austin, or 'Remote'" />
-                        {geoLoading && (
-                          <div className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(var(--muted-foreground))" }}>
-                            <Loader2 className="h-3 w-3 animate-spin" /> Finding that place…
+
+                      {/* Where they'll work, not where the business is (the owner, 2026-10-31: "location I'm hiring
+                          from or location where they're going to be working in"). The picks fill what the post and
+                          the job feeds need; the line under it says what the post will show (src/lib/briefPicks.ts). */}
+                      <div className="min-w-0 sm:col-span-2">
+                        <label htmlFor="brief-place" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Where they'll work</label>
+                        <p id="brief-place-hint" className="mt-1 text-[12.5px]" style={{ color: "hsl(var(--muted-foreground))" }}>Most chat and email agents work from home.</p>
+                        <input
+                          id="brief-place"
+                          ref={placeInputRef}
+                          value={briefFields.location}
+                          onChange={(e) => { const location = e.target.value; setBriefFields((b) => ({ ...b, location })); setGeoPreview(null); }}
+                          onBlur={resolveLocation}
+                          aria-describedby="brief-place-hint brief-place-read"
+                          className={FIELD_INPUT}
+                          style={FIELD_STYLE}
+                          placeholder={briefFields.atOffice ? "Your office's city, like Makati or Austin, TX" : "Remote, a country, or your office's city"}
+                        />
+                        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Quick picks for where they'll work">
+                          {PLACE_PICKS.map((pick) => (
+                            <BriefPick key={pick.id} label={pick.label} on={placePicked === pick.id} onPick={() => pickPlace(pick.id, pick.value)} />
+                          ))}
+                        </div>
+                        <div id="brief-place-read" aria-live="polite">
+                          {geoLoading ? (
+                            <p className="mt-1.5 flex items-center gap-1.5 text-[12.5px]" style={{ color: "hsl(var(--muted-foreground))" }}>
+                              <Loader2 className="h-3 w-3 animate-spin" aria-hidden /> Looking up that place…
+                            </p>
+                          ) : placeReading ? (
+                            <ReadBack tone={placeReading.tone}>{placeReading.text}</ReadBack>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      {/* Pay stays free text, made plain: picks for the place and a read-back by Publish's own rule. */}
+                      <div className="min-w-0 sm:col-span-2">
+                        <label htmlFor="brief-pay" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><DollarSign className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Pay</label>
+                        <input id="brief-pay" value={briefFields.pay} onChange={(e) => setBrief("pay", e.target.value)} aria-describedby="brief-pay-read" className={FIELD_INPUT} style={FIELD_STYLE} placeholder={`The amount and how often, like ${PAY_EXAMPLE}`} />
+                        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Quick picks for pay">
+                          {payPicks(placeReading?.countryCode).map((pick) => (
+                            <BriefPick key={pick} label={pick} on={briefFields.pay.trim() === pick} onPick={() => setBrief("pay", pick)} />
+                          ))}
+                        </div>
+                        <div id="brief-pay-read" aria-live="polite">
+                          {payReading && <ReadBack tone={payReading.tone}>{payReading.text}</ReadBack>}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <label htmlFor="brief-type" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Type</label>
+                        <input id="brief-type" value={briefFields.type} onChange={(e) => { const type = e.target.value; setBriefFields((b) => ({ ...b, type, typeChosen: true })); }} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="Full-time · Remote / Hybrid / On-site" />
+                        {briefFields.typeChosen === false && (
+                          <p className="mt-1.5 text-[12.5px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }}>Follows where they'll work until you edit it.</p>
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <label htmlFor="brief-start" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><CalendarClock className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Start</label>
+                        <input id="brief-start" value={briefFields.start} onChange={(e) => setBrief("start", e.target.value)} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="As soon as possible, within a few weeks, or flexible" />
+                        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Quick picks for the start">
+                          {START_PICKS.map((pick) => (
+                            <BriefPick key={pick} label={pick} on={briefFields.start.trim().toLowerCase() === pick.toLowerCase()} onPick={() => setBrief("start", pick)} />
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0 sm:col-span-2">
+                        <label htmlFor="brief-work" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><FileText className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> What they'll do</label>
+                        <textarea id="brief-work" ref={workInputRef} value={briefFields.work} onChange={(e) => setBrief("work", e.target.value)} rows={3} className={`${FIELD_INPUT} min-h-[5rem] max-h-60 resize-none [field-sizing:content]`} style={FIELD_STYLE} placeholder="2–3 sentences in your own words: what your customers write in about, and what a great reply does for them." />
+                        {/* Nobody faces an empty box: two sentences from the title and the business, to edit (no AI call). */}
+                        {!briefFields.work.trim() && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            <BriefPick
+                              label="Start from an example"
+                              icon={<Pencil className="h-3 w-3" aria-hidden />}
+                              onPick={() => {
+                                setBrief("work", exampleWork(briefFields.role, businessName));
+                                window.requestAnimationFrame(() => workInputRef.current?.focus());
+                              }}
+                            />
                           </div>
                         )}
-                        {!geoLoading && geoPreview?.ok && (
-                          <div className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(var(--ck-action-bright))" }}>
-                            <Check className="h-3.5 w-3.5" /> Ava found <span style={{ color: "hsl(var(--foreground))" }}>{formatPlace(geoPreview)}</span>.
-                          </div>
-                        )}
-                        {!geoLoading && geoPreview && !geoPreview.ok && briefFields.location.trim() && !/^remote$/i.test(briefFields.location.trim()) && (
-                          <div className="mt-1.5 text-[12px]" style={{ color: "hsl(var(--muted-foreground))" }}>
-                            Couldn’t pinpoint that exactly — it’ll still post as “{briefFields.location.trim()}”.
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Type</label>
-                        <input value={briefFields.type} onChange={(e) => { const type = e.target.value; setBriefFields((b) => ({ ...b, type, typeChosen: true })); }} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Full-time · On-site / Hybrid / Remote" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><DollarSign className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Pay</label>
-                        <input value={briefFields.pay} onChange={(e) => setBrief("pay", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="e.g. $22/hr or $90k–$110k" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><CalendarClock className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Start</label>
-                        <input value={briefFields.start} onChange={(e) => setBrief("start", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="ASAP, within a few weeks, or flexible" />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><FileText className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> What they'll do</label>
-                        <textarea value={briefFields.work} onChange={(e) => setBrief("work", e.target.value)} rows={2} className="mt-1.5 w-full resize-none rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="2–3 sentences in your own words: what your customers write in about, and what a great reply does for them." />
                       </div>
                     </div>
                   </div>

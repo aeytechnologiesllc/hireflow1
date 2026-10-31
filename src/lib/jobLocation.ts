@@ -248,3 +248,143 @@ export function placeLine(location: string | null | undefined, isRemote: boolean
   if (!place) return "Remote";
   return placeSaysRemote(place) === "remote" ? place : `Remote · ${place}`;
 }
+
+/** Country names for the codes inferCountryCode() can recognise from free text (moved here from jobFromFlow.ts so the job
+ *  builder's read-back says what Publish saves, 2026-10-31). */
+export const COUNTRY_NAME_BY_CODE: Record<string, string> = {
+  US: "United States",
+  CA: "Canada",
+  PK: "Pakistan",
+  GB: "United Kingdom",
+  IN: "India",
+  AU: "Australia",
+  AE: "United Arab Emirates",
+  DE: "Germany",
+  FR: "France",
+  ES: "Spain",
+  IT: "Italy",
+  NL: "Netherlands",
+  IE: "Ireland",
+  // The codes jobLocation.ts learned in the second Phase 7 product audit; the
+  // name was left empty without them (the tenth Phase 4 review).
+  PH: "Philippines",
+  SG: "Singapore",
+  NZ: "New Zealand",
+  MX: "Mexico",
+  ZA: "South Africa",
+  MY: "Malaysia",
+  ID: "Indonesia",
+  VN: "Vietnam",
+};
+
+/** US state names + postal abbreviations (lower-cased) — a state is never a city. */
+const US_STATE_TOKENS = new Set(
+  (
+    "al ak az ar ca co ct de fl ga hi ia id il in ks ky la ma md me mi mn mo ms mt nc nd ne nh nj nm nv ny oh ok or pa ri sc sd tn tx ut va vt wa wi wv wy dc " +
+    "alabama alaska arizona arkansas california colorado connecticut delaware florida georgia hawaii idaho illinois indiana iowa kansas kentucky louisiana maine maryland massachusetts michigan minnesota mississippi missouri montana nebraska nevada ohio oklahoma oregon pennsylvania tennessee texas utah vermont virginia washington wisconsin wyoming"
+  ).split(" ").concat([
+    "new hampshire", "new jersey", "new mexico", "new york", "north carolina", "north dakota",
+    "rhode island", "south carolina", "south dakota", "west virginia", "district of columbia",
+  ]),
+);
+
+/**
+ * Well-known cities named alone ("London", "Austin", "Mandaluyong City",
+ * "Remote, Toronto"), which the country hints above do not place. The owner,
+ * 2026-10-31, typed a country and was told it "couldn't pinpoint that
+ * exactly" (the geocoder had missed): a place this plain is recognised
+ * without it. Only the whole place, once the setup words and a trailing
+ * "City" are gone, so "London, Ontario" is never the United Kingdom and a
+ * client's words ("Mandaluyong (US-based BPO)") are read as before. Each name
+ * is the city the world means by it, the one the geocoder returns first.
+ */
+const WELL_KNOWN_CITIES: Record<string, string> = {
+  // The Philippines (the hints know Manila, Makati, Cebu and the rest).
+  mandaluyong: "PH", pasay: "PH", paranaque: "PH", "parañaque": "PH", "las pinas": "PH", "las piñas": "PH", muntinlupa: "PH",
+  alabang: "PH", marikina: "PH", caloocan: "PH", valenzuela: "PH", antipolo: "PH",
+  angeles: "PH", "general santos": "PH", zamboanga: "PH", dumaguete: "PH", tacloban: "PH", "lapu-lapu": "PH",
+  mandaue: "PH", batangas: "PH", lipa: "PH", legazpi: "PH",
+  // The United States.
+  "new york": "US", nyc: "US", "los angeles": "US", chicago: "US", houston: "US", phoenix: "US", philadelphia: "US",
+  "san antonio": "US", "san diego": "US", dallas: "US", austin: "US", jacksonville: "US",
+  "fort worth": "US", columbus: "US", charlotte: "US", indianapolis: "US", "san francisco": "US", seattle: "US",
+  denver: "US", boston: "US", nashville: "US", "las vegas": "US", atlanta: "US", miami: "US", orlando: "US",
+  tampa: "US", minneapolis: "US", detroit: "US", baltimore: "US", "salt lake": "US", raleigh: "US", sacramento: "US",
+  pittsburgh: "US", cleveland: "US", "st. louis": "US", "st louis": "US", "new orleans": "US", honolulu: "US",
+  // Elsewhere.
+  london: "GB", manchester: "GB", edinburgh: "GB", glasgow: "GB", toronto: "CA", vancouver: "CA", montreal: "CA",
+  calgary: "CA", ottawa: "CA", sydney: "AU", melbourne: "AU", brisbane: "AU", perth: "AU", adelaide: "AU",
+  auckland: "NZ", wellington: "NZ", dublin: "IE", dubai: "AE", "abu dhabi": "AE", karachi: "PK", lahore: "PK",
+  islamabad: "PK", mumbai: "IN", delhi: "IN", "new delhi": "IN", bangalore: "IN", bengaluru: "IN",
+  chennai: "IN", "kuala lumpur": "MY", jakarta: "ID", "ho chi minh": "VN", hanoi: "VN", berlin: "DE", munich: "DE",
+  paris: "FR", madrid: "ES", barcelona: "ES", rome: "IT", milan: "IT", amsterdam: "NL", "cape town": "ZA",
+  johannesburg: "ZA", "mexico city": "MX",
+};
+
+/** The well-known city a place names on its own, as [its name as typed, its country code]; null for anything else. */
+export function wellKnownCity(text?: string | null): { city: string; countryCode: string } | null {
+  const bare = (text ?? "")
+    .replace(NOT_A_PLACE, " ")
+    .replace(/\b(on[-\s]?site|in[-\s]?office|office|hybrid)\b/gi, " ")
+    .replace(/[()[\]|,;:–—·]|\s-\s/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const name = bare.replace(/\.$/, "").replace(/\s+city$/i, "").replace(/^metro\s+/i, "").trim();
+  const code = WELL_KNOWN_CITIES[name.toLowerCase()];
+  return code ? { city: bare, countryCode: code } : null;
+}
+
+/** True when a place names nowhere: only how the work is done ("Remote", "Remote (worldwide)", "Work from home",
+ *  "Anywhere"). Nothing to look up, so the geocoder is never asked (it could only guess a town called that). */
+export function placeNamesNothing(text?: string | null): boolean {
+  return !/\p{L}/u.test((text ?? "").replace(NOT_A_PLACE, " "));
+}
+
+/** True when a place is a country and nothing more ("United States", "Philippines", "the UK", "PH"): somewhere in the
+ *  country, not an office (the owner, 2026-10-31, typed "United States" for a chat agent's job). */
+export function placeIsOnlyACountry(text?: string | null): boolean {
+  const t = (text ?? "").trim();
+  if (!t || !countryOfText(t)) return false;
+  let left = t;
+  for (const [pattern] of COUNTRY_TEXT_HINTS) left = left.replace(new RegExp(pattern.source, "gi"), " ");
+  return !/\p{L}/u.test(left.replace(/\bthe\b/gi, " "));
+}
+
+/** True when a place names its country in so many words ("Manila, Philippines", "Remote - US"), not only by a city
+ *  or a state ("Makati", "Austin, TX"). */
+export function placeNamesACountry(text?: string | null): boolean {
+  const t = text ?? "";
+  return COUNTRY_TEXT_HINTS.some(([pattern]) => pattern.test(t));
+}
+
+export interface FallbackLocationFields {
+  city: string | null;
+  country: string | null;
+  countryCode: string | null;
+}
+
+/**
+ * What we can still say about a location when the geocoder fails (moved here
+ * from jobFromFlow.ts, 2026-10-31, so the builder's read-back uses it too).
+ *
+ * The job board feed and the sitemap read the stored location_* columns, so a job
+ * that geocoding missed used to publish and then never be distributed anywhere. This
+ * fills those columns from the text itself: a country inferCountryCode() recognises
+ * (or a well-known city named alone, wellKnownCity), and the token before the first
+ * comma as the city when that token is not a country or a US state.
+ */
+export function fallbackLocationFields(locationText: string | null | undefined): FallbackLocationFields {
+  const text = (locationText ?? "").trim();
+  const countryCode = inferCountryCode(text) ?? wellKnownCity(text)?.countryCode ?? null;
+  const country = countryCode ? COUNTRY_NAME_BY_CODE[countryCode] ?? null : null;
+
+  // "Remote — Lahore, Pakistan" still names Lahore; "Remote" alone names nothing.
+  const first = (text.split(",")[0] ?? "").replace(/^remote\b[\s—–\-:|]*/i, "").trim();
+  const isCity =
+    first.length > 0 &&
+    !/^remote$/i.test(first) &&
+    !inferCountryCode(first) &&
+    !US_STATE_TOKENS.has(first.toLowerCase());
+
+  return { city: isCity ? first : null, country, countryCode };
+}

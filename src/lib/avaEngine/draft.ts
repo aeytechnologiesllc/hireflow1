@@ -13,6 +13,8 @@ export interface AvaCreateDraft {
     openings: number;
     /** Whether the business typed the Type itself (briefFromForm); an older draft has none. */
     typeChosen?: boolean;
+    /** "At our office" was picked under Where they'll work (src/lib/briefPicks.ts); an older draft has none. */
+    atOffice?: boolean;
   };
   chipAnswers: Record<string, number>;
   rigor: Rigor;

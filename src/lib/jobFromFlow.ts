@@ -21,8 +21,8 @@ import { rigorToDb } from "@/lib/avaEngine/rigor";
 import { WRITTEN_INTERVIEW_DESCRIPTION, WRITTEN_INTERVIEW_TITLE } from "@/lib/avaEngine/assemble";
 import { geocodePlace } from "@/lib/geocode";
 import { normalizeBenefits } from "@/lib/jobBenefits";
-import { inferCountryCode } from "@/lib/jobLocation";
-import { parseSalary } from "@/lib/salaryParse";
+import { fallbackLocationFields, placeNamesNothing } from "@/lib/jobLocation";
+import { salaryForJob } from "@/lib/salaryParse";
 import type {
   JobFlow,
   JobBrief,
@@ -96,74 +96,10 @@ function mapDifficulty(rigor: JobFlow["rigor"]): "easy" | "medium" | "hard" {
   return rigorToDb(rigor);
 }
 
-/** Country names for the codes inferCountryCode() can recognise from free text. */
-const COUNTRY_NAME_BY_CODE: Record<string, string> = {
-  US: "United States",
-  CA: "Canada",
-  PK: "Pakistan",
-  GB: "United Kingdom",
-  IN: "India",
-  AU: "Australia",
-  AE: "United Arab Emirates",
-  DE: "Germany",
-  FR: "France",
-  ES: "Spain",
-  IT: "Italy",
-  NL: "Netherlands",
-  IE: "Ireland",
-  // The codes jobLocation.ts learned in the second Phase 7 product audit; the
-  // name was left empty without them (the tenth Phase 4 review).
-  PH: "Philippines",
-  SG: "Singapore",
-  NZ: "New Zealand",
-  MX: "Mexico",
-  ZA: "South Africa",
-  MY: "Malaysia",
-  ID: "Indonesia",
-  VN: "Vietnam",
-};
-
-/** US state names + postal abbreviations (lower-cased) — a state is never a city. */
-const US_STATE_TOKENS = new Set(
-  (
-    "al ak az ar ca co ct de fl ga hi ia id il in ks ky la ma md me mi mn mo ms mt nc nd ne nh nj nm nv ny oh ok or pa ri sc sd tn tx ut va vt wa wi wv wy dc " +
-    "alabama alaska arizona arkansas california colorado connecticut delaware florida georgia hawaii idaho illinois indiana iowa kansas kentucky louisiana maine maryland massachusetts michigan minnesota mississippi missouri montana nebraska nevada ohio oklahoma oregon pennsylvania tennessee texas utah vermont virginia washington wisconsin wyoming"
-  ).split(" ").concat([
-    "new hampshire", "new jersey", "new mexico", "new york", "north carolina", "north dakota",
-    "rhode island", "south carolina", "south dakota", "west virginia", "district of columbia",
-  ]),
-);
-
-export interface FallbackLocationFields {
-  city: string | null;
-  country: string | null;
-  countryCode: string | null;
-}
-
-/**
- * What we can still say about a location when the geocoder fails.
- *
- * The job board feed and the sitemap read the stored location_* columns, so a job
- * that geocoding missed used to publish and then never be distributed anywhere. This
- * fills those columns from the text itself: a country inferCountryCode() recognises,
- * and the token before the first comma as the city when that token is not a country
- * or a US state.
- */
-export function fallbackLocationFields(locationText: string | null | undefined): FallbackLocationFields {
-  const text = (locationText ?? "").trim();
-  const countryCode = inferCountryCode(text);
-  const country = countryCode ? COUNTRY_NAME_BY_CODE[countryCode] ?? null : null;
-
-  // "Remote — Lahore, Pakistan" still names Lahore; "Remote" alone names nothing.
-  const first = (text.split(",")[0] ?? "").replace(/^remote\b[\s—–\-:|]*/i, "").trim();
-  const isCity =
-    first.length > 0 &&
-    !/^remote$/i.test(first) &&
-    !inferCountryCode(first) &&
-    !US_STATE_TOKENS.has(first.toLowerCase());
-
-  return { city: isCity ? first : null, country, countryCode };
-}
+// The place read from its own words when the geocoder misses (fallbackLocationFields) lives in
+// jobLocation.ts since 2026-10-31, so the job builder's read-back says what Publish saves; it is
+// still exported from here for CreateJob.tsx.
+export { fallbackLocationFields, type FallbackLocationFields } from "@/lib/jobLocation";
 
 /**
  * The business name candidates and job boards will see for a job, looked up by the
@@ -448,7 +384,9 @@ export async function createJobFromFlow(
   if ((opts.status ?? "published") === "published" && !locationText) {
     throw new Error("Add a location before publishing, like \"Remote (worldwide)\" or \"London, United Kingdom\".");
   }
-  const geo = locationText ? await geocodePlace(locationText) : { ok: false as const };
+  // A place that names nowhere ("Remote (worldwide)", the builder's "Remote, anywhere") is never looked up: the
+  // geocoder could only guess a town called "worldwide", and such a job has no country, as it always had.
+  const geo = locationText && !placeNamesNothing(locationText) ? await geocodePlace(locationText) : { ok: false as const };
 
   // When the geocoder misses, still persist what the text itself says — the feed and
   // sitemap read these columns, and a job with nothing in them is never distributed.
@@ -461,10 +399,11 @@ export async function createJobFromFlow(
   // A remote job's place is where its applicants are, not the money it pays:
   // "Remote - Philippines" with "5/hr" showed "PHP 5 an hour" (the third
   // Phase 7 product audit). Only an on-site job's country picks a currency.
-  const sal = parseSalary(payText, isRemote ? undefined : countryCode ?? undefined);
+  // (salaryForJob, src/lib/salaryParse.ts: the job builder's "On your post:" line reads the pay by the same rule.)
+  const sal = salaryForJob(payText, isRemote, countryCode);
   const salaryMin = sal.min;
   const salaryMax = sal.max;
-  const salaryCurrency = sal.currency ?? (!isRemote && countryCode === "US" ? "USD" : null);
+  const salaryCurrency = sal.currency;
   const salaryPeriod = sal.period;
 
   const row = {

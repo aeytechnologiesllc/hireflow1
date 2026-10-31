@@ -1370,8 +1370,10 @@ function remoteSetupLine(work: string): boolean {
   return lines.some((line, i) => ONLY_REMOTE_LINE.test(line) && !listsTwo(i)) && !lines.some((_, i) => onSite[i] && !SEPARATE_HEADING.test(under[i]));
 }
 
-/** What the job builder's Type field starts on (AvaCreateJob.tsx). Until the business types in it, its "On-site" is only
- *  this default, which the place, the title and What they do may overrule (briefFromForm). */
+/** The job builder's default Type (AvaCreateJob.tsx): what its Type field holds for a place in a city until the business
+ *  types in it (since 2026-10-31 the field starts on "Full-time · Remote" and follows Where they'll work,
+ *  src/lib/briefPicks.ts typeForPlace). Until the business types in it, its "On-site" is only this default, which the
+ *  place, the title and What they do may overrule (briefFromForm). */
 export const DEFAULT_JOB_TYPE = "Full-time · On-site";
 // The default's own tail once the business has changed only what comes before it: "Part-time · On-site", "Contract ·
 // On-site", "Full time · On-site", "Project-based · On-site", or the default retyped (the eighteenth review).
@@ -1483,7 +1485,8 @@ export function briefFromForm(fields: {
 
   let startUrgency: JobBrief["startUrgency"] = "few_weeks";
   const st = fields.start.toLowerCase();
-  if (st.includes("asap") || st.includes("immediately") || st.includes("now")) startUrgency = "asap";
+  // ("As soon as possible" is the builder's own Start pick since 2026-10-31, src/lib/briefPicks.ts START_PICKS.)
+  if (st.includes("asap") || st.includes("as soon as possible") || st.includes("immediately") || st.includes("now")) startUrgency = "asap";
   else if (st.includes("flex")) startUrgency = "flexible";
 
   return {

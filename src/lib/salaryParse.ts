@@ -96,3 +96,18 @@ export function parseSalary(text?: string | null, countryCode?: string | null): 
 
   return { min, max, currency, period };
 }
+
+/**
+ * The pay as Publish stores it on the job (src/lib/jobFromFlow.ts), and as the
+ * job builder reads it back while it is typed ("On your post: USD 500 a
+ * month", src/lib/briefPicks.ts): one rule for both.
+ *
+ * A remote job's place is where its applicants are, not the money it pays:
+ * "Remote - Philippines" with "5/hr" showed "PHP 5 an hour" (the third Phase 7
+ * product audit). Only an on-site job's country picks a currency, and an
+ * on-site job in the United States with none written is paid in dollars.
+ */
+export function salaryForJob(payText: string | null | undefined, isRemote: boolean, countryCode: string | null | undefined): ParsedSalary {
+  const sal = parseSalary(payText, isRemote ? undefined : countryCode ?? undefined);
+  return { ...sal, currency: sal.currency ?? (!isRemote && countryCode === "US" ? "USD" : null) };
+}
