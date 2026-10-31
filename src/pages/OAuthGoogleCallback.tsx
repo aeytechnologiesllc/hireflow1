@@ -91,14 +91,12 @@ export default function OAuthGoogleCallback() {
 
   if (status === "loading") {
     return (
-      <div className="dark">
-        <BrandLoader message={message} />
-      </div>
+      <BrandLoader message={message} />
     );
   }
 
   return (
-    <div className="dark min-h-[100dvh] flex items-center justify-center bg-background text-foreground">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-background text-foreground">
       <div className="text-center space-y-4 p-8">
         {status === "success" && (
           <>

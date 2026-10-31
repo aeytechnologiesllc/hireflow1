@@ -8,7 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { HostGate } from "@/components/HostGate";
 import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { OrbLoader } from "@/components/ava/OrbLoader";
@@ -205,10 +205,23 @@ function AutoUpdate() {
 // 2026-10-31): it was held Night as the bridge from a dark front page, and the
 // front page has been the light Desk since 2026-10-30.
 
+/** The browser's own bar (theme-color) is the page's ground, Day or Night, so a
+ *  phone shows no dark strip above the app (index.html sets it first; it was
+ *  the old green #0C2A21 until 2026-10-31). */
+function ThemeColor() {
+  const { resolvedTheme } = useTheme();
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta && resolvedTheme) meta.setAttribute("content", resolvedTheme === "dark" ? "#17140F" : "#DEE3D5");
+  }, [resolvedTheme]);
+  return null;
+}
+
 const App = () => (
   <ErrorBoundary>
     {/* The app opens in Day (Sage paper, the owner's choice of 2026-10-30) for everyone; Night is one click on the moon in the sidebar, remembered on this browser, and a saved choice always wins (index.html's start screen agrees). */}
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+      <ThemeColor />
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>

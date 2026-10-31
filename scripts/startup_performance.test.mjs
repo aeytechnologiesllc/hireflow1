@@ -75,13 +75,38 @@ check("...Night only for a saved \"dark\" or a saved \"system\" on a dark device
 // Night tokens hold from the first frame: data-boot goes the moment React
 // starts (main.tsx), before next-themes has put its class on (a saved Night
 // painted one Day frame in 1 of 6 loads without it).
-check("...and Night puts the theme's own class on <html> at once, not only the start screen's mark", /if\(n\)\{d\.setAttribute\("data-boot","dark"\);d\.classList\.add\("dark"\);\}/.test(bootScript));
+check("...and Night puts the theme's own class on <html> at once, not only the start screen's mark", /if\(n\)\{d\.setAttribute\("data-boot","dark"\);d\.classList\.add\("dark"\);/.test(bootScript));
+// The browser's own bar (theme-color) is the ground too, from the first frame
+// and then with the theme (2026-10-31: it was the old dark green #0C2A21, a
+// dark strip above the app on a phone, the owner's "black bar").
+const themeColorApp = await read("src/App.tsx");
+check("...and the browser's bar is the page's ground: Day's in the page, Night's set by the start screen, then kept with the theme",
+  html.includes(`<meta name="theme-color" content="${dayGround}" />`) && bootScript.includes(`m.setAttribute("content","${nightGround}")`) &&
+    /function ThemeColor\(\)[\s\S]*resolvedTheme === "dark" \? "#17140F" : "#DEE3D5"/.test(themeColorApp) && /<ThemeColor \/>/.test(themeColorApp) &&
+    !/#0C2A21/.test(html.match(/<meta name="theme-color"[^>]*>/)?.[0] ?? "") && /"theme_color": "#DEE3D5"/.test(await read("public/site.webmanifest")));
 // Sign-up follows the theme like every other page since the run-through of
 // 2026-10-31 (it was held Night as the bridge from a dark front page, which
 // has been the light Desk since 2026-10-30): nothing in the app holds it Night.
 check("...and the app no longer holds sign-up Night", !/NightOnSignUp|HoldNight|useNightWhileOpen/.test(app) && !/useNightWhileOpen/.test(await read("src/pages/Auth.tsx")));
 check("...and the app agrees: it opens in Day, with the device's choice still on offer", /<ThemeProvider attribute="class" defaultTheme="light" enableSystem>/.test(app));
-check("...and it fades in once, never loops", /animation:hf-boot-in \.4s ease-out \.15s 1 forwards/.test(html));
+check("...and it stamps once, never loops", /animation:hf-seal-press \.6s cubic-bezier\(\.2,\.9,\.3,1\.2\) \.1s 1 both/.test(html) && !/hf-boot-in/.test(html));
+// One loading screen (2026-10-31, the owner: "find out if there's only one
+// loading screen"): the start screen, AuthLoadingScreen and the lazy-page
+// fallback used to take turns, each pressing the seal again from its own
+// place, and AuthLoadingScreen painted its ground only behind its words.
+const brandLoader = await read("src/components/BrandLoader.tsx");
+const authLoading = await read("src/components/animations/AuthLoadingScreen.tsx");
+check("...and the seal is where BrandLoader draws it: 64 px at the very centre, in both",
+  /#hf-boot svg\{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;/.test(html) &&
+    /\.hf-loader \.press \{\s*position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px;/.test(brandLoader) && /<SealMark size=\{64\} \/>/.test(brandLoader));
+check("...and every loader covers the whole screen with the ground (no column of it over a see-through page)",
+  /position: "fixed",\s*inset: 0,\s*zIndex: 50,\s*background: "var\(--ground, #DEE3D5\)"/.test(brandLoader) &&
+    /style=\{\{ position: "fixed", inset: 0, zIndex: 50, background: "var\(--ground, #DEE3D5\)" \}\}/.test(authLoading));
+check("...and the stamp plays once a page load: a loader that takes over carries on from the start screen's moment, later ones show the seal still",
+  /const STAMP_FROM[\s\S]*#hf-boot svg[\s\S]*getAnimations/.test(brandLoader) && /if \(!shown\.seal\) return/.test(brandLoader) && /STAMP_DELAY - into/.test(brandLoader));
+check("...and the messages carry on from one loader to the next and stop at the last (never start over)",
+  /let messagesFrom: number \| null = null;/.test(authLoading) && /Math\.min\(messages\.length - 1,/.test(authLoading) && !/% messages\.length/.test(authLoading) &&
+    /shown\.messageGoneAt < 1500 \? shown\.message/.test(brandLoader));
 
 console.log("\nSigning in");
 const auth = code(await read("src/hooks/useAuth.tsx"));

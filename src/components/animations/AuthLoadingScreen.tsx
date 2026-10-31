@@ -21,6 +21,10 @@ const candidateMessages = [
   "Almost there...",
 ];
 
+/** When this page load's first AuthLoadingScreen came up (ms), so the
+ *  messages carry on from one loader to the next instead of starting over. */
+let messagesFrom: number | null = null;
+
 /**
  * The wait between sign-in and the app. One brand moment for both audiences —
  * BrandLoader presses the green seal; only the cycling copy differs. The old
@@ -39,22 +43,27 @@ const candidateMessages = [
  * loaded yet.
  */
 export function AuthLoadingScreen({ variant = "employer", message }: AuthLoadingScreenProps) {
-  const [messageIndex, setMessageIndex] = useState(0);
   const messages = variant === "employer" ? employerMessages : candidateMessages;
+  // One message every 2 s, counted from the first loader of this page load,
+  // and it stays on "Almost there..." rather than starting over.
+  const indexNow = () => Math.min(messages.length - 1, Math.floor((Date.now() - (messagesFrom ?? Date.now())) / 2000));
+  const [messageIndex, setMessageIndex] = useState(() => {
+    messagesFrom ??= Date.now();
+    return indexNow();
+  });
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMessageIndex((prev) => (prev + 1) % messages.length);
-    }, 2000);
+    const interval = setInterval(() => setMessageIndex(indexNow()), 500);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
   if (typeof document === "undefined") return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ position: "fixed", inset: 0, width: "100vw", height: "100dvh", zIndex: 50 }}
+      className="fixed inset-0 z-50"
+      style={{ position: "fixed", inset: 0, zIndex: 50, background: "var(--ground, #DEE3D5)" }}
     >
       <BrandLoader message={message || messages[messageIndex]} />
     </div>,
