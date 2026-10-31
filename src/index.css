@@ -16,12 +16,14 @@
   /* ══════════════════════════════════════════════════════════════════════════
      HireFlow — one token system.
 
-     Two themes, one vocabulary. DAY is "Paper": warm ivory ground, ink as the
-     text and the action colour. NIGHT is its true counterpart: warm ink
-     ground, the ivory becomes the text and the action, and brass brightens to
-     carry the accent (the owner's lock, 2026-10-24: ink and ivory, brass
-     accent; until 2026-10-25 the action colour was ink). Both come from the locked
-     design system in design/preview/app.html — do not invent values here.
+     Two themes, one vocabulary. DAY is "Sage paper" (the owner's choice,
+     2026-10-30): a light sage ground and a deeper sage sidebar, warm paper
+     cards, the front page's green ink as the text, the jade as the action.
+     The app opens in Day; Night is a choice (the moon in the sidebar).
+     NIGHT is its true counterpart: warm ink ground, the ivory becomes the
+     text, and brass brightens to carry the accent. Night is unchanged by
+     Sage paper. Contrast is held by scripts/theme_contrast.test.mjs: do not
+     lighten --ink-3 or deepen --sidebar without re-measuring.
 
      Four token systems used to compete in this file (legacy cobalt :root,
      shadcn .dark, --ck-*, --hf-*). They are now all expressed in these same
@@ -30,22 +32,24 @@
 
   :root {
     /* ── The system, by name ───────────────────────────────────────────────── */
-    --ground: #F0EBDF;
-    --ground-2: #E9E2D2;
-    --sidebar: #E7E0CE;
-    --surface: #FCFAF4;
-    --surface-2: #E4DCC7;
-    --line: #D6CDB6;
-    --line-soft: #E2DAC6;
-    --hair: #C6B893;
-    --track: #E9E2D2;
+    /* Sage paper (2026-10-30): the grounds are sage, the cards warm paper. */
+    --ground: #DEE3D5;
+    --ground-2: #D5DCCC;
+    --sidebar: #CFD7C4;
+    --surface: #F5F1E6;
+    --surface-2: #E9E5D7;
+    --line: #C4CCBB;
+    --line-soft: #D8DDCF;
+    --hair: #AEB8A4;
+    --track: #D5DCCC;
 
-    --ink: #14201B;
-    --ink-2: #3F4B45;
-    --ink-3: #5C655E;
+    /* The front page's green ink. */
+    --ink: #1D3329;
+    --ink-2: #304238;
+    --ink-3: #4B5D53;
 
     /* The ink slab sunk into the paper — Ava's read. The signature moment. */
-    --slab: #0C2A21;
+    --slab: #16322A;
     --slab-ink: #F2EFE5;
     --slab-ink-2: #A9C6B8;
     /* The action colour as it reads on the slab, which stays dark in both
@@ -57,18 +61,18 @@
        "hired"'s and money's. */
     --action: #0F6B4F;
     --action-bright: #128A65;
-    --action-soft: #DCEDE3;
-    --action-soft-fg: #0A5340;
+    --action-soft: #D6E8DC;
+    --action-soft-fg: #0B5440;
 
-    --brass: #84601F;
+    --brass: #7E5B1D;
     --brass-line: #C9A45E;
     /* "Good" has its own token (2026-10-30): a good score, a passed test, a
        finished step. Since the owner locked the new green the same day it is
        the jade, as the buttons are; under the ink-and-ivory lock it had been
        plain ink. A test under its bar is copper. */
     --good: #0F6B4F;
-    --good-soft: #DCEDE3;
-    --good-fg: #0A5340;
+    --good-soft: #D6E8DC;
+    --good-fg: #0B5440;
     --under: #9E4A18;
     --under-soft: #F5DFCB;
 
@@ -76,14 +80,21 @@
     --amber-fg: #7A5410;
     --crit: #A8352A;
     --crit-bg: #F4DEDA;
-    --btn-fg: #F7F4EB;
+    --btn-fg: #F3EFE4;
+    /* What a tone's solid tint is mixed into ("Ava suggests"): the warm paper
+       by Day, where the sage ground turned the red a muddy taupe. */
+    --tint-ground: var(--surface);
+    /* The edge of a jade tint laid on --ground-2 (the applicant's bubbles in
+       a test's record): the mint and the sage are too close to part alone. */
+    --action-soft-edge: rgba(15, 107, 79, 0.22);
 
     --seal-disc: #0F6B4F;
     --seal-ring: #C9A45E;
-    --seal-shadow: rgba(23, 21, 15, 0.32);
+    --seal-shadow: rgba(22, 40, 31, 0.32);
 
-    --amb-a: rgba(15, 107, 79, 0.10);
-    --amb-b: rgba(201, 164, 94, 0.11);
+    /* The light on Sage paper is a breath: a whisper of jade, warm paper. */
+    --amb-a: rgba(15, 107, 79, 0.03);
+    --amb-b: rgba(240, 225, 190, 0.32);
 
     /* ── The type scale ───────────────────────────────────────────────────────
        The mockup's steps, verbatim. Every size in the app has to land on one of
@@ -111,103 +122,109 @@
     --s4: 16px;
 
     /* ── shadcn / Tailwind (HSL triplets) ──────────────────────────────────── */
-    --background: 42 36% 91%;
-    --foreground: 155 23% 10%;
+    /* The same Sage paper in HSL, one decimal so each lands on its hex. */
+    --background: 81 20% 86.3%;
+    --foreground: 153 27.5% 15.7%;
 
-    --card: 45 57% 97%;
-    --card-foreground: 155 23% 10%;
+    --card: 44 42.9% 93.1%;
+    --card-foreground: 153 27.5% 15.7%;
 
-    --popover: 45 57% 97%;
-    --popover-foreground: 155 23% 10%;
+    --popover: 44 42.9% 93.1%;
+    --popover-foreground: 153 27.5% 15.7%;
 
-    /* Ink is the action colour (it was ink until 2026-10-25). */
+    /* The jade is the action colour (it was ink until 2026-10-25). */
     --primary: 162 75% 24%;
-    --primary-foreground: 45 43% 95%;
+    --primary-foreground: 44 38.5% 92.4%;
 
-    --secondary: 43 35% 84%;
-    --secondary-foreground: 155 23% 10%;
+    --secondary: 47 29% 87.8%;
+    --secondary-foreground: 153 27.5% 15.7%;
 
-    --muted: 42 34% 87%;
-    --muted-foreground: 133 5% 38%;
+    --muted: 69 19.4% 86.9%;
+    --muted-foreground: 147 10.7% 32.9%;
 
-    --accent: 145 32% 90%;
-    --accent-foreground: 164 78% 18%;
+    --accent: 140 28.1% 87.5%;
+    --accent-foreground: 164 76.8% 18.6%;
 
     --success: 162 75% 24%;
-    --success-foreground: 45 57% 97%;
+    --success-foreground: 44 42.9% 93.1%;
 
     --warning: 38 77% 27%;
-    --warning-foreground: 45 43% 95%;
+    --warning-foreground: 44 38.5% 92.4%;
 
     --destructive: 5 60% 41%;
-    --destructive-foreground: 45 43% 95%;
+    --destructive-foreground: 44 38.5% 92.4%;
 
-    --border: 43 28% 78%;
-    --input: 43 28% 78%;
+    --border: 88 14.3% 76.7%;
+    --input: 88 14.3% 76.7%;
     --ring: 162 75% 24%;
 
     --radius: 0.625rem;
 
     --gradient-primary: linear-gradient(135deg, hsl(45 21% 7%) 0%, hsl(40 12% 18%) 100%);
     --gradient-hero: radial-gradient(ellipse 90% 70% at 28% 20%, var(--amb-a) 0%, transparent 60%), var(--ground);
-    --gradient-card: linear-gradient(180deg, #FCFAF4 0%, #F7F3E9 100%);
+    /* Flat paper: Sage paper's cards carry no gradient. */
+    --gradient-card: #F5F1E6;
     --gradient-bg: radial-gradient(ellipse 70% 50% at 88% 8%, var(--amb-a) 0%, transparent 55%),
                    radial-gradient(ellipse 60% 45% at 8% 92%, var(--amb-b) 0%, transparent 55%),
                    var(--ground);
 
-    --shadow-sm: 0 1px 1px rgba(23, 21, 15, 0.05), 0 1px 3px -1px rgba(23, 21, 15, 0.11);
-    --shadow-md: 0 1px 2px rgba(23, 21, 15, 0.06), 0 10px 22px -14px rgba(23, 21, 15, 0.34);
-    --shadow-lg: 0 2px 4px rgba(23, 21, 15, 0.07), 0 18px 36px -20px rgba(23, 21, 15, 0.38);
-    --shadow-xl: 0 3px 6px rgba(23, 21, 15, 0.08), 0 28px 56px -26px rgba(23, 21, 15, 0.42);
-    --shadow-glow: 0 0 40px rgba(23, 21, 15, 0.10);
+    /* Shadows are the green ink's, not a brown one, so they sit in the sage. */
+    --shadow-sm: 0 1px 1px rgba(22, 40, 31, 0.05), 0 1px 3px -1px rgba(22, 40, 31, 0.11);
+    --shadow-md: 0 1px 2px rgba(22, 40, 31, 0.06), 0 10px 22px -14px rgba(22, 40, 31, 0.34);
+    --shadow-lg: 0 2px 4px rgba(22, 40, 31, 0.07), 0 18px 36px -20px rgba(22, 40, 31, 0.38);
+    --shadow-xl: 0 3px 6px rgba(22, 40, 31, 0.08), 0 28px 56px -26px rgba(22, 40, 31, 0.42);
+    --shadow-glow: 0 0 40px rgba(22, 40, 31, 0.10);
 
-    --sidebar-background: 43 34% 86%;
-    --sidebar-foreground: 155 23% 10%;
+    --sidebar-background: 85 19.2% 80.6%;
+    --sidebar-foreground: 153 27.5% 15.7%;
     --sidebar-primary: 162 75% 24%;
-    --sidebar-primary-foreground: 45 43% 95%;
-    --sidebar-accent: 43 35% 84%;
-    --sidebar-accent-foreground: 155 23% 10%;
-    --sidebar-border: 43 28% 78%;
+    --sidebar-primary-foreground: 44 38.5% 92.4%;
+    --sidebar-accent: 47 29% 87.8%;
+    --sidebar-accent-foreground: 153 27.5% 15.7%;
+    --sidebar-border: 88 14.3% 76.7%;
     --sidebar-ring: 162 75% 24%;
 
     /* ── Cockpit tokens (--ck-*, HSL) ──────────────────────────────────────── */
-    --ck-bg: 42 36% 91%;
-    --ck-sidebar: 43 34% 86%;
-    --ck-surface: 45 57% 97%;
-    --ck-surface-2: 43 35% 84%;
-    --ck-line: 43 28% 78%;
-    --ck-cream: 155 23% 10%;     /* the reading colour, dark on paper */
-    --ck-sub: 133 5% 38%;
+    --ck-bg: 81 20% 86.3%;
+    --ck-sidebar: 85 19.2% 80.6%;
+    --ck-surface: 44 42.9% 93.1%;
+    --ck-surface-2: 47 29% 87.8%;
+    --ck-line: 88 14.3% 76.7%;
+    --ck-cream: 153 27.5% 15.7%;     /* the reading colour, dark on paper */
+    --ck-sub: 147 10.7% 32.9%;
     --ck-action: 162 75% 24%;
-    --ck-action-bright: 157 59% 53%;
-    --ck-brass: 38 62% 33%;
+    /* Day has no use for a bright jade either: every use is words or a check
+       on paper (the job builder's "Tailored to …" and "Draft" chips), and the
+       Night jade read 1.5:1 there. So it is the deep jade, --action-soft-fg. */
+    --ck-action-bright: 164 76.8% 18.6%;
+    --ck-brass: 38 63% 30%;
     /* Day has no use for a pale brass: every use is text on paper, so it is the readable one (4.5:1 on the ground). */
-    --ck-brass-bright: 38 62% 30%;
+    --ck-brass-bright: 38 63% 27%;
 
     /* ── Premium tokens (--hf-*, hex) ──────────────────────────────────────── */
-    --hf-bg: #F0EBDF;
-    --hf-bg-soft: #E9E2D2;
-    --hf-surface: #FCFAF4;
-    --hf-surface-raised: #FCFAF4;
-    --hf-surface-strong: #E4DCC7;
-    --hf-border: #D6CDB6;
-    --hf-border-strong: #C6B893;
-    --hf-text: #14201B;
-    --hf-text-soft: #3F4B45;
-    --hf-text-muted: #5C655E;
+    --hf-bg: #DEE3D5;
+    --hf-bg-soft: #D5DCCC;
+    --hf-surface: #F5F1E6;
+    --hf-surface-raised: #F5F1E6;
+    --hf-surface-strong: #E9E5D7;
+    --hf-border: #C4CCBB;
+    --hf-border-strong: #AEB8A4;
+    --hf-text: #1D3329;
+    --hf-text-soft: #304238;
+    --hf-text-muted: #4B5D53;
     --hf-action: #0F6B4F;
-    --hf-action-soft: #DCEDE3;
+    --hf-action-soft: #D6E8DC;
     --hf-action-border: rgba(15, 107, 79, 0.30);
-    --hf-gold: #84601F;
-    --hf-gold-hover: #7A5410;
+    --hf-gold: #7E5B1D;
+    --hf-gold-hover: #71511A;
     --hf-gold-soft: #F6E7C6;
     --hf-gold-border: #C9A45E;
     --hf-danger: #A8352A;
     --hf-warning: #7A5410;
-    --hf-shadow-soft: 0 1px 2px rgba(23, 21, 15, 0.06), 0 10px 22px -14px rgba(23, 21, 15, 0.34);
-    --hf-toast-shadow: 0 1px 2px rgba(23, 21, 15, 0.06), 0 18px 36px -18px rgba(23, 21, 15, 0.4);
-    --hf-shadow-raised: 0 2px 4px rgba(23, 21, 15, 0.07), 0 18px 36px -20px rgba(23, 21, 15, 0.38);
-    --hf-shadow-gold: 0 8px 22px -12px rgba(138, 100, 32, 0.35);
+    --hf-shadow-soft: 0 1px 2px rgba(22, 40, 31, 0.06), 0 10px 22px -14px rgba(22, 40, 31, 0.34);
+    --hf-toast-shadow: 0 1px 2px rgba(22, 40, 31, 0.06), 0 18px 36px -18px rgba(22, 40, 31, 0.4);
+    --hf-shadow-raised: 0 2px 4px rgba(22, 40, 31, 0.07), 0 18px 36px -20px rgba(22, 40, 31, 0.38);
+    --hf-shadow-gold: 0 8px 22px -12px rgba(126, 91, 29, 0.35);
     --hf-radius-sm: 8px;
     --hf-radius-md: 10px;
     --hf-radius-lg: 12px;
@@ -256,6 +273,8 @@
     --crit: #E58A78;
     --crit-bg: rgba(217, 113, 95, 0.14);
     --btn-fg: #17140F;
+    --tint-ground: var(--ground);
+    --action-soft-edge: transparent;
 
     --seal-disc: #17805F;
     --seal-ring: #D9B876;

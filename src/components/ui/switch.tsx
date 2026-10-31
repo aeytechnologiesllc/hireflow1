@@ -9,7 +9,11 @@ const Switch = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(
-      "peer group relative inline-flex h-[26px] w-[46px] shrink-0 cursor-pointer items-center rounded-full border overflow-hidden transition-all duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=unchecked]:border-[var(--hf-border)] data-[state=unchecked]:bg-[var(--hf-surface-strong)] data-[state=checked]:border-transparent",
+      "peer group relative inline-flex h-[26px] w-[46px] shrink-0 cursor-pointer items-center rounded-full border overflow-hidden transition-all duration-[250ms] ease-[cubic-bezier(0.4,0,0.2,1)] active:scale-[0.96] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-transparent",
+      // Off: by Day a sage track with a deeper edge, so an off switch still
+      // shows on a paper card (the paper-on-paper track was 1.1:1 there);
+      // at Night the raised ink track, as before.
+      "data-[state=unchecked]:border-[var(--hair)] data-[state=unchecked]:bg-[var(--ground-2)] dark:data-[state=unchecked]:border-[var(--hf-border)] dark:data-[state=unchecked]:bg-[var(--hf-surface-strong)]",
       className,
     )}
     {...props}

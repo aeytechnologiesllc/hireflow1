@@ -97,7 +97,7 @@ const PasswordRequirements = ({ password }: { password: string }) => {
 };
 
 export default function Auth() {
-  // The bridge from the dark front page stays dark; the app after it follows the device.
+  // The bridge from the dark front page stays dark; the app after it opens in Day (or the theme they chose).
   useNightWhileOpen();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();

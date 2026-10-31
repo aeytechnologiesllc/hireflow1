@@ -58,10 +58,14 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
       onMouseEnter={() => prefetchForPath(to)}
       onPointerDown={() => prefetchForPath(to)}
       onFocus={() => prefetchForPath(to)}
+      // The active item: one jade tint by Day with the words in the deep jade
+      // (--action-soft-fg, 4.9:1 on the sage sidebar; the jade on two stacked
+      // tints was 3.2:1), and Night's two tints with the bright jade as before.
+      // theme_contrast.test.mjs measures both.
       className={cn(
         "group relative flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-300",
         isActive
-          ? "bg-primary/15 text-primary nav-item-active-glow"
+          ? "bg-primary/15 text-[var(--action-soft-fg)] dark:text-primary nav-item-active-glow"
           : "text-muted-foreground hover:text-foreground hover:bg-primary/5",
         collapsed && "justify-center px-2"
       )}
@@ -70,20 +74,20 @@ function NavItem({ icon: Icon, label, to, badge, highlight, collapsed, onNavigat
       <div className={cn(
         "absolute inset-0 rounded-lg bg-primary/0 transition-all duration-300",
         "group-hover:bg-primary/5 group-hover:shadow-[0_0_20px_hsl(var(--primary)/0.15)]",
-        isActive && "bg-primary/10 shadow-[0_0_25px_hsl(var(--primary)/0.2)]"
+        isActive && "dark:bg-primary/10 dark:shadow-[0_0_25px_hsl(var(--primary)/0.2)]"
       )} />
-      
+
       <div className={cn("relative flex items-center z-10", collapsed ? "gap-0" : "gap-3")}>
         <Icon className={cn(
           "h-5 w-5 shrink-0 transition-all duration-300",
-          isActive && "text-primary animate-icon-glow",
+          isActive && "text-[var(--action-soft-fg)] dark:text-primary animate-icon-glow",
           !isActive && "group-hover:text-primary/80 group-hover:scale-110",
           highlight && !isActive && "text-primary"
         )} />
         {!collapsed && (
           <span className={cn(
             "transition-all duration-300",
-            isActive && "text-primary font-semibold"
+            isActive && "text-[var(--action-soft-fg)] dark:text-primary font-semibold"
           )}>
             {label}
           </span>
@@ -245,7 +249,7 @@ export default function AppSidebar({ isOpen, isMobile, onToggle, onNavigate }: A
               "text-[10px] font-medium px-2 py-0.5",
               isTeamMember
                 ? "border-border text-secondary-foreground bg-secondary"
-                : "border-primary/30 text-primary bg-primary/10"
+                : "border-primary/30 text-[var(--action-soft-fg)] dark:text-primary bg-primary/10"
             )}
           >
             {isTeamMember ? "Team Member" : isEmployer ? "Employer" : "Candidate"}

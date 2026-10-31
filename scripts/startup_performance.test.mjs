@@ -59,7 +59,26 @@ check("...nor does the 'still filling in' check", /from "@\/cockpit\/lib\/applic
 console.log("\nThe page shell");
 const html = await read("index.html");
 check("the brand fonts load beside the page, not in front of it", /<link rel="stylesheet" href="https:\/\/fonts\.googleapis\.com[^"]+" media="print" onload="this\.media='all'" \/>/.test(html) && !/<link href="https:\/\/fonts\.googleapis\.com[^"]+" rel="stylesheet" \/>/.test(html));
-check("a start screen shows at once (the app's mark on its ground)", /<div id="root"><div id="hf-boot" aria-hidden="true"><svg/.test(html) && /html,body\{background:#17140F/.test(html));
+// The start screen paints the theme the app opens in: Day (Sage paper) for
+// everyone since 2026-10-30, Night only for a saved "dark" (or a saved
+// "system" on a dark device) and on sign-up. Its two grounds are the tokens'
+// own, so a palette change that forgets the start screen fails here.
+const tokensCss = await read("src/index.css");
+const dayGround = /:root \{[\s\S]*?--ground: (#[0-9A-Fa-f]{6});/.exec(tokensCss)?.[1];
+const nightGround = /\.dark \{[\s\S]*?--ground: (#[0-9A-Fa-f]{6});/.exec(tokensCss)?.[1];
+const bootScript = /<script>([^<]*data-boot[^<]*)<\/script>/.exec(html)?.[1] ?? "";
+check("a start screen shows at once (the app's mark on its ground)", /<div id="root"><div id="hf-boot" aria-hidden="true"><svg/.test(html) && !!dayGround && html.includes(`html,body{background:${dayGround};`));
+check("...Day's ground unless Night was chosen, and Night's own ground then (and under the app in Night)", !!nightGround && html.includes(`html[data-boot="dark"],html[data-boot="dark"] body,html.dark{background:${nightGround}}`) && !/data-boot="light"|"data-boot","light"/.test(html));
+check("...Night only for a saved \"dark\", a saved \"system\" on a dark device, or sign-up", /n=\/\^\\\/auth\(\\\/\|\$\)\/\.test\(location\.pathname\);if\(!n\)\{var t=localStorage\.getItem\("theme"\);n=t==="dark"\|\|\(t==="system"&&matchMedia\("\(prefers-color-scheme: dark\)"\)\.matches\);\}/.test(bootScript) && !/prefers-color-scheme: light/.test(bootScript));
+// Night's own class goes on <html> with the start screen's mark, so the
+// Night tokens hold from the first frame: data-boot goes the moment React
+// starts (main.tsx), before next-themes has put its class on (a saved Night
+// painted one Day frame in 1 of 6 loads without it).
+check("...and Night puts the theme's own class on <html> at once, not only the start screen's mark", /if\(n\)\{d\.setAttribute\("data-boot","dark"\);d\.classList\.add\("dark"\);\}/.test(bootScript));
+// Sign-up is held Night outside the lazy page, so the loader shown while
+// the Auth chunk downloads is Night too (it flashed Day on every new visit).
+check("...and the app holds sign-up Night before its page has downloaded", /const SIGN_UP_PATH = \/\^\\\/auth\(\\\/\|\$\)\/;/.test(app) && /function NightOnSignUp\(\) \{\s*const \{ pathname \} = useLocation\(\);\s*return SIGN_UP_PATH\.test\(pathname\) \? <HoldNight \/> : null;/.test(app) && /function HoldNight\(\) \{\s*useNightWhileOpen\(\);/.test(app) && /<BrowserRouter>\s*<PageViewTracker \/>\s*<AutoUpdate \/>\s*<NightOnSignUp \/>/.test(app));
+check("...and the app agrees: it opens in Day, with the device's choice still on offer", /<ThemeProvider attribute="class" defaultTheme="light" enableSystem>/.test(app));
 check("...and it fades in once, never loops", /animation:hf-boot-in \.4s ease-out \.15s 1 forwards/.test(html));
 
 console.log("\nSigning in");

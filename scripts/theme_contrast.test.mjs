@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * The app's colours read for everyone, Day and Night (WCAG AA): ink and
- * ivory with a brass accent, locked by the owner on 2026-10-25
- * (docs/LAUNCH-PLAN.md, Phase 3, task 2). Reads the tokens straight from
- * src/index.css, so a value changed there is checked here.
+ * The app's colours read for everyone, Day and Night (WCAG AA). Day is
+ * Sage paper since 2026-10-30 (the owner's choice: jade on sage grounds and
+ * warm paper cards, the front page's green ink); Night is warm ink with the
+ * ivory as the text (docs/LAUNCH-PLAN.md, Phase 3, task 2). Reads the tokens
+ * straight from src/index.css, so a value changed there is checked here.
  *
  * Run with: node scripts/theme_contrast.test.mjs
  */
@@ -38,6 +39,7 @@ const night = { ...day, ...tokens(nightOwn.slice(0, nightOwn.indexOf("\n  }\n"))
 
 /** [r, g, b] from #rrggbb, rgba() laid over `under`, or a bare "H S% L%". */
 function rgb(value, under) {
+  if (value === "transparent") return under ?? null;
   const hex = /^#([0-9a-f]{6})$/i.exec(value);
   if (hex) return [0, 2, 4].map((i) => parseInt(hex[1].slice(i, i + 2), 16));
   const rgba = /^rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)$/.exec(value);
@@ -83,7 +85,119 @@ const PAIRS = [
   ["good", "ground", 4.5], ["good", "surface", 4.5], ["good-fg", "good-soft", 4.5], ["good-fg", "ground", 4.5],
   ["under", "ground", 4.5], ["under", "surface", 4.5],
   ["success", "background", 4.5], ["success", "card", 4.5],
+  // 2026-10-30, Sage paper: the sidebar is one step deeper than the ground,
+  // so its words are measured on it, and the table heads and chips on --ground-2.
+  ["ink", "sidebar", 4.5], ["ink-2", "sidebar", 4.5], ["ink-3", "sidebar", 4.5],
+  ["sidebar-foreground", "sidebar-background", 4.5], ["ck-cream", "ck-sidebar", 4.5], ["ck-sub", "ck-sidebar", 4.5],
+  ["ink-3", "ground-2", 4.5], ["muted-foreground", "muted", 4.5],
+  // The builder's words on the page itself ("Ava found …", "Live").
+  ["ck-action-bright", "background", 4.5],
 ];
+
+// Words on the tints the screens actually stack, worked out the way the
+// browser paints them. A colour is a token ("crit"; a var() is followed), a
+// tint laid over another ({ over: [under, token, alpha] }: hsl(var(--x) / a)
+// or a translucent token), or a mix ({ mix: [token, share, into] }:
+// color-mix(in srgb, var(--token) share, var(--into)); a share may be a
+// token, as --initials-share is). The journey's gem stops come from
+// src/cockpit/cockpit.css.
+const cockpitCss = readFileSync(path.join(ROOT, "src/cockpit/cockpit.css"), "utf8");
+const blocks = (re) => [...cockpitCss.matchAll(re)].reduce((acc, m) => ({ ...tokens(m[1]), ...acc }), {});
+const gemsDay = blocks(/^:root \{([\s\S]*?)^\}/gm);
+const gemsNight = { ...gemsDay, ...blocks(/^\.dark \{([\s\S]*?)^\}/gm) };
+const dayAll = { ...gemsDay, ...day };
+const nightAll = { ...gemsNight, ...night };
+
+function resolve(t, name, seen = 0) {
+  const v = t[name];
+  const ref = v && /^var\(--([\w-]+)\)$/.exec(v);
+  return ref && seen < 8 ? resolve(t, ref[1], seen + 1) : v;
+}
+function paint(t, spec) {
+  const ground = rgb(resolve(t, "ground"));
+  if (typeof spec === "string") {
+    const v = resolve(t, spec);
+    return v == null ? null : rgb(v, ground);
+  }
+  if (spec.over) {
+    const [under, token, alpha] = spec.over;
+    const base = paint(t, under);
+    const top = paint(t, token);
+    return base && top ? top.map((x, k) => x * alpha + base[k] * (1 - alpha)) : null;
+  }
+  if (spec.mix) {
+    const [token, share, into] = spec.mix;
+    const pct = typeof share === "number" ? share : parseFloat(resolve(t, share)) / 100;
+    const a = paint(t, token);
+    const b = paint(t, into);
+    return a && b && Number.isFinite(pct) ? a.map((x, k) => x * pct + b[k] * (1 - pct)) : null;
+  }
+  return null;
+}
+const over = (under, ...tints) => tints.reduce((acc, [token, alpha]) => ({ over: [acc, token, alpha] }), under);
+const initials = (n) => [{ mix: [`gem-${n}`, "initials-share", "ink"] }, { mix: [`gem-${n}`, 0.26, "surface"] }];
+
+// [what it is, need, Day's [words, ground], Night's [words, ground]].
+// Each side as that theme draws it (some Day fixes leave Night's classes
+// as they were, with `dark:`).
+const LAYERED = [
+  // "Ava suggests" beside the score (ApplicantHeaderBand.tsx): a solid tint
+  // of its tone mixed into --tint-ground (the paper by Day, the ink at Night).
+  ["\"Ava suggests\": decline", 4.5, ["crit", { mix: ["crit", 0.13, "tint-ground"] }], ["crit", { mix: ["crit", 0.13, "tint-ground"] }]],
+  ["\"Ava suggests\": take a closer look", 4.5, ["amber-fg", { mix: ["amber-fg", 0.14, "tint-ground"] }], ["amber-fg", { mix: ["amber-fg", 0.14, "tint-ground"] }]],
+  ["\"Ava suggests\": move ahead", 4.5, ["good-fg", { mix: ["good", 0.14, "tint-ground"] }], ["good-fg", { mix: ["good", 0.14, "tint-ground"] }]],
+  // The applicants' and teammates' sidebar (AppSidebar.tsx): the active item,
+  // one jade tint by Day, Night's two as before; the "Candidate" badge.
+  ["the sidebar's active item", 4.5, ["action-soft-fg", over("sidebar-background", ["primary", 0.15])], ["primary", over("sidebar-background", ["primary", 0.15], ["primary", 0.1])]],
+  ["the sidebar's \"Candidate\" badge", 4.5, ["action-soft-fg", over("sidebar-background", ["primary", 0.1])], ["primary", over("sidebar-background", ["primary", 0.1])]],
+  // The job editor's step you are on (CreateJob.tsx).
+  ["the job editor's active step", 4.5, ["action-soft-fg", over("background", ["primary", 0.1])], ["primary", over("background", ["primary", 0.1])]],
+  // The job builder's chips (AvaCreateJob.tsx): words in --ck-action-bright.
+  ["the job builder's \"Tailored to …\" chip", 4.5, ["ck-action-bright", over("background", ["primary", 0.1])], ["ck-action-bright", over("background", ["primary", 0.1])]],
+  ["the job builder's \"Your role is live\" chip", 4.5, ["ck-action-bright", over("background", ["ck-action", 0.16])], ["ck-action-bright", over("background", ["ck-action", 0.16])]],
+  ["the job builder's words on its cards", 4.5, ["ck-action-bright", "card"], ["ck-action-bright", "card"]],
+  // Initials circles (initialsTint.ts), each gem stop.
+  ...[1, 2, 3, 4].map((n) => [`initials on gem stop ${n}`, 4.5, initials(n), initials(n)]),
+];
+
+for (const [theme, t] of [["Day", dayAll], ["Night", nightAll]]) {
+  for (const [name, need, daySide, nightSide] of LAYERED) {
+    const [fgSpec, bgSpec] = theme === "Day" ? daySide : nightSide;
+    const back = paint(t, bgSpec);
+    const front = back && paint(t, fgSpec);
+    if (!back || !front) {
+      check(`${theme}: ${name} can be read`, false, "a colour did not resolve");
+      continue;
+    }
+    const r = ratio(front.map(Math.round), back.map(Math.round));
+    check(`${theme}: ${name} is ${r.toFixed(2)}:1 (at least ${need})`, r >= need);
+  }
+}
+
+// ...and the screens still draw them the way they are measured above.
+const source = (rel) => readFileSync(path.join(ROOT, rel), "utf8");
+const sidebar = source("src/components/AppSidebar.tsx");
+check(
+  "the sidebar's active item and badge are drawn as measured (deep jade, one tint by Day)",
+  /"bg-primary\/15 text-\[var\(--action-soft-fg\)\] dark:text-primary nav-item-active-glow"/.test(sidebar) &&
+    /isActive && "dark:bg-primary\/10 /.test(sidebar) &&
+    /isActive && "text-\[var\(--action-soft-fg\)\] dark:text-primary font-semibold"/.test(sidebar) &&
+    /"border-primary\/30 text-\[var\(--action-soft-fg\)\] dark:text-primary bg-primary\/10"/.test(sidebar),
+);
+check(
+  "the job editor's active step is drawn as measured",
+  /\? "bg-primary\/10 text-\[var\(--action-soft-fg\)\] dark:text-primary"/.test(source("src/pages/CreateJob.tsx")),
+);
+const band = source("src/cockpit/components/ApplicantHeaderBand.tsx");
+check(
+  "\"Ava suggests\" mixes its tints into --tint-ground, as measured",
+  ["good) 14%", "amber-fg) 14%", "crit) 13%"].every((m) => band.includes(`color-mix(in srgb, var(--${m}, var(--tint-ground))`)),
+);
+check(
+  "initials take --initials-share of their gem stop, as measured",
+  source("src/cockpit/lib/initialsTint.ts").includes("color-mix(in srgb, var(--gem-${stop}) var(--initials-share, 55%), var(--ink))") &&
+    source("src/cockpit/lib/initialsTint.ts").includes("color-mix(in srgb, var(--gem-${stop}) 26%, var(--surface))"),
+);
 
 for (const [theme, t] of [["Day", day], ["Night", night]]) {
   const ground = rgb(t.ground);

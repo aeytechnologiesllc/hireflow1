@@ -20,12 +20,15 @@ const LINE_TONE: Record<HeaderLine["tone"], string> = {
 /** How long "Ava suggests" stays up after an applicant's page opens. */
 export const SUGGESTION_SHOWN_MS = 8000;
 
-/** The suggestion's box: a solid tint of its tone over the page's ground
- *  (no translucent panel), the words in the tone's readable shade. */
+/** The suggestion's box: a solid tint of its tone (no translucent panel),
+ *  the words in the tone's readable shade. The tint is mixed into
+ *  --tint-ground: the warm paper by Day (on Sage paper's sage ground the red
+ *  went a muddy taupe and its words fell to 4.1:1), the ink ground at Night.
+ *  theme_contrast.test.mjs measures all three. */
 const SUGGEST_STYLE: Record<AvaSuggestion["tone"], { background: string; color: string }> = {
-  good: { background: "color-mix(in srgb, var(--good) 14%, var(--ground))", color: "var(--good-fg)" },
-  amber: { background: "color-mix(in srgb, var(--amber-fg) 14%, var(--ground))", color: "var(--amber-fg)" },
-  crit: { background: "color-mix(in srgb, var(--crit) 13%, var(--ground))", color: "var(--crit)" },
+  good: { background: "color-mix(in srgb, var(--good) 14%, var(--tint-ground))", color: "var(--good-fg)" },
+  amber: { background: "color-mix(in srgb, var(--amber-fg) 14%, var(--tint-ground))", color: "var(--amber-fg)" },
+  crit: { background: "color-mix(in srgb, var(--crit) 13%, var(--tint-ground))", color: "var(--crit)" },
 };
 
 export function ApplicantHeaderBand({

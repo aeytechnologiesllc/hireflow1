@@ -282,75 +282,243 @@ export function ctaHref(campaign, medium = "article") {
 // The logo's own mark: the jade rising line on the deep green tile (scripts/make-app-icons.mjs).
 const MARK =
   '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0C2A21"/><rect x="0.5" y="0.5" width="63" height="63" rx="13.5" fill="none" stroke="rgba(63,206,151,0.28)"/><path d="M13 46 L25 19 L37 39 L51 17" fill="none" stroke="#3FCE97" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+// The big stamp's own drawings (public/landing.html, #heroStart): the mark's line in a ring, the arrow, and the postmark.
+const STAMP_LINE =
+  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F3EFE2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 L9 7 L14 15 L20 6"/></svg>';
+const STAMP_ARROW =
+  '<svg class="arr" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F3EFE2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>';
+const POSTMARK =
+  '<svg viewBox="0 0 120 78" aria-hidden="true"><circle cx="86" cy="39" r="38" fill="none" stroke="rgba(29,51,41,.5)" stroke-width="1.4"/><circle cx="86" cy="39" r="33" fill="none" stroke="rgba(29,51,41,.28)" stroke-width="1"/><path d="M0 28 q6 -4 12 0 t12 0 t12 0 t9 0 M0 39 q6 -4 12 0 t12 0 t12 0 t9 0 M0 50 q6 -4 12 0 t12 0 t12 0 t9 0" fill="none" stroke="rgba(29,51,41,.42)" stroke-width="1.3"/></svg>';
+// The front page's fonts, at its exact address, so a visitor who came from it has them already.
+export const FONTS_CSS = "https://fonts.googleapis.com/css2?family=Besley:ital,wght@0,500..800;1,500..600&family=Courier+Prime&family=Schibsted+Grotesk:wght@400..700&display=swap";
 
-/* The front page's two worlds (public/landing.html): the night for the bar
-   and the title, the morning's ivory paper for the reading, one brass accent. */
+/* The front page's look, "The Desk" (public/landing.html, docs/LANDING.md): the
+   sage desk with its warm wash from the window side, the same pinned bar, and
+   the guide on a sheet of the desk's warm paper, about 65-70 characters a line.
+   Besley for headings, Schibsted Grotesk for reading, Courier Prime for the
+   small typed details; the ink greens for text, the jade for links and the
+   stamp. Nothing moves but a small lift under a mouse, and nothing follows it;
+   no blur, no animation, so an old phone scrolls a long guide easily. */
 const STYLE = `
   :root {
     color-scheme: light;
-    --night: #05070B; --night-ink: #F4F0E6; --night-ink-2: rgba(244, 240, 230, 0.72); --night-line: rgba(244, 240, 230, 0.16);
-    --gold: #E8C37E;
-    --paper: #F6F1E6; --ink: #101613; --ink-2: rgba(16, 22, 19, 0.74); --ink-3: rgba(16, 22, 19, 0.6); --line: rgba(16, 22, 19, 0.14);
-    --brass: #8A6420; --brass-dark: #74531A;
+    --desk: #C6CFBE; --desk-deep: #B5C0AB;
+    --paper: #F5F0E5; --paper-2: #F0EBDE; --paper-3: #EEE8D9;
+    --ink: #1D3329; --ink-2: #304238; --ink-3: #4E6056; --line: rgba(29, 51, 41, 0.14);
+    --action: #0F6B4F; --action-deep: #0B5440;
+    --serif: "Besley", Georgia, serif;
+    --sans: "Schibsted Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+    --type: "Courier Prime", "Courier New", monospace;
+    --barh: 60px;
+    --sheet: 0 0 0 .5px rgba(29, 51, 41, .10), -.5px 1px 1.5px rgba(22, 40, 31, .2), -8px 14px 30px -14px rgba(22, 40, 31, .32);
+    --card: 0 0 0 .5px rgba(29, 51, 41, .10), -.5px 1px 1.5px rgba(22, 40, 31, .22), -4px 7px 14px -6px rgba(22, 40, 31, .24);
+    --card-up: 0 0 0 .5px rgba(29, 51, 41, .11), -1px 2px 3px rgba(22, 40, 31, .2), -8px 14px 24px -8px rgba(22, 40, 31, .3);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
-  body { background: var(--paper); color: var(--ink); font: 400 18px/1.7 "Geist", system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
-  a { color: var(--brass); text-underline-offset: 3px; }
-  a:hover { color: var(--brass-dark); }
-  .bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px clamp(16px, 4vw, 48px); padding-top: calc(14px + env(safe-area-inset-top, 0px)); background: var(--night); color: var(--night-ink); border-bottom: 1px solid var(--night-line); }
-  .brand { display: inline-flex; align-items: center; gap: 10px; font: 600 17px/1 "Geist", sans-serif; letter-spacing: -0.01em; color: inherit; text-decoration: none; }
-  .brand:hover { color: inherit; }
-  .brand svg { width: 26px; height: 26px; flex: none; display: block; }
-  .bar nav { display: inline-flex; align-items: center; gap: 18px; white-space: nowrap; }
-  .bar nav a.plain { color: var(--night-ink-2); font-size: 14px; text-decoration: none; }
-  .bar nav a.plain:hover { color: var(--night-ink); }
-  .btn { display: inline-flex; align-items: center; font: 600 15px/1 "Geist", system-ui, sans-serif; text-decoration: none; border-radius: 10px; padding: 14px 20px; white-space: nowrap; }
-  .bar .btn { background: var(--night-ink); color: #0A0D12; padding: 11px 15px; font-size: 14px; }
-  .bar .btn:hover { background: #fff; color: #0A0D12; }
-  @media (max-width: 560px) { .bar nav { gap: 12px; } .bar nav a.plain.wide { display: none; } .bar .btn { padding: 10px 12px; font-size: 13.5px; } }
-  .head { background: var(--night); color: var(--night-ink); padding: clamp(40px, 8vw, 88px) 16px clamp(36px, 6vw, 64px); }
-  .head > div { max-width: 720px; margin: 0 auto; }
-  .crumbs { margin: 0 0 18px; font-size: 13px; letter-spacing: 0.16em; text-transform: uppercase; }
-  .crumbs a { color: var(--gold); text-decoration: none; }
-  h1 { margin: 0; font: 700 clamp(32px, 5.4vw, 52px)/1.06 "Geist", system-ui, sans-serif; letter-spacing: -0.035em; text-wrap: balance; }
-  .dek { margin: 18px 0 0; font-size: clamp(17px, 2vw, 20px); line-height: 1.55; color: var(--night-ink-2); text-wrap: pretty; }
-  .meta { margin: 22px 0 0; font-size: 14px; color: var(--night-ink-2); }
-  main { padding: clamp(32px, 6vw, 64px) 16px 24px; }
-  .body, .list, .more, .end { max-width: 720px; margin: 0 auto; }
-  .body h2 { font: 700 clamp(24px, 3vw, 30px)/1.2 "Geist", sans-serif; letter-spacing: -0.02em; margin: 1.9em 0 0.5em; }
-  .body h3 { font: 600 20px/1.3 "Geist", sans-serif; margin: 1.6em 0 0.4em; }
-  .body h4 { font: 600 18px/1.4 "Geist", sans-serif; margin: 1.4em 0 0.3em; }
+  html { background: var(--desk); scroll-padding-top: calc(var(--barh) + 16px); -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+  body { min-height: 100vh; display: flex; flex-direction: column; color: var(--ink); font: 400 17px/1.6 var(--sans); -webkit-font-smoothing: antialiased; overflow-wrap: break-word;
+    background: linear-gradient(242deg, rgba(240, 225, 190, .62) 0, rgba(240, 225, 190, .3) 380px, rgba(240, 225, 190, 0) 860px) no-repeat, var(--desk); }
+  ::selection { background: #D6E8DC; color: var(--ink); }
+  a { color: var(--action); }
+  a:focus-visible { outline: 2px solid var(--action); outline-offset: 3px; border-radius: 2px; }
+
+  /* the bar: the front page's, pinned the whole way down, in the desk's own sage */
+  .bar { position: -webkit-sticky; position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 16px; height: var(--barh);
+    padding: 0 max(48px, env(safe-area-inset-right, 0px)) 0 max(56px, env(safe-area-inset-left, 0px)); background: rgba(198, 207, 190, .97); box-shadow: 0 1px 0 rgba(29, 51, 41, .1); }
+  .logo { display: inline-flex; align-items: center; gap: 11px; font: 600 23px/1 var(--serif); letter-spacing: -.01em; color: var(--ink); text-decoration: none; }
+  .logo svg { width: 32px; height: 32px; flex: none; display: block; border-radius: 8px; box-shadow: -1px 3px 6px -1px rgba(12, 42, 33, .4); }
+  .navr { display: flex; align-items: center; gap: 28px; font: 500 15px/1 var(--sans); white-space: nowrap; }
+  .navr a { color: var(--ink-2); text-decoration: none; }
+  .navr .short { display: none; }
+  /* "Post a job": the small stamp */
+  .navr .post { position: relative; display: inline-block; transform: rotate(1.4deg); transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+    filter: drop-shadow(0 1px .6px rgba(20, 38, 30, .26)) drop-shadow(-1px 4px 5px rgba(20, 38, 30, .14)); }
+  .navr .post span { --r: 2.6px; position: relative; display: block; padding: 10px 17px; background: #EFE9DA; color: var(--action-deep); font-weight: 650;
+    -webkit-mask: radial-gradient(var(--r), #0000 97%, #000) round calc(-1.5 * var(--r)) calc(-1.5 * var(--r)) / calc(3 * var(--r)) calc(3 * var(--r)), linear-gradient(#000 0 0) no-repeat 50% / calc(100% - 3 * var(--r)) calc(100% - 3 * var(--r));
+            mask: radial-gradient(var(--r), #0000 97%, #000) round calc(-1.5 * var(--r)) calc(-1.5 * var(--r)) / calc(3 * var(--r)) calc(3 * var(--r)), linear-gradient(#000 0 0) no-repeat 50% / calc(100% - 3 * var(--r)) calc(100% - 3 * var(--r)); }
+  .navr .post span::before { content: ""; position: absolute; inset: 6px; border: 1px solid rgba(15, 107, 79, .32); pointer-events: none; }
+  .navr .post:active { transform: translateY(1px) scale(.97); transition-duration: .07s; }
+
+  main { flex: 1 0 auto; width: 100%; padding: 40px 16px 80px; }
+
+  /* the guide: one sheet of paper on the desk */
+  .sheet { max-width: 740px; margin: 0 auto; padding: 52px 72px 60px; border-radius: 2px; box-shadow: var(--sheet);
+    background: linear-gradient(168deg, rgba(255, 255, 255, .5), rgba(255, 255, 255, 0) 520px) no-repeat, var(--paper); }
+  .crumbs { margin: 0 0 20px; font: 400 15px/1.3 var(--type); }
+  .crumbs a { text-decoration: none; }
+  .crumbs a span { display: inline-block; margin-right: 6px; }
+  h1 { margin: 0; font: 650 clamp(31px, 4.4vw, 44px)/1.1 var(--serif); letter-spacing: -.022em; color: var(--ink); text-wrap: balance; }
+  .dek { margin: 16px 0 0; font-size: clamp(18px, 1.9vw, 20px); line-height: 1.5; color: var(--ink-2); text-wrap: pretty; }
+  .meta { margin: 24px 0 0; padding-bottom: 22px; border-bottom: 1px dashed rgba(29, 51, 41, .3); font: 400 14.5px/1.5 var(--type); color: var(--ink-3); }
+  .meta span { white-space: nowrap; }
+  .body { margin-top: 32px; font-size: 18px; line-height: 1.7; color: var(--ink-2); }
+  .body > :first-child { margin-top: 0; }
+  .body h2 { margin: 1.85em 0 .5em; font: 650 clamp(24px, 2.6vw, 28px)/1.2 var(--serif); letter-spacing: -.016em; color: var(--ink); }
+  .body h3 { margin: 1.6em 0 .4em; font: 600 21px/1.3 var(--serif); letter-spacing: -.01em; color: var(--ink); }
+  .body h4 { margin: 1.4em 0 .3em; font: 650 17px/1.4 var(--sans); color: var(--ink); }
   .body p, .body ul, .body ol, .body blockquote, .body table, .body pre { margin: 0 0 1.1em; }
-  .body ul, .body ol { padding-left: 1.3em; }
-  .body li { margin: 0.3em 0; }
-  .body blockquote { margin-left: 0; padding: 4px 0 4px 18px; border-left: 3px solid var(--brass); color: var(--ink-2); }
-  .body code { font: 500 0.88em/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: rgba(16, 22, 19, 0.06); padding: 2px 5px; border-radius: 5px; }
-  .body pre { background: #101613; color: #F4F0E6; padding: 16px 18px; border-radius: 10px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .body pre code { background: none; padding: 0; color: inherit; }
-  .body table { width: 100%; border-collapse: collapse; font-size: 16px; display: block; overflow-x: auto; }
-  .body th, .body td { text-align: left; padding: 9px 12px 9px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
-  .body hr { border: 0; border-top: 1px solid var(--line); margin: 2em 0; }
-  .end { margin-top: 48px; padding: 28px clamp(20px, 4vw, 32px); border-radius: 16px; background: #EFE7D6; border: 1px solid var(--line); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 18px 28px; }
-  .end h2 { margin: 0 0 6px; font: 700 22px/1.25 "Geist", sans-serif; letter-spacing: -0.02em; }
-  .end p { margin: 0; font-size: 16px; color: var(--ink-2); max-width: 40ch; }
-  .end .go { display: inline-flex; flex-direction: column; align-items: flex-start; gap: 8px; }
-  .end .btn { background: var(--brass); color: #FBF7EE; }
-  .end .btn:hover { background: var(--brass-dark); color: #FBF7EE; }
-  .end small { font-size: 13px; color: var(--ink-3); }
-  .more { margin-top: 56px; }
-  .more h2, .list h2 { font: 600 13px/1 "Geist", sans-serif; letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink-3); margin: 0 0 8px; }
-  .card { display: block; padding: 22px 0; border-bottom: 1px solid var(--line); text-decoration: none; color: inherit; }
-  .card:hover { color: inherit; }
-  .card:hover b { color: var(--brass); }
-  .card b { display: block; font: 600 21px/1.3 "Geist", sans-serif; letter-spacing: -0.015em; }
-  .card span { display: block; margin-top: 6px; font-size: 16px; color: var(--ink-2); }
-  .card small { display: block; margin-top: 8px; font-size: 13.5px; color: var(--ink-3); }
-  footer { padding: 40px 16px calc(40px + env(safe-area-inset-bottom, 0px)); }
-  .foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 22px; font-size: 13.5px; color: var(--ink-3); }
-  .foot a { color: inherit; text-decoration: none; }
-  .foot a:hover { color: var(--ink); text-decoration: underline; }
-  .legal { margin: 14px 0 0; text-align: center; font-size: 12.5px; color: var(--ink-3); }
+  .body ul, .body ol { padding-left: 1.35em; }
+  .body li { margin: .35em 0; padding-left: .15em; }
+  .body li::marker { color: var(--action); }
+  .body ol > li::marker { font-family: var(--serif); font-weight: 650; }
+  .body strong { font-weight: 650; color: var(--ink); }
+  .body a { text-decoration-thickness: 1px; text-decoration-color: rgba(15, 107, 79, .45); text-underline-offset: 3px; }
+  /* a customer's message: a slip of paper, in the front page's italic */
+  .body blockquote { margin-left: 0; margin-right: 0; padding: 14px 20px 14px 18px; background: var(--paper-3); border-left: 2px solid rgba(15, 107, 79, .55); border-radius: 0 2px 2px 0;
+    font: italic 500 18px/1.55 var(--serif); color: var(--ink); }
+  .body blockquote p { margin: 0 0 .6em; }
+  .body blockquote > :last-child { margin-bottom: 0; }
+  .body code { font: 400 .93em/1.4 var(--type); background: rgba(29, 51, 41, .06); padding: 1px 5px; border-radius: 3px; }
+  /* a template to copy: typed on a card */
+  .body pre { padding: 20px 22px; background: var(--paper-3); box-shadow: inset 0 0 0 1px rgba(29, 51, 41, .1); border-radius: 2px; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere;
+    font: 400 14px/1.6 var(--type); color: var(--ink); }
+  .body pre code { background: none; padding: 0; font: inherit; }
+  /* on a wide sheet the card reaches into the margin, so a template's typed lines keep their own breaks */
+  @media (min-width: 900px) { .body pre { margin-left: -40px; margin-right: -40px; padding: 22px 24px; } }
+  .body table { width: 100%; border-collapse: collapse; font-size: 16px; line-height: 1.5; display: block; overflow-x: auto; }
+  .body th { text-align: left; font-weight: 650; color: var(--ink); padding: 8px 16px 8px 0; border-bottom: 1.5px solid rgba(29, 51, 41, .3); vertical-align: bottom; }
+  .body td { padding: 10px 16px 10px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .body hr { border: 0; border-top: 1px dashed rgba(29, 51, 41, .3); margin: 2em 0; }
+
+  /* the sign-up card: a second sheet, with the front page's stamp and postmark */
+  .end { max-width: 740px; margin: 36px auto 0; padding: 36px 72px 38px; border-radius: 2px; box-shadow: var(--sheet);
+    background: linear-gradient(155deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, 0) 42%) no-repeat, var(--paper-2); }
+  .end h2 { margin: 0; font: 650 clamp(24px, 2.8vw, 29px)/1.18 var(--serif); letter-spacing: -.018em; color: var(--ink); }
+  .end p { margin: 10px 0 0; max-width: 36em; font-size: 17px; line-height: 1.55; color: var(--ink-2); }
+  .cta-row { margin-top: 26px; display: flex; align-items: center; }
+  .stamp { position: relative; display: inline-block; flex: none; text-decoration: none; transform: rotate(-1.4deg); transition: transform .3s cubic-bezier(.2, .8, .2, 1);
+    filter: drop-shadow(0 1px 1px rgba(20, 38, 30, .28)) drop-shadow(-2px 6px 7px rgba(20, 38, 30, .16)); }
+  .stamp:focus-visible { outline: 2px dashed rgba(15, 107, 79, .75); outline-offset: 7px; border-radius: 3px; }
+  .stamp .face { --r: 4px; position: relative; display: flex; align-items: center; gap: 14px; padding: 20px 26px 20px 22px; background: var(--action); color: #F3EFE2;
+    -webkit-mask: radial-gradient(var(--r), #0000 97%, #000) round calc(-1.5 * var(--r)) calc(-1.5 * var(--r)) / calc(3 * var(--r)) calc(3 * var(--r)), linear-gradient(#000 0 0) no-repeat 50% / calc(100% - 3 * var(--r)) calc(100% - 3 * var(--r));
+            mask: radial-gradient(var(--r), #0000 97%, #000) round calc(-1.5 * var(--r)) calc(-1.5 * var(--r)) / calc(3 * var(--r)) calc(3 * var(--r)), linear-gradient(#000 0 0) no-repeat 50% / calc(100% - 3 * var(--r)) calc(100% - 3 * var(--r));
+    transition: background .2s; }
+  .stamp .face::before { content: ""; position: absolute; inset: 9px; border: 1px solid rgba(243, 239, 226, .38); pointer-events: none; }
+  .stamp .mk { width: 26px; height: 26px; border-radius: 50%; border: 1.3px solid rgba(243, 239, 226, .6); display: grid; place-items: center; flex: none; }
+  .stamp .mk svg { display: block; }
+  .stamp .lbl { font: 600 19px/1.2 var(--serif); letter-spacing: -.005em; white-space: nowrap; }
+  .stamp .arr { flex: none; transition: transform .3s; }
+  .stamp:active { transform: rotate(0deg) translateY(1px) scale(.985); transition-duration: .07s; }
+  .pmark { position: relative; margin-left: -22px; z-index: 2; width: 126px; height: 78px; flex: none; }
+  .pmark svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .pmark .t { position: absolute; left: 52px; top: 29px; width: 68px; text-align: center; font: 650 13px/1.2 var(--sans); color: var(--ink); transform: rotate(-8deg); white-space: nowrap; }
+
+  /* the list: each guide a letter on the desk */
+  .top { max-width: 1040px; margin: 4px auto 34px; }
+  .top h1 { max-width: 15em; font-size: clamp(36px, 5vw, 58px); line-height: 1.02; letter-spacing: -.028em; }
+  .top .dek { max-width: 34em; }
+  .top .crumbs a, .top .dek a { color: var(--action-deep); }
+  .list { max-width: 1040px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 22px; }
+  .list > p { margin: 0; color: var(--ink-2); }
+  .list + .end { max-width: 1040px; margin-top: 48px; }
+  .card { display: flex; flex-direction: column; padding: 24px 26px 20px; border-radius: 2px; box-shadow: var(--card); color: inherit; text-decoration: none;
+    background: linear-gradient(162deg, rgba(255, 255, 255, .42), rgba(255, 255, 255, 0) 46%) no-repeat, var(--paper); transition: transform .3s cubic-bezier(.2, .8, .2, 1), box-shadow .3s; }
+  .card b { font: 650 21px/1.25 var(--serif); letter-spacing: -.012em; color: var(--ink); transition: color .2s; }
+  .card span { margin-top: 8px; font-size: 15.5px; line-height: 1.5; color: var(--ink-2); }
+  .card small { margin-top: auto; padding-top: 16px; font: 400 13.5px/1.4 var(--type); color: var(--ink-3); }
+  .more { max-width: 1040px; margin: 56px auto 0; }
+  .more h2 { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; font: 400 15px/1.2 var(--type); color: var(--ink-2); }
+  .more h2::after { content: ""; flex: 1; border-top: 1px dashed rgba(29, 51, 41, .3); }
+  .more .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr)); gap: 22px; }
+
+  /* the footer: a darker band of the same sage */
+  footer { background: var(--desk-deep); color: var(--ink); }
+  footer .lp { max-width: 1240px; margin: 0 auto; padding: 40px 56px calc(44px + env(safe-area-inset-bottom, 0px)); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px 56px; }
+  footer .about { margin: 0; font-size: 15.5px; line-height: 1.55; color: var(--ink-2); max-width: 40em; }
+  footer .about b { color: var(--ink); }
+  .foot { display: flex; flex-wrap: wrap; gap: 10px 24px; align-content: start; justify-content: flex-end; font-size: 15px; font-weight: 500; }
+  .foot a { color: var(--ink); text-decoration: none; }
+  .legal { grid-column: 1 / -1; margin: 0; padding-top: 18px; border-top: 1px solid rgba(29, 51, 41, .2); font-size: 13px; color: var(--ink-2); }
+
+  /* the list's sign-up card spans the list: its words on the left, the stamp on the right */
+  @media (min-width: 1000px) {
+    .list + .end { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 48px; align-items: center; padding: 36px 52px 38px 48px; }
+    .list + .end .cta-row { grid-column: 2; grid-row: 1 / span 2; margin-top: 0; }
+  }
+
+  /* tiny hovers, only where there is a mouse */
+  @media (hover: hover) and (pointer: fine) {
+    .navr a:hover { color: var(--ink); }
+    .navr .post:hover { transform: rotate(0) translateY(-1px); }
+    .navr .post:hover span { color: var(--action-deep); }
+    .body a:hover, .crumbs a:hover, .dek a:hover { color: var(--action-deep); text-decoration: underline; text-decoration-color: currentColor; }
+    .stamp:hover { transform: rotate(0deg) translateY(-2px); }
+    .stamp:hover .arr { transform: translateX(3px); }
+    .card:hover { transform: translateY(-2px); box-shadow: var(--card-up); }
+    .card:hover b { color: var(--action-deep); }
+    .foot a:hover { text-decoration: underline; text-underline-offset: 4px; }
+  }
+
+  /* a phone, and a tablet held upright */
+  @media (max-width: 899px) {
+    :root { --barh: 50px; }
+    body { font-size: 16.5px; }
+    .bar { padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
+    .logo { font-size: 20px; gap: 9px; }
+    .logo svg { width: 28px; height: 28px; border-radius: 7px; }
+    .navr { gap: 16px; font-size: 14px; }
+    .navr .guides, .navr .long { display: none; }
+    .navr .short { display: inline; }
+    .navr .post span { padding: 8px 12px; }
+    .navr .post span::before { inset: 5px; }
+    main { padding: 18px 12px 56px; }
+    .sheet { padding: 28px 20px 34px; }
+    .meta { margin-top: 20px; padding-bottom: 18px; font-size: 14px; }
+    .body { margin-top: 26px; font-size: 17px; line-height: 1.68; }
+    .body blockquote { padding: 12px 16px 12px 14px; font-size: 17px; }
+    .body pre { margin-left: -10px; margin-right: -10px; padding: 14px 12px; font-size: 13.5px; }
+    .body table { font-size: 15px; }
+    .end { margin-top: 22px; padding: 26px 20px 28px; }
+    .end p { font-size: 16px; }
+    .cta-row { margin-top: 22px; }
+    .stamp .face { padding: 15px 14px 15px 13px; gap: 9px; }
+    .stamp .lbl { font-size: 16.5px; }
+    .stamp .mk { width: 22px; height: 22px; }
+    .stamp .mk svg { width: 13px; height: 13px; }
+    .stamp .arr { width: 16px; height: 16px; }
+    /* the postmark's box is its drawing (no scaled overhang), so it never widens the page */
+    .pmark { margin-left: -22px; width: 84px; height: 55px; }
+    .pmark .t { left: 35px; top: 20px; width: 50px; font-size: 10.5px; }
+    .top { margin: 14px 4px 24px; }
+    .list, .more .cards { gap: 14px; }
+    .list + .end { margin-top: 32px; }
+    .card { padding: 20px 20px 18px; }
+    .card b { font-size: 19.5px; }
+    .more { margin-top: 40px; }
+    footer .lp { grid-template-columns: minmax(0, 1fr); padding: 36px 16px calc(40px + env(safe-area-inset-bottom, 0px)); }
+    .foot { justify-content: flex-start; }
+  }
+  /* a small phone: the bar keeps to one line, the stamp and its postmark to the card */
+  @media (max-width: 380px) {
+    .logo { font-size: 18px; gap: 8px; }
+    .navr { gap: 12px; font-size: 13.5px; }
+    .navr .post span { padding: 8px 10px; }
+    .sheet { padding: 24px 18px 30px; }
+    .end { padding: 24px 18px 26px; }
+    .stamp .face { padding: 14px 17px 14px 12px; gap: 8px; }
+    .stamp .lbl { font-size: 15.5px; }
+    .stamp .mk { width: 21px; height: 21px; }
+    .stamp .arr { display: none; }
+  }
+  @media (max-width: 340px) {
+    .bar { padding: 0 12px; }
+    .logo { font-size: 16px; gap: 7px; }
+    .logo svg { width: 24px; height: 24px; border-radius: 6px; }
+    .navr { gap: 10px; font-size: 12.5px; }
+    .navr .post span { padding: 7px 8px; }
+    .navr .post span::before { inset: 4px; }
+    main { padding-left: 8px; padding-right: 8px; }
+    .stamp .face { padding: 13px 15px 13px 10px; gap: 7px; }
+    .stamp .lbl { font-size: 14px; }
+    .stamp .mk { width: 19px; height: 19px; }
+    .stamp .mk svg { width: 11px; height: 11px; }
+    .pmark { margin-left: -20px; width: 74px; height: 48px; }
+    .pmark .t { left: 31px; top: 17px; width: 44px; font-size: 9.5px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .navr .post, .stamp, .stamp .arr, .card, .card b { transition: none; }
+  }
 `;
 
 function head({ title, description, canonical, type, extraMeta = "", graph, campaign = "blog" }) {
@@ -363,7 +531,7 @@ function head({ title, description, canonical, type, extraMeta = "", graph, camp
 <meta name="description" content="${escapeHtml(description)}">
 <link rel="canonical" href="${canonical}">
 <meta name="robots" content="index, follow, max-image-preview:large">
-<meta name="theme-color" content="#05070B">
+<meta name="theme-color" content="#C6CFBE">
 <meta property="og:type" content="${type}">
 <meta property="og:site_name" content="HireFlow">
 <meta property="og:url" content="${canonical}">
@@ -385,15 +553,15 @@ ${extraMeta}<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <script src="/blog-fonts.js" defer></script>
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&display=swap"></noscript>
+<noscript><link rel="stylesheet" href="${FONTS_CSS}"></noscript>
 <script src="/beacon.js" defer></script>
 <script src="/carry-source.js" defer></script>
 <style>${STYLE}</style>
 </head>
 <body>
 <header class="bar">
-  <a class="brand" href="/">${MARK}HireFlow</a>
-  <nav aria-label="Main"><a class="plain" href="/blog">Guides</a><a class="plain wide" href="/open-jobs">Open jobs</a><a class="btn" href="${ctaHref(campaign, "bar")}">Post a job free</a></nav>
+  <a class="logo" href="/">${MARK}HireFlow</a>
+  <nav class="navr" aria-label="Main"><a class="guides" href="/blog">Guides</a><a href="/open-jobs"><span class="long">Looking for a job?</span><span class="short">Jobs</span></a><a href="https://staff.hireflownow.com/auth">Sign in</a><a class="post" href="${ctaHref(campaign, "bar")}"><span>Post a job</span></a></nav>
 </header>
 `;
 }
@@ -401,8 +569,11 @@ ${extraMeta}<meta name="twitter:card" content="summary_large_image">
 function foot() {
   const year = new Date().getUTCFullYear();
   return `<footer>
-  <nav class="foot" aria-label="More"><a href="/">HireFlow</a><a href="/blog">Guides</a><a href="/open-jobs">Open jobs</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://staff.hireflownow.com/auth">Team sign in</a></nav>
-  <p class="legal">© ${year} Southern Digital Technologies LLC</p>
+  <div class="lp">
+    <p class="about"><b>About.</b> HireFlow is made by Southern Digital Technologies LLC.</p>
+    <nav class="foot" aria-label="More"><a href="/">HireFlow</a><a href="/open-jobs">Open jobs</a><a href="/blog">Guides</a><a href="/privacy">Privacy</a><a href="/terms">Terms</a><a href="https://staff.hireflownow.com/auth">Team sign in</a></nav>
+    <p class="legal">© ${year} Southern Digital Technologies LLC</p>
+  </div>
 </footer>
 </body>
 </html>
@@ -419,10 +590,12 @@ function card(post) {
   return `<a class="card" href="/blog/${post.slug}"><b>${escapeHtml(post.title)}</b><span>${escapeHtml(post.description)}</span><small><time datetime="${post.date}">${longDate(post.date)}</time> · ${post.minutes} min read</small></a>`;
 }
 
+/** The sign-up card: the front page's green postage stamp, with its "No card." postmark. */
 function endBlock(campaign, medium = "article") {
   return `<aside class="end" aria-label="Post a job">
-  <div><h2>Hiring a customer service agent?</h2><p>Post the role and share its link. Every applicant handles a realistic customer conversation, and Ava scores and ranks them, with her reasons.</p></div>
-  <span class="go"><a class="btn" href="${ctaHref(campaign, medium)}">Post your first job free</a><small>First job free. No card.</small></span>
+  <h2>Hiring a customer service agent?</h2>
+  <p>Post the role and share its link. Every applicant handles a realistic customer conversation, and Ava scores and ranks them, with her reasons.</p>
+  <div class="cta-row"><a class="stamp" href="${ctaHref(campaign, medium)}"><span class="face"><span class="mk">${STAMP_LINE}</span><span class="lbl">Post your first job free</span>${STAMP_ARROW}</span></a><span class="pmark">${POSTMARK}<span class="t">No card.</span></span></div>
 </aside>`;
 }
 
@@ -462,17 +635,17 @@ export function postPage(post, all) {
   const extraMeta = `<meta property="article:published_time" content="${post.date}">\n<meta property="article:modified_time" content="${modified}">\n`;
   return (
     head({ title: `${post.title} | HireFlow`, description: post.description, canonical, type: "article", extraMeta, graph, campaign: post.slug }) +
-    `<div class="head"><div>
-  <p class="crumbs"><a href="/blog">Guides</a></p>
+    `<main>
+<article class="sheet">
+  <p class="crumbs"><a href="/blog"><span aria-hidden="true">←</span>Guides</a></p>
   <h1>${escapeHtml(post.title)}</h1>
   <p class="dek">${escapeHtml(post.description)}</p>
-  <p class="meta">By ${escapeHtml(post.author)} · <time datetime="${post.date}">${longDate(post.date)}</time>${post.updated ? ` · updated <time datetime="${post.updated}">${longDate(post.updated)}</time>` : ""} · ${post.minutes} min read</p>
-</div></div>
-<main>
-<article class="body">
-${post.html}</article>
+  <p class="meta"><span>By ${escapeHtml(post.author)}</span> · <span><time datetime="${post.date}">${longDate(post.date)}</time></span>${post.updated ? ` · <span>updated <time datetime="${post.updated}">${longDate(post.updated)}</time></span>` : ""} · <span>${post.minutes} min read</span></p>
+  <div class="body">
+${post.html}</div>
+</article>
 ${endBlock(post.slug)}
-${others.length ? `<section class="more" aria-label="More guides"><h2>More guides</h2>${others.map(card).join("")}</section>` : ""}
+${others.length ? `<section class="more" aria-label="More guides"><h2>More guides</h2><div class="cards">${others.map(card).join("")}</div></section>` : ""}
 </main>
 ` +
     foot()
@@ -497,12 +670,12 @@ export function indexPage(posts) {
   ];
   return (
     head({ title: "Guides to hiring customer service agents | HireFlow", description, canonical, type: "website", graph, campaign: "blog-index" }) +
-    `<div class="head"><div>
-  <p class="crumbs"><a href="/">HireFlow</a></p>
+    `<main>
+<header class="top">
+  <p class="crumbs"><a href="/"><span aria-hidden="true">←</span>HireFlow</a></p>
   <h1>Guides to hiring customer service agents</h1>
   <p class="dek">${escapeHtml(description)}</p>
-</div></div>
-<main>
+</header>
 <section class="list" aria-label="Every guide">${posts.length ? posts.map(card).join("") : "<p>The first guides are on their way.</p>"}</section>
 ${endBlock("blog-index", "list")}
 </main>
@@ -536,12 +709,12 @@ export function notFoundPage(posts) {
       // No page counter: a mistyped address is no guide visit (the third
       // growth review and the sixth Phase 6 review).
       .replace('<script src="/beacon.js" defer></script>\n', "") +
-    `<div class="head"><div>
-  <p class="crumbs"><a href="/blog">Guides</a></p>
+    `<main>
+<header class="top">
+  <p class="crumbs"><a href="/blog"><span aria-hidden="true">←</span>Guides</a></p>
   <h1>That guide is not here</h1>
-  <p class="dek">It may have moved, or the address may have a typo. The latest guides are below; <a href="/blog" style="color: var(--gold)">every guide is on the list</a>.</p>
-</div></div>
-<main>
+  <p class="dek">It may have moved, or the address may have a typo. The latest guides are below; <a href="/blog">every guide is on the list</a>.</p>
+</header>
 <section class="list" aria-label="Latest guides">${posts.slice(0, 5).map(card).join("")}</section>
 </main>
 ` +

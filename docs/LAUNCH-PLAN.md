@@ -957,7 +957,38 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
-### 2026-10-30 (latest) — The Desk front page and the green logo
+### 2026-10-30 (latest) — Sage paper for Day; the app opens in Day
+
+Shown Sage paper layered over the real screens (dashboard, applicants, profile, messages) beside
+today's Day, the owner chose it for the app's Day: light sage grounds (`--ground` `#DEE3D5`, `--ground-2`
+`#D5DCCC`, a deeper sage sidebar `#CFD7C4`), warm paper cards (`--surface` `#F5F1E6`), sage lines,
+the front page's green ink as the text (`--ink` `#1D3329`, `--ink-2` `#304238`, `--ink-3` `#4B5D53`),
+the jade action unchanged, a slightly deeper brass (`#7E5B1D`), a fainter light and green-ink
+shadows. Applied in every token system of the Day `:root` (named, shadcn HSL, `--ck-*`, `--hf-*`),
+`BrandLoader.tsx`'s fallbacks, the start screen and the manifest's splash colour; Night is exactly as
+it was (the four screens pixel-diffed against Night before the change: only clocks and the
+waveform moved). **The app opens in Day for everyone** (`defaultTheme="light"`; `index.html`'s start
+screen paints Day unless "dark", or "system" on a dark device, was saved, and sign-up stays Night);
+Night is one click on the moon, remembered, and a saved choice always wins (the older header's toggle
+now reads the theme on screen). `theme_contrast.test.mjs` measures the sidebar's and the table
+heads' words too (all AA: ink on ground 10.31, ink-3 on the sidebar 4.74, brass on the ground 4.72);
+`startup_performance.test.mjs` holds the start screen to the tokens' own grounds and the Day default.
+
+The review of Sage paper on the real screens found Day words that the sage had pushed under AA, each
+fixed by Day only (Night's classes kept with `dark:`, its tokens unchanged): "Ava suggests" mixes its
+tint into `--tint-ground` (the paper by Day; the red had gone a muddy taupe at 4.1:1, now 4.8); the
+applicants' and teammates' sidebar draws its active item and "Candidate" badge in the deep jade on one
+tint (3.2 and 3.8, now 5.0 and 5.3); Day's `--ck-action-bright` is the deep jade, so the job builder's
+"Tailored to …" and "Draft" chips read (1.5, now 6.0); initials take `--initials-share` of their gem
+stop (45% by Day, 4.2 now 4.9); the job editor's active step is the deep jade (4.3, now 6.0). The job
+page's chips carry a hairline by Day, an off switch has a sage track with a deeper edge, and the
+applicant's bubbles in a test's record an inset jade edge (`--action-soft-edge`, none at Night).
+`theme_contrast.test.mjs` measures each of these as the screen stacks it, and checks the source still
+draws them that way. Sign-up is Night from the first frame: the start screen puts the `dark` class on
+`<html>` with its mark (for a saved Night too), and the app holds Night on `/auth` outside the lazy
+page (`NightOnSignUp` in `App.tsx`), so the loader in between no longer flashes Day.
+
+### 2026-10-30 (later still) — The Desk front page and the green logo
 
 The owner turned down the night-shift canvas hero ("looks too AI generated"; never a light on the
 mouse pointer), then three typographic heroes, an ink page with an ivory app window ("too high

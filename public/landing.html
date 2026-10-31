@@ -31,6 +31,29 @@
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Besley:ital,wght@0,500..800;1,500..600&family=Courier+Prime&family=Schibsted+Grotesk:wght@400..700&display=swap"></noscript>
 <script src="/beacon.js" defer></script>
 <script src="/carry-source.js" defer></script>
+<script>
+/* Which desk this device gets, before anything is drawn. One that says it is small (2 GB or less, two cores or
+   fewer, Save-Data) gets the light desk: the same story with fewer letters and flat turns. Anything else is told
+   by the first second of the desk (data-desk-probe): Chrome rounds memory to a power of two, so a good phone
+   with 6 GB says 4, and Apple's browsers report four cores for every iPhone, so "4" alone says nothing.
+   ?desk=light or ?desk=full shows either on any device. */
+(function () {
+  var root = document.documentElement, desk = "", n = navigator;
+  try { var q = new URLSearchParams(location.search).get("desk"); if (q === "light" || q === "full") desk = q; } catch (e) {}
+  if (!desk) {
+    var slow = false;
+    try {
+      if (n.connection && n.connection.saveData) slow = true;
+      if (window.matchMedia && matchMedia("(prefers-reduced-data: reduce)").matches) slow = true;
+      if (n.deviceMemory && n.deviceMemory <= 2) slow = true;
+      if (!/Apple/.test(n.vendor || "") && n.hardwareConcurrency && n.hardwareConcurrency <= 2) slow = true;
+    } catch (e) {}
+    desk = slow ? "light" : "full";
+    if (!slow) root.setAttribute("data-desk-probe", "");
+  }
+  root.setAttribute("data-desk", desk);
+})();
+</script>
 <!-- HireFlow's front page, "The Desk" (the owner approved it 2026-10-30;
      docs/LANDING.md). Served at hireflownow.com/ by middleware.js; the app
      (careers, job pages, applying) is unchanged and lives at its own
@@ -77,7 +100,12 @@ html{-webkit-tap-highlight-color:transparent}
   var(--desk)}
 /* one warm wash of light from the window side; it never reaches the headline */
 .wash{z-index:1;opacity:1;background:linear-gradient(242deg,rgba(240,225,190,.72) 0%,rgba(240,225,190,.42) 34%,rgba(240,225,190,0) 64%)}
-#scene{z-index:2;pointer-events:none}
+/* content-visibility: once the story fills the screen the desk's letters are not drawn at all (they stay out of
+   every frame of the scroll), and they come back, as they were, before the hero scrolls into view. On #scene,
+   never on #hero: the scene takes its box from the hero (absolute, inset 0), so skipping it never changes the
+   hero's height, and a window resized while the hero is out of sight lays out the hero and the story for the
+   size it really is (a skipped hero kept its old height, and the story's chapters ran off by the difference). */
+#scene{z-index:2;pointer-events:none;content-visibility:auto}
 
 /* ---------- nav ----------
    One button, everywhere (the owner, 2026-10-25): the nav stays at the top for the whole page, so
@@ -285,6 +313,13 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
 }
 /* a small phone: the bar keeps to one line */
 .navr a{white-space:nowrap}
+@media (max-width: 380px){
+  #hero .stamp .face{padding:15px 13px 15px 12px;gap:8px}
+  #hero .stamp .lbl{font-size:16px}
+  #hero .pmark{margin-left:-30px;width:86px}
+  #hero .pmark svg{transform:scale(.74)}
+  #hero .pmark .t{left:30px;top:24px;width:50px;font-size:10.5px}
+}
 @media (max-width: 380px){
   .logo{font-size:18px;gap:8px}
   .navr{gap:12px;font-size:13.5px}
@@ -754,6 +789,35 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
   #story .stage.rm .box,#story .stage.rm .caps,#story .stage.rm > .ledger,#story .stage.rm > .brief{transition:opacity .22s linear}
   #story .stage.rm.rmout .box,#story .stage.rm.rmout .caps,#story .stage.rm.rmout > .ledger,#story .stage.rm.rmout > .brief{opacity:0 !important;transition-duration:.16s}
 }
+/* ================= the light desk =================
+   For an older or slower device (chosen in the head: few cores, little memory, Save-Data, or a first second of
+   the desk under 40 frames a second; ?desk=light or ?desk=full to see either). The same story and composition:
+   fewer letters, no shadow under paper in the air, flat turns instead of 3D ones, and a plainer seal press. */
+html[data-desk="light"] .bar::before{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--desk)}
+html[data-desk="light"] .env .seal,html[data-desk="light"] #story .tp .foot .wsi,html[data-desk="light"] #story .pick .sli{filter:none}
+html[data-desk="light"] .slip{perspective:none}
+html[data-desk="light"] .slip .in{transform-style:flat;animation:deskTurnB .6s ease-in-out}
+html[data-desk="light"] .slip.flip .in{animation-name:deskTurnA}
+html[data-desk="light"] .slip .face{-webkit-backface-visibility:visible;backface-visibility:visible;transition:box-shadow .4s,visibility 0s .3s}
+html[data-desk="light"] .slip .back{transform:none;visibility:hidden}
+html[data-desk="light"] .slip.flip .back{visibility:visible}
+html[data-desk="light"] .slip.flip .front{visibility:hidden}
+html[data-desk="light"] .slip.flip .in{transform:none}
+html[data-desk="light"] .slip.hov.flip .in{transform:translateY(-6px)}
+html[data-desk="light"] .slip.live.flip:active .in{transform:translateY(1px) scale(.992)}
+html[data-desk="light"] .slip.live.hov.flip:active .in{transform:translateY(-5px) scale(.992)}
+/* a paper turned over flat: it narrows to its edge and opens again on its other face */
+@keyframes deskTurnA{0%,100%{scale:1 1}50%{scale:0 1}}
+@keyframes deskTurnB{0%,100%{scale:1 1}50%{scale:0 1}}
+html[data-desk="light"] #story .pick{perspective:none}
+html[data-desk="light"] #story .fold .bk{transform:scaleY(-1)}
+html[data-desk="light"] #story .fold .p1,html[data-desk="light"] #story .fold .p3,html[data-desk="light"] #story .eflap .efl{will-change:transform}
+html[data-desk="light"] #story .fold .fsh{top:0;height:100%;transform-origin:50% 0;will-change:transform}
+html[data-desk="light"] #story .eflap .fs,html[data-desk="light"] #story .ysh{display:none}
+@media (prefers-reduced-motion: reduce){
+  html[data-desk="light"] .slip .in{animation:none}
+  html[data-desk="light"] .slip .face{transition:none}
+}
 </style>
 </head>
 <body>
@@ -910,6 +974,10 @@ const scene = document.getElementById("scene");
 const under = document.getElementById("under");
 const replayBtn = document.getElementById("replay");
 const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+/* the light desk (chosen in the head, or by the first second of this one: see goLight) */
+const root = document.documentElement;
+let LITE = root.getAttribute("data-desk") === "light";
+let liteAt = -1;   // the desk time the light desk began, when it began part way through
 
 /* ---------- helpers ---------- */
 function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
@@ -1024,6 +1092,10 @@ for (let i=0;i<N;i++){
 }
 let k=0; for (const e of E) if (e.fin<0) e.k = k++;
 const K = k;
+/* the light desk keeps about a third of the letters: the three, the four that fan out with Ava's reasons, and
+   every fourth of the rest down from the top of the stack. Each keeps its place in the full stack, so the
+   stack stands as tall. */
+for (const e of E) e.inLight = e.fin >= 0 || e.fan >= 0 || (K - 1 - e.k) % 4 === 0;
 
 function envHTML(e){
   let inner = "";
@@ -1038,8 +1110,11 @@ function envHTML(e){
     </svg>`;
   }
   inner += `<svg class="tick" viewBox="0 0 16 16"><path d="M2.5 8.8l3.4 3.4 7.6-8.4" fill="none" stroke="#0F6B4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  return `<div class="lift"></div><div class="pp" style="--c:${e.tone}">${inner}</div>` + (e.fin >= 0 ? `<i class="ssh"></i><span class="seal">${sealSVG(11+e.fin*7)}</span>` : "");
+  return (LITE ? "" : `<div class="lift"></div>`) + `<div class="pp" style="--c:${e.tone}">${inner}</div>` + (e.fin >= 0 ? `<i class="ssh"></i><span class="seal">${sealSVG(11+e.fin*7)}</span>` : "");
 }
+/* a shadow under paper in the air is its own layer only while it shows, so the paper is never drawn again for it */
+function liftOn(c, el, on){ if (c.lw !== on){ c.lw = on; el.style.willChange = on ? "transform,opacity" : ""; } }
+function dropLift(o){ if (o.lift){ o.lift.remove(); o.lift = null; } }
 
 /* the email goes in first so everything else lies on top of it */
 const mail = document.createElement("div");
@@ -1050,9 +1125,11 @@ mail.innerHTML = `<div class="lift"></div><div class="pg">
   <div class="mbody">I read all 71 replies. These three handled your customers best:</div>
 </div>`;
 scene.appendChild(mail);
-const mailLift = mail.querySelector(".lift");
+const mailO = {lift: mail.querySelector(".lift"), last:{}};
+if (LITE) dropLift(mailO);
 
 for (const e of E){
+  if (LITE && !e.inLight){ e.skip = true; continue; }
   const d = document.createElement("div");
   d.className = "env";
   d.style.zIndex = e.i + 1;
@@ -1085,6 +1162,7 @@ const S = FIN.map((f, j) => {
   </div>`;
   scene.appendChild(d);
   const s = {el:d, lift:d.querySelector(".lift"), ring:d.querySelector(".ring path"), last:{}, pose:null};
+  if (LITE) dropLift(s);
   d.addEventListener("pointerenter", (ev) => { if (ev.pointerType === "mouse"){ hovered = j; d.classList.add("hov"); } });
   d.addEventListener("pointerleave", () => { if (hovered === j) hovered = -1; d.classList.remove("hov"); });
   d.addEventListener("click", (ev) => {
@@ -1268,6 +1346,8 @@ function layout(){
     o.ck = 42;
     o.bandText = "150 set aside";
     o.pad = {t:"12px", r:"13px", l:"44px", sealx:"-11px", sealy:"10px", seal:"42px", scw:"62px", firstB:"10px", replyB:"11px", mpt:"13px", mpx:"16px", ttMin:"128px"};
+    // a 360-wide phone (the commonest Android width): a size smaller, so Ava's line keeps to two lines
+    if (zw < 336){ o.fs.name = "17px"; o.fs.line = "13px"; o.fs.score = "31px"; o.pad.scw = "56px"; }
     o.avoid = [];
   }
   o.P = E.map(e => {
@@ -1308,8 +1388,13 @@ function layout(){
   band.textContent = o.bandText;
   for (const e of E) e.last = {};
   for (const s of S) s.last = {};
-  for (const e of E){ const nm = e.el.querySelector(".nm"); if (nm) nm.classList.toggle("ov", nm.scrollWidth > nm.clientWidth + 1); }
+  mailO.last = {}; bandC = {}; hitC = {};
+  for (const e of E){ if (e.skip) continue; const nm = e.el.querySelector(".nm"); if (nm) nm.classList.toggle("ov", nm.scrollWidth > nm.clientWidth + 1); }
 }
+let bandC = {}, hitC = {};
+const sty = (el, c, key, prop, val) => { if (c[key] !== val){ c[key] = val; el.style[prop] = val; } };
+/* a turn: in 3D on a capable device, flat on the light desk (the paper narrows to its edge) */
+const turnY = (deg, per) => LITE ? ` scaleX(${Math.cos(deg*Math.PI/180).toFixed(4)})` : ` perspective(${per}px) rotateY(${fmt(deg)}deg)`;
 
 /* ---------- poses ---------- */
 let t0 = 0, lastFrame = 0;
@@ -1387,47 +1472,67 @@ const swept = x => SW ? eIn(clamp((SW*SWEEP - 70*clamp((x - L.W*.35)/(L.W*.65)))
 function render(t, now){
   const ew = L.ew, eh = L.eh;
   for (const e of E){
+    if (e.skip) continue;
+    // the light desk, begun part way through: a letter it does not keep goes once it lies under the squared stack
+    if (e.dropAt && t >= e.dropAt){ e.skip = true; e.el.remove(); continue; }
     const st = envState(e, t), c = e.last;
     if (!st){ set(c, e.el, "o", "0"); continue; }
     if (SW){ const w = swept(st.x); st.o *= 1 - w; st.x += 18*w; st.y += 14*w; }
     set(c, e.el, "o", st.o.toFixed(3));
     let tf = `translate3d(${fmt(st.x - ew/2)}px,${fmt(st.y - eh/2)}px,0) rotate(${fmt(st.r)}deg) scale(${st.s.toFixed(4)})`;
-    if (st.ry) tf += ` perspective(700px) rotateY(${fmt(st.ry)}deg)`;
+    if (st.ry) tf += turnY(st.ry, 700);
     set(c, e.el, "tf", tf);
-    const lo = (st.lift*.95).toFixed(3);
-    if (c.lo !== lo){ c.lo = lo; e.lift.style.opacity = lo; e.lift.style.transform = `translate(${fmt(-st.lift*20)}px,${fmt(st.lift*34)}px) scale(${(1+st.lift*.06).toFixed(3)})`; }
+    if (e.lift){
+      const lo = (st.lift*.95).toFixed(3);
+      if (c.lo !== lo){ c.lo = lo; liftOn(c, e.lift, lo !== "0.000"); e.lift.style.opacity = lo; e.lift.style.transform = `translate(${fmt(-st.lift*20)}px,${fmt(st.lift*34)}px) scale(${(1+st.lift*.06).toFixed(3)})`; }
+      if (LITE && lo === "0.000" && t > e.land) dropLift(e);
+    }
     const z = (e.fin >= 0 && t >= ST[e.fin] - 60) ? 220 + e.fin : (e.fan >= 0 && fan > .01 ? 330 + (3 - e.fan) : e.i + 1);
     set(c, e.el, "z", z);
     const tp = clamp((t - (READ0 + L.dist[e.i]*360 + (e.i%5)*14))/200);
-    const to = tp.toFixed(3);
-    if (c.to !== to){ c.to = to; e.tick.style.opacity = to; e.tick.style.transform = `scale(${(.4 + .6*backOut(tp)).toFixed(3)})`; }
+    if (LITE){
+      // a tick is simply there once Ava has read the reply: the letter is drawn again once, not every frame
+      const to = tp >= .5 ? "1" : "0";
+      if (c.to !== to){ c.to = to; e.tick.style.opacity = to; }
+    } else {
+      const to = tp.toFixed(3);
+      if (c.to !== to){ c.to = to; e.tick.style.opacity = to; e.tick.style.transform = `scale(${(.4 + .6*backOut(tp)).toFixed(3)})`; }
+    }
     if (e.seal){
       const ts = ST[e.fin];
       let so = 0, ss = 1.85, h = 1, rim = 1;
-      if (t >= ts){ const p = (t - ts)/SEAL_FALL;
-        if (p < 1){ h = 1 - eIn(p); ss = 1 + .85*h; so = clamp(p*12); }
-        else { h = 0; so = 1; const q = clamp((t - ts - SEAL_FALL)/260); ss = 1 - .05*Math.sin(Math.PI*clamp(q/.45)); rim = 1 + .055*Math.sin(Math.PI*clamp(q*1.5)); }
+      if (LITE){
+        // a plainer press: the wax comes down and settles, its shadow already under it
+        ss = 1.3;
+        if (t >= ts){ const p = clamp((t - ts)/SEAL_FALL); so = clamp(p*3); ss = 1 + .3*(1 - eOut3(p)); }
+        const sk = so.toFixed(2) + "|" + ss.toFixed(3);
+        if (c.sk !== sk){ c.sk = sk; e.seal.style.opacity = so.toFixed(2); e.seal.style.transform = `scale(${ss.toFixed(3)}) rotate(${e.fin*23 - 12}deg)`;
+          e.ssh.style.opacity = (so*.55).toFixed(3); e.ssh.style.transform = "translate(0px,1px)"; }
+      } else {
+        if (t >= ts){ const p = (t - ts)/SEAL_FALL;
+          if (p < 1){ h = 1 - eIn(p); ss = 1 + .85*h; so = clamp(p*12); }
+          else { h = 0; so = 1; const q = clamp((t - ts - SEAL_FALL)/260); ss = 1 - .05*Math.sin(Math.PI*clamp(q/.45)); rim = 1 + .055*Math.sin(Math.PI*clamp(q*1.5)); }
+        }
+        const sk = so.toFixed(3) + "|" + ss.toFixed(3) + "|" + rim.toFixed(3);
+        if (c.sk !== sk){ c.sk = sk; e.seal.style.opacity = so.toFixed(3); e.seal.style.transform = `scale(${ss.toFixed(3)}) rotate(${(e.fin*23 - 12 + 3*h)}deg)`;
+          e.ssh.style.opacity = (so*(.55 - .3*h)).toFixed(3); e.ssh.style.transform = `translate(${fmt(-12*h)}px,${fmt(1 + 18*h)}px) scale(${(1 + .3*h).toFixed(3)})`;
+          e.rim.style.transform = `scale(${rim.toFixed(3)})`; }
       }
-      const sk = so.toFixed(3) + "|" + ss.toFixed(3) + "|" + rim.toFixed(3);
-      if (c.sk !== sk){ c.sk = sk; e.seal.style.opacity = so.toFixed(3); e.seal.style.transform = `scale(${ss.toFixed(3)}) rotate(${(e.fin*23 - 12 + 3*h)}deg)`;
-        e.ssh.style.opacity = (so*(.55 - .3*h)).toFixed(3); e.ssh.style.transform = `translate(${fmt(-12*h)}px,${fmt(1 + 18*h)}px) scale(${(1 + .3*h).toFixed(3)})`;
-        e.rim.style.transform = `scale(${rim.toFixed(3)})`; }
     }
     if (e.whyEl){ const w = e.fan >= 0 ? clamp(fan*1.4 - .3) : 0, wo = w.toFixed(3); if (c.wo !== wo){ c.wo = wo; e.whyEl.style.opacity = wo; for (const a of e.hideEls) a.style.opacity = (1 - w).toFixed(3); } }
   }
 
   // Ava's email slides in under the pile as it squares away
   {
-    const P = L.mailP, u = clamp((t - MAIL0)/MAILDUR), q = eOut3(u);
-    if (u <= 0){ mail.style.opacity = "0"; }
+    const P = L.mailP, u = clamp((t - MAIL0)/MAILDUR), q = eOut3(u), c = mailO.last;
+    if (u <= 0){ set(c, mail, "o", "0"); }
     else {
       let x = lerp(P.x + 70, P.x, q), y = lerp(P.y + L.H*.42, P.y, q), r = lerp(P.r + 8, P.r, eOut3(clamp(u*1.1)));
       const w = swept(x); x += 18*w; y += 14*w;
-      mail.style.opacity = (1 - w).toFixed(3);
-      mail.style.transform = `translate3d(${fmt(x - L.mw/2)}px,${fmt(y - L.mh/2)}px,0) rotate(${fmt(r)}deg) scale(${P.s.toFixed(4)})`;
-      const lift = 1 - clamp(u/.8);
-      mailLift.style.opacity = (lift*.8).toFixed(3);
-      mailLift.style.transform = `translate(${fmt(-lift*16)}px,${fmt(lift*26)}px)`;
+      set(c, mail, "o", (1 - w).toFixed(3));
+      set(c, mail, "tf", `translate3d(${fmt(x - L.mw/2)}px,${fmt(y - L.mh/2)}px,0) rotate(${fmt(r)}deg) scale(${P.s.toFixed(4)})`);
+      const lift = 1 - clamp(u/.8), lo = (lift*.8).toFixed(3);
+      if (mailO.lift && c.lo !== lo){ c.lo = lo; liftOn(c, mailO.lift, lo !== "0.000"); mailO.lift.style.opacity = lo; mailO.lift.style.transform = `translate(${fmt(-lift*16)}px,${fmt(lift*26)}px)`; }
     }
   }
 
@@ -1460,11 +1565,11 @@ function render(t, now){
     s.pose = {x, y, r, s: sc};
     const sw = swept(x); x += 18*sw; y += 14*sw;
     let tf = `translate3d(${fmt(x - L.sw/2)}px,${fmt(y - L.sh/2)}px,0) rotate(${fmt(r)}deg) scale(${sc.toFixed(4)})`;
-    if (ry) tf += ` perspective(900px) rotateY(${fmt(ry)}deg)`;
+    if (ry) tf += turnY(ry, 900);
     set(c, s.el, "o", (1 - sw).toFixed(3)); set(c, s.el, "tf", tf); set(c, s.el, "z", z);
     const lift = u < 1 ? .75*Math.sin(Math.PI*u) : 0;
     const lo = lift.toFixed(3);
-    if (c.lo !== lo){ c.lo = lo; s.lift.style.opacity = lo; s.lift.style.transform = `translate(${fmt(-lift*18)}px,${fmt(lift*26)}px)`; }
+    if (s.lift && c.lo !== lo){ c.lo = lo; liftOn(c, s.lift, lo !== "0.000"); s.lift.style.opacity = lo; s.lift.style.transform = `translate(${fmt(-lift*18)}px,${fmt(lift*26)}px)`; }
     if (u >= 1) s.el.classList.add("live"); else s.el.classList.remove("live");
     s.el.classList.toggle("lead", order[2] === j);
   });
@@ -1510,22 +1615,28 @@ function render(t, now){
   const off = eIOs(fan);
   const bw = L.ew*L.stack.s, bh = L.eh*L.stack.s*.3;
   const bq = eOut3(bp), bsw = swept(B.x), bX = 100*(1 - bq);
-  band.style.opacity = (bp > 0 ? (1 - off)*(1 - bsw) : 0).toFixed(3);
-  band.style.transform = `translate3d(${fmt(B.x - bw/2 + off*L.ew*.4 + 18*bsw)}px,${fmt(B.y - bh/2 + L.eh*L.stack.s*.1 + off*L.eh*.5 + 14*bsw)}px,0) rotate(${fmt(B.r)}deg) translateX(${fmt(-6*(1 - bq))}px)`;
-  band.style.clipPath = `inset(-4px calc(${bX.toFixed(2)}% - ${(4*bq).toFixed(2)}px) -4px -4px)`;
+  const bo = (bp > 0 ? (1 - off)*(1 - bsw) : 0).toFixed(3);
+  sty(band, bandC, "o", "opacity", bo);
+  if (bo !== "0.000"){   // nothing to place while it is not there
+    sty(band, bandC, "t", "transform", `translate3d(${fmt(B.x - bw/2 + off*L.ew*.4 + 18*bsw)}px,${fmt(B.y - bh/2 + L.eh*L.stack.s*.1 + off*L.eh*.5 + 14*bsw)}px,0) rotate(${fmt(B.r)}deg) translateX(${fmt(-6*(1 - bq))}px)`);
+    sty(band, bandC, "c", "clipPath", `inset(-4px calc(${bX.toFixed(2)}% - ${(4*bq).toFixed(2)}px) -4px -4px)`);
+  }
   // the stack's hit area grows to cover the fanned envelopes
-  let bx0 = L.stack.x - L.ew*L.stack.s*.62, bx1 = L.stack.x + L.ew*L.stack.s*.62, by0 = L.stack.y - L.eh*L.stack.s*.8 - K*.66*L.stack.dz*.5, by1 = L.stack.y + L.eh*L.stack.s*.62;
-  if (fan > .01){ for (let j=0;j<4;j++){ const F = L.fanPos(j); const hw = L.ew*F.s*.55, hh2 = L.eh*F.s*.55; bx0 = Math.min(bx0, F.x - hw); bx1 = Math.max(bx1, F.x + hw); by0 = Math.min(by0, F.y - hh2); by1 = Math.max(by1, F.y + hh2); } }
-  hit.style.display = t > SQ0 + SQDUR + 300 && !SW ? "block" : "none";
-  hit.style.width = fmt(bx1 - bx0) + "px"; hit.style.height = fmt(by1 - by0) + "px";
-  hit.style.transform = `translate3d(${fmt(bx0)}px,${fmt(by0)}px,0)`;
-  hit.style.zIndex = fan > .01 ? 340 : 210;
+  const hitOn = t > SQ0 + SQDUR + 300 && !SW;
+  sty(hit, hitC, "d", "display", hitOn ? "block" : "none");
+  if (hitOn){
+    let bx0 = L.stack.x - L.ew*L.stack.s*.62, bx1 = L.stack.x + L.ew*L.stack.s*.62, by0 = L.stack.y - L.eh*L.stack.s*.8 - K*.66*L.stack.dz*.5, by1 = L.stack.y + L.eh*L.stack.s*.62;
+    if (fan > .01){ for (let j=0;j<4;j++){ const F = L.fanPos(j); const hw = L.ew*F.s*.55, hh2 = L.eh*F.s*.55; bx0 = Math.min(bx0, F.x - hw); bx1 = Math.max(bx1, F.x + hw); by0 = Math.min(by0, F.y - hh2); by1 = Math.max(by1, F.y + hh2); } }
+    sty(hit, hitC, "w", "width", fmt(bx1 - bx0) + "px"); sty(hit, hitC, "h", "height", fmt(by1 - by0) + "px");
+    sty(hit, hitC, "t", "transform", `translate3d(${fmt(bx0)}px,${fmt(by0)}px,0)`);
+    sty(hit, hitC, "z", "zIndex", fan > .01 ? "340" : "210");
+  }
 
   // the underline is part of the headline: once drawn it stays, through every replay
   if (t > UNDER + 520) underDone = true;
-  under.style.strokeDashoffset = underDone ? "0" : (400*(1 - eIOs(clamp((t - UNDER)/520)))).toFixed(1);
+  sty(under, hitC, "u", "strokeDashoffset", underDone ? "0" : (400*(1 - eIOs(clamp((t - UNDER)/520)))).toFixed(1));
   const rOn = t > END && !SW && !reduce.matches;
-  replayBtn.classList.toggle("on", rOn);
+  if (hitC.r !== rOn){ hitC.r = rOn; replayBtn.classList.toggle("on", rOn); }
   replayBtn.classList.toggle("dim", !rOn && !reduce.matches && replayBtn.matches(":focus-visible"));
 }
 
@@ -1536,8 +1647,37 @@ function busy(now){
   if (!reduce.matches && now - t0 < END + 900) return true;
   return fan !== fanTarget || moves.some(Boolean);
 }
+/* The first second tells a slow device that said nothing of itself (Apple's browsers never do): under 40
+   frames between a quarter of a second and a second and a quarter in, the rest is the light desk. A pause
+   (another tab, the hero scrolled away) tells nothing, so it is not counted. */
+let probe = root.hasAttribute("data-desk-probe") ? {n:0, seen:false} : null;
+document.addEventListener("visibilitychange", () => { if (document.hidden) probe = null; });
+function probeFrame(now, raw){
+  if (!probe) return;
+  const t = now - t0;
+  if (SW || reduce.matches || document.hidden || (!raw && probe.seen)){ probe = null; return; }   // no last frame after the first: the loop slept
+  probe.seen = true;
+  if (t >= 1250){ const slow = probe.n < 40; probe = null; root.removeAttribute("data-desk-probe"); if (slow) goLight(t); }
+  else if (t >= 250) probe.n++;
+}
+function goLight(t){
+  if (LITE) return;
+  LITE = true; liteAt = t;
+  root.setAttribute("data-desk", "light");
+  for (const e of E){
+    if (e.skip) continue;
+    if (!e.inLight){
+      if (t < e.land - FALL){ e.skip = true; e.el.remove(); }         // not on the desk yet: it never comes
+      else e.dropAt = SQ0 + SQDUR + e.k*4 + 60;                      // on the desk: it goes once the stack covers it
+    } else if (t < e.land - FALL) dropLift(e);                       // still to come: no shadow in the air
+  }
+  dropLift(mailO); S.forEach(dropLift);
+  document.dispatchEvent(new Event("hf:light"));
+}
 function frame(now){
+  const raw = lastFrame ? now - lastFrame : 0;
   const dt = Math.min(64, now - (lastFrame || now)); lastFrame = now;
+  probeFrame(now, raw);
   if (reduce.matches) fan = fanTarget;
   else { fan += (fanTarget - fan) * (1 - Math.pow(.0009, dt/1000*1.6)); if (Math.abs(fanTarget - fan) < .002) fan = fanTarget; }
   if (sweep0){
@@ -1584,7 +1724,9 @@ window.__hfFonts = window.__hfFonts || (document.fonts && document.fonts.load
   ? Promise.race([fontCss.then(() => { getComputedStyle(document.body).fontFamily; return Promise.all(FONTS.map(f => document.fonts.load(f))); }).then(() => true, () => false), new Promise(r => setTimeout(() => r(false), 1000))])
   : Promise.resolve(true));
 window.__hfFonts.then(ok => {
-  go();
+  // one task later: the story below lays itself out first (its one long task on a slow phone), so it never holds
+  // up the desk's first frames, and the desk's clock starts after it
+  setTimeout(go, 0);
   if (!ok && document.fonts){ let lt; document.fonts.addEventListener("loadingdone", () => { clearTimeout(lt); lt = setTimeout(() => { layout(); wake(); }, 30); }); }
 });
 })();
@@ -1604,6 +1746,7 @@ const railEl = story.querySelector(".rail");
 const railBtns = [...railEl.querySelectorAll("button")];
 const railPaths = railBtns.map(b => b.querySelector("path"));
 const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+let LITE = document.documentElement.getAttribute("data-desk") === "light";   // the light desk (see the head)
 
 /* ---------- helpers ---------- */
 function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
@@ -1756,8 +1899,11 @@ function make(cls, html, open){
   const d = document.createElement("div"); d.className = cls; d.innerHTML = html;
   if (!open) d.setAttribute("aria-hidden", "true");
   box.appendChild(d);
-  return {el:d, lift:d.querySelector(":scope > .lift"), last:{}, w:0, h:0};
+  const o = {el:d, lift:d.querySelector(":scope > .lift"), last:{}, w:0, h:0};
+  if (LITE) dropLift(o);   // the light desk: no shadow under paper in the air
+  return o;
 }
+function dropLift(o){ if (o.lift){ o.lift.remove(); o.lift = null; } }
 
 const JOBS = [
   {tab:"Online store", ch:"Chat", title:"Order support agent", biz:"Fernwood Goods · online store", desc:"Answer shoppers by chat: orders, returns and late deliveries.",
@@ -1841,6 +1987,7 @@ function build(){
     </div>
   </div>`);
   lgRows = [...ledger.el.querySelectorAll(".lr")].map(r => ({el:r, num:r.querySelector("b"), ty:[...r.querySelectorAll(".t")].map(typer), last:{}, h:0}));
+  for (const g of lgRows){ g.tyW = g.ty.filter(t => t.node.classList.contains("w")); g.tyN = g.ty.filter(t => t.node.classList.contains("nn")); }
   lgRows[2].num = lgRows[2].el.querySelector(".nv");
   lgRows[2].el.querySelector("b").style.fontStyle = "normal";
   lgRows[2].num.style.fontStyle = "normal";
@@ -1869,9 +2016,7 @@ function build(){
         <path d="M0 66 L40 30 M100 66 L60 30" stroke="rgba(29,51,41,.13)" stroke-width=".6" fill="none" vector-effect="non-scaling-stroke"/>
         <path d="M0 0 L50 40 L100 0 Z" fill="rgba(29,51,41,.045)" stroke="rgba(29,51,41,.2)" stroke-width=".8" vector-effect="non-scaling-stroke"/></svg>`;
     inner += `<svg class="tk" viewBox="0 0 16 16"><path d="M2.5 8.8l3.4 3.4 7.6-8.4" fill="none" stroke="#0F6B4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-    const o = make(i === MARIA ? "letter fin" : "letter", `<div class="lift"></div><div class="pp" style="--c:${e.tone}">${inner}</div>`);
-    Object.assign(e, o);
-    e.tick = o.el.querySelector(".tk"); e.tlast = {};
+    e.html = `<div class="lift"></div><div class="pp" style="--c:${e.tone}">${inner}</div>`;
     letters.push(e);
   }
   // order in the squared stack: the crowd, then the three who leave with Ava's reason, then Mika and Carla on top
@@ -1881,6 +2026,15 @@ function build(){
   // the three set-aside notes come off the top of the crowd
   letters.forEach(e => { e.as = -1; });
   for (let j=0;j<3;j++){ const e = letters.find(x => x.fin < 0 && x.k === NL - 4 - j); e.as = j; }
+  // the light desk keeps about a third: the three, the three set aside, and every fourth of the crowd down from
+  // the band's letter; each keeps its place in the full stack, so the stack stands as tall
+  for (const e of letters) e.inLight = e.fin >= 0 || e.as >= 0 || (NL - 7 - e.k) % 4 === 0;
+  for (const e of letters){
+    if (LITE && !e.inLight){ e.skip = true; continue; }
+    const o = make(e.i === MARIA ? "letter fin" : "letter", e.html);
+    Object.assign(e, o);
+    e.tick = o.el.querySelector(".tk"); e.tlast = {};
+  }
 
   /* Maria's envelope, seen from the back, and the test folded inside it */
   eback = make("eback", `<div class="lift"></div><div class="ein"></div>`);
@@ -1973,7 +2127,7 @@ function layout(){
   for (const g of lgRows){ g.el.style.height = ""; g.last = {}; }
   for (const o of [brief, ...sheets, ...cards, ledger, test, ...picks, ...asides, band, yenv]) measure(o);
   for (const g of lgRows) g.h = g.el.offsetHeight;
-  for (const e of letters){ measure(e); const nm = e.el.querySelector(".nm"); if (nm) nm.classList.toggle("ov", nm.scrollWidth > nm.clientWidth + 1); }
+  for (const e of letters){ if (e.skip) continue; measure(e); const nm = e.el.querySelector(".nm"); if (nm) nm.classList.toggle("ov", nm.scrollWidth > nm.clientWidth + 1); }
   // the folded copy is the same size as the live test
   const notesMin = test.el.querySelector(".notes");
   test.el.querySelector(".notes").style.minHeight = "";
@@ -2038,7 +2192,7 @@ function layout(){
   o.EW = o.SW + (wide ? 44 : 16); o.EH = Math.round(o.EW*(wide ? 80/124 : 62/96));
   box.style.setProperty("--bw", o.EW + "px"); box.style.setProperty("--bh", o.EH + "px");
   for (const x of [eback, eflap, epocket]) measure(x);
-  o.ew = letters[0].w; o.Sbig = o.EW/o.ew;
+  o.ew = letters[MARIA].w; o.Sbig = o.EW/o.ew;
 
   const sh = sheets[2].h;
   if (wide){
@@ -2115,6 +2269,15 @@ function layout(){
 /* ---------- drawing ---------- */
 /* a wax seal: it falls opaque, its shadow closes in under it, it presses and the wax squeezes out a little */
 function drawSeal(wax, sh, rim, cache, key, p, rot){
+  if (LITE){
+    // the light desk: a plainer press, the wax comes down and settles with its shadow already under it
+    const q = clamp(p/SEAL_F), so = clamp(q*3);
+    css(wax, cache, key+"o", "opacity", so.toFixed(2));
+    css(wax, cache, key+"t", "transform", `scale(${(1 + .3*(1 - eOut3(q))).toFixed(3)}) rotate(${f2(rot)}deg)`);
+    css(sh, cache, key+"ho", "opacity", (so*.55).toFixed(3));
+    css(sh, cache, key+"ht", "transform", "translate(0px,1px)");
+    return;
+  }
   const S = sealPose(p);
   css(wax, cache, key+"o", "opacity", S.so.toFixed(3));
   css(wax, cache, key+"t", "transform", `scale(${S.ss.toFixed(3)}) rotate(${f2(rot + 3*S.h)}deg)`);
@@ -2122,6 +2285,11 @@ function drawSeal(wax, sh, rim, cache, key, p, rot){
   css(sh, cache, key+"ht", "transform", `translate(${f2(-12*S.h)}px,${f2(1 + 18*S.h)}px) scale(${(1 + .3*S.h).toFixed(3)})`);
   css(rim, cache, key+"r", "transform", `scale(${S.rim.toFixed(3)})`);
 }
+/* a turn: in 3D on a capable device, flat on the light desk (the paper narrows to its edge) */
+const turnY = (deg, per) => LITE ? ` scaleX(${Math.cos(deg*Math.PI/180).toFixed(4)})` : ` perspective(${per}px) rotateY(${f2(deg)}deg)`;
+const turnX = (deg, per) => LITE ? `scaleY(${Math.cos(deg*Math.PI/180).toFixed(4)})` : `perspective(${per}px) rotateX(${f2(deg)}deg)`;
+/* a shadow under paper in the air is its own layer only while it shows, so the paper is never drawn again for it */
+function liftOn(c, el, on){ if (c.lw !== on){ c.lw = on; el.style.willChange = on ? "transform,opacity" : ""; } }
 function put(o, st){
   const c = o.last;
   const op = st ? clamp(st.o == null ? 1 : st.o).toFixed(3) : "0.000";
@@ -2130,16 +2298,18 @@ function put(o, st){
     const vis = op === "0.000" && !o.keep ? "hidden" : "";
     if (c.vis !== vis){ c.vis = vis; o.el.style.visibility = vis; }
   }
-  if (op === "0.000") return;
+  if (op === "0.000"){ if (o.lift) liftOn(c, o.lift, false); return; }
   let tf = `translate(${f2(st.x - o.w/2)}px,${f2(st.y - o.h/2)}px) rotate(${f2(st.r || 0)}deg) scale(${(st.s == null ? 1 : st.s).toFixed(4)})`;
   if (st.sx != null) tf += ` scaleX(${st.sx.toFixed(4)})`;
-  if (st.ry) tf += ` perspective(${st.per || 900}px) rotateY(${f2(st.ry)}deg)`;
+  if (st.sy != null) tf += ` scaleY(${st.sy.toFixed(4)})`;
+  if (st.ry) tf += turnY(st.ry, st.per || 900);
   if (c.tf !== tf){ c.tf = tf; o.el.style.transform = tf; }
   const z = st.z || 1;
   if (c.z !== z){ c.z = z; o.el.style.zIndex = z; }
   if (o.lift){
     const lv = clamp(st.lift || 0), lo = (lv*.9).toFixed(3);
-    if (c.lo !== lo){ c.lo = lo; o.lift.style.opacity = lo; o.lift.style.transform = `translate(${f2(-lv*18)}px,${f2(lv*30)}px)`; }
+    // (the end envelope stays drawn from the start: a layer for its shadow would leave it drawn again a little softer at rest)
+    if (c.lo !== lo){ c.lo = lo; liftOn(c, o.lift, lo !== "0.000" && !o.keep); o.lift.style.opacity = lo; o.lift.style.transform = `translate(${f2(-lv*18)}px,${f2(lv*30)}px)`; }
   }
 }
 const css = (el, cache, key, prop, val) => { if (cache[key] !== val){ cache[key] = val; el.style[prop] = val; } };
@@ -2314,8 +2484,7 @@ function render(T){
       const started = T >= R.n0;
       const v = started ? String(Math.round(R.to*(j === 0 ? eIn(seg(T, R.n0 + .14, R.n1))*.35 + .65*eIOs(seg(T, R.n0 + .18, R.n1)) : eIOs(seg(T, R.n0, R.n1))))) : "";
       if (c.v !== v){ c.v = v; g.num.textContent = v; }
-      const cls = L.wide ? "w" : "nn";
-      typeSeq(g.ty.filter(t => t.node.classList.contains(cls)), seg(T, R.t0, R.t1));
+      typeSeq(L.wide ? g.tyW : g.tyN, seg(T, R.t0, R.t1));
     });
     const cr = ledger.last;
     css(lgRing, cr, "ring", "strokeDashoffset", (300*(1 - eIOs(BEATS.lring.p))).toFixed(1));
@@ -2323,12 +2492,16 @@ function render(T){
 
   /* ...and letters come back: one for every few people who applied */
   for (const e of letters){
+    if (e.skip) continue;
     const st = letterState(e, T);
     put(e, st);
     if (st){
       const tp = e.i === MARIA ? 0 : seg(T, 2.02 + L.dist[e.i]*.08 + (e.i % 4)*.006, 2.06 + L.dist[e.i]*.08 + (e.i % 4)*.006);
-      const to = tp.toFixed(3);
-      if (e.tlast.o !== to){ e.tlast.o = to; e.tick.style.opacity = to; e.tick.style.transform = `scale(${(.4 + .6*backOut(tp)).toFixed(3)})`; }
+      if (LITE){ const to = tp >= .5 ? "1" : "0"; if (e.tlast.o !== to){ e.tlast.o = to; e.tick.style.opacity = to; } }   // simply there once read
+      else {
+        const to = tp.toFixed(3);
+        if (e.tlast.o !== to){ e.tlast.o = to; e.tick.style.opacity = to; e.tick.style.transform = `scale(${(.4 + .6*backOut(tp)).toFixed(3)})`; }
+      }
     }
   }
 
@@ -2345,7 +2518,7 @@ function render(T){
       put(eback, {...pose, z:140});
       put(eflap, {...pose, z: th > 90 ? 141 : 145});
       put(epocket, {...pose, z:143});
-      css(eflapIn, ce, "t", "transform", `perspective(${Math.round(L.EW*1.6)}px) rotateX(${f2(th)}deg)`);
+      css(eflapIn, ce, "t", "transform", turnX(th, Math.round(L.EW*1.6)));
       show(eflapFaces[0], ce, "f0", th <= 90); show(eflapFaces[1], ce, "f1", th > 90);
       css(eflapShade, ce, "s", "opacity", (Math.sin(th*Math.PI/180)*.16).toFixed(3));
     }
@@ -2357,14 +2530,19 @@ function render(T){
       put(fold, {x:lerp(E.x, L.G.x, mv), y:lerp(inY, L.G.y, mv), r:lerp(0, L.G.r, mv), z:142});
       const cf = fold.last, P = Math.round(L.SW*2.6);
       const t1 = -180*(1 - u1), t3 = 180*(1 - u3);
-      css(fp1, cf, "t1", "transform", `perspective(${P}px) rotateX(${f2(t1)}deg)`);
-      css(fp3, cf, "t3", "transform", `perspective(${P}px) rotateX(${f2(t3)}deg)`);
+      css(fp1, cf, "t1", "transform", turnX(t1, P));
+      css(fp3, cf, "t3", "transform", turnX(t3, P));
       show(fFaces1[0], cf, "a0", t1 >= -90); show(fFaces1[1], cf, "a1", t1 < -90);
       show(fFaces3[0], cf, "b0", t3 <= 90); show(fFaces3[1], cf, "b1", t3 > 90);
-      const s1 = (Math.abs(Math.sin(t1*Math.PI/180))*.24).toFixed(3), s3 = (Math.abs(Math.sin(t3*Math.PI/180))*.24).toFixed(3);
-      fShd1.forEach((x, n) => css(x, cf, "s1"+n, "opacity", s1)); fShd3.forEach((x, n) => css(x, cf, "s3"+n, "opacity", s3));
       const top = L.FH*(1 - Math.max(0, Math.cos(t1*Math.PI/180))), bot = L.FH*2 + L.FH*Math.max(0, Math.cos(t3*Math.PI/180));
-      css(fsh, cf, "ft", "top", f2(top) + "px"); css(fsh, cf, "fh", "height", f2(bot - top) + "px");
+      if (LITE){
+        // the light desk: the panels unfold unshaded, and the sheet's shadow stretches with them (never laid out again)
+        css(fsh, cf, "fx", "transform", `translateY(${f2(top)}px) scaleY(${((bot - top)/(3*L.FH)).toFixed(4)})`);
+      } else {
+        const s1 = (Math.abs(Math.sin(t1*Math.PI/180))*.24).toFixed(3), s3 = (Math.abs(Math.sin(t3*Math.PI/180))*.24).toFixed(3);
+        fShd1.forEach((x, n) => css(x, cf, "s1"+n, "opacity", s1)); fShd3.forEach((x, n) => css(x, cf, "s3"+n, "opacity", s3));
+        css(fsh, cf, "ft", "top", f2(top) + "px"); css(fsh, cf, "fh", "height", f2(bot - top) + "px");
+      }
     }
   }
 
@@ -2374,16 +2552,17 @@ function render(T){
     const G = L.G, v = eIO(seg(T, T_FOLD[0], T_FOLD[1]));
     const sF = (L.wide ? 380 : 332)/test.w, hF = (L.wide ? 136 : 116)/sF/test.h;
     const sb = BEATS.tseal.p, cq = BEATS.tcf.p;
+    // the words go under plain paper before anything is cut, and the paper closes round Maria's slip
+    const a = 50*(1 - hF)*eIO(seg(v, .3, 1));
     if (T < M_SWAP || T >= T_FOLD[1]) put(test, null);
     else {
       // the sheet gives a little under each stamp
       const jolt = T < T_FOLD[0] ? .012*Math.sin(Math.PI*clamp(pressOf(sb)/.6)) + .01*Math.sin(Math.PI*clamp((cq - .6)/.4)) : 0;
-      put(test, {x:G.x, y:G.y, r:G.r, s:lerp(1, sF, v)*(1 - jolt), lift:.45*Math.sin(Math.PI*v), z:130});
+      // the light desk: the plain paper narrows round the slip instead of being cut (no new drawing each frame)
+      put(test, {x:G.x, y:G.y, r:G.r, s:lerp(1, sF, v)*(1 - jolt), sy: LITE && a >= .05 ? 1 - a/50 : null, lift:.45*Math.sin(Math.PI*v), z:130});
     }
-    // the words go under plain paper before anything is cut, and the paper closes round Maria's slip
     css(testCover, c, "cv", "opacity", eIOs(seg(v, .08, .42)).toFixed(3));
-    const a = 50*(1 - hF)*eIO(seg(v, .3, 1));
-    const clip = a < .05 ? "none" : `polygon(-60px ${f2(a)}%, calc(100% + 60px) ${f2(a)}%, calc(100% + 60px) ${f2(100 - a)}%, -60px ${f2(100 - a)}%)`;
+    const clip = a < .05 || LITE ? "none" : `polygon(-60px ${f2(a)}%, calc(100% + 60px) ${f2(a)}%, calc(100% + 60px) ${f2(100 - a)}%, -60px ${f2(100 - a)}%)`;
     css(test.el, c, "clip", "clipPath", clip);
     typeSeq(testTy, seg(T, 2.72, 2.96));
     hls.forEach((m, n) => {
@@ -2600,6 +2779,15 @@ function start(){
   ylink.addEventListener("focus", () => { if ((scrollY - storyTop)/L.U < REST[4] - .02) scrollTo({top: Math.round(storyTop + (REST[4] + .03)*L.U), behavior: "auto"}); });
   reduce.addEventListener && reduce.addEventListener("change", () => { Tcur = null; onScroll(); });
 }
+/* the light desk, chosen by the hero's first second: the story has not been seen yet, so it changes now */
+document.addEventListener("hf:light", () => {
+  if (LITE) return;
+  LITE = true;
+  if (!started) return;   // build() makes the light desk itself
+  for (const e of letters) if (!e.inLight && e.el){ e.el.remove(); e.skip = true; }
+  for (const o of [brief, ...sheets, ...cards, ledger, test, eback, eflap, epocket, ...picks, ...asides, yenv, ...letters]) if (!o.skip) dropLift(o);
+  layout(); Tcur = null; onScroll();
+});
 (window.__hfFonts || Promise.resolve(true)).then(ok => {
   start();
   if (!ok && document.fonts){ let lt; document.fonts.addEventListener("loadingdone", () => { clearTimeout(lt); lt = setTimeout(() => { layout(); Tcur = null; onScroll(); }, 40); }); }

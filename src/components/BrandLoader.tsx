@@ -5,8 +5,9 @@
  * draws again: applications come in flat, Ava lifts the ones worth your time —
  * the logo telling its own story while you wait. The mark keeps the icon's own
  * colours (Wordmark.tsx, scripts/make-app-icons.mjs) in both themes; the
- * ground and the words follow the theme's tokens, so it is ivory by Day and
- * warm ink by Night, and correct on candidate surfaces too.
+ * ground and the words follow the theme's tokens, so it is sage paper by Day
+ * and warm ink by Night, and correct on candidate surfaces too. The fallbacks
+ * are Day's (Sage paper), the theme the app opens in.
  *
  * Replaces two loaders that predated the design: a WebGL orb on hardcoded
  * the old dark tile at sign-in, and a lone seal breathing on the route
@@ -25,13 +26,13 @@ export function BrandLoader({
   return (
     <div
       className="hf-loader flex min-h-[100dvh] flex-col items-center justify-center gap-6 px-6"
-      style={{ background: "var(--ground, #F0EBDF)", color: "var(--ink, #14201B)" }}
+      style={{ background: "var(--ground, #DEE3D5)", color: "var(--ink, #1D3329)" }}
     >
       <style>{`
         .hf-loader .tile {
           width: 64px; height: 64px; border-radius: 14px;
           background: #0C2A21;
-          box-shadow: var(--shadow-md, 0 10px 22px -14px rgba(23,21,15,.34)), inset 0 0 0 1px rgba(63, 206, 151, 0.22);
+          box-shadow: var(--shadow-md, 0 10px 22px -14px rgba(22,40,31,.34)), inset 0 0 0 1px rgba(63, 206, 151, 0.22);
           display: flex; align-items: center; justify-content: center;
         }
         .hf-loader .rise {
@@ -73,7 +74,7 @@ export function BrandLoader({
       </div>
 
       {message && (
-        <p className="text-center text-sm font-medium" style={{ color: "var(--ink-3, #5C655E)" }}>
+        <p className="text-center text-sm font-medium" style={{ color: "var(--ink-3, #4B5D53)" }}>
           {message}
         </p>
       )}

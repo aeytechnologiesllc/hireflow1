@@ -97,6 +97,45 @@ post at the start of its day (UTC).
 The repository is public: a draft is not on the site, but anyone can read it
 on GitHub. Keep anything private out of a draft until it is meant to be read.
 
+## The look (The Desk, since 2026-10-30)
+
+The guides wear the front page's look (`public/landing.html`,
+docs/LANDING.md), so they read as the same site; before, they still wore the
+retired night page (a near-black bar and title band, gold and brass links,
+Geist), which the owner saw as "an old or different theme".
+
+- The sage desk (`#C6CFBE`) with the front page's warm wash from the top
+  right, the ink greens for text (`#1D3329`, `#304238`, `#4E6056`), the jade
+  (`#0F6B4F`) for links. Besley for headings, Schibsted Grotesk for reading,
+  Courier Prime for the small typed details (the date and reading time, the
+  "← Guides" crumb, "More guides"). `public/blog-fonts.js` loads the front
+  page's own font address (`FONTS_CSS`), so a visitor from the front page has
+  the faces already.
+- The front page's bar, pinned (`position: sticky`, no script): the logo,
+  Guides (hidden under 900 px, as on the front page), Looking for a job?
+  ("Jobs" on a phone; `/open-jobs`), Sign in (the hiring team's,
+  staff.hireflownow.com/auth) and the small **Post a job** stamp (tagged
+  `utm_medium=bar`). It keeps the desk's sage with a hairline, with no blur,
+  and none of the front page's signed-in swap (the guides run no inline
+  script).
+- A guide is one sheet of the desk's warm paper (`#F5F0E5`), at most 740 px
+  wide with a 596 px column, about 65-70 characters a line (18 px; 17 px on a
+  phone). A customer's message (a `>` quote) is a slip in the front page's
+  Besley italic; a template (a code block) is typed in Courier Prime on a
+  card; tables keep plain rules.
+- The sign-up box is a second paper card with the front page's green postage
+  stamp, **Post your first job free** (guard `blog-pages-have-cta-and-tags`
+  holds those words; the front page's own stamp reads "Post your first job,
+  free"), and its "No card." postmark. On the list it spans the list, the
+  stamp on the right.
+- The list, "More guides" and the not-found page show each guide as a paper
+  letter on the desk. The footer is the front page's darker sage band.
+- Nothing moves but a small lift under a mouse (`hover: hover` and a fine
+  pointer only), and nothing follows the pointer: no animation, no blur, no
+  script for the look, so an old phone scrolls a long guide easily. No
+  time-of-day wording in the page's own words (the bar, the sign-up box,
+  the footer).
+
 ## Routing
 
 - `vercel.json` sends `/blog` to `/blog/index.html` and `/blog/<slug>` to

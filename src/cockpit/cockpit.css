@@ -739,6 +739,11 @@ main.ck-scroll,
   --gem-ink-3: #F4EFE3;
   --gem-ink-4: #14100a;
 
+  /* how much of its gem stop an initials circle's letters take, the rest the
+     ink (initialsTint.ts): 45% by Day, where the Sage paper ink is lighter
+     and 55% read 4.2:1 on the tint; 55% at Night, as before. */
+  --initials-share: 45%;
+
   /* untraveled track — a whisper of the page's own ink, so the groove reads
      as "muted" on ivory Day and on near-black Night without a second token */
   --rail-track-base: color-mix(in srgb, var(--ink) 9%, transparent);
@@ -752,6 +757,7 @@ main.ck-scroll,
   --gem-ink-2: #14100a;
   --gem-ink-3: #14100a;
   --gem-ink-4: #14100a;
+  --initials-share: 55%;
 }
 
 .ck-rail-outer { margin-bottom: 14px; }

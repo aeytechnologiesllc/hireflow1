@@ -44,6 +44,11 @@ import { SafetyNote } from "@/components/trust/SafetyNote";
 import { HIRING_LINK_WORDS, hiringLink, withVisitorTags } from "@/lib/hiringLink";
 import { shortWayIn } from "@/lib/shortWays";
 
+/** The header's place, type, pay and level chips: a hairline by Day (on Sage
+ *  paper the paper chip on the header's jade tint had no edge left), none at
+ *  Night, as before. */
+const HEADER_CHIP = "gap-1 border-border dark:border-transparent";
+
 export default function JobDetails() {
   // Four doors to this one page (docs/SHORT-JOB-LINKS.md): the job's address
   // hireflownow.com/c/<business>/<job>, a root link already handed out
@@ -715,7 +720,7 @@ export default function JobDetails() {
                   </div>
 
                   <div className="flex flex-wrap gap-4 text-sm">
-                    <Badge variant="secondary" className="gap-1">
+                    <Badge variant="secondary" className={HEADER_CHIP}>
                       <MapPin className="h-3 w-3" />
                       {job.location || "Remote"}
                     </Badge>
@@ -723,15 +728,15 @@ export default function JobDetails() {
                         briefcase that used to sit here is on the kit's banned
                         list. An icon that adds nothing is not worth a rule.
                         In words, not the stored "full-time" (jobLabels.ts). */}
-                    <Badge variant="secondary">
+                    <Badge variant="secondary" className={HEADER_CHIP}>
                       {jobTypeLabel(job.job_type) ?? "Full time"}
                     </Badge>
-                    <Badge variant="secondary" className="gap-1">
+                    <Badge variant="secondary" className={HEADER_CHIP}>
                       <DollarSign className="h-3 w-3" />
                       {formatSalary(job.salary_min, job.salary_max, job.salary_currency, job.salary_period)}
                     </Badge>
                     {job.experience_level && (
-                      <Badge variant="secondary" className="gap-1">
+                      <Badge variant="secondary" className={HEADER_CHIP}>
                         <Users className="h-3 w-3" />
                         {jobLevelLabel(job.experience_level)}
                       </Badge>

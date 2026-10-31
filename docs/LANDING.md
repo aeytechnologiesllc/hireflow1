@@ -149,6 +149,19 @@ CSS and the scripts both read through the same `matchMedia` queries, so the appr
 
 The story re-lays out when the size class changes, even on a height-only change.
 
+### The light desk (older phones)
+
+Older or slower devices get a "light desk": the same story, words, colours and layout with about a
+third of the letters, no shadow under paper in the air, flat turns instead of 3D, a plainer seal press
+and a plain sage bar instead of the frosted one. It is chosen before first paint for Save-Data or
+prefers-reduced-data, `deviceMemory` of 2 or less, or (outside Apple's browsers) 2 cores or fewer;
+otherwise the hero's first second decides (fewer than about 40 frames switches to it). Chrome rounds
+memory to a power of two, so a 4 GB or 6 GB phone keeps the full desk unless it is actually slow.
+`?desk=light` or `?desk=full` forces either. Every device also got cheaper drawing that does not change
+the look (shadows in the air on their own layers, fewer elements written per frame, the story laid out
+before the hero's clock starts). On a 360-wide phone the slips and the button's postmark are a size
+smaller so Ava's line keeps to two lines and nothing runs off the edge.
+
 ### Motion: plays and stops
 
 - **Animation runs only while something moves.** The hero's frame loop runs

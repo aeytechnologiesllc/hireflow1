@@ -4,7 +4,8 @@ import { useTheme } from "next-themes";
 /**
  * Night for as long as the page is open, whatever the device says
  * (docs/LAUNCH-PLAN.md, Phase 3: the sign-up page stays dark because it is
- * the bridge from the dark front page; the app after it follows the device).
+ * the bridge from the dark front page; the app after it opens in Day, or
+ * in the theme the person chose).
  *
  * next-themes owns the class on <html>; this holds "dark" there while the
  * page is mounted (re-adding it if the device flips mid-visit) and hands the

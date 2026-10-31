@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { HostGate } from "@/components/HostGate";
 import { CAREERS_PATH, isStaffHost } from "@/lib/hosts";
 import { ThemeProvider } from "next-themes";
@@ -16,6 +16,7 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { applicantDetailsImporter, jobDetailImporter, routeImporters, warmStaffPages } from "@/lib/prefetchRoutes";
 import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
+import { useNightWhileOpen } from "@/hooks/useNightWhileOpen";
 
 
 // The big screens every visitor used to download up front, whichever one
@@ -201,10 +202,25 @@ function AutoUpdate() {
   return null;
 }
 
+// Sign-up stays Night (the bridge from the dark front page) from its first
+// frame to its last: held here, outside the lazy page, so the loader shown
+// while the Auth chunk downloads is Night too, not a flash of Day between
+// index.html's Night start screen and the page's own hold (Auth.tsx). The
+// same paths as the start screen's.
+const SIGN_UP_PATH = /^\/auth(\/|$)/;
+function HoldNight() {
+  useNightWhileOpen();
+  return null;
+}
+function NightOnSignUp() {
+  const { pathname } = useLocation();
+  return SIGN_UP_PATH.test(pathname) ? <HoldNight /> : null;
+}
+
 const App = () => (
   <ErrorBoundary>
-    {/* The app follows the device (Day or Night); the toggle in the sidebar overrides it and is remembered on this browser. */}
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    {/* The app opens in Day (Sage paper, the owner's choice of 2026-10-30) for everyone; Night is one click on the moon in the sidebar, remembered on this browser, and a saved choice always wins (index.html's start screen agrees). */}
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <AuthProvider>
@@ -213,6 +229,7 @@ const App = () => (
             <BrowserRouter>
               <PageViewTracker />
               <AutoUpdate />
+              <NightOnSignUp />
               <HostGate>
               <Suspense fallback={<LazyFallback />}>
                 <Routes>

@@ -10,10 +10,16 @@ byte for byte as it was before 2026-10-25). One logo everywhere: the app's
 ground), the loader (`BrandLoader.tsx`), the start screen in `index.html`,
 every icon size, the front page's bar, both share pictures
 (`scripts/make-share-images.mjs`) and the blog (`scripts/build-blog.mjs`).
-`theme-color`, the Windows tile colour and the manifest's colours are the
-tile's `#0C2A21`. Icon links are `?v=8`. The same day the owner locked the new
-green for the app itself (jade on ivory, with the thin journey line and a
-jade "good"), after a day of Warm gold. Brass stays the accent (Ava's seal,
+`theme-color`, the Windows tile colour and the manifest's `theme_color` are
+the tile's `#0C2A21`; the manifest's `background_color` (the installed app's
+splash) is Day's ground `#DEE3D5`, since the app opens in Day. Icon links are
+`?v=8`. The same day the owner locked the new green for the app itself (jade,
+with the thin journey line and a jade "good"), after a day of Warm gold, and
+that evening chose **Sage paper** for its Day: light sage grounds (`#DEE3D5`,
+a deeper sage sidebar `#CFD7C4`), warm paper cards (`#F5F1E6`) and the front
+page's green ink (`#1D3329`) as the text. The app opens in Day for everyone;
+Night (warm ink, unchanged) is one click on the moon. The mark sits on both
+grounds as it is. Brass stays the accent (Ava's seal,
 the score, anything that costs money); it is no longer the logo. Guard
 `one-logo-mark` (scripts/guards/phase-3-launch-locks.mjs) holds the mark's
 colours in every one of those places and every icon link on the current

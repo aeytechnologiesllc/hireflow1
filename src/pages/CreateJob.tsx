@@ -2511,9 +2511,11 @@ export default function CreateJob() {
             <div key={step.id} className="flex items-center flex-shrink-0">
               <button
                 onClick={() => setCurrentStep(index)}
+                // The step you are on: the deep jade by Day (the jade on its
+                // tint over the sage ground was 4.3:1), the jade at Night.
                 className={`flex items-center gap-2 p-1.5 sm:p-2 rounded-xl transition-all ${
                   isActive 
-                    ? "bg-primary/10 text-primary" 
+                    ? "bg-primary/10 text-[var(--action-soft-fg)] dark:text-primary" 
                     : isCompleted 
                     ? "text-primary"
                     : "text-muted-foreground hover:text-foreground"

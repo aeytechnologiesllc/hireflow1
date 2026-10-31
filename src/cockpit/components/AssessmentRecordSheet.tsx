@@ -305,7 +305,8 @@ function Transcript({
               className="max-w-[88%] whitespace-pre-wrap break-words rounded-[12px] px-3.5 py-2.5 text-[13.5px] leading-[1.5]"
               style={
                 mine
-                  ? { background: "var(--action-soft)", color: "var(--ink)", borderTopRightRadius: 4 }
+                  ? // An inset edge, not a border, so Night (no edge) keeps its size to the pixel.
+                    { background: "var(--action-soft)", color: "var(--ink)", borderTopRightRadius: 4, boxShadow: "inset 0 0 0 1px var(--action-soft-edge)" }
                   : { background: "var(--surface)", color: "var(--ink)", border: "1px solid var(--line-soft)", borderTopLeftRadius: 4 }
               }
             >

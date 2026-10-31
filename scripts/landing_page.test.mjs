@@ -205,6 +205,40 @@ check(
     /\.slip \.in,\.stamp,\.stamp::before,\.navr \.post,\.slip \.face,\.replay svg,\.bar,\.bar::before\{transition:none\}/.test(page),
 );
 check("colour tokens are named for what they mean (guard no-jade-tokens-left)", /--action:#0F6B4F;/.test(page) && !/--jade\b/.test(page));
+// The owner, 2026-10-30: the hero "is using heavy animation ... can you make it more lighter weight so older
+// phones can also work on it?" Older or slower devices get the light desk: the same story and words, fewer
+// letters, no shadow under paper in the air, flat turns, a plainer seal press and a plain bar.
+{
+  const head = page.slice(0, page.indexOf("</head>"));
+  check(
+    "older phones get the light desk, chosen before the first paint: two cores or fewer (not Apple's), 2 GB or less, Save-Data, or ?desk=light; a device saying 4 (a 6 GB phone does: Chrome rounds to a power of two) is left to its first second",
+    /root\.setAttribute\("data-desk", desk\);/.test(head) &&
+      /n\.deviceMemory && n\.deviceMemory <= 2\)/.test(head) &&
+      /!\/Apple\/\.test\(n\.vendor \|\| ""\) && n\.hardwareConcurrency && n\.hardwareConcurrency <= 2\)/.test(head) &&
+      !/deviceMemory <= [3-9]|hardwareConcurrency <= [3-9]/.test(head) &&
+      /n\.connection && n\.connection\.saveData/.test(head) &&
+      /q === "light" \|\| q === "full"/.test(head),
+  );
+  check(
+    "…or by the hero's first second, under 40 frames, after which the rest is the light desk (and the story follows)",
+    /if \(t >= 1250\)\{ const slow = probe\.n < 40;/.test(page) && /document\.dispatchEvent\(new Event\("hf:light"\)\)/.test(page) && /document\.addEventListener\("hf:light"/.test(page),
+  );
+  check(
+    "…the light desk keeps about a third of the letters (the three, the ones with Ava's reasons, every fourth of the rest), in the same stack",
+    /e\.inLight = e\.fin >= 0 \|\| e\.fan >= 0 \|\| \(K - 1 - e\.k\) % 4 === 0;/.test(page) && /e\.inLight = e\.fin >= 0 \|\| e\.as >= 0 \|\| \(NL - 7 - e\.k\) % 4 === 0;/.test(page),
+  );
+  check(
+    "…turns flat instead of in 3D, with no blur behind the bar and no filter on a seal",
+    /const turnY = \(deg, per\) => LITE \? ` scaleX\(/.test(page) && /const turnX = \(deg, per\) => LITE \? `scaleY\(/.test(page) &&
+      /html\[data-desk="light"\] \.bar::before\{-webkit-backdrop-filter:none;backdrop-filter:none;background:var\(--desk\)\}/.test(page) &&
+      /html\[data-desk="light"\] \.slip \.in\{transform-style:flat;/.test(page),
+  );
+  check(
+    "for every device: a shadow under paper in the air is its own layer only while it shows, and the desk's letters are not drawn while the story fills the screen (content-visibility on #scene, never on #hero: a skipped hero kept its old height through a resize and the story ran off by the difference)",
+    (page.match(/liftOn\(c, /g) ?? []).length >= 4 && /#scene\{[^}]*content-visibility:auto/.test(page) &&
+      !/#hero\{[^}]*content-visibility/.test(page),
+  );
+}
 
 console.log("\nThe share pictures are in the Desk's look");
 {

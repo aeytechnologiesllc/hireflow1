@@ -83,11 +83,11 @@ export default function FlowLab() {
   const panes: Array<{ key: Mode; label: string; dark: boolean }> =
     mode === "both"
       ? [
-          { key: "day", label: "Day · Paper", dark: false },
+          { key: "day", label: "Day · Sage paper", dark: false },
           { key: "night", label: "Night · Ink", dark: true },
         ]
       : mode === "day"
-        ? [{ key: "day", label: "Day · Paper", dark: false }]
+        ? [{ key: "day", label: "Day · Sage paper", dark: false }]
         : [{ key: "night", label: "Night · Ink", dark: true }];
 
   const btn = (on: boolean): React.CSSProperties => ({
@@ -96,9 +96,9 @@ export default function FlowLab() {
     fontSize: 12,
     fontWeight: 600,
     cursor: "pointer",
-    border: `1px solid ${on ? "#17150F" : "#D6CDB6"}`,
-    background: on ? "#17150F" : "#FCFAF4",
-    color: on ? "#F0EBDF" : "#3F4B45",
+    border: `1px solid ${on ? "#17150F" : "#C4CCBB"}`,
+    background: on ? "#17150F" : "#F5F1E6",
+    color: on ? "#DEE3D5" : "#304238",
   });
 
   return (
@@ -108,7 +108,7 @@ export default function FlowLab() {
         style={{
           position: "sticky", top: 0, zIndex: 50, display: "flex", flexWrap: "wrap",
           alignItems: "center", gap: 14, padding: "12px 14px", marginBottom: 16,
-          borderRadius: 12, background: "#FCFAF4", border: "1px solid #D6CDB6",
+          borderRadius: 12, background: "#F5F1E6", border: "1px solid #C4CCBB",
           boxShadow: "0 8px 24px -12px rgba(0,0,0,.5)",
         }}
       >
@@ -125,7 +125,7 @@ export default function FlowLab() {
           ))}
         </span>
 
-        <span style={{ width: 1, height: 22, background: "#D6CDB6" }} />
+        <span style={{ width: 1, height: 22, background: "#C4CCBB" }} />
 
         <span style={{ display: "flex", gap: 6 }}>
           {(["both", "day", "night"] as Mode[]).map((m) => (
@@ -135,7 +135,7 @@ export default function FlowLab() {
           ))}
         </span>
 
-        <span style={{ width: 1, height: 22, background: "#D6CDB6" }} />
+        <span style={{ width: 1, height: 22, background: "#C4CCBB" }} />
 
         <span style={{ display: "flex", gap: 6 }}>
           {WIDTHS.map((w) => (
@@ -145,7 +145,7 @@ export default function FlowLab() {
           ))}
         </span>
 
-        <span style={{ marginLeft: "auto", fontSize: 11, color: "#5C655E" }}>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: "#4B5D53" }}>
           {step === VOICE
             ? "Voice intake is display-only here — starting a session costs money."
             : "Both panes are live — the buttons inside them work too."}
