@@ -13,7 +13,6 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
 import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
 import { Wordmark } from "@/cockpit/components/Wordmark";
-import { HeroBackground } from "@/components/ava/HeroBackground";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { candidateOrigin, isStaffHost } from "@/lib/hosts";
@@ -21,7 +20,7 @@ import { withVisitorTags } from "@/lib/hiringLink";
 import { cleanAddress } from "@/components/business/CareersPageCard";
 import { SecondStepForm } from "@/components/auth/SecondStepForm";
 import { needsSecondStep } from "@/lib/secondStep";
-import { useNightWhileOpen } from "@/hooks/useNightWhileOpen";
+import { AUTH_DESK_CSS } from "@/components/auth/authDesk";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -97,8 +96,10 @@ const PasswordRequirements = ({ password }: { password: string }) => {
 };
 
 export default function Auth() {
-  // The bridge from the dark front page stays dark; the app after it opens in Day (or the theme they chose).
-  useNightWhileOpen();
+  // The page follows the theme like the app after it: Day (the front page's
+  // sage desk and a paper card) unless Night was chosen. It was held Night as
+  // "the bridge from the dark front page", which has been the light Desk since
+  // 2026-10-30 (the run-through of 2026-10-31: "like another site").
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { signIn, signUp, signInWithGoogle, user, loading: authLoading } = useAuth();
@@ -532,57 +533,12 @@ export default function Auth() {
   }
 
   return (
-    <div
-      className="auth-theme scroll-perf relative min-h-[100dvh] overflow-y-auto overflow-x-hidden"
-      style={{ background: "var(--hf-bg)", color: "var(--hf-text)" }}
-    >
-      <style>{`
-        /* This page used to carry its own copy of the whole token set, pinned to
-           the old dark green and forced into .dark, so it ignored the theme
-           entirely. It now inherits the app's tokens like every other surface;
-           only the things that are genuinely local to it live here. */
-        .auth-theme h1,.auth-theme h2{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-0.01em;}
-        .auth-theme .auth-card{border-color:var(--hf-border);background:var(--hf-surface);}
-        /* Letterhead field: the paper itself, not a raised chip — filled with
-           the same ground as the page, a hairline border, gold on focus. */
-        .auth-theme input{
-          background:var(--ground);
-          border-color:var(--line);
-          transition:border-color .18s ease, box-shadow .18s ease, background-color .18s ease;
-        }
-        .auth-theme input:focus,.auth-theme input:focus-visible{
-          outline:none;
-          border-color:var(--hf-gold);
-          box-shadow:0 0 0 1px var(--hf-gold-border);
-          --tw-ring-color:transparent;
-          --tw-ring-offset-width:0px;
-          --tw-ring-shadow:0 0 #0000;
-          --tw-ring-offset-shadow:0 0 #0000;
-        }
-        /* HeroBackground's aurora is tuned bright-on-ink: the same tokens that
-           read as a living glow over Night's near-black ground get washed
-           almost flat once its own protective veil sits atop them on Day's
-           pale paper (the veil leans on the background token too, so a light
-           theme re-covers its own glow far harder than a dark one does — the
-           cockpit's ambient layer hit this identical wall, see cockpit.css).
-           Paint one more coat of the same brass/ink tokens above that veil,
-           Day only, so the backdrop keeps the presence the candidate screen
-           already has. Night is untouched — it already reads right. */
-        .auth-theme .hero-lift{position:fixed;inset:0;z-index:0;pointer-events:none;}
-        :root:not(.dark) .auth-theme .hero-lift{
-          background:
-            radial-gradient(ellipse 68vw 42vw at 50% -10%, var(--hf-action-border), transparent 72%),
-            radial-gradient(circle at 4% 2%, var(--hf-action-soft), transparent 58%),
-            radial-gradient(circle at 97% 100%, var(--hf-gold-soft), transparent 55%);
-        }
-      `}</style>
-      <link
-        rel="stylesheet"
-        href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Inter:wght@400;500;600;700&display=swap"
-      />
-
-      <HeroBackground />
-      <div aria-hidden className="hero-lift" />
+    <div className="auth-theme auth-desk scroll-perf relative min-h-[100dvh] overflow-y-auto overflow-x-hidden">
+      {/* The front page's desk (src/components/auth/authDesk.ts): no network
+          of dots and lines, no brass. */}
+      <style>{AUTH_DESK_CSS}</style>
+      {/* The front page's own fonts at its exact address (public/landing.html), so a visitor from the front page has them already; only Besley is drawn here. */}
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Besley:ital,wght@0,500..800;1,500..600&family=Courier+Prime&family=Schibsted+Grotesk:wght@400..700&display=swap" />
 
       <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8">
         {/* On staff.hireflownow.com there is no home behind sign-in: "/" comes
@@ -625,29 +581,15 @@ export default function Auth() {
                 page, the same call as the dashboard (the Phase 7 growth audit:
                 the page showed Ava's seal and never the name). */}
             <Wordmark size={30} />
-            <span
-              className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
-              style={{
-                borderColor: "var(--hf-gold-border)",
-                color: "var(--hf-gold)",
-                background: "var(--hf-gold-soft)",
-              }}
-            >
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: "var(--hf-action)" }}
-              />
+            <p className="auth-kicker mt-6 text-center lg:text-left">
               {authMode === "signup" ? "Start hiring" : "Sign in"}
-            </span>
-            <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
+            </p>
+            <h1 className="mt-2 text-3xl lg:text-[2.6rem] leading-[1.1] text-center lg:text-left">
               {/* Says what the front page says: Ava is introduced inside, once they have an account (the Phase 7 growth review). */}
               Hire support agents, tested before you meet them.
             </h1>
-            <p className="mt-3 text-sm text-muted-foreground text-center lg:text-left">
-              Looking for work?{" "}
-              <Link to="/candidate" className="text-primary hover:underline">
-                Go to Candidate Portal →
-              </Link>
+            <p className="auth-lede mt-3 max-w-md text-[15px] leading-relaxed text-center lg:text-left">
+              Every applicant answers a customer chat written for your business, and the ones worth a call come to you.
             </p>
           </motion.div>
 
@@ -661,14 +603,8 @@ export default function Auth() {
             {/* Auth Card */}
             <div
               ref={formRef}
-              className="auth-card relative border rounded-2xl p-5 sm:p-8 shadow-[0_28px_80px_-16px_rgba(0,0,0,0.6)]"
+              className="auth-card relative rounded-2xl p-5 sm:p-8"
             >
-            {/* the brass rule across the head of the letterhead */}
-            <span
-              aria-hidden
-              className="absolute left-6 right-6 top-0 h-[2.5px] rounded-full"
-              style={{ background: "var(--brass-line)" }}
-            />
             {/* Google Sign In - compact icon in native app, full button on web.
                 Gated behind GOOGLE_AUTH_ENABLED until Supabase has Google OAuth
                 credentials configured (authorize endpoint currently 400s). */}
@@ -1075,18 +1011,20 @@ export default function Auth() {
               </motion.div>
             )}
 
-            {/* Footer: a pointer for job seekers who landed here by mistake.
-                The old "first three applicants are on us" line was a paid-plan
-                promise; there is no plan any more (2026-10-04). Shown on phones
-                too: applicants reach this page from the front page's "Sign in". */}
+            {/* Footer: the one pointer for job seekers who landed here by
+                mistake (there were two on this small page, the run-through of
+                2026-10-31). The old "first three applicants are on us" line was
+                a paid-plan promise; there is no plan any more (2026-10-04).
+                Shown on phones too: applicants reach this page from the front
+                page's "Sign in". */}
             <div
               className="mt-6 pt-4 border-t text-center"
-              style={{ borderColor: "var(--hf-border)" }}
+              style={{ borderColor: "var(--line)" }}
             >
-              <p className="text-xs text-muted-foreground">
-                Are you a job seeker?{" "}
+              <p className="text-[13px] text-muted-foreground" data-job-seeker-link>
+                Looking for a job?{" "}
                 <Link to="/candidate" className="text-primary hover:underline">
-                  Visit the candidate portal
+                  Go to the candidate portal
                 </Link>
               </p>
             </div>

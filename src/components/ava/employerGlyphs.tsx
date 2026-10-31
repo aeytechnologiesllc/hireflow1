@@ -9,8 +9,8 @@
  *
  * DIRECTION: "Climb and Seal". Every mark here is built from only the two
  * primitives the brand already owns and the kit already declares — the
- * wordmark's rising path (M4 18 L9 7 L14 15 L20 6, live in Wordmark and
- * BrandLoader) and the wax seal's ring (AvaSeal). That is the whole argument
+ * wordmark's rising path (M4 18 L9 7 L14 15 L20 6, pressed into the logo's
+ * green seal in Wordmark) and the wax seal's ring (AvaSeal). That is the whole argument
  * for it: a competitor cannot copy these marks without copying the logo.
  *
  * Chosen by a 2-of-3 judge panel over "Stationery/letterpress" and "Tools of

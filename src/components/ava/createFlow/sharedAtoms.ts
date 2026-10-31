@@ -10,7 +10,8 @@ import { useEffect, useState } from "react";
 
 export const DISPLAY = "'Fraunces', Georgia, serif";
 
-export const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Publish"] as const;
+// "How strict", never "Rigor" (the run-through of 2026-10-31: the business reads its own words, not the engine's).
+export const STEPS = ["Brief", "Follow-ups", "How strict", "Ava builds", "Review plan", "Publish"] as const;
 
 export type Accent = "brass" | "good" | "goodSoft";
 

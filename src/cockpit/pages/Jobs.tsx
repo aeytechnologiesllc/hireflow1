@@ -216,13 +216,13 @@ function JobListRow({
               onCloseRole();
             }}
           >
-            Close role
+            Close job
           </button>
         )}
         {onDelete && (
           <button
             type="button"
-            title="Remove this role and every application to it"
+            title="Remove this job and every application to it"
             className="ck-btn ck-btn-ghost !px-3 !py-2 !text-[12.5px]"
             style={{ color: "var(--hf-danger)" }}
             onClick={(e) => {
@@ -323,9 +323,9 @@ function describeDelete(job: JobRow) {
   const link = shortLinkFor(job)
     ? ` Its link, ${jobShareUrl(job).replace(/^https?:\/\//, "")}, stops working too, including links and flyers you already shared.`
     : "";
-  if (n === 0) return `This removes the role for good. No one has applied yet, so nothing else goes with it.${link} There is no undo.`;
+  if (n === 0) return `This removes the job for good. No one has applied yet, so nothing else goes with it.${link} There is no undo.`;
   const apps = n === 1 ? "the 1 application to it" : `all ${n} applications to it`;
-  return `This removes the role for good, and ${apps} — every answer, score and interview.${link} There is no undo. If you only want it off the boards, close it instead; a closed role keeps its applicants.`;
+  return `This removes the job for good, and ${apps} — every answer, score and interview.${link} There is no undo. If you only want it off the boards, close it instead; a closed job keeps its applicants.`;
 }
 
 export default function CockpitJobs() {
@@ -367,7 +367,7 @@ export default function CockpitJobs() {
       console.error("Failed to close job:", error);
       // A team role without "Create jobs", or a job already gone, says so (useJobs).
       const said = error instanceof Error && /^Your team role|isn't there any more/.test(error.message) ? error.message : null;
-      toast.error(said ?? "Couldn't close this role. Please try again.");
+      toast.error(said ?? "Couldn't close this job. Please try again.");
     }
   };
 
@@ -384,7 +384,7 @@ export default function CockpitJobs() {
       );
     } catch (error) {
       console.error("Failed to delete job:", error);
-      toast.error("Couldn't delete this role. Please try again.");
+      toast.error("Couldn't delete this job. Please try again.");
     }
   };
 
@@ -512,7 +512,7 @@ export default function CockpitJobs() {
     const days = Math.max(0, differenceInDays(new Date(latest.updated_at), new Date(latest.created_at)));
     return {
       days,
-      role: latest.jobs?.title ?? "a role",
+      role: latest.jobs?.title ?? "a job",
       month: format(new Date(latest.updated_at), "MMMM"),
     };
   }, [applications]);
@@ -529,8 +529,8 @@ export default function CockpitJobs() {
         jobs.length > 1 && busiest && busiest.applicants > 0
           ? `${busiest.title} is pulling the most`
           : counts.live > 0
-            ? `across ${counts.live} live ${counts.live === 1 ? "role" : "roles"}`
-            : `across ${jobs.length} ${jobs.length === 1 ? "role" : "roles"}`,
+            ? `across ${counts.live} live ${counts.live === 1 ? "job" : "jobs"}`
+            : `across ${jobs.length} ${jobs.length === 1 ? "job" : "jobs"}`,
     });
 
     if (totals.inPlay > 0) {
@@ -664,7 +664,7 @@ export default function CockpitJobs() {
           <div className="flex items-center gap-3">
             <AvaSeal size={26} />
             <h2 className="font-display text-[20px]" style={{ color: "var(--ink)", fontWeight: 500 }}>
-              You haven&rsquo;t posted a role yet.
+              You haven&rsquo;t posted a job yet.
             </h2>
           </div>
           <p className="mt-2 max-w-[54ch] text-[14px] leading-relaxed" style={{ color: "var(--ink-2)" }}>
@@ -704,7 +704,7 @@ export default function CockpitJobs() {
             <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
               <div
                 role="group"
-                aria-label="Filter roles by status"
+                aria-label="Filter jobs by status"
                 className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0"
               >
                 <StatusPill label="All" count={jobs.length} dot="var(--ink-3)" active={status === "all"} onClick={() => setStatus("all")} />
@@ -720,7 +720,7 @@ export default function CockpitJobs() {
               </div>
               <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
                 <SearchInput
-                  placeholder="Search roles"
+                  placeholder="Search jobs"
                   className="min-w-[160px] flex-1 lg:w-[190px] lg:flex-none"
                   value={query}
                   onChange={setQuery}
@@ -748,14 +748,14 @@ export default function CockpitJobs() {
             <div className="ck-card-flat px-4 py-6 text-center">
               <p className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
                 {visible.closed.length === 1
-                  ? "No open roles. Your closed role is below: post it again or copy it to drafts."
-                  : "No open roles. Your closed roles are below: post one again or copy it to drafts."}
+                  ? "No open jobs. Your closed job is below: post it again or copy it to drafts."
+                  : "No open jobs. Your closed jobs are below: post one again or copy it to drafts."}
               </p>
             </div>
           ) : visible.active.length === 0 && visible.closed.length === 0 ? (
             <div className="ck-card-flat px-4 py-8 text-center">
               <p className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
-                {hiddenClosedCount > 0 ? "No open roles match that." : "No roles match that."}
+                {hiddenClosedCount > 0 ? "No open jobs match that." : "No jobs match that."}
               </p>
               <button
                 type="button"
@@ -843,9 +843,9 @@ export default function CockpitJobs() {
 
       <ActionDialog
         open={pendingDelete !== null}
-        title={pendingDelete ? `Delete ${pendingDelete.title}?` : "Delete role?"}
+        title={pendingDelete ? `Delete ${pendingDelete.title}?` : "Delete job?"}
         description={pendingDelete ? describeDelete(pendingDelete) : undefined}
-        confirmLabel={pendingDelete && pendingDelete.applicants > 0 ? "Delete role and applications" : "Delete role"}
+        confirmLabel={pendingDelete && pendingDelete.applicants > 0 ? "Delete job and applications" : "Delete job"}
         tone="danger"
         busy={deleteJob.isPending}
         onConfirm={() => void confirmDelete()}

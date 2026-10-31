@@ -52,7 +52,7 @@ async function main() {
   const stepErrors = [];
   page.on("pageerror", (e) => stepErrors.push(e.message));
   for (let i = 0; i < 5; i++) {
-    const btn = page.locator('button:has-text("Continue"), button:has-text("Next question"), button:has-text("Looks right"), button:has-text("Build my flow")').first();
+    const btn = page.locator('button:has-text("Continue"), button:has-text("Next question"), button:has-text("Looks right"), button:has-text("Build my hiring plan")').first();
     if (await btn.isVisible().catch(() => false)) {
       await btn.click();
       await page.waitForTimeout(600);

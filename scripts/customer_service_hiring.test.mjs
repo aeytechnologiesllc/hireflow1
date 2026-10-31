@@ -50,7 +50,7 @@ const bundle = await build({
       'export { generateJobFlow } from "./src/lib/avaEngine/flowGenerator.ts";\n' +
       'export { PLAYBOOKS, briefFromForm, detectFamily, chipAnswersToBriefAnswers, withRemoteFollowUps, jobKindFollowUp, JOB_KIND_ID, JOB_KIND_CHIPS, CHAT_AGENT_KIND, jobKindFollowUps, jobFamilyFollowUp, JOB_FAMILY_ID, JOB_FAMILY_CHIPS } from "./src/lib/avaEngine/playbook.ts";\n' +
       'export { bankForFamily } from "./src/lib/avaEngine/questionBanks.ts";\n' +
-      'export { CS_INDUSTRY_CHIPS, CS_CHANNEL_CHIPS, CHAT_AGENT_CHANNEL_CHIPS, PHONE_INTERVIEW_QUESTIONS, packIdForBrief, channelForBrief, industryFromText, applyCustomerServicePack } from "./src/lib/avaEngine/customerService.ts";\n' +
+      'export { CS_INDUSTRY_CHIPS, CS_CHANNEL_CHIPS, CHAT_AGENT_CHANNEL_CHIPS, PHONE_INTERVIEW_QUESTIONS, packIdForBrief, channelForBrief, industryFromText, industryForBusiness, applyCustomerServicePack } from "./src/lib/avaEngine/customerService.ts";\n' +
       'export { SCENARIO_PACKS } from "./src/content/scenarioPacks/packs.ts";\n' +
       'export { createJobFromFlow } from "./src/lib/jobFromFlow.ts";\n',
     resolveDir: ROOT,
@@ -1387,7 +1387,25 @@ console.log("\n-- the follow-ups and what they pick --");
   const asked = play.followUps({}, { roleTitle: "Dental receptionist", whatTheyDo: "Answer patients" });
   check("Ava asks channel, industry, load, hours, private details and tools", asked.map((f) => f.id).join(",") === "cs-channel,cs-industry,cs-load,cs-hours,cs-sensitive,cs-tools", asked.map((f) => f.id).join(","));
   const industry = asked.find((f) => f.id === "cs-industry");
-  check("a dental brief starts on 'Medical or dental office'", industry.chips[industry.def] === "Medical or dental office", industry.chips[industry.def]);
+  check("a dental brief starts on 'Dental office' (its own pack since the run-through of 2026-10-31)", industry.chips[industry.def] === "Dental office", industry.chips[industry.def]);
+  const clinic = play.followUps({}, { roleTitle: "Medical receptionist", whatTheyDo: "Answer patients for our family clinic" });
+  check("…a medical brief on 'Medical office or clinic'", clinic[1].chips[clinic[1].def] === "Medical office or clinic", clinic[1].chips[clinic[1].def]);
+  const byName = play.followUps({}, { roleTitle: "Patient chat agent", whatTheyDo: "Answer our patients' chats and emails", businessName: "Bright Smile Dental" });
+  check("…'Patient chat agent' at Bright Smile Dental starts on 'Dental office' (the business's name)", byName[1].chips[byName[1].def] === "Dental office", byName[1].chips[byName[1].def]);
+  check("…and on health details", byName.find((f) => f.id === "cs-sensitive").chips[byName.find((f) => f.id === "cs-sensitive").def] === "Health details");
+  const plainByName = play.followUps({}, { roleTitle: "Customer service rep", whatTheyDo: "", businessName: "Bright Smile Dental" });
+  check("…a role that names no business reads the name too", plainByName[1].chips[plainByName[1].def] === "Dental office");
+  const shopByName = play.followUps({}, { roleTitle: "Chat agent", whatTheyDo: "Chat support for our Shopify store", businessName: "Bright Smile Dental" });
+  check("…but the role's own words win over the name", shopByName[1].chips[shopByName[1].def] === "Online store");
+  for (const [words, want] of [
+    ["Dental receptionist", "dental"], ["Front desk for our orthodontic practice", "dental"], ["Bright Smile Dental", "dental"],
+    ["Chat agent for a dental clinic", "dental"], ["Answer patients for our dentists and hygienists", "dental"],
+    ["Check dental insurance eligibility and book cleanings", "dental"],
+    ["Receptionist for a medical and dental clinic in Pasig", "medical"], ["Patient chat for our family doctors", "medical"],
+    ["Front desk at our clinic. Benefits: medical and dental insurance", "medical"],
+    ["Chat support for our law office. Benefits: dental insurance", "general"],
+  ]) check(`industryFromText(${JSON.stringify(words)}) is ${want}`, M.industryFromText(words) === want, M.industryFromText(words));
+  check("industryForBusiness: patients at a dental office is dental, doctors at a dental-named office stay medical", M.industryForBusiness("Patient chat agent", "Bright Smile Dental") === "dental" && M.industryForBusiness("Chat agent for our doctors", "Bright Smile Dental") === "medical" && M.industryForBusiness("Patient chat agent", "Northside Family Clinic") === "medical" && M.industryForBusiness("Support agent", null) === "general");
   check("…and private details start on health details", asked.find((f) => f.id === "cs-sensitive").chips[asked.find((f) => f.id === "cs-sensitive").def] === "Health details");
   const store = play.followUps({}, { roleTitle: "Chat agent", whatTheyDo: "Chat support for our Shopify store" });
   check("a Shopify brief starts on 'Online store'", store[1].chips[store[1].def] === "Online store", store[1].chips[store[1].def]);
@@ -1414,6 +1432,7 @@ console.log("\n-- the follow-ups and what they pick --");
   });
   for (const [label, id] of M.CS_INDUSTRY_CHIPS) check(`answer "${label}" picks the ${id} pack`, M.packIdForBrief(answered(label, "Chat")) === id);
   check("the answer wins over the brief's own words", M.packIdForBrief({ ...answered("Online store", "Chat"), whatTheyDo: "dental clinic" }) === "store");
+  check("an older 'Medical or dental office' answer: dental when the words say dental, else medical", M.packIdForBrief({ ...answered("Medical or dental office", "Chat"), roleTitle: "Dental receptionist" }) === "dental" && M.packIdForBrief(answered("Medical or dental office", "Chat")) === "medical");
   check("answer 'Phone' is the phone channel", M.channelForBrief(answered("Online store", "Phone")) === "phone");
   check("answer 'Chat and email' is the chat channel (the builder's own chip since 2026-10-29)", M.channelForBrief(answered("Online store", "Chat and email")) === "chat" && M.CHAT_AGENT_CHANNEL_CHIPS.every(([, ch]) => ch !== "phone" && ch !== "mixed"));
   check("no answer: 'inbound calls' reads as phone", M.channelForBrief({ roleTitle: "CSR", whatTheyDo: "Inbound calls", followUps: [] }) === "phone");
@@ -1844,9 +1863,9 @@ console.log("\n-- the follow-ups and what they pick --");
 }
 
 /* ── 3. The packs ─────────────────────────────────────────────────────── */
-console.log("\n-- the six packs --");
+console.log("\n-- the seven packs --");
 const packs = Object.values(M.SCENARIO_PACKS);
-check("six packs: medical, store, software, home services, gaming, general", Object.keys(M.SCENARIO_PACKS).join(",") === "medical,store,software,home_services,gaming,general", Object.keys(M.SCENARIO_PACKS).join(","));
+check("seven packs: medical, dental, store, software, home services, gaming, general", Object.keys(M.SCENARIO_PACKS).join(",") === "medical,dental,store,software,home_services,gaming,general", Object.keys(M.SCENARIO_PACKS).join(","));
 check("the server's copy is the same text, byte for byte", read("src/content/scenarioPacks/packs.ts") === read("supabase/functions/_shared/scenarioPacks.ts"));
 check("…and the server reads the same packs", JSON.stringify(SHARED.SCENARIO_PACKS) === JSON.stringify(M.SCENARIO_PACKS));
 check("the server only takes a pack id it knows", SHARED.scenarioPack("medical")?.id === "medical" && SHARED.scenarioPack("__proto__") === null && SHARED.scenarioPack("toString") === null && SHARED.scenarioPack(null) === null);
@@ -1877,8 +1896,25 @@ for (const pack of packs) {
   check(`${pack.id}: no country's own emergency number or law`, !/(?<![\d,.$])(911|999|112)(?![\d,])|\bHIPAA\b|\bGDPR\b/.test(text), text.match(/(?<![\d,.$])(911|999|112)(?![\d,])|\bHIPAA\b|\bGDPR\b/)?.[0]);
 }
 check("every question and case id is unique across the packs", allIds.size === packs.reduce((n, p) => n + p.skills.length + p.cases.length, 0));
-check("medical says patient, gaming says player, the rest customer", M.SCENARIO_PACKS.medical.counterpart === "patient" && M.SCENARIO_PACKS.gaming.counterpart === "player" && ["store", "software", "home_services", "general"].every((id) => M.SCENARIO_PACKS[id].counterpart === "customer"));
+check("medical and dental say patient, gaming says player, the rest customer", M.SCENARIO_PACKS.medical.counterpart === "patient" && M.SCENARIO_PACKS.dental.counterpart === "patient" && M.SCENARIO_PACKS.gaming.counterpart === "player" && ["store", "software", "home_services", "general"].every((id) => M.SCENARIO_PACKS[id].counterpart === "customer"));
 check("medical: someone describing an emergency is told to call their local emergency number", /local emergency number/i.test(JSON.stringify(M.SCENARIO_PACKS.medical)));
+// A dental office gets a dental office's front desk (the run-through of 2026-10-31: chest pain, blood tests, a knee scan
+// and "the doctor", nothing on cleanings, fillings or dental insurance), and a medical clinic keeps its own.
+{
+  const dental = M.SCENARIO_PACKS.dental;
+  const dentalText = JSON.stringify(dental);
+  const words = (pack) => JSON.stringify({ skills: pack.skills, cases: pack.cases });
+  check("dental: its own label and business", dental.label === "Dental office" && dental.business === "a dental office");
+  check("dental: cleanings, fillings, crowns, dental insurance, a toothache, reminders and a double charge", ["cleaning", "filling", "crown", "insurance", "toothache", "reminder", "charged twice"].every((w) => words(dental).toLowerCase().includes(w)), ["cleaning", "filling", "crown", "insurance", "toothache", "reminder", "charged twice"].filter((w) => !words(dental).toLowerCase().includes(w)).join(","));
+  check("dental: no medical clinic's situations (chest pain, blood tests, a knee scan, headaches, the doctor)", !/chest pain|blood (test|pressure)|knee|headache|\bthe doctor\b|\bdoctor'?s?\b|prescription/i.test(words(dental)), words(dental).match(/chest pain|blood (test|pressure)|knee|headache|\bthe doctor\b|\bdoctor'?s?\b|prescription/i)?.[0]);
+  check("dental: an emergency (face swelling, trouble breathing or swallowing) is told to call the local emergency number, and books no visit", /local emergency number/i.test(dentalText) && dental.skills.some((q) => q.category === "emergency_rule" && /local emergency number/.test(q.correct_answer) && /book no visit/.test(q.correct_answer)) && /face swelling, trouble breathing or swallowing/.test(dental.evaluatorNote));
+  check("dental: a toothache gets the same-day slot and a nurse's call, never advice on medicine", dental.cases.some((c) => /toothache/i.test(c.scenario) && /same-day/.test(c.scenario) && /never gives dental or medical advice: not which medicine or how much/.test(c.scenario)));
+  check("dental: the note keeps every safety rule (no advice, identity first, nothing to an unlisted family member, no promised cover)", /never gives dental or medical advice/.test(dental.evaluatorNote) && /confirm the patient's identity/.test(dental.evaluatorNote) && /family member the file does not list/.test(dental.evaluatorNote) && /never promise cover, an amount, a waiver or a free visit/.test(dental.evaluatorNote));
+  check("dental: a family member the file does not list is told nothing", dental.skills.some((q) => q.category === "privacy_check" && /cannot share or confirm anything/.test(q.correct_answer)) && dental.cases.some((c) => /lists nobody/.test(c.scenario)));
+  const medical = M.SCENARIO_PACKS.medical;
+  check("medical: its own label, and no dental case left in it", medical.label === "Medical office or clinic" && !/dental|dentist|\bcrown\b|tooth/i.test(words(medical)), words(medical).match(/dental|dentist|\bcrown\b|tooth/i)?.[0]);
+  check("medical: the chest-pain rule and the refill case (a doctor decides, never 'skip it')", medical.cases.some((c) => c.id === "md-chest-pain") && medical.cases.some((c) => c.id === "md-refill-request" && /Only a doctor can approve a refill/.test(c.scenario) && /never says whether a medicine can be skipped/.test(c.scenario)));
+}
 
 /* ── 4. The plan it builds, for every industry and channel ────────────── */
 console.log("\n-- the built-in plan for every industry and channel --");
@@ -1918,6 +1954,21 @@ for (const [industryLabel, packId] of M.CS_INDUSTRY_CHIPS) {
   const onsite = M.generateTemplateFlow({ brief: formFor("Online store", "Chat", "On-site"), rigor: "standard" }).flow;
   check("on site: no connection check, the rest the same", onsite.phases.map((p) => p.kind).join(",") === KINDS.join(","), onsite.phases.map((p) => p.kind).join(","));
   check("phases are numbered in order", onsite.phases.every((p, i) => p.order === i));
+}
+{
+  // The run-through of 2026-10-31, end to end: Bright Smile Dental's "Patient chat agent", Ava's questions kept on their
+  // defaults, gets the dental office's skills check and chat cases, never the medical clinic's.
+  const form = M.briefFromForm({ role: "Patient chat agent", location: "Remote", type: "Full-time · Remote", pay: "$18 to $22 an hour", start: "Within a few weeks", work: "Answer our patients' chats and emails about visits and bills." });
+  const defs = M.withRemoteFollowUps(M.PLAYBOOKS.customer_service.followUps({}, { ...form, businessName: "Bright Smile Dental" }), form.workMode);
+  const brief = { ...form, followUps: M.chipAnswersToBriefAnswers([M.CHAT_AGENT_KIND, ...defs], { [M.JOB_KIND_ID]: 0 }) };
+  const plan = M.generateTemplateFlow({ brief, rigor: "standard" }).flow;
+  const quiz = plan.phases.find((p) => p.kind === "quiz");
+  const sim = plan.phases.find((p) => p.kind === "simulation");
+  check("a dental office keeping Ava's defaults gets the dental skills check", quiz.config.items.map((q) => q.id).join(",") === "dn1,dn2,dn3,dn4,dn5", quiz.config.items.map((q) => q.id).join(","));
+  check("…and the dental chat cases, tagged dental for the server's grading", sim.config.pack === "dental" && sim.config.scenarios.map((c) => c.id).every((id) => id.startsWith("dn-")) && sim.config.counterpart === "patient", `${sim.config.pack}: ${sim.config.scenarios.map((c) => c.id).join(",")}`);
+  check("…and the notes name a dental office", /a dental office/.test(quiz.rationale) && /a dental office/.test(sim.rationale), `${quiz.rationale} / ${sim.rationale}`);
+  const medicalPlan = M.generateTemplateFlow({ brief: formFor("Medical office or clinic", "Chat", "Remote"), rigor: "standard" }).flow;
+  check("a medical clinic still gets the medical pack", medicalPlan.phases.find((p) => p.kind === "simulation").config.pack === "medical" && medicalPlan.phases.find((p) => p.kind === "quiz").config.items[0].id === "md1");
 }
 
 /* ── 5. The AI plan: the pack still wins, and the function is told ───── */
@@ -1969,7 +2020,7 @@ let aiFlow;
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   };
-  const b = formFor("Medical or dental office", "Phone", "Remote");
+  const b = formFor("Medical office or clinic", "Phone", "Remote");
   const result = await M.generateJobFlow({ brief: b, rigor: "standard" });
   aiFlow = result.flow;
   check("the AI plan is used (not the fallback)", result.source === "openai");

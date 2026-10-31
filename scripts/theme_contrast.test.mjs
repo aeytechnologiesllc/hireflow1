@@ -154,7 +154,7 @@ const LAYERED = [
   ["the job editor's active step", 4.5, ["action-soft-fg", over("background", ["primary", 0.1])], ["primary", over("background", ["primary", 0.1])]],
   // The job builder's chips (AvaCreateJob.tsx): words in --ck-action-bright.
   ["the job builder's \"Tailored to …\" chip", 4.5, ["ck-action-bright", over("background", ["primary", 0.1])], ["ck-action-bright", over("background", ["primary", 0.1])]],
-  ["the job builder's \"Your role is live\" chip", 4.5, ["ck-action-bright", over("background", ["ck-action", 0.16])], ["ck-action-bright", over("background", ["ck-action", 0.16])]],
+  ["the job builder's \"Your job is live\" chip", 4.5, ["ck-action-bright", over("background", ["ck-action", 0.16])], ["ck-action-bright", over("background", ["ck-action", 0.16])]],
   ["the job builder's words on its cards", 4.5, ["ck-action-bright", "card"], ["ck-action-bright", "card"]],
   // Initials circles (initialsTint.ts), each gem stop.
   ...[1, 2, 3, 4].map((n) => [`initials on gem stop ${n}`, 4.5, initials(n), initials(n)]),

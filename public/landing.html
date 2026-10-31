@@ -21,9 +21,9 @@
 <meta name="twitter:title" content="HireFlow: hire customer service agents">
 <meta name="twitter:description" content="Chat and email, any business. Ava tests every applicant on a real customer conversation and puts the three worth a call on your desk.">
 <meta name="twitter:image" content="https://hireflownow.com/share/hireflow.jpg">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=8">
-<link rel="alternate icon" href="/favicon.ico?v=8" sizes="any">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=8">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=9">
+<link rel="alternate icon" href="/favicon.ico?v=9" sizes="any">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=9">
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://hireflownow.com/#org","name":"HireFlow","legalName":"Southern Digital Technologies LLC","url":"https://hireflownow.com/","logo":"https://hireflownow.com/icon-512.png"},{"@type":"SoftwareApplication","name":"HireFlow","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"https://hireflownow.com/","description":"Hire chat and email customer service agents. Every applicant takes a real customer test, written for your business, and is scored before you meet them.","publisher":{"@id":"https://hireflownow.com/#org"},"offers":{"@type":"Offer","price":"0","priceCurrency":"USD","description":"Your first job is free."}}]}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -120,8 +120,9 @@ html{-webkit-tap-highlight-color:transparent}
 .bar.pinned::before{opacity:1}
 #hero{padding-top:65px}
 html{scroll-padding-top:calc(var(--barh) + 12px)}
-.logo{display:flex;align-items:center;gap:11px;font-family:var(--serif);font-weight:600;font-size:23px;letter-spacing:-.01em}
-.logo .tile{width:32px;height:32px;border-radius:8px;background:#0C2A21;display:grid;place-items:center;box-shadow:0 1px 0 rgba(255,255,255,.22) inset,-1px 3px 6px -1px rgba(12,42,33,.4)}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--serif);font-weight:600;font-size:23px;letter-spacing:-.01em}
+/* the logo: the green seal (2026-10-31), pressed onto the desk; at bar size its line drawn larger, as the favicon's */
+.logo .mark{width:34px;height:34px;flex:none;display:block;filter:drop-shadow(-1px 2px 2px rgba(10,40,28,.3))}
 .navr{display:flex;align-items:center;gap:28px;font-size:15px;font-weight:500}
 .navr .signin{color:var(--ink-2)}
 @media (hover:hover) and (pointer:fine){ .navr .signin:hover{color:var(--ink)} }
@@ -215,7 +216,7 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
 .mail .mhead{display:flex;align-items:center;gap:6px;font-size:var(--fs-mh);color:var(--ink-3);white-space:nowrap}
 .mail .from{display:flex;align-items:center;gap:7px}
 .mail .from b{font-weight:650;color:var(--ink-2)}
-.mail .mlogo{width:17px;height:17px;border-radius:4.5px;background:#0C2A21;display:grid;place-items:center;flex:none}
+.mail .mlogo{width:18px;height:18px;display:grid;place-items:center;flex:none}
 .mail .subj{margin-top:6px;font-family:var(--serif);font-weight:650;font-size:var(--fs-subj);letter-spacing:-.015em;color:var(--ink);padding-bottom:10px;border-bottom:1px solid rgba(29,51,41,.14)}
 .mail .mbody{margin-top:9px;font-size:var(--fs-mb);line-height:1.45;color:var(--ink-2)}
 
@@ -283,9 +284,8 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
   :root{--barh:50px}
   .nav{padding:16px 16px 0;height:50px}
   #hero{padding-top:50px}
-  .logo{font-size:20px;gap:9px}
-  .logo .tile{width:28px;height:28px;border-radius:7px}
-  .logo .tile svg{width:18px;height:18px}
+  .logo{font-size:20px;gap:8px}
+  .logo .mark{width:30px;height:30px}
   .navr{gap:16px;font-size:14px}
   .navr .post span{padding:8px 12px}
   .navr .post span::before{inset:5px}
@@ -327,9 +327,8 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
 }
 @media (max-width: 340px){
   .nav{padding-left:12px;padding-right:12px}
-  .logo{font-size:16px;gap:7px}
-  .logo .tile{width:24px;height:24px;border-radius:6px}
-  .logo .tile svg{width:15px;height:15px}
+  .logo{font-size:16px;gap:6px}
+  .logo .mark{width:26px;height:26px}
   .navr{gap:10px;font-size:12.5px}
   .navr .post span{padding:7px 8px}
   .navr .post span::before{inset:4px}
@@ -375,7 +374,7 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
 #story .box.n{width:360px;--eh:62px;--ew:96px}
 #story .box > *,#story .stage > .ledger{position:absolute;left:0;top:0;opacity:0;will-change:transform,opacity}
 #story .lift{position:absolute;inset:5% 4%;border-radius:4px;box-shadow:-12px 26px 30px rgba(22,40,31,.34);opacity:0}
-#story .mlg{width:18px;height:18px;border-radius:4.5px;background:#0C2A21;display:grid;place-items:center;flex:none}
+#story .mlg{width:19px;height:19px;display:grid;place-items:center;flex:none}
 
 /* ---------- 1. a job sheet Ava writes, with its business on a folder tab ---------- */
 #story .jsheet{width:340px;--jc:#F4EFE4}
@@ -607,7 +606,7 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
   background:linear-gradient(to top right,transparent calc(50% - .6px),rgba(29,51,41,.07) 50%,transparent calc(50% + .6px)) 0 0/50% 100% no-repeat,
              linear-gradient(to top left,transparent calc(50% - .6px),rgba(29,51,41,.07) 50%,transparent calc(50% + .6px)) 100% 0/50% 100% no-repeat}
 #story .yfrom{position:absolute;left:6%;top:9%;display:flex;align-items:flex-start;gap:9px;font-family:var(--type);font-size:13.5px;color:var(--ink-3);line-height:1.35}
-#story .yfrom .mlg{width:22px;height:22px;border-radius:5.5px}
+#story .yfrom .mlg{width:23px;height:23px}
 #story .yto{position:absolute;left:21%;right:9%;top:47%;font-family:var(--type);color:var(--ink-2);line-height:1.5}
 #story .yto .a{display:block;font-size:22px;color:var(--ink);margin-bottom:9px;white-space:nowrap}
 #story .yto .a small{font-size:.64em;color:var(--ink-3);margin-right:.5em}
@@ -837,7 +836,7 @@ html[data-desk="light"] #story .eflap .fs,html[data-desk="light"] #story .ysh{di
 
 <header class="nav bar" id="bar">
   <a class="logo" href="#hero">
-    <span class="tile"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 L9 7 L14 15 L20 6"/></svg></span>
+    <svg class="mark" width="34" height="34" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3.2c4.6.3 7 2.5 11.4 3.6 4 1.1 7.8 1.4 10.4 4.6 2.8 3.3 2.5 7.1 4 11.2 1.4 3.9 3.8 6.7 3.3 11-.5 4.3-3.3 6.8-4.8 10.7-1.6 4-1.6 7.9-4.7 10.7-3.1 2.8-7.1 2.6-11.2 4-3.9 1.3-6.7 3.4-11 3-4.3-.5-6.7-3.1-10.6-4.8-3.9-1.6-7.8-1.9-10.4-5-2.6-3.1-2.3-7-3.7-10.9-1.4-3.9-3.7-6.8-3.1-11.2.6-4.2 3.6-6.5 5.3-10.2 1.7-3.9 2-7.8 5.3-10.4 3.3-2.6 7.1-2.2 11-3.4C25.6 5.1 27.6 3 32 3.2Z" fill="#0A4A35"/><circle cx="32" cy="32" r="26.5" fill="#13734F"/><circle cx="32" cy="32" r="20.5" fill="#11694C"/><path d="M18.4 41.9 L25.5 25 L32.7 36.4 L45.7 21.1" transform="translate(1.4 1.8)" fill="none" stroke="#49C094" stroke-opacity=".75" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.4 41.9 L25.5 25 L32.7 36.4 L45.7 21.1" fill="none" stroke="#063A27" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>
     HireFlow
   </a>
   <nav class="navr" aria-label="Main">
@@ -1065,7 +1064,8 @@ function clockSVG(){
   </svg>`;
 }
 const RING = "M71 9 C 92 15, 99 46, 80 66 C 62 84, 22 83, 8 62 C -4 43, 8 15, 36 8 C 55 3, 74 6, 86 17";
-const LOGO = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 L9 7 L14 15 L20 6"/></svg>`;
+/* Ava's mark in the mock emails: the logo's seal, small. */
+const LOGO = `<svg width="100%" height="100%" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3.2c4.6.3 7 2.5 11.4 3.6 4 1.1 7.8 1.4 10.4 4.6 2.8 3.3 2.5 7.1 4 11.2 1.4 3.9 3.8 6.7 3.3 11-.5 4.3-3.3 6.8-4.8 10.7-1.6 4-1.6 7.9-4.7 10.7-3.1 2.8-7.1 2.6-11.2 4-3.9 1.3-6.7 3.4-11 3-4.3-.5-6.7-3.1-10.6-4.8-3.9-1.6-7.8-1.9-10.4-5-2.6-3.1-2.3-7-3.7-10.9-1.4-3.9-3.7-6.8-3.1-11.2.6-4.2 3.6-6.5 5.3-10.2 1.7-3.9 2-7.8 5.3-10.4 3.3-2.6 7.1-2.2 11-3.4C25.6 5.1 27.6 3 32 3.2Z" fill="#0A4A35"/><circle cx="32" cy="32" r="26.5" fill="#13734F"/><circle cx="32" cy="32" r="20.5" fill="#11694C"/><path d="M18.4 41.9 L25.5 25 L32.7 36.4 L45.7 21.1" fill="none" stroke="#063A27" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const FLIP = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>`;
 
 /* ---------- build ---------- */
@@ -1843,7 +1843,8 @@ function sealSVG(seed){
   </svg>`;
 }
 const RING = "M71 9 C 92 15, 99 46, 80 66 C 62 84, 22 83, 8 62 C -4 43, 8 15, 36 8 C 55 3, 74 6, 86 17";
-const LOGO = w => `<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18 L9 7 L14 15 L20 6"/></svg>`;
+/* Ava's mark on the story's papers: the logo's seal, small. */
+const LOGO = () => `<svg width="100%" height="100%" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3.2c4.6.3 7 2.5 11.4 3.6 4 1.1 7.8 1.4 10.4 4.6 2.8 3.3 2.5 7.1 4 11.2 1.4 3.9 3.8 6.7 3.3 11-.5 4.3-3.3 6.8-4.8 10.7-1.6 4-1.6 7.9-4.7 10.7-3.1 2.8-7.1 2.6-11.2 4-3.9 1.3-6.7 3.4-11 3-4.3-.5-6.7-3.1-10.6-4.8-3.9-1.6-7.8-1.9-10.4-5-2.6-3.1-2.3-7-3.7-10.9-1.4-3.9-3.7-6.8-3.1-11.2.6-4.2 3.6-6.5 5.3-10.2 1.7-3.9 2-7.8 5.3-10.4 3.3-2.6 7.1-2.2 11-3.4C25.6 5.1 27.6 3 32 3.2Z" fill="#0A4A35"/><circle cx="32" cy="32" r="26.5" fill="#13734F"/><circle cx="32" cy="32" r="20.5" fill="#11694C"/><path d="M18.4 41.9 L25.5 25 L32.7 36.4 L45.7 21.1" fill="none" stroke="#063A27" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 const LINK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>`;
 const PMARK = `<div class="pmark ypm">
     <svg viewBox="0 0 120 78" aria-hidden="true">

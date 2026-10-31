@@ -22,6 +22,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const G = await import(pathToFileURL(path.join(ROOT, "src/cockpit/lib/firstHireStage.ts")).href);
 const read = (rel) => readFile(path.join(ROOT, rel), "utf8");
+const stagesSrc = await read("src/cockpit/components/journey/GuideStages.tsx");
+const guideSrc = await read("src/cockpit/components/journey/FirstHireGuide.tsx");
 
 let passed = 0;
 let failed = 0;
@@ -107,12 +109,31 @@ console.log("\nStage 4: someone finished and scored, no decision yet");
   );
   check("it is the ready stage", s.stage === "ready", show(s));
   check("the top three, best first, anyone not finished left out", s.top.map((p) => p.id).join() === "e,b,a", s.top.map((p) => p.id).join());
-  check("four are ready; the headline says three", s.readyCount === 4 && G.readyHeadline(4) === "Your best three are ready.");
-  check("fewer than three is said as it is", G.readyHeadline(2) === "Your best two are ready." && G.readyHeadline(1) === "Your first applicant is ready.");
+  check("four are ready, three worth a call; the headline says three", s.readyCount === 4 && s.bestCount === 3 && G.readyHeadline(s.top.length, s.readyCount) === "Your best three are ready." && G.readyDetail(s.top.length, s.readyCount) === "4 have finished. These are worth a call.");
+  check("fewer than three is said as it is", G.readyHeadline(2, 2) === "Your best two are ready." && G.readyHeadline(1, 1) === "Your first applicant is ready." && G.readyDetail(2, 2) === "All finished. Here is how they scored.");
+  // The run-through of 2026-10-31: "Your best three are ready" listed Nadia 78, Kwame 69 and Robin 34, whom the Applicants
+  // list said to decline. The front page promises "three worth a call": only 70 or more, and never a decline Ava suggests.
+  const run = stageOf(
+    [job("j1")],
+    [
+      person("nadia", "j1", { finished: true, score: 78 }),
+      person("kwame", "j1", { finished: true, score: 69 }),
+      person("robin", "j1", { finished: true, score: 34, declineSuggested: true }),
+    ],
+  );
+  check("only scores of 70 or more are the best: one of three", run.stage === "ready" && run.top.map((p) => p.id).join() === "nadia" && run.readyCount === 3 && run.bestCount === 1, show(run));
+  check("…said as one, not three", G.readyHeadline(run.top.length, run.readyCount) === "Your best one is ready." && G.readyDetail(run.top.length, run.readyCount) === "3 have finished. This one is worth a call.");
+  check("the good bar is 70, and 70 itself is worth a call", G.GOOD_SCORE === 70 && G.isWorthACall({ id: "x", jobId: "j1", name: "", status: "pending", onForm: false, finished: true, score: 70 }) && !G.isWorthACall({ id: "x", jobId: "j1", name: "", status: "pending", onForm: false, finished: true, score: 69 }));
+  const declined = stageOf([job("j1")], [person("a", "j1", { finished: true, score: 82, declineSuggested: true }), person("b", "j1", { finished: true, score: 74 })]);
+  check("a high score Ava suggests declining is never among the best", declined.top.map((p) => p.id).join() === "b" && declined.bestCount === 1, show(declined));
+  const none = stageOf([job("j1")], [person("a", "j1", { finished: true, score: 34 }), person("b", "j1", { finished: true, score: 55 })]);
+  check("nobody worth a call: the ready step lists nobody and says how many finished", none.stage === "ready" && none.top.length === 0 && none.readyCount === 2 && G.readyHeadline(0, 2) === "2 applicants have finished." && G.readyHeadline(0, 1) === "1 applicant has finished." && /^None has scored 70 or more yet\./.test(G.readyDetail(0, 2)), show(none));
+  check("the card lists people only when someone is worth a call, and its words come from the rules", /readyHeadline\(top\.length, readyCount\)/.test(stagesSrc) && /readyDetail\(top\.length, readyCount\)/.test(stagesSrc) && /\{top\.length > 0 && \(/.test(stagesSrc));
+  check("the guide reads Ava's decline from the list's own row", /declineSuggested: row\.recommendedAction === "reject"/.test(guideSrc));
   const notScored = stageOf([job("j1")], [person("a", "j1", { finished: true, score: null })]);
   check("finished but not scored is not ready", notScored.stage === "applying");
   const zero = stageOf([job("j1")], [person("a", "j1", { finished: true, score: 0 })]);
-  check("a real score of 0 is a score", zero.stage === "ready" && zero.top[0].score === 0);
+  check("a real score of 0 is a score (ready, though not worth a call)", zero.stage === "ready" && zero.readyCount === 1 && zero.top.length === 0);
   const form = stageOf([job("j1")], [person("a", "j1", { onForm: true, finished: true, score: 80 })]);
   check("someone on the form is never ready", form.stage === "applying");
   const two = stageOf([job("j1"), job("j2")], [person("a", "j1", { finished: true, score: 60 }), person("b", "j2", { finished: true, score: 70 }), person("c", "j2", { finished: true, score: 75 })]);
@@ -129,7 +150,7 @@ check("…on a business with no live job as well", stageOf([job("d1", "draft")],
 check("someone still on the form, or in review, is not a decision", !["in_progress", "pending", "reviewing", null, undefined, ""].some((s) => G.isDecisionStatus(s)));
 check("the four decisions are the ones the Applicants list calls decided", ["rejected", "interview", "offered", "hired"].every((s) => G.isDecisionStatus(s)) && G.DECISION_STATUSES.length === 4);
 {
-  const applicants = Array.from({ length: 12 }, (_, i) => person(`p${i}`, "j1", { finished: true, score: 50 + i }));
+  const applicants = Array.from({ length: 12 }, (_, i) => person(`p${i}`, "j1", { finished: true, score: 65 + i }));
   check("many people, nobody decided: still the ready stage, three listed", stageOf([job("j1")], applicants).top.length === 3);
 }
 

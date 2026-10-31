@@ -16,7 +16,6 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { applicantDetailsImporter, jobDetailImporter, routeImporters, warmStaffPages } from "@/lib/prefetchRoutes";
 import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
-import { useNightWhileOpen } from "@/hooks/useNightWhileOpen";
 
 
 // The big screens every visitor used to download up front, whichever one
@@ -202,20 +201,9 @@ function AutoUpdate() {
   return null;
 }
 
-// Sign-up stays Night (the bridge from the dark front page) from its first
-// frame to its last: held here, outside the lazy page, so the loader shown
-// while the Auth chunk downloads is Night too, not a flash of Day between
-// index.html's Night start screen and the page's own hold (Auth.tsx). The
-// same paths as the start screen's.
-const SIGN_UP_PATH = /^\/auth(\/|$)/;
-function HoldNight() {
-  useNightWhileOpen();
-  return null;
-}
-function NightOnSignUp() {
-  const { pathname } = useLocation();
-  return SIGN_UP_PATH.test(pathname) ? <HoldNight /> : null;
-}
+// Sign-up follows the theme like every other page (the run-through of
+// 2026-10-31): it was held Night as the bridge from a dark front page, and the
+// front page has been the light Desk since 2026-10-30.
 
 const App = () => (
   <ErrorBoundary>
@@ -229,7 +217,6 @@ const App = () => (
             <BrowserRouter>
               <PageViewTracker />
               <AutoUpdate />
-              <NightOnSignUp />
               <HostGate>
               <Suspense fallback={<LazyFallback />}>
                 <Routes>

@@ -48,7 +48,7 @@ async function walkCreateJob(page, roleTitle, tag) {
   }
   await page.screenshot({ path: path.join(OUT, `${tag}-3-rigor.png`) });
 
-  await page.click('button:has-text("Build my flow")');
+  await page.click('button:has-text("Build my hiring plan")');
   await sleep(1500);
   await page.screenshot({ path: path.join(OUT, `${tag}-4-building.png`) });
 
@@ -62,8 +62,8 @@ async function walkCreateJob(page, roleTitle, tag) {
 }
 
 async function publish(page, tag) {
-  await page.locator('footer button:has-text("Publish role")').click();
-  await page.waitForSelector("text=Your role is live", { timeout: 45000 });
+  await page.locator('footer button:has-text("Publish job")').click();
+  await page.waitForSelector("text=Your job is live", { timeout: 45000 });
   await sleep(1000);
   const code = (await page.locator("button.font-mono").first().textContent())?.trim().split(/\s+/)[0] ?? "";
   await page.screenshot({ path: path.join(OUT, `${tag}-6-publish.png`) });

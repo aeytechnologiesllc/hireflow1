@@ -880,7 +880,7 @@ export function useCockpitAnalytics() {
       quality: [] as number[],
       insight:
         totalApps === 0
-          ? "Publish a role and share your apply link to start seeing funnel data."
+          ? "Publish a job and share your apply link to start seeing funnel data."
           : bottleneck
             ? `${bottleneck.label} stage is the largest drop-off — review your flow settings.`
             : "Your pipeline is moving steadily.",

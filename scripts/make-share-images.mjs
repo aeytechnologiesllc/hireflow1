@@ -2,9 +2,10 @@
 // Phase 3, tasks 1 and 5), in the front page's own look, "The Desk" (the owner
 // approved it 2026-10-30; docs/LANDING.md): sage desk #C6CFBE with a warm wash
 // from the top right, deep green ink #1D3329, the jade #0F6B4F for the words
-// that matter, Besley and Schibsted Grotesk, and the logo's own mark, the jade
-// rising line on the deep green tile (scripts/make-app-icons.mjs). Never the
-// retired near-black and gold card: every shared hireflownow.com link showed it.
+// that matter, Besley and Schibsted Grotesk, and the logo, the green seal with
+// the rising line pressed into it (since 2026-10-31; scripts/make-app-icons.mjs).
+// Never the retired near-black and gold card: every shared hireflownow.com link
+// showed it.
 // Run: node scripts/make-share-images.mjs
 //   public/share/hireflow.jpg  the front page's own picture (and the blog's)
 //   public/share/careers.jpg   any business's job or careers link (the owner's
@@ -16,7 +17,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-const MARK = `<svg viewBox="0 0 64 64" width="46" height="46"><rect width="64" height="64" rx="14" fill="#0C2A21"/><rect x="0.5" y="0.5" width="63" height="63" rx="13.5" fill="none" stroke="rgba(63,206,151,0.32)"/><path d="M13 46 L25 19 L37 39 L51 17" fill="none" stroke="#3FCE97" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+// The logo: the green seal (the owner chose it 2026-10-31), the app icon's own drawing.
+const MARK = `<svg viewBox="0 0 64 64" width="52" height="52"><path d="M32 3.2c4.6.3 7 2.5 11.4 3.6 4 1.1 7.8 1.4 10.4 4.6 2.8 3.3 2.5 7.1 4 11.2 1.4 3.9 3.8 6.7 3.3 11-.5 4.3-3.3 6.8-4.8 10.7-1.6 4-1.6 7.9-4.7 10.7-3.1 2.8-7.1 2.6-11.2 4-3.9 1.3-6.7 3.4-11 3-4.3-.5-6.7-3.1-10.6-4.8-3.9-1.6-7.8-1.9-10.4-5-2.6-3.1-2.3-7-3.7-10.9-1.4-3.9-3.7-6.8-3.1-11.2.6-4.2 3.6-6.5 5.3-10.2 1.7-3.9 2-7.8 5.3-10.4 3.3-2.6 7.1-2.2 11-3.4C25.6 5.1 27.6 3 32 3.2Z" fill="#0A4A35"/><circle cx="32" cy="32" r="26.5" fill="#13734F"/><circle cx="32" cy="32" r="19.5" fill="#11694C"/><circle cx="32.6" cy="32.9" r="19.5" fill="none" stroke="#3DB088" stroke-opacity=".5" stroke-width="1.6"/><circle cx="31.4" cy="31.2" r="19.5" fill="none" stroke="#06331F" stroke-opacity=".55" stroke-width="1.6"/><path d="M21.5 39.5 L27 26.5 L32.5 35.3 L42.5 23.5" transform="translate(.8 1)" fill="none" stroke="#49C094" stroke-opacity=".5" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M21.5 39.5 L27 26.5 L32.5 35.3 L42.5 23.5" fill="none" stroke="#063A27" stroke-width="3.8" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="21" cy="17" rx="6" ry="3" fill="#7FE0B8" opacity=".25" transform="rotate(-35 21 17)"/></svg>`;
 
 // Ava's green wax seal, drawn as the front page draws it (its blob and seal).
 function rng(seed) { return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
@@ -54,8 +56,8 @@ const page = (body) => `<!doctype html><html><head><meta charset="utf-8">
     background: linear-gradient(242deg, rgba(240, 225, 190, 0.72) 0%, rgba(240, 225, 190, 0.42) 34%, rgba(240, 225, 190, 0) 64%),
       linear-gradient(180deg, rgba(255, 250, 236, 0.10), rgba(255, 250, 236, 0) 38%, rgba(29, 51, 41, 0.07) 100%), #C6CFBE; }
   .wrap { position: relative; z-index: 2; box-sizing: border-box; height: 100%; padding: 60px 72px 52px 76px; display: flex; flex-direction: column; }
-  .brand { display: flex; align-items: center; gap: 15px; font: 600 32px/1 "Besley", Georgia, serif; letter-spacing: -0.01em; }
-  .brand svg { display: block; border-radius: 12px; box-shadow: 0 1px 0 rgba(255, 255, 255, 0.22) inset, -1px 4px 8px -1px rgba(12, 42, 33, 0.4); }
+  .brand { display: flex; align-items: center; gap: 14px; font: 600 32px/1 "Besley", Georgia, serif; letter-spacing: -0.01em; }
+  .brand > svg { display: block; flex: none; filter: drop-shadow(-1px 3px 3px rgba(10, 40, 28, 0.32)); }
   .tag { margin-left: 16px; font: 600 15px/1 "Schibsted Grotesk", sans-serif; letter-spacing: 0.18em; text-transform: uppercase; color: #4E6056; }
   h1 { margin: auto 0 0; font: 650 84px/0.98 "Besley", Georgia, serif; letter-spacing: -0.028em; }
   h1 .ln { display: block; }

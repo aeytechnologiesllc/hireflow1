@@ -279,9 +279,11 @@ export function ctaHref(campaign, medium = "article") {
   return `${SIGNUP}&utm_source=blog&utm_medium=${encodeURIComponent(medium)}&utm_campaign=${encodeURIComponent(campaign)}`;
 }
 
-// The logo's own mark: the jade rising line on the deep green tile (scripts/make-app-icons.mjs).
+// The logo: the green seal with the rising line pressed into it (the owner chose it
+// 2026-10-31), in the drawing for bar sizes (under 40 px: the favicon's, its line
+// larger and thicker; SealMark in Wordmark.tsx, scripts/make-app-icons.mjs).
 const MARK =
-  '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#0C2A21"/><rect x="0.5" y="0.5" width="63" height="63" rx="13.5" fill="none" stroke="rgba(63,206,151,0.28)"/><path d="M13 46 L25 19 L37 39 L51 17" fill="none" stroke="#3FCE97" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3.2c4.6.3 7 2.5 11.4 3.6 4 1.1 7.8 1.4 10.4 4.6 2.8 3.3 2.5 7.1 4 11.2 1.4 3.9 3.8 6.7 3.3 11-.5 4.3-3.3 6.8-4.8 10.7-1.6 4-1.6 7.9-4.7 10.7-3.1 2.8-7.1 2.6-11.2 4-3.9 1.3-6.7 3.4-11 3-4.3-.5-6.7-3.1-10.6-4.8-3.9-1.6-7.8-1.9-10.4-5-2.6-3.1-2.3-7-3.7-10.9-1.4-3.9-3.7-6.8-3.1-11.2.6-4.2 3.6-6.5 5.3-10.2 1.7-3.9 2-7.8 5.3-10.4 3.3-2.6 7.1-2.2 11-3.4C25.6 5.1 27.6 3 32 3.2Z" fill="#0A4A35"/><circle cx="32" cy="32" r="26.5" fill="#13734F"/><circle cx="32" cy="32" r="20.5" fill="#11694C"/><path d="M18.4 41.9 L25.5 25 L32.7 36.4 L45.7 21.1" transform="translate(1.4 1.8)" fill="none" stroke="#49C094" stroke-opacity=".75" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/><path d="M18.4 41.9 L25.5 25 L32.7 36.4 L45.7 21.1" fill="none" stroke="#063A27" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 // The big stamp's own drawings (public/landing.html, #heroStart): the mark's line in a ring, the arrow, and the postmark.
 const STAMP_LINE =
   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F3EFE2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 L9 7 L14 15 L20 6"/></svg>';
@@ -326,8 +328,8 @@ const STYLE = `
   /* the bar: the front page's, pinned the whole way down, in the desk's own sage */
   .bar { position: -webkit-sticky; position: sticky; top: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 16px; height: var(--barh);
     padding: 0 max(48px, env(safe-area-inset-right, 0px)) 0 max(56px, env(safe-area-inset-left, 0px)); background: rgba(198, 207, 190, .97); box-shadow: 0 1px 0 rgba(29, 51, 41, .1); }
-  .logo { display: inline-flex; align-items: center; gap: 11px; font: 600 23px/1 var(--serif); letter-spacing: -.01em; color: var(--ink); text-decoration: none; }
-  .logo svg { width: 32px; height: 32px; flex: none; display: block; border-radius: 8px; box-shadow: -1px 3px 6px -1px rgba(12, 42, 33, .4); }
+  .logo { display: inline-flex; align-items: center; gap: 10px; font: 600 23px/1 var(--serif); letter-spacing: -.01em; color: var(--ink); text-decoration: none; }
+  .logo svg { width: 34px; height: 34px; flex: none; display: block; filter: drop-shadow(-1px 2px 2px rgba(10, 40, 28, .3)); }
   .navr { display: flex; align-items: center; gap: 28px; font: 500 15px/1 var(--sans); white-space: nowrap; }
   .navr a { color: var(--ink-2); text-decoration: none; }
   .navr .short { display: none; }
@@ -455,8 +457,8 @@ const STYLE = `
     :root { --barh: 50px; }
     body { font-size: 16.5px; }
     .bar { padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
-    .logo { font-size: 20px; gap: 9px; }
-    .logo svg { width: 28px; height: 28px; border-radius: 7px; }
+    .logo { font-size: 20px; gap: 8px; }
+    .logo svg { width: 30px; height: 30px; }
     .navr { gap: 16px; font-size: 14px; }
     .navr .guides, .navr .long { display: none; }
     .navr .short { display: inline; }
@@ -503,8 +505,8 @@ const STYLE = `
   }
   @media (max-width: 340px) {
     .bar { padding: 0 12px; }
-    .logo { font-size: 16px; gap: 7px; }
-    .logo svg { width: 24px; height: 24px; border-radius: 6px; }
+    .logo { font-size: 16px; gap: 6px; }
+    .logo svg { width: 26px; height: 26px; }
     .navr { gap: 10px; font-size: 12.5px; }
     .navr .post span { padding: 7px 8px; }
     .navr .post span::before { inset: 4px; }
@@ -546,9 +548,9 @@ ${extraMeta}<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:description" content="${escapeHtml(description)}">
 <meta name="twitter:image" content="${SHARE_IMAGE}">
 <link rel="alternate" type="application/rss+xml" title="HireFlow guides" href="${SITE}/blog/feed.xml">
-<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=8">
-<link rel="alternate icon" href="/favicon.ico?v=8" sizes="any">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=8">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=9">
+<link rel="alternate icon" href="/favicon.ico?v=9" sizes="any">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=9">
 <script type="application/ld+json">${jsonLd({ "@context": "https://schema.org", "@graph": graph })}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

@@ -50,6 +50,13 @@ const ALLOWED = {
     count: 1,
     why: "the time wheel: a fixed-height picker inside a dialog that always has more to scroll",
   },
+  "src/pages/AvaCreateJob.tsx": {
+    count: 1,
+    why:
+      "the job builder's own scroller: the builder fills the frame (FILLS_FRAME_ROUTES in src/cockpit/Shell.tsx), " +
+      "whose main does not scroll on that route, so nothing behind it should move; without it the end of the plan " +
+      "scrolled the shell 58px and cut the step rail off (the run-through of 2026-10-31)",
+  },
 };
 
 /** Helper classes that hold swipes; nothing uses them and nothing should start to. */

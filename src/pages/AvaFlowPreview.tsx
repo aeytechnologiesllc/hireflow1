@@ -61,7 +61,7 @@ const DISPLAY = "'Fraunces', Georgia, serif";
 
 import { StepRail, PhaseRow } from "@/components/ava/createFlow/shared";
 
-const STEPS = ["Brief", "Follow-ups", "Rigor", "Ava builds", "Review plan", "Publish"] as const;
+const STEPS = ["Brief", "Follow-ups", "How strict", "Ava builds", "Review plan", "Publish"] as const;
 
 type RigorId = "easy" | "standard" | "high";
 type Accent = "brass" | "good" | "goodSoft";
@@ -1009,7 +1009,7 @@ export default function AvaFlowPreview({ externalStep, embedded }: AvaFlowPrevie
           <StepRail step={step} traveler={previewTraveler} receipts={{
               "Brief": brief.role.trim() ? "Set" : null,
               "Follow-ups": step > 1 ? "answered" : null,
-              "Rigor": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
+              "How strict": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
               "Ava builds": phases.length ? `${phases.length} phases` : null,
               "Review plan": step > 4 ? "Approved" : null,
               "Publish": step === 5 ? "Live" : null,
@@ -1028,7 +1028,7 @@ export default function AvaFlowPreview({ externalStep, embedded }: AvaFlowPrevie
         <StepRail step={step} traveler={previewTraveler} receipts={{
               "Brief": brief.role.trim() ? "Set" : null,
               "Follow-ups": step > 1 ? "answered" : null,
-              "Rigor": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
+              "How strict": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
               "Ava builds": phases.length ? `${phases.length} phases` : null,
               "Review plan": step > 4 ? "Approved" : null,
               "Publish": step === 5 ? "Live" : null,

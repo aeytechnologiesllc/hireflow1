@@ -38,7 +38,8 @@ export function glyphForKind(kind: string) {
   // computer and connection", public rail kind "connection"). Tested before
   // the generic marks so none of its words can land it on another branch.
   if (k.includes("connection") || k.includes("equipment") || k.includes("computer")) return GlyphEcho;
-  if (k.includes("quiz") || k.includes("scenario")) return GlyphScenarios;
+  // "skills check" is the create flow's word for the quiz card (the run-through of 2026-10-31), not a typing test.
+  if (k.includes("quiz") || k.includes("scenario") || k.includes("skills check")) return GlyphScenarios;
   if (k.includes("typing") || k.includes("skills")) return GlyphTyping;
   if (k.includes("video") || k.includes("walkthrough")) return GlyphCallingCard;
   // "written interview" is the create flow's typed interview card: the chat

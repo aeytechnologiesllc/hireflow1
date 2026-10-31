@@ -55,7 +55,7 @@ export { glyphForKind };
 const STEP_GLYPHS = {
   "Brief": GlyphLetter,        // existing kit — the brief on its way to Ava
   "Follow-ups": GlyphExchange, // two facing arcs, one pressed dot between them
-  "Rigor": GlyphMeasure,       // the level you set, on a printer's measure
+  "How strict": GlyphMeasure,  // the level you set, on a printer's measure
   "Ava builds": GlyphSteps,    // existing kit — ordered steps climbing
   "Review plan": GlyphPlan,    // the whole run of steps, on the brand's path
   "Publish": GlyphPublish,     // fallback only — Publish renders the real seal
@@ -256,7 +256,8 @@ export function PhaseRow({
                 className="flex items-center gap-1.5 text-[11.5px] font-semibold uppercase tracking-[0.14em]"
                 style={{ color: "var(--hf-text-muted)" }}
               >
-                <Icon size={14} strokeWidth={2} /> {phase.kind}
+                {/* The kind in plain words, left out when the title already says it ("Skills check" over "Skills check"). */}
+                <Icon size={14} strokeWidth={2} /> {phase.kind.trim().toLowerCase() === phase.title.trim().toLowerCase() ? null : phase.kind}
               </span>
               {editing ? (
                 <input
@@ -361,9 +362,9 @@ export function BuildStep({
 
   return (
     <div className="flex flex-col items-center text-center">
-      <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>Building your hiring flow…</h2>
+      <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>Building your hiring plan…</h2>
       <p className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
-        {role} · <span style={{ color: "hsl(var(--ck-brass))" }}>{rigorLabel} rigor</span>
+        {role} · <span style={{ color: "hsl(var(--ck-brass))" }}>{rigorLabel}</span>
         {generating && <span className="ml-2 opacity-70">· writing the questions</span>}
       </p>
       <div className="mt-7 w-full max-w-md space-y-1.5 text-left">
@@ -392,7 +393,7 @@ export function BuildStep({
 /** Belt-and-suspenders for BuildStep: `generating` clears once the generate-flow request
  * settles (success or the timeout-bounded fallback in flowGenerator.ts), but nothing else
  * times this screen out — a future regression anywhere in that chain must not leave the
- * employer staring at "Building your hiring flow…" forever with no way out. */
+ * employer staring at "Building your hiring plan…" forever with no way out. */
 export function BuildStuckNotice({ onRetry, onBack }: { onRetry: () => void; onBack: () => void }) {
   return (
     <div className="mx-auto max-w-md rounded-2xl p-6 text-center" style={{ background: "hsl(var(--card))", border: "1px solid color-mix(in srgb, var(--hf-danger) 35%, transparent)", boxShadow: "var(--shadow-lg)" }}>

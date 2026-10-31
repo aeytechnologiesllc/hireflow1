@@ -19,7 +19,7 @@
 /** Where a loop is allowed, which loop, and why. */
 const ALLOWED = {
   "src/styles/careers.css": { names: ["cr-shimmer"], why: "the loading skeleton, gone once the jobs arrive" },
-  "src/components/BrandLoader.tsx": { names: ["hf-rise-draw", "hf-name-breathe"], why: "the loading screen, gone once the page arrives" },
+  "src/components/BrandLoader.tsx": { names: ["hf-loader-line"], why: "the loading screen's thin progress line, gone once the page arrives (the seal is pressed once and stays still)" },
   "src/styles/toasts.css": { names: ["hf-toast-spin"], why: "a loading notification's spinner, which becomes a check or an error when the work is done" },
 };
 

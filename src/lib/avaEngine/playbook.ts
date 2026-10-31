@@ -3,7 +3,7 @@
  * lines keyed off the brief (mirrors AvaFlowPreview prototype).
  */
 import type { BriefAnswer, JobBrief, Rigor } from "./types";
-import { CHAT_AGENT_CHANNEL_CHIPS, CS_INDUSTRY_CHIPS, HOW_TO_APPLY, channelForBrief, industryFromText } from "./customerService.ts";
+import { CHAT_AGENT_CHANNEL_CHIPS, CS_INDUSTRY_CHIPS, HOW_TO_APPLY, channelForBrief, industryForBusiness } from "./customerService.ts";
 import { A_COUNTRY, US_STATE_NAMES, isFullyRemoteText, placeSaysHybrid, placeSaysRemote } from "../jobLocation.ts";
 
 export type Family = "customer_service" | "cash" | "cleaner" | "admin" | "developer" | "general";
@@ -40,7 +40,8 @@ export function withRemoteFollowUps(defs: FollowUpDef[], workMode?: string): Fol
 export interface Playbook {
   label: string;
   /** The brief, when given, lets a follow-up start on the answer the business's own words point to. */
-  followUps: (answers: Record<string, number>, brief?: Pick<JobBrief, "roleTitle" | "whatTheyDo">) => FollowUpDef[];
+  /** businessName: the business's own name, read for the kind of business only when the role's words name none ("Bright Smile Dental"). */
+  followUps: (answers: Record<string, number>, brief?: Pick<JobBrief, "roleTitle" | "whatTheyDo"> & { businessName?: string | null }) => FollowUpDef[];
   reasoning: string[];
   rigor: { recommended: Rigor; rationale: string };
 }
@@ -1102,7 +1103,9 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
       // business's own words say email only ("Email Support Specialist"), else on Chat; words that say phone start on
       // Chat too, since phone is no longer offered.
       const channelDefault = channelForBrief({ roleTitle: brief?.roleTitle ?? "", whatTheyDo: brief?.whatTheyDo ?? "", followUps: [] }) === "email" ? 1 : 0;
-      const industryDefault = CS_INDUSTRY_CHIPS.findIndex(([, id]) => id === industryFromText(`${brief?.roleTitle ?? ""} ${brief?.whatTheyDo ?? ""}`));
+      // The role's own words first, then the business's name (industryForBusiness).
+      const industryId = industryForBusiness(`${brief?.roleTitle ?? ""} ${brief?.whatTheyDo ?? ""}`, brief?.businessName);
+      const industryDefault = Math.max(0, CS_INDUSTRY_CHIPS.findIndex(([, id]) => id === industryId));
       const industry = a["cs-industry"] ?? industryDefault;
       return [
         { id: "cs-channel", question: "How will they talk to your customers?", chips: CHAT_AGENT_CHANNEL_CHIPS.map(([label]) => label), def: channelDefault },
@@ -1118,13 +1121,13 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
           id: "cs-sensitive",
           question: "What private details will they see?",
           chips: ["Nothing sensitive", "Payment details", "Health details", "ID documents"],
-          def: CS_INDUSTRY_CHIPS[industry]?.[1] === "medical" ? 2 : CS_INDUSTRY_CHIPS[industry]?.[1] === "store" ? 1 : 0,
+          def: CS_INDUSTRY_CHIPS[industry]?.[1] === "medical" || CS_INDUSTRY_CHIPS[industry]?.[1] === "dental" ? 2 : CS_INDUSTRY_CHIPS[industry]?.[1] === "store" ? 1 : 0,
         },
         { id: "cs-tools", question: "What will they work in?", chips: ["Email and a chat box", "A help desk tool", "We'll train them"], def: 2 },
       ];
     },
     reasoning: [
-      "Reading the role and who they'll talk to",
+      "Reading the job and who they'll talk to",
       "Matching real situations from your kind of business",
       "Choosing a skills check with clear right answers",
       "Picking the chat practice they'll face",
@@ -1154,7 +1157,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
       ];
     },
     reasoning: [
-      "Reading the role and the day-to-day",
+      "Reading the job and the day-to-day",
       "Weighing responsibility — cash, team, pressure",
       "Choosing the right screening steps",
       "Writing practical, on-the-floor scenarios",
@@ -1186,7 +1189,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
       ];
     },
     reasoning: [
-      "Reading the role and the spaces involved",
+      "Reading the job and the spaces involved",
       "Weighing trust, reliability & lone working",
       "Choosing a light-but-honest screen",
       "Writing real on-the-job scenarios",
@@ -1215,7 +1218,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
       ];
     },
     reasoning: [
-      "Reading the role and the day-to-day",
+      "Reading the job and the day-to-day",
       "Weighing organization & confidentiality",
       "Choosing a focused, fair screen",
       "Writing real inbox & calendar scenarios",
@@ -1237,7 +1240,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
       // for an on-site job, so the plan was told both; the thirty-eighth review, M1.)
     ],
     reasoning: [
-      "Reading the role and the stack",
+      "Reading the job and the stack",
       "Weighing skills, ways of working & work setup",
       "Choosing a fair screen",
       "Writing questions about real work, not trivia",
@@ -1258,7 +1261,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
       { id: "gen-pressure", question: "How busy does a typical shift get?", chips: ["Calm & steady", "Steady with rushes", "High-volume, fast"], def: 1 },
     ],
     reasoning: [
-      "Reading the role and the day-to-day",
+      "Reading the job and the day-to-day",
       "Weighing what this role really needs",
       "Choosing the right screening steps",
       "Writing practical, role-specific scenarios",

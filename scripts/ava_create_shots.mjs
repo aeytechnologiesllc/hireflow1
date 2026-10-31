@@ -60,8 +60,8 @@ async function main() {
   await page.screenshot({ path: path.join(OUT, "dev-5-review-desktop.png"), fullPage: true });
 
   const genLabel = await page.locator("text=AI generated, text=Built with AI, text=Template fallback, text=Built from playbook").first().textContent().catch(() => "unknown");
-  await page.locator('footer button:has-text("Publish role")').click();
-  await page.waitForSelector("text=Your role is live", { timeout: 45000 });
+  await page.locator('footer button:has-text("Publish job")').click();
+  await page.waitForSelector("text=Your job is live", { timeout: 45000 });
   await sleep(800);
   await page.screenshot({ path: path.join(OUT, "dev-6-publish-desktop.png") });
 

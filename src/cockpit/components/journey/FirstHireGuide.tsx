@@ -59,6 +59,8 @@ function toGuideApplicant(row: ApplicantListRow): GuideApplicant {
     score: row.score,
     stepsDone: steps.filter((d) => d.state === "done" || d.state === "below" || d.state === "skipped").length,
     stepsTotal: Math.max(1, steps.length),
+    // "Ava suggests: decline" on the list: never among the best.
+    declineSuggested: row.recommendedAction === "reject",
   };
 }
 

@@ -23,13 +23,13 @@ import {
   MessageSquare,
   MessageSquareText,
   Pencil,
-  QrCode,
   Share2,
   ShieldCheck,
   Timer,
   Trophy,
 } from "lucide-react";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import { HeroBackground } from "@/components/ava/HeroBackground";
@@ -67,6 +67,7 @@ import { createJobFromFlow, fetchEmployerCompanyName } from "@/lib/jobFromFlow";
 import { EmailCheckDialog } from "@/components/business/EmailCheckDialog";
 import { isEmailNotVerifiedError, OWNER_MUST_CONFIRM_EMAIL } from "@/lib/emailCheck";
 import { geocodePlace, formatPlace } from "@/lib/geocode";
+import { placeSaysHybrid, placeSaysRemote } from "@/lib/jobLocation";
 import type { LucideIcon } from "lucide-react";
 import { candidateOrigin } from "@/lib/hosts";
 import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
@@ -85,18 +86,21 @@ const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["acc
   shortlist: { icon: Trophy, accent: "brass" },
 };
 
-/** The card's kind line where the engine's own name would mislead. Its
+/** The card's kind line, in the words the business reads everywhere else,
+ *  never the engine's own names (the run-through of 2026-10-31: "SCENARIO
+ *  QUESTIONS", "EQUIPMENT CHECK" and "APPLICATION" over friendly titles). Its
  *  interview phase is still called "voice_interview", but voice is off for
  *  every business (hasVoiceInterviews below), so it is saved as a typed chat
- *  interview: the card said "VOICE INTERVIEW" over a step where applicants
- *  type. "written interview" also lands on the chat mark (glyphForKind). */
+ *  interview. A card whose title already says the same shows only its mark
+ *  (PhaseRow). */
 const KIND_LABEL: Record<string, string> = {
-  voice_interview: "written interview",
-  // The engine's "quiz" and "simulation" in the words the rest of the app
-  // uses (the Phase 7 product audit); each still lands on its own mark in
-  // glyphForKind ("scenario", "chat").
-  quiz: "scenario questions",
+  application: "application form",
+  quiz: "skills check",
+  equipment_check: "computer check",
   simulation: "chat practice",
+  voice_interview: "written interview",
+  coding_test: "coding test",
+  shortlist: "shortlist",
 };
 
 /** A skills question's area as words ("fee_math" reads "Fee math"). */
@@ -236,6 +240,16 @@ function applyReviewEdits(flow: JobFlow, cards: ReviewPhaseCard[]): JobFlow {
 
 const DRAFT_SESSION_KEY = "ava-create-active";
 
+/** The Type that goes with a place while the business has not typed its own:
+ *  "Remote" beside "Full-time · On-site" was a contradiction the owner had to
+ *  notice and retype (the run-through of 2026-10-31). Read as briefFromForm
+ *  reads the place: remote first, then partly at home. */
+function typeForPlace(location: string): string {
+  if (placeSaysRemote(location) === "remote") return "Full-time · Remote";
+  if (placeSaysHybrid(location)) return "Full-time · Hybrid";
+  return DEFAULT_JOB_TYPE;
+}
+
 export default function AvaCreateJob() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -312,7 +326,7 @@ export default function AvaCreateJob() {
   // Belt-and-suspenders for the build screen itself: `generating` is meant to always settle
   // (flowGenerator.ts now bounds its own network call and falls back to a template on any
   // stall), but nothing upstream of this component can promise that forever — a future
-  // regression there must not leave the employer staring at "Building your hiring flow…"
+  // regression there must not leave the employer staring at "Building your hiring plan…"
   // with no way out.
   const [buildStuck, setBuildStuck] = useState(false);
 
@@ -332,10 +346,12 @@ export default function AvaCreateJob() {
   // in the brief (an answer left from an older draft is not read).
   const playbook = PLAYBOOKS.customer_service;
   const workMode = formBrief.workMode;
-  // The brief lets a follow-up start on what the business's own words point to (a dental office starts on "Medical or dental office").
+  // The brief lets a follow-up start on what the business's own words point to (a dental office starts on "Dental office"),
+  // and its name when the role's words name no kind of business ("Bright Smile Dental").
+  const businessName = profile?.company_name ?? null;
   const followUps = useMemo(
-    () => withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), workMode),
-    [playbook, chipAnswers, workMode, formBrief],
+    () => withRemoteFollowUps(playbook.followUps(chipAnswers, { ...formBrief, businessName }), workMode),
+    [playbook, chipAnswers, workMode, formBrief, businessName],
   );
   const briefAnswers = useCallback(
     (defs: typeof followUps) => chipAnswersToBriefAnswers([CHAT_AGENT_KIND, ...defs], { ...chipAnswers, [JOB_KIND_ID]: 0 }),
@@ -384,7 +400,7 @@ export default function AvaCreateJob() {
     setGenSource(null);
     const brief = briefFromForm({
       ...briefFields,
-      followUps: briefAnswers(withRemoteFollowUps(playbook.followUps(chipAnswers, formBrief), formBrief.workMode)),
+      followUps: briefAnswers(withRemoteFollowUps(playbook.followUps(chipAnswers, { ...formBrief, businessName }), formBrief.workMode)),
     });
     try {
       const result = await generateJobFlow({
@@ -396,11 +412,11 @@ export default function AvaCreateJob() {
       setReviewCards(flowToReviewCards(result.flow));
       setGenSource(result.source);
     } catch {
-      toast.error("Could not build flow — try again.");
+      toast.error("Could not build the plan. Try again.");
     } finally {
       setGenerating(false);
     }
-  }, [briefFields, chipAnswers, playbook, rigor, formBrief, briefAnswers]);
+  }, [briefFields, chipAnswers, playbook, rigor, formBrief, briefAnswers, businessName]);
 
   useEffect(() => {
     if (step === 3) {
@@ -410,7 +426,9 @@ export default function AvaCreateJob() {
   }, [step, runGeneration]);
 
   // Screening cards only — the job-post card is the listing, not a step. With none
-  // left there is nothing for Ava to read, so the role must not go live like that.
+  // left there is nothing for Ava to read, so the job must not go live like that.
+  // Every count of steps the business reads is this one (the run-through of
+  // 2026-10-31: "6 phases" and "6 screening steps" counted the job post).
   const screeningCardCount = reviewCards.filter((c) => c.id !== "job-post").length;
   const NO_SCREENING_NOTE = "Keep at least one screening step — with none, Ava has nothing to read and no one to shortlist.";
 
@@ -468,7 +486,7 @@ export default function AvaCreateJob() {
       await queryClient.invalidateQueries({ queryKey: ["showcase-jobs"] });
       await queryClient.invalidateQueries({ queryKey: ["showcase-dashboard"] });
       setStep(5);
-      toast.success("Role published");
+      toast.success("Job published");
     } catch (err) {
       // The database asks a business to confirm its email before its first job
       // goes live (20261025100000_business_email_check.sql). The owner gets the
@@ -510,8 +528,8 @@ export default function AvaCreateJob() {
     }
   };
 
-  // The chip that rides the rail is the job being built — initials of the role
-  // the employer typed, the same way the applicant rail carries a candidate's.
+  // The chip that rides the rail is the job being built — initials of the job
+  // title the employer typed, the same way the applicant rail carries a candidate's.
   // Empty until there is a role, so the chip never shows a placeholder.
   const travelerInitials = briefFields.role
     .trim()
@@ -524,11 +542,12 @@ export default function AvaCreateJob() {
   // What each gem has to show for itself so far. Only real state — an empty
   // receipt is honest, an invented one is not.
   const stepReceipts = {
-    // The role is already the traveller chip; a long title here wraps the rail.
+    // The job title is already the traveller chip; a long title here wraps the rail.
     "Brief": briefFields.role.trim() ? "Set" : null,
     "Follow-ups": followUps.length ? `${Object.keys(chipAnswers).length} of ${followUps.length}` : null,
-    "Rigor": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
-    "Ava builds": reviewCards.length ? `${reviewCards.length} phases` : null,
+    "How strict": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
+    // The applicant's steps only: the job post is the listing, not a step.
+    "Ava builds": reviewCards.length ? `${screeningCardCount} ${screeningCardCount === 1 ? "step" : "steps"}` : null,
     "Review plan": step > 4 ? "Approved" : null,
     "Publish": publishedCode ? "Live" : null,
   };
@@ -541,7 +560,7 @@ export default function AvaCreateJob() {
 
   const handleNext = () => {
     if (step === 0 && !canContinueBrief) {
-      toast.message("Add role, location, pay, and what they'll do.");
+      toast.message("Add the job title, location, pay, and what they'll do.");
       return;
     }
     if (step === 1 && fuIndex < followUps.length - 1) {
@@ -573,8 +592,8 @@ export default function AvaCreateJob() {
   const nextLabel = useMemo(() => {
     if (step === 0) return "Continue";
     if (step === 1) return fuIndex < followUps.length - 1 ? "Next question" : "Looks right";
-    if (step === 2) return "Build my flow";
-    if (step === 4) return publishing ? "Publishing…" : "Publish role";
+    if (step === 2) return "Build my hiring plan";
+    if (step === 4) return publishing ? "Publishing…" : "Publish job";
     return "Continue";
   }, [step, fuIndex, followUps.length, publishing]);
 
@@ -614,7 +633,11 @@ export default function AvaCreateJob() {
 
   return (
     <div
-      className="ava-flow scroll-perf relative flex h-[100dvh] flex-col overflow-hidden"
+      // The shell's frame, not a screen: the cockpit gives this route a main
+      // with no padding that never scrolls (FILLS_FRAME_ROUTES in
+      // src/cockpit/Shell.tsx). A screen tall inside the padded main, the end
+      // of the plan scrolled the shell 58px and cut the step rail off.
+      className="ava-flow scroll-perf relative flex h-full min-h-0 flex-col overflow-hidden"
       style={{ background: "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-action-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))", color: "hsl(var(--foreground))" }}
     >
       <style>{FOCUS_CSS}</style>
@@ -635,7 +658,10 @@ export default function AvaCreateJob() {
 
       <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>
 
-      <main className="relative z-10 flex min-h-0 flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
+      {/* The builder's own scroller holds the wheel at its ends, so reaching
+          the end of the plan never moves anything behind it (the shell's main
+          does not scroll on this route; scripts/guards/no-scroll-traps.mjs). */}
+      <main className="relative z-10 flex min-h-0 flex-1 justify-center overflow-y-auto px-4 py-6 sm:px-6 sm:py-10" style={{ overscrollBehaviorY: "contain" }}>
         <div className="my-auto w-full max-w-5xl">
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduceMotion ? undefined : { opacity: 0 }} transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.4, 0, 0.2, 1] }}>
@@ -647,18 +673,18 @@ export default function AvaCreateJob() {
                     </span>
                     <h1 className="mt-4 text-3xl leading-[1.1] sm:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Tell Ava about the<br className="hidden sm:block" /> chat agent you need.</h1>
                     <p className="mt-3 max-w-sm text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
-                      A few details about the role, then a few quick questions about your customers. I'll draft the job post and the tests that fit your business.
+                      A few details about the job, then a few quick questions about your customers. I'll draft the job post and the tests that fit your business.
                     </p>
                   </div>
                   <div className="rounded-2xl p-5 sm:p-6" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div className="sm:col-span-2">
-                        <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Role title</label>
+                        <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Job title</label>
                         <input value={briefFields.role} onChange={(e) => setBrief("role", e.target.value)} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Chat support agent, Email support, Patient messaging…" />
                       </div>
                       <div>
                         <label className="block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Location</label>
-                        <input value={briefFields.location} onChange={(e) => { setBrief("location", e.target.value); setGeoPreview(null); }} onBlur={resolveLocation} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Any city or country — e.g. Makati, Austin, or 'Remote'" />
+                        <input value={briefFields.location} onChange={(e) => { const location = e.target.value; setBriefFields((b) => ({ ...b, location, ...(b.typeChosen ? {} : { type: typeForPlace(location) }) })); setGeoPreview(null); }} onBlur={resolveLocation} className="mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }} placeholder="Any city or country — e.g. Makati, Austin, or 'Remote'" />
                         {geoLoading && (
                           <div className="mt-1.5 flex items-center gap-1.5 text-[12px]" style={{ color: "hsl(var(--muted-foreground))" }}>
                             <Loader2 className="h-3 w-3 animate-spin" /> Finding that place…
@@ -704,7 +730,7 @@ export default function AvaCreateJob() {
                   <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
                     <span className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · Question {fuIndex + 1} of {followUps.length}</span>
                     <span className="mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold" style={{ background: "hsl(var(--primary) / 0.1)", color: "hsl(var(--ck-action-bright))", border: "1px solid hsl(var(--primary) / 0.22)" }}>
-                      <AvaSeal size={11} /> {playbook.label === "this role" ? "Tailored to this role" : `Tailored to ${/^[aeiou]/i.test(playbook.label) ? "an" : "a"} ${playbook.label} role`}
+                      <AvaSeal size={11} /> {playbook.label === "this role" ? "Tailored to this job" : `Tailored to ${/^[aeiou]/i.test(playbook.label) ? "an" : "a"} ${playbook.label} job`}
                     </span>
                     <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>{fu.question}</h2>
                     <div className="mt-7 flex flex-wrap justify-center gap-2.5">
@@ -723,7 +749,7 @@ export default function AvaCreateJob() {
 
               {step === 2 && (
                 <div className="mx-auto max-w-3xl text-center">
-                  <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>How thoroughly should I screen?</h2>
+                  <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>How strict should I be?</h2>
                   <div className="mx-auto mt-5 flex max-w-xl items-start gap-3 rounded-2xl p-4 text-left" style={{ background: "hsl(var(--primary) / 0.08)", border: "1px solid hsl(var(--primary) / 0.3)" }}>
                     <AvaSeal size={16} className="mt-1 shrink-0" />
                     <p className="text-sm leading-relaxed">I'd screen this at <strong style={{ color: "hsl(var(--ck-brass-bright))" }}>{RIGOR_OPTIONS.find((o) => o.id === playbook.rigor.recommended)?.label}</strong>. {playbook.rigor.rationale}</p>
@@ -819,9 +845,9 @@ export default function AvaCreateJob() {
               {step === 5 && publishedCode && (
                 <div className="mx-auto flex max-w-md flex-col items-center text-center">
                   <span className="mt-4 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ background: "hsl(var(--ck-action) / 0.16)", color: "hsl(var(--ck-action-bright))" }}>
-                    <Check className="h-3 w-3" /> Your role is live
+                    <Check className="h-3 w-3" /> Your job is live
                   </span>
-                  <h2 className="mt-4 text-3xl sm:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Share your role.</h2>
+                  <h2 className="mt-4 text-3xl sm:text-4xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Share your job.</h2>
                   <div className="mt-6 w-full rounded-2xl p-5" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
                     <span className="flex items-center gap-1.5 text-left text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: "hsl(var(--muted-foreground))" }}><Share2 className="h-3 w-3" /> Job page link</span>
                     <div className="mt-2 flex items-center justify-between gap-2 rounded-xl px-3.5 py-3" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }}>
@@ -830,13 +856,21 @@ export default function AvaCreateJob() {
                         <Copy className="h-3.5 w-3.5" /> Copy
                       </button>
                     </div>
-                    <div className="mt-3 flex items-center gap-3">
-                      <span className="grid h-16 w-16 shrink-0 place-items-center rounded-xl" style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" }}><QrCode className="h-9 w-9" /></span>
-                      <div className="text-left">
+                    <div className="mt-3 flex items-center gap-3.5">
+                      {/* A real code for the same link (the run-through of 2026-10-31: a QR icon here looked scannable
+                          and was not). Dark on paper in either theme, so a phone can read it. */}
+                      <span className="shrink-0 rounded-xl p-1.5" style={{ background: "#F7F4EA", border: "1px solid hsl(var(--border))" }} data-done-qr>
+                        <QRCodeSVG value={applyLink} size={84} bgColor="#F7F4EA" fgColor="#17150F" level="M" role="img" aria-label="QR code for the job page link" />
+                      </span>
+                      <div className="min-w-0 text-left">
                         <span className="text-[11px]" style={{ color: "hsl(var(--muted-foreground))" }}>Job code</span>
-                        <button type="button" onClick={() => void navigator.clipboard.writeText(publishedCode).then(() => toast.success("Code copied"))} className="mt-1 flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-xs font-semibold tracking-wider" style={{ background: "hsl(var(--primary) / 0.12)", color: "hsl(var(--ck-brass-bright))", border: "1px solid hsl(var(--primary) / 0.3)" }}>
+                        <button type="button" onClick={() => void navigator.clipboard.writeText(publishedCode).then(() => toast.success("Code copied"))} className="mt-1 flex items-center gap-1.5 rounded-md px-2.5 py-1 font-mono text-xs font-semibold tracking-wider" style={{ background: "hsl(var(--primary) / 0.12)", color: "hsl(var(--ck-action-bright))", border: "1px solid hsl(var(--primary) / 0.3)" }}>
                           {publishedCode} <Copy className="h-3 w-3 opacity-70" />
                         </button>
+                        {/* What the code is for: the applicants' "Enter job code" page opens the job by it (ApplyWithCode). */}
+                        <p className="mt-1.5 text-[12px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }} data-job-code-help>
+                          For someone without the link: they type this code at {candidateOrigin().replace(/^https?:\/\//, "")}/candidate/apply to open this job.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -856,7 +890,7 @@ export default function AvaCreateJob() {
                     )}
                   </div>
                   <p className="mt-5 text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>
-                    <CountUp value={reviewCards.length} /> screening steps · applicants apply at <code className="text-[11px]">{applyLink.replace(/^https?:\/\//, "")}</code>
+                    <CountUp value={screeningCardCount} /> {screeningCardCount === 1 ? "step" : "steps"} for applicants · they apply at <code className="text-[11px]">{applyLink.replace(/^https?:\/\//, "")}</code>
                   </p>
                   {publishedRoleId && (
                     <Link to="/jobs" className="mt-4 text-sm font-medium" style={{ color: "hsl(var(--ck-brass))" }}>View in Jobs →</Link>

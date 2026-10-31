@@ -115,7 +115,7 @@ function TrafficSection({ days, applications, roles }: { days: CareersTrafficDay
       <p className="mt-1 max-w-[62ch] text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
         {since
           ? `Visits since ${format(since, "MMM d")}. Your own previews from the staff site are not counted.`
-          : "Counting starts tomorrow, the first full day your role is live."}
+          : "Counting starts tomorrow, the first full day your job is live."}
       </p>
       <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
         {metrics.map((m) => (

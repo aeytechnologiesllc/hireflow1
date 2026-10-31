@@ -174,13 +174,24 @@ check("no prices while billing is off", !/\$\d|per month|\/mo\b|pricing/i.test(p
 check("the headline is there from the first paint (written in the page, never hidden to rise in)", !/translateY\(112%\)/.test(page) && !/h1[^{}]*\{[^}]*opacity:\s*0/.test(page) && !/\bh1 \.ln\{[^}]*opacity/.test(page));
 check("the fonts never block the first paint", /fonts\.googleapis\.com\/css2[^"]*" media="print" onload="this\.media='all'">/.test(page) && !/<link href="https:\/\/fonts\.googleapis\.com\/css2[^"]*" rel="stylesheet">/.test(page));
 check("…and the desk waits for them (a second at most), the stylesheet first", /const l = document\.getElementById\("hfFontCss"\);\s*if \(!l \|\| l\.media === "all"\) return r\(\);/.test(page) && /new Promise\(r => setTimeout\(\(\) => r\(false\), 1000\)\)/.test(page) && /document\.fonts\.addEventListener\("loadingdone"/.test(page));
-check(
-  "one logo: the jade rising line on the deep green tile, not the brass on ink",
-  /<span class="tile"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3FCE97" stroke-width="2\.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 L9 7 L14 15 L20 6"\/><\/svg><\/span>/.test(page) &&
-    /\.logo \.tile\{[^}]*background:#0C2A21/.test(page) &&
-    !/#E0B96A|#14120E/i.test(page) &&
-    !/<b>H<\/b>HireFlow/.test(page),
-);
+// The bar's logo is the green seal (the owner's "D", 2026-10-31): the wax
+// rim, the wax, the inner disc and the rising line pressed in, in the app
+// icon's own colours, drawn as at every bar size (the favicon's larger line). Never the deep green tile with the jade line it
+// replaced, never the brass on ink, never the ivory "H".
+{
+  const logo = /<a class="logo" href="#hero">([\s\S]*?)<\/a>/.exec(page)?.[1] ?? "";
+  check(
+    "one logo: the green seal in the bar, the rising line pressed into it",
+    /^\s*<svg class="mark" width="34" height="34" viewBox="0 0 64 64" aria-hidden="true">/.test(logo) &&
+      /fill="#0A4A35"/.test(logo) && /<circle cx="32" cy="32" r="26\.5" fill="#13734F"\/>/.test(logo) && /fill="#11694C"/.test(logo) &&
+      /<path d="M18\.4 41\.9 L25\.5 25 L32\.7 36\.4 L45\.7 21\.1" fill="none" stroke="#063A27" stroke-width="7"/.test(logo) &&
+      /<\/svg>\s*HireFlow\s*$/.test(logo) &&
+      /\.logo \.mark\{width:34px;height:34px;/.test(page) &&
+      !/#0C2A21|#3FCE97|class="tile"/i.test(logo) && !/\.logo \.tile\b/.test(page) &&
+      !/#E0B96A|#14120E/i.test(page) &&
+      !/<b>H<\/b>HireFlow/.test(page),
+  );
+}
 check("structured data: the organisation (with its legal name) and the app", /"@type":"Organization"[^}]*"legalName":"Southern Digital Technologies LLC"/.test(page) && /"@type":"SoftwareApplication"/.test(page));
 check("an About line in the footer", /<a href="#about">About<\/a>/.test(page) && /<footer class="lp-foot" id="about">/.test(page) && /HireFlow is made by Southern Digital Technologies LLC\./.test(page));
 check("no early-access wording or buttons anywhere", !/early access|data-cta/i.test(page));

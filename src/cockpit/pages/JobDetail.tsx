@@ -106,7 +106,7 @@ export default function CockpitJobDetail() {
     } catch (error) {
       console.error("Failed to close job:", error);
       const said = error instanceof Error && /^Your team role|isn't there any more/.test(error.message) ? error.message : null;
-      toast.error(said ?? "Couldn't close this role. Please try again.");
+      toast.error(said ?? "Couldn't close this job. Please try again.");
     }
   };
 
@@ -139,7 +139,7 @@ export default function CockpitJobDetail() {
                 disabled={updateJob.isPending}
                 onClick={() => void closeRole()}
               >
-                Close role
+                Close job
               </button>
             )}
             {!draft && (

@@ -46,8 +46,8 @@ self.addEventListener("push", (event) => {
   const title = (message && message.title) || "HireFlow";
   const options = {
     body: (message && message.body) || "",
-    icon: "/icon-192.png?v=8",
-    badge: "/favicon-32.png?v=8",
+    icon: "/icon-192.png?v=9",
+    badge: "/favicon-32.png?v=9",
     data: { url: ownPath(message && message.url) },
   };
   if (message && message.tag) options.tag = String(message.tag);

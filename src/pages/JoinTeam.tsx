@@ -14,6 +14,7 @@ import BrandLoader from "@/components/BrandLoader";
 import { motion } from "framer-motion";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { getErrorMessage } from "@/lib/utils";
+import { AUTH_DESK_CSS } from "@/components/auth/authDesk";
 
 interface InvitationData {
   invitee_email: string | null;
@@ -353,7 +354,7 @@ export default function JoinTeam() {
   // A closed link waits for its answer (asked for whoever is signed in).
   if (loading || (linkClosed && !error)) {
     return (
-      <div className="dark">
+      <div>
         <BrandLoader message="Loading invitation..." />
       </div>
     );
@@ -361,7 +362,10 @@ export default function JoinTeam() {
 
   if (error) {
     return (
-      <div className="dark min-h-screen flex items-center justify-center bg-[hsl(220,18%,10%)] text-white p-4">
+      <div className="auth-desk min-h-screen flex items-center justify-center p-4">
+        {/* The sign-in pages' desk (src/components/auth/authDesk.ts): it was a
+            slate-blue Night page of its own, whatever the theme. */}
+        <style>{AUTH_DESK_CSS}</style>
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <div className="mx-auto p-3 rounded-full bg-destructive/10 w-fit mb-4">
@@ -420,7 +424,10 @@ export default function JoinTeam() {
       : "View Only";
 
   return (
-    <div className="dark min-h-screen flex items-center justify-center bg-[hsl(220,18%,10%)] text-white p-4">
+    <div className="auth-desk min-h-screen flex items-center justify-center p-4">
+        {/* The sign-in pages' desk (src/components/auth/authDesk.ts): it was a
+            slate-blue Night page of its own, whatever the theme. */}
+        <style>{AUTH_DESK_CSS}</style>
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

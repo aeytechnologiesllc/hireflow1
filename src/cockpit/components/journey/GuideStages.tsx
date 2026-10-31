@@ -2,7 +2,7 @@ import { useCallback, useState, type CSSProperties, type ReactNode } from "react
 import { ArrowUpRight, Bell, Check, ChevronRight, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { clip, avaProse } from "../../lib/avaProse";
-import { alertsWords, appliedDetail, appliedHeadline, readyHeadline, type ApplicantCounts, type GuideApplicant } from "../../lib/firstHireStage";
+import { alertsWords, appliedDetail, appliedHeadline, readyDetail, readyHeadline, type ApplicantCounts, type GuideApplicant } from "../../lib/firstHireStage";
 import type { ApplicantListRow } from "../../lib/applicantList";
 import type { Candidate } from "../../data";
 import CkAvatar from "../Avatar";
@@ -76,7 +76,7 @@ export function PostStage({ draftTitle, onPostJob, wide }: { draftTitle: string 
   const drafting = draftTitle !== null;
   const sub = drafting
     ? `${draftTitle ? `\u201c${draftTitle}\u201d is saved. ` : ""}A few more minutes and people can apply.`
-    : "Tell HireFlow about the role. It writes the application questions, the skills check and the chat practice for you. About five minutes.";
+    : "Tell Ava about the job. She writes the application questions, the skills check and the chat practice for you. About five minutes.";
   return (
     <div className={wide ? "flex items-center justify-between gap-8" : "flex flex-col gap-4"}>
       {/* On a phone the step above already says "Post your first job". */}
@@ -321,12 +321,15 @@ export function ReadyStage({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <Heading sub="All finished. Here is how they scored.">{readyHeadline(readyCount)}</Heading>
-      <div className="mt-1" data-guide-people>
-        {top.map((p, i) => (
-          <ReadyRow key={p.id} person={p} candidate={candidatesById.get(p.id)} role={roleOf(p)} first={i === 0} onOpen={() => onOpenPerson(p.id)} />
-        ))}
-      </div>
+      {/* Only people worth a call are listed as the best (firstHireStage's GOOD_SCORE). */}
+      <Heading sub={readyDetail(top.length, readyCount)}>{readyHeadline(top.length, readyCount)}</Heading>
+      {top.length > 0 && (
+        <div className="mt-1" data-guide-people>
+          {top.map((p, i) => (
+            <ReadyRow key={p.id} person={p} candidate={candidatesById.get(p.id)} role={roleOf(p)} first={i === 0} onOpen={() => onOpenPerson(p.id)} />
+          ))}
+        </div>
+      )}
       <div className={`flex gap-3 pt-3 ${wide ? "items-center justify-between" : "flex-col"}`} style={{ borderTop: ROW_RULE }}>
         <p className="text-[13px] max-[640px]:hidden" style={SOFT}>
           Open anyone to read their answers, then pass or move them on.

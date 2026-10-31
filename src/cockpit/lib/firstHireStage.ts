@@ -13,7 +13,9 @@
  *   share     a live job and nobody has applied
  *   applying  people applied, nobody has finished the tests (or the one who
  *             has is still being read)
- *   ready     at least one finished and scored, no decision made on anyone
+ *   ready     at least one finished and scored, no decision made on anyone;
+ *             only those at or above the good bar (GOOD_SCORE) that Ava does
+ *             not suggest declining are listed as the best
  *   done      any decision exists (an interview, an offer, a hire or a pass),
  *             or the business has closed a job: the normal dashboard
  *
@@ -46,6 +48,22 @@ export interface GuideApplicant {
   /** Steps done, and how many there are (for ordering a short list). */
   stepsDone?: number;
   stepsTotal?: number;
+  /** Ava suggests declining them (her scorecard's recommendedAction is "reject"). */
+  declineSuggested?: boolean;
+}
+
+/**
+ * The good bar: a score of 70 or more is "worth a call" (the --good colour,
+ * the Applicants list's Shortlist). The front page promises "three worth a
+ * call", so the guide's "best" are only people at or above it whom Ava does
+ * not suggest declining (the run-through of 2026-10-31: "Your best three"
+ * listed a 34 the Applicants list said to decline).
+ */
+export const GOOD_SCORE = 70;
+
+/** Worth a call: finished, scored at or above the good bar, and not a decline Ava suggests. */
+export function isWorthACall(a: GuideApplicant): boolean {
+  return !a.onForm && a.finished && a.score != null && a.score >= GOOD_SCORE && !a.declineSuggested;
 }
 
 /** A decision: the owner has done something about a person. */
@@ -71,7 +89,8 @@ export type FirstHireStage =
   | { stage: "post"; draft: GuideJob | null }
   | { stage: "share"; job: GuideJob }
   | { stage: "applying"; job: GuideJob; counts: ApplicantCounts; people: GuideApplicant[] }
-  | { stage: "ready"; job: GuideJob; top: GuideApplicant[]; readyCount: number }
+  /** top: the best, worth a call only, best first, at most GUIDE_LIST_MAX; bestCount: everyone worth a call. */
+  | { stage: "ready"; job: GuideJob; top: GuideApplicant[]; readyCount: number; bestCount: number }
   | { stage: "done" };
 
 export type FirstHireStageKey = FirstHireStage["stage"];
@@ -127,8 +146,8 @@ export function firstHireStage(input: { jobs: readonly GuideJob[]; applicants: r
   if (readyJobs.length > 0) {
     const job = busiest(readyJobs, (j) => inJob(j).filter(isReady).length);
     const ready = inJob(job).filter(isReady);
-    const top = [...ready].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, GUIDE_LIST_MAX);
-    return { stage: "ready", job, top, readyCount: ready.length };
+    const best = ready.filter(isWorthACall).sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+    return { stage: "ready", job, top: best.slice(0, GUIDE_LIST_MAX), readyCount: ready.length, bestCount: best.length };
   }
 
   // Nobody scored yet. The job to name is the one with the most people; a
@@ -159,11 +178,23 @@ export function appliedDetail(c: ApplicantCounts): string {
   return parts.join(" ");
 }
 
-/** The headline of the "ready" step, by how many there are. */
-export function readyHeadline(readyCount: number): string {
-  if (readyCount <= 1) return "Your first applicant is ready.";
-  if (readyCount === 2) return "Your best two are ready.";
+/**
+ * The headline of the "ready" step: `shown` are the best listed (worth a
+ * call, at most three), `readyCount` everyone finished and scored. "Best" is
+ * said only of people worth a call.
+ */
+export function readyHeadline(shown: number, readyCount: number): string {
+  if (shown <= 0) return `${plural(readyCount, "applicant has", "applicants have")} finished.`;
+  if (shown === 1) return readyCount === 1 ? "Your first applicant is ready." : "Your best one is ready.";
+  if (shown === 2) return "Your best two are ready.";
   return "Your best three are ready.";
+}
+
+/** The line under it: how they scored, and how many are worth a call when not everyone is. */
+export function readyDetail(shown: number, readyCount: number): string {
+  if (shown <= 0) return `None has scored ${GOOD_SCORE} or more yet. Read their answers before you decide.`;
+  if (readyCount <= shown) return "All finished. Here is how they scored.";
+  return `${readyCount} have finished. ${shown === 1 ? "This one is" : "These are"} worth a call.`;
 }
 
 /* ── The steps across the top ──────────────────────────────────────────── */

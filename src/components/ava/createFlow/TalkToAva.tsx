@@ -349,7 +349,7 @@ export default function TalkToAva({ step, planVisible, reviewCards, onBriefPatch
               <Check className="h-4 w-4" />
             </span>
             <p className="text-[13.5px] leading-snug" style={{ color: "hsl(var(--foreground) / 0.85)" }}>
-              Ava stepped back — hit <strong style={{ color: "hsl(var(--ck-brass-bright))" }}>Publish role</strong> when you're ready.
+              Ava stepped back — hit <strong style={{ color: "hsl(var(--ck-brass-bright))" }}>Publish job</strong> when you're ready.
             </p>
           </div>
         </div>

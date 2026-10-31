@@ -14,7 +14,7 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
 import { AFTER_SIGN_IN_STATE } from "@/lib/resumeOnComputer";
 import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
-import { HeroBackground } from "@/components/ava/HeroBackground";
+import { AUTH_DESK_CSS } from "@/components/auth/authDesk";
 import { Wordmark } from "@/cockpit/components/Wordmark";
 import { usePageHead } from "@/components/seo/usePageHead";
 import { GlyphLetter } from "@/components/candidate/glyphs";
@@ -542,29 +542,12 @@ export default function CandidateAuth() {
   }
 
   return (
-    <div
-      className="candidate-auth-theme scroll-perf relative min-h-[100dvh] overflow-y-auto overflow-x-hidden"
-      style={{ background: "var(--hf-bg)", color: "var(--hf-text)" }}
-    >
-      <style>{`
-        /* Same token-driven treatment as the employer Auth screen — this page
-           carries no private palette of its own; only what's genuinely local
-           to it lives here. */
-        .candidate-auth-theme h1,.candidate-auth-theme h2{font-family:'Fraunces',Georgia,serif;font-weight:500;letter-spacing:-0.01em;}
-        .candidate-auth-theme .auth-card{border-color:var(--hf-border);background:var(--hf-surface);}
-        .candidate-auth-theme input{background:var(--ground);border-color:var(--line);transition:border-color .18s ease, box-shadow .18s ease;}
-        .candidate-auth-theme input:focus,.candidate-auth-theme input:focus-visible{
-          outline:none;
-          border-color:var(--hf-gold);
-          box-shadow:0 0 0 1px var(--hf-gold-border);
-          --tw-ring-color:transparent;
-          --tw-ring-offset-width:0px;
-          --tw-ring-shadow:0 0 #0000;
-          --tw-ring-offset-shadow:0 0 #0000;
-        }
-      `}</style>
-
-      <HeroBackground />
+    <div className="candidate-auth-theme auth-desk scroll-perf relative min-h-[100dvh] overflow-y-auto overflow-x-hidden">
+      {/* The same desk as the business sign-in (src/components/auth/authDesk.ts):
+          the front page's sage, a paper card, no network of dots and lines. */}
+      <style>{AUTH_DESK_CSS}</style>
+      {/* The front page's own fonts at its exact address (public/landing.html), so a visitor from the front page has them already; only Besley is drawn here. */}
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Besley:ital,wght@0,500..800;1,500..600&family=Courier+Prime&family=Schibsted+Grotesk:wght@400..700&display=swap" />
 
       <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8">
         <Link
@@ -584,25 +567,14 @@ export default function CandidateAuth() {
             className="flex flex-col items-center lg:items-start"
           >
             <Wordmark size={30} />
-            <span
-              className="mt-4 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-bold uppercase tracking-[0.16em]"
-              style={{
-                borderColor: "var(--hf-gold-border)",
-                color: "var(--hf-gold)",
-                background: "var(--hf-gold-soft)",
-              }}
-            >
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: "var(--hf-action)" }}
-              />
+            <p className="auth-kicker mt-6 text-center lg:text-left">
               {backToJob ? (applyingForTitle ? "Applying for" : "Your application") : "Candidate Portal"}
-            </span>
+            </p>
             {/* Sent here by a job's Apply: the heading is that job, so the
                 person knows they are on the right path (not a "portal"). */}
             {backToJob && applyingForTitle ? (
               <>
-                <h1 className="mt-4 max-w-xl break-words text-2xl leading-[1.15] text-center lg:text-left lg:text-[2.2rem] [overflow-wrap:anywhere]">
+                <h1 className="mt-2 max-w-xl break-words text-2xl leading-[1.15] text-center lg:text-left lg:text-[2.2rem] [overflow-wrap:anywhere]">
                   {applyingForTitle}
                 </h1>
                 {applyingForCompany && (
@@ -612,7 +584,7 @@ export default function CandidateAuth() {
                 )}
               </>
             ) : (
-              <h1 className="mt-4 text-3xl lg:text-[2.6rem] leading-[1.08] text-center lg:text-left">
+              <h1 className="mt-2 text-3xl lg:text-[2.6rem] leading-[1.1] text-center lg:text-left">
                 Every application, one home.
               </h1>
             )}
@@ -633,14 +605,8 @@ export default function CandidateAuth() {
           >
             <div
               ref={formRef}
-              className="auth-card relative border rounded-2xl p-5 sm:p-8 shadow-[0_28px_80px_-16px_rgba(0,0,0,0.6)]"
+              className="auth-card relative rounded-2xl p-5 sm:p-8"
             >
-              {/* the brass rule across the head of the letterhead */}
-              <span
-                aria-hidden
-                className="absolute left-6 right-6 sm:left-8 sm:right-8 top-0 h-[2.5px] rounded-full"
-                style={{ background: "var(--brass-line)" }}
-              />
 
               {isResettingPassword ? (
                 /* Set-a-new-password view — where the emailed reset link lands.

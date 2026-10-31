@@ -1,80 +1,77 @@
 /**
  * BrandLoader — the one loading moment, everywhere.
  *
- * The jade rising line draws itself inside the deep green tile, glints, and
- * draws again: applications come in flat, Ava lifts the ones worth your time —
- * the logo telling its own story while you wait. The mark keeps the icon's own
- * colours (Wordmark.tsx, scripts/make-app-icons.mjs) in both themes; the
- * ground and the words follow the theme's tokens, so it is sage paper by Day
- * and warm ink by Night, and correct on candidate surfaces too. The fallbacks
- * are Day's (Sage paper), the theme the app opens in.
+ * The green seal (the logo since 2026-10-31; SealMark in Wordmark.tsx) is
+ * pressed once, a short stamp, and then stays still; under it the name, a
+ * thin line that slides gently while the page arrives, and the message. Calm
+ * on purpose: no glow, nothing that draws itself again and again. The seal
+ * keeps the wax's own colours in both themes; the ground and the words follow
+ * the theme's tokens, so it is sage paper by Day and warm ink by Night, and
+ * correct on candidate surfaces too. The fallbacks are Day's (Sage paper),
+ * the theme the app opens in.
  *
- * Replaces two loaders that predated the design: a WebGL orb on hardcoded
- * the old dark tile at sign-in, and a lone seal breathing on the route
- * fallback. Reduced motion: the finished mark, no animation.
+ * The thin line is the only loop, and the loader is on screen only while
+ * something loads (scripts/guards/no-endless-animations.mjs allows it here).
+ * Reduced motion: the seal and the line, both still.
  */
 import { type ReactNode } from "react";
+import { SealMark } from "@/cockpit/components/Wordmark";
 
 export function BrandLoader({
   message,
   children,
 }: {
   message?: string;
-  /** Optional slot under the mark — AuthLoadingScreen puts its cycling copy here. */
+  /** Optional slot under the message. */
   children?: ReactNode;
 }) {
   return (
     <div
-      className="hf-loader flex min-h-[100dvh] flex-col items-center justify-center gap-6 px-6"
+      className="hf-loader flex min-h-[100dvh] flex-col items-center justify-center gap-3 px-6"
       style={{ background: "var(--ground, #DEE3D5)", color: "var(--ink, #1D3329)" }}
     >
       <style>{`
-        .hf-loader .tile {
-          width: 64px; height: 64px; border-radius: 14px;
-          background: #0C2A21;
-          box-shadow: var(--shadow-md, 0 10px 22px -14px rgba(22,40,31,.34)), inset 0 0 0 1px rgba(63, 206, 151, 0.22);
-          display: flex; align-items: center; justify-content: center;
+        .hf-loader .press {
+          display: block; transform-origin: 50% 50%;
+          filter: drop-shadow(-1px 3px 3px rgba(10, 40, 28, 0.28));
+          animation: hf-seal-press 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.1s 1 both;
         }
-        .hf-loader .rise {
-          stroke-dasharray: 1; stroke-dashoffset: 1;
-          animation: hf-rise-draw 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-        }
-        @keyframes hf-rise-draw {
-          0%        { stroke-dashoffset: 1;  opacity: 1; }
-          42%, 74%  { stroke-dashoffset: 0;  opacity: 1; }
-          88%, 100% { stroke-dashoffset: 0;  opacity: 0; }
+        @keyframes hf-seal-press {
+          0%   { transform: scale(1.4);  opacity: 0; }
+          55%  { transform: scale(0.95); opacity: 1; }
+          100% { transform: scale(1);    opacity: 1; }
         }
         .hf-loader .name {
-          font-family: Fraunces, Georgia, serif; font-weight: 600;
-          font-size: 21px; letter-spacing: -0.01em;
-          animation: hf-name-breathe 2.4s ease-in-out infinite;
+          margin-top: 4px;
+          font-size: 21px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.15;
         }
-        @keyframes hf-name-breathe { 0%, 100% { opacity: 0.85; } 55% { opacity: 1; } }
+        .hf-loader .line {
+          position: relative; width: 120px; height: 2px; border-radius: 2px; overflow: hidden;
+          background: var(--line, #C4CCBB);
+        }
+        .hf-loader .line i {
+          position: absolute; inset: 0 auto 0 0; width: 40%; border-radius: 2px;
+          background: currentColor; opacity: 0.6;
+          transform: translateX(-110%);
+          animation: hf-loader-line 1.6s cubic-bezier(0.45, 0, 0.25, 1) 0.4s infinite;
+        }
+        @keyframes hf-loader-line { from { transform: translateX(-110%); } to { transform: translateX(260%); } }
         @media (prefers-reduced-motion: reduce) {
-          .hf-loader .rise { animation: none; stroke-dashoffset: 0; }
-          .hf-loader .name { animation: none; }
+          .hf-loader .press { animation: none; }
+          .hf-loader .line i { animation: none; transform: translateX(75%); }
         }
       `}</style>
 
-      <div className="flex items-center gap-4">
-        <div className="tile">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path
-              className="rise"
-              d="M4 18 L9 7 L14 15 L20 6"
-              pathLength={1}
-              stroke="#3FCE97"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
-        </div>
-        <span className="name">HireFlow</span>
-      </div>
+      <span className="press">
+        <SealMark size={64} />
+      </span>
+      <span className="name font-display">HireFlow</span>
+      <span className="line" aria-hidden="true">
+        <i />
+      </span>
 
       {message && (
-        <p className="text-center text-sm font-medium" style={{ color: "var(--ink-3, #4B5D53)" }}>
+        <p className="mt-2 text-center text-sm font-medium" style={{ color: "var(--ink-3, #4B5D53)" }}>
           {message}
         </p>
       )}

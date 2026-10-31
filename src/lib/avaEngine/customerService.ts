@@ -17,9 +17,13 @@ import type { JobBrief, QuizConfig, ScreeningPhase, SimulationConfig, VoiceConfi
 import { bankForFamily } from "./questionBanks.ts";
 import { inferCountryCode } from "../jobLocation.ts";
 
-/** The "What kind of business is it?" chips, in order, and the pack each picks. */
+/** The "What kind of business is it?" chips, in order, and the pack each picks.
+ *  A dental office has its own (the run-through of 2026-10-31: "Medical or
+ *  dental office" gave a dental office chest pain, blood tests and a knee scan,
+ *  and nothing on cleanings, fillings or dental insurance). */
 export const CS_INDUSTRY_CHIPS: ReadonlyArray<readonly [string, ScenarioPackId]> = [
-  ["Medical or dental office", "medical"],
+  ["Medical office or clinic", "medical"],
+  ["Dental office", "dental"],
   ["Online store", "store"],
   ["Software or app", "software"],
   ["Home services", "home_services"],
@@ -44,16 +48,43 @@ export const CHAT_AGENT_CHANNEL_CHIPS: ReadonlyArray<readonly [string, CsChannel
   ["Chat and email", "chat"],
 ];
 
+/** What the builder offered before dental had its own chip, read as the pack it picked then (an answer in a draft or an older brief). */
+const OLDER_INDUSTRY_CHIPS: ReadonlyArray<readonly [string, ScenarioPackId]> = [["Medical or dental office", "medical"]];
+
+// A dental office says so ("Bright Smile Dental", "dental clinic", "our dentists", "orthodontic practice"). A plan the
+// staff get is no business ("Benefits: medical and dental insurance", "free dental check-ups"), and a clinic that also names
+// doctors, a hospital or medical care is a medical clinic with a dental side ("a medical and dental clinic in Pasig").
+const DENTAL_WORDS = /\b(dental|dentists?|dentistry|orthodont\w*|endodont\w*|periodont\w*|oral surgeons?|hygienists?|teeth|tooth)\b/;
+const STAFF_PLAN = /(?<!\b(their|patients?'?|customers?'?|clients?'?)\s)\b(medical|dental|vision|health|hmo)\b(\s*(,|&|\/|and|or)\s*(medical|dental|vision|optical|health|life))*\s+(insurance|benefits?|plans?|coverage|cover|allowances?|reimbursements?|check-?ups?)\b(?!\s+(verification|claims?|questions?|eligibility|for (our|the) patients))/g;
+const MEDICAL_SIDE = /\b(medical|doctors?|physicians?|hospitals?|urgent care|physio\w*|chiropract\w*|optometr\w*|pharmac\w*)\b/;
+
 /** The industry the business's own words point to, before they answer the chip. */
 export function industryFromText(text: string): ScenarioPackId {
   const s = text.toLowerCase();
-  if (/\b(dental|dentist|orthodont|clinic|medical|doctor|patients?|health ?care|hospital|physio|chiropract|optometr|pharmac|therap)/.test(s)) return "medical";
+  const own = s.replace(STAFF_PLAN, " ");
+  if (DENTAL_WORDS.test(own) && !MEDICAL_SIDE.test(own)) return "dental";
+  // (A staff plan names no business here either: "our law office. Benefits: dental insurance" is no clinic.)
+  if (/\b(dental|dentist|orthodont|clinic|medical|doctor|patients?|health ?care|hospital|physio|chiropract|optometr|pharmac|therap)/.test(own)) return "medical";
   if (/\b(shopify|online (store|shop)|e-?commerce|web ?shop|etsy|amazon seller|orders? (status|tracking)|returns? and refunds?)/.test(s)) return "store";
   if (/\b(software|saas|apps?\b|subscriptions?|platform|log ?in|technical support|tech support|it support|help ?desk)/.test(s)) return "software";
   if (/\b(plumb|electric|hvac|cleaning (company|service|business)|pest|repairs?\b|handyman|roof|landscap|movers|moving company|locksmith|home services?)/.test(s)) return "home_services";
   // A game company says so: not "team player" or "bring your A game" (the Phase 4 review).
   if (/\b(game (studio|company|developer|publisher|app)|gaming (company|studio|platform)|video games?|mobile games?|online games?|our games?\b|in-game|esports|player support)/.test(s)) return "gaming";
   return "general";
+}
+
+/**
+ * The kind of business for the builder's first guess: the role's own words, and the business's name where the words name
+ * no kind of business, or only say patients or a clinic while the name says dental ("Patient chat agent" at "Bright Smile
+ * Dental" starts on Dental office; the run-through of 2026-10-31).
+ */
+export function industryForBusiness(words: string, businessName?: string | null): ScenarioPackId {
+  const fromWords = industryFromText(words);
+  if (!businessName?.trim()) return fromWords;
+  const fromName = industryFromText(businessName);
+  if (fromWords === "general") return fromName;
+  if (fromWords === "medical" && fromName === "dental" && !MEDICAL_SIDE.test(words.toLowerCase().replace(STAFF_PLAN, " "))) return "dental";
+  return fromWords;
 }
 
 function answerTo(brief: Pick<JobBrief, "followUps">, questionId: string): string | null {
@@ -64,7 +95,12 @@ function answerTo(brief: Pick<JobBrief, "followUps">, questionId: string): strin
 export function packIdForBrief(brief: Pick<JobBrief, "followUps" | "roleTitle" | "whatTheyDo">): ScenarioPackId {
   const chosen = answerTo(brief, "cs-industry");
   const byChip = CS_INDUSTRY_CHIPS.find(([label]) => label === chosen)?.[1];
-  return byChip ?? industryFromText(`${brief.roleTitle ?? ""} ${brief.whatTheyDo ?? ""}`);
+  if (byChip) return byChip;
+  const words = industryFromText(`${brief.roleTitle ?? ""} ${brief.whatTheyDo ?? ""}`);
+  // The older "Medical or dental office" answer: dental when the words say dental, else medical.
+  const older = OLDER_INDUSTRY_CHIPS.find(([label]) => label === chosen)?.[1];
+  if (older) return words === "dental" ? "dental" : older;
+  return words;
 }
 
 // A channel word that names a product or a business, not how the agent works

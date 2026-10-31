@@ -377,9 +377,19 @@ function MobileTabBar() {
  *  from inside a job), the one page that takes a wider cap. */
 const PROFILE_ROUTE = /^\/(?:jobs\/[^/]+\/)?applicants\/[^/]+\/?$/;
 
+/** Pages that fill the frame and scroll inside themselves: Ava's job builder
+ *  (/jobs/create) has its own header, step rail, scroller and footer. In the
+ *  padded <main> it was a screen tall plus 58px, so once its plan was scrolled
+ *  to the end the wheel moved the shell instead, and the rail stayed cut off
+ *  through Publish and "Your job is live" (the run-through of 2026-10-31).
+ *  Here <main> has no top or side padding and never scrolls; on a phone it
+ *  keeps the bottom padding that clears the tab bar. */
+const FILLS_FRAME_ROUTES = ["/jobs/create"];
+
 export function CockpitShell({ children }: { children: ReactNode }) {
   const isMobile = useIsMobile();
   const { pathname } = useLocation();
+  const fillsFrame = FILLS_FRAME_ROUTES.includes(pathname);
   // Detail/sub-routes (e.g. /applicants/:id) and the messages thread render
   // their own mobile header, so we suppress the shared mobile app bar there.
   const SELF_HEADER_ROUTES = ["/messages"];
@@ -403,7 +413,12 @@ export function CockpitShell({ children }: { children: ReactNode }) {
           <main
             // .main{padding:18px 26px 40px} in the design — with the top bar
             // gone the page title starts where the mockup starts it.
-            className="ck-scroll flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24 pt-1 md:px-[26px] md:pb-10 md:pt-[18px]"
+            className={
+              fillsFrame
+                ? "ck-scroll flex min-h-0 flex-1 flex-col overflow-hidden pb-24 md:pb-0"
+                : "ck-scroll flex-1 overflow-y-auto overflow-x-hidden px-4 pb-24 pt-1 md:px-[26px] md:pb-10 md:pt-[18px]"
+            }
+            data-fills-frame={fillsFrame ? "" : undefined}
             style={isMobile ? undefined : undefined}
           >
             {/* Keyed on the route so every navigation gets a quiet page-turn
@@ -411,7 +426,7 @@ export function CockpitShell({ children }: { children: ReactNode }) {
                 uses the whole screen (docs/APPLICANT-PROFILE.md): at 1240 it
                 sat centred with a quarter of a 1920 screen empty, and the
                 team member's shell, which has no cap, drew it wider. */}
-            <div key={pathname} className={`ck-page mx-auto w-full ${PROFILE_ROUTE.test(pathname) ? "max-w-[1680px]" : "max-w-[1240px]"}`}>
+            <div key={pathname} className={`ck-page mx-auto w-full ${fillsFrame ? "h-full min-h-0 max-w-[1240px]" : PROFILE_ROUTE.test(pathname) ? "max-w-[1680px]" : "max-w-[1240px]"}`}>
               {children}
             </div>
           </main>

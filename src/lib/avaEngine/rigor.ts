@@ -37,7 +37,7 @@ export function rigorToDb(rigor: Rigor): "easy" | "medium" | "hard" {
 }
 
 export const RIGOR_OPTIONS: { id: Rigor; label: string; blurb: string; steps: string }[] = [
-  { id: "easy", label: "Easy", blurb: "Quick screen for high-volume, lower-stakes roles.", steps: "3 steps" },
-  { id: "standard", label: "Standard", blurb: "Balanced screen for most roles.", steps: "4 steps" },
-  { id: "high", label: "High", blurb: "Thorough screen for trust & responsibility.", steps: "5 steps" },
+  { id: "easy", label: "Easy", blurb: "Quick screen for high-volume, lower-stakes jobs.", steps: "3 steps" },
+  { id: "standard", label: "Standard", blurb: "Balanced screen for most jobs.", steps: "4 steps" },
+  { id: "high", label: "High", blurb: "Thorough screen for jobs that carry trust and responsibility.", steps: "5 steps" },
 ];

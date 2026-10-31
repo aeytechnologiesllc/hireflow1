@@ -650,7 +650,7 @@ export default function CockpitDashboard() {
         id: row.id,
         applicationId: row.applications?.id ?? null,
         name: profile?.full_name?.trim() || profile?.email || "Candidate",
-        role: row.applications?.jobs?.title ?? "Role",
+        role: row.applications?.jobs?.title ?? "Job",
         at: new Date(row.scheduled_at),
         status: row.status,
         response,
@@ -874,7 +874,7 @@ export default function CockpitDashboard() {
               asked for the dashboard "how it used to be … showing me
               everything". Each number opens the page that explains it. ── */}
           <section aria-label="At a glance" className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-            <StatTile index={0} label="Live roles" value={liveJobsCount} note="open now" onClick={() => navigate("/jobs")} />
+            <StatTile index={0} label="Live jobs" value={liveJobsCount} note="open now" onClick={() => navigate("/jobs")} />
             <StatTile
               index={1}
               label="Visits"
@@ -1050,7 +1050,7 @@ export default function CockpitDashboard() {
               </h2>
               {liveJobsCount > 0 && (
                 <p className="mt-1 text-[13px]" style={{ color: "var(--hf-text-muted)" }}>
-                  {liveJobsCount} live {liveJobsCount === 1 ? "role" : "roles"} open. Every applicant gets read,
+                  {liveJobsCount} live {liveJobsCount === 1 ? "job" : "jobs"} open. Every applicant gets read,
                   scored, and sealed here the moment they apply — nobody sits waiting to be noticed.
                 </p>
               )}
@@ -1262,7 +1262,7 @@ export default function CockpitDashboard() {
           {liveJob && (
             <section className="ck-card ck-reveal p-4 md:p-5">
               <h2 className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-                Share your role
+                Share your job
               </h2>
               <div className="mt-2">
                 <ShareJobCompact job={liveJob} />
