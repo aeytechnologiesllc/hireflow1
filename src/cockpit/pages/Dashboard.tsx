@@ -24,6 +24,9 @@ import { useAuth } from "@/hooks/useAuth";
 import CkAvatar from "../components/Avatar";
 import { CountUp } from "../components/CountUp";
 import { ActionDialog } from "../components/ActionDialog";
+import { advanceAskWords, passAskWords } from "../components/ApplicantDecisionDialogs";
+import { tabFor } from "../lib/applicantList";
+import { firstName } from "../lib/avaProse";
 // Fetched when a letter is opened, not with the dashboard (the performance
 // check, 2026-10-11).
 const OfferLetterDialog = lazy(() => import("../components/OfferLetterDialog").then((m) => ({ default: m.OfferLetterDialog })));
@@ -164,6 +167,8 @@ function SealedRow({
   index,
   showRole,
   advanceLabel,
+  stateWords,
+  passLabel,
   onPass,
   onAdvance,
   onOpen,
@@ -175,6 +180,10 @@ function SealedRow({
   showRole: boolean;
   /** The stage this person lands in, so the button never says something vague. */
   advanceLabel: string | null;
+  /** Where they already are, when past review ("Offer out", "Interview stage"). */
+  stateWords: string | null;
+  /** "Pass", or "Take back offer" once an offer is out (the profile's own words). */
+  passLabel: string;
   onPass: () => void;
   onAdvance: () => void;
   onOpen: () => void;
@@ -215,7 +224,7 @@ function SealedRow({
               className="block truncate text-[12px] leading-[1.35]"
               style={{ color: "var(--hf-text-muted)" }}
             >
-              {showRole ? `${candidate.role} · ${candidate.appliedAgo}` : candidate.appliedAgo}
+              {[showRole ? candidate.role : null, stateWords, candidate.appliedAgo].filter(Boolean).join(" · ")}
             </span>
           </span>
         </button>
@@ -247,7 +256,7 @@ function SealedRow({
         {/* the only two decisions */}
         <div className="flex shrink-0 items-center gap-2 max-[620px]:order-4 max-[620px]:w-full max-[620px]:justify-end">
           <button className="ck-btn ck-btn-outline !py-2 !text-[13px]" onClick={onPass} disabled={busy}>
-            Pass
+            {passLabel}
           </button>
           {advanceLabel && (
             <button className="ck-btn ck-btn-primary !py-2 !text-[13px]" onClick={onAdvance} disabled={busy}>
@@ -691,8 +700,13 @@ export default function CockpitDashboard() {
     return {
       sealed: top,
       // Someone still taking tests is not waiting on you: everyone finishes
-      // every test before the decision is yours (owner, 2026-10-05).
-      awaitingDecision: live.filter((c) => !c.stillTesting).length,
+      // every test before the decision is yours (owner, 2026-10-05). Nor is
+      // someone already in interview or with an offer out: the count is the
+      // Applicants list's Needs review (tabFor), never 5 where it says 3
+      // (the walkthrough of 2026-10-31).
+      awaitingDecision: live.filter(
+        (c) => !c.stillTesting && tabFor({ status: statusById[c.id], finished: true, liveState: null }) === "needs-review",
+      ).length,
       passedOver: candidates.filter((c) => c.stage === "Rejected").length,
       readCount: analyzed.length,
       hired: candidates.filter((c) => c.stage === "Hired").length,
@@ -704,7 +718,7 @@ export default function CockpitDashboard() {
       applyingOne: candidates.find((c) => !isAnalyzed(c) && c.fillingInForm && c.stage !== "Rejected") ?? null,
       multiRole: new Set(top.map((c) => c.role)).size > 1,
     };
-  }, [candidates]);
+  }, [candidates, statusById]);
 
   // Pipeline at a glance — the exact same journey vocabulary and position
   // logic the Applicants panel's journey strip uses (src/lib/candidateJourney.ts),
@@ -1104,6 +1118,8 @@ export default function CockpitDashboard() {
                   index={i}
                   showRole={multiRole}
                   advanceLabel={moveLabelFor(c.id) === "Offer" ? "Send offer letter" : moveLabelFor(c.id)}
+                  stateWords={statusOf(c.id) === "offered" ? "Offer out" : statusOf(c.id) === "interview" ? "Interview stage" : null}
+                  passLabel={statusOf(c.id) === "offered" ? passAskWords(firstName(c.name), true).confirm : "Pass"}
                   busy={isUpdating}
                   onOpen={() => navigate(`/applicants/${c.id}`)}
                   onPass={() => setActionDialog({ type: "pass", cand: c })}
@@ -1265,22 +1281,16 @@ export default function CockpitDashboard() {
         const cand = actionDialog.cand;
         const label = advanceTargetLabel(statusOf(cand.id));
         const rec = avaAdvanceRec(cand.overall ?? 0, isAnalyzed(cand), cand.recommendedAction, cand.hardRejectReason);
+        // The profile's own title and words (advanceAskWords): a stage change
+        // on its own sends nothing for Review or Interview
+        // (notify_application_status_change); the interview's own card goes
+        // when a time is offered, from their profile.
+        const ask = advanceAskWords(firstName(cand.name), label, { asksForTimes: false });
         return (
           <ActionDialog
             open
-            title={`Advance ${cand.name}?`}
-            // A stage change on its own sends nothing: notify_application_status_change
-            // skips Review and Interview (the interview's own bell goes when a time is
-            // set). It used to promise "notifies them of the progress".
-            description={
-              label === "Review"
-                ? `This moves ${cand.name} into your Review stage. Nothing is sent to them.`
-                : label === "Interview"
-                  ? `This moves ${cand.name} into your Interview stage. Nothing is sent until you set up the interview on their profile.`
-                  : label
-                    ? `This moves ${cand.name} into your ${label} stage.`
-                    : `This moves ${cand.name} forward in your pipeline.`
-            }
+            title={ask.title}
+            description={ask.body}
             confirmLabel={label ? `Move to ${label}` : "Advance"}
             tone="brass"
             busy={isUpdating}
@@ -1293,19 +1303,13 @@ export default function CockpitDashboard() {
       })()}
       <ActionDialog
         open={actionDialog?.type === "pass"}
-        title={
-          actionDialog
-            ? statusOf(actionDialog.cand.id) === "offered"
-              ? `Decline offer to ${actionDialog.cand.name}?`
-              : `Pass on ${actionDialog.cand.name}?`
-            : ""
-        }
+        title={actionDialog ? passAskWords(firstName(actionDialog.cand.name), statusOf(actionDialog.cand.id) === "offered").title : ""}
         description={
           actionDialog && statusOf(actionDialog.cand.id) === "offered"
-            ? "This withdraws the offer and notifies the candidate. Add a short note for your records (optional)."
+            ? "This takes back the offer and tells them. Add a short note for your records (optional)."
             : "This removes the candidate from your active pipeline and notifies them. Add a short note for your records (optional)."
         }
-        confirmLabel={actionDialog && statusOf(actionDialog.cand.id) === "offered" ? "Decline offer" : "Pass candidate"}
+        confirmLabel={passAskWords("", !!actionDialog && statusOf(actionDialog.cand.id) === "offered").confirm}
         tone="danger"
         busy={isUpdating}
         withReason

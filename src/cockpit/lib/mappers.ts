@@ -86,7 +86,10 @@ export function mapJobRow(
   const interview = jobApps.filter((a) => a.status === "interview").length;
   const hired = jobApps.filter((a) => a.status === "hired").length;
   const status = mapJobStatus(job.status);
-  const dateLabel = status === "draft" ? "Last edited" : status === "closed" ? "Closed" : "Posted";
+  // A closed job's time is still when it was posted: no column records when it
+  // closed, and "Closed 4 months ago" read the posting date as the closing one
+  // (the walkthrough of 2026-10-31). The row's Closed chip says it is closed.
+  const dateLabel = status === "draft" ? "Last edited" : "Posted";
   const date = format(new Date(job.created_at), "MMM d, yyyy");
 
   return {

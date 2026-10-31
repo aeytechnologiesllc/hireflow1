@@ -83,6 +83,8 @@ import {
   evaluatorRequiredKeys,
   knownPinnedCase,
   practiceStepFrom,
+  practiceChannel,
+  type PracticeChannel,
   rubricForCase,
   scenarioToPin,
   type PracticeStepConfig,
@@ -174,7 +176,7 @@ function recordClient(): AssessmentAdmin | null {
  *  cases (prompts.ts knownPinnedCase). */
 function pinnedScenario(
   context: Record<string, unknown>,
-): { scenario: string; customerName: string; scenarioId: string | null; byServer: boolean } | null {
+): { scenario: string; customerName: string; scenarioId: string | null; byServer: boolean; channel: PracticeChannel } | null {
   if (typeof context.scenario !== "string" || !context.scenario.trim()) return null;
   if (typeof context.customer_name !== "string" || !context.customer_name.trim()) return null;
   return {
@@ -182,6 +184,9 @@ function pinnedScenario(
     customerName: context.customer_name,
     scenarioId: typeof context.scenario_id === "string" ? context.scenario_id : null,
     byServer: context.scenario_pinned_by === "server",
+    // Pinned with the case, from the job's own step (never the request): an
+    // email agent's practice is played as emails. Older pins have none: chat.
+    channel: practiceChannel(context.channel),
   };
 }
 
@@ -482,6 +487,7 @@ serve(async (req) => {
               stepTitle: practiceJob.step?.title ?? null,
               counterpart,
               industryNote: pack?.evaluatorNote ?? null,
+              channel: practiceJob.step?.channel ?? "chat",
             },
             gradedMessages,
           ),
@@ -731,6 +737,7 @@ serve(async (req) => {
 
     let liveScenario = scenario;
     let liveCustomerName = customerName;
+    let liveChannel: PracticeChannel = "chat";
     let history: SimulationChatMessage[] = messages;
     let liveAgentMessage = agentMessage;
     let liveMessageCount = messageCount;
@@ -754,18 +761,21 @@ serve(async (req) => {
         const practiceJob = await loadPracticeJob(admin, recording.applicationId, recording.stepId, recording.userId);
         if (practiceJob) {
           const pick = scenarioToPin(practiceJob.step, { applicationId: recording.applicationId, stepId: recording.stepId });
+          const channel = practiceJob.step?.channel ?? "chat";
           await updateContext(admin, session, {
             scenario: pick.scenario,
             customer_name: pick.customerName,
             scenario_id: pick.id,
             scenario_pinned_by: "server",
+            channel,
           });
-          pinned = { scenario: pick.scenario, customerName: pick.customerName, scenarioId: pick.id, byServer: true };
+          pinned = { scenario: pick.scenario, customerName: pick.customerName, scenarioId: pick.id, byServer: true, channel };
         }
       }
       if (pinned) {
         liveScenario = pinned.scenario;
         liveCustomerName = pinned.customerName;
+        liveChannel = pinned.channel;
         scenarioId = pinned.scenarioId ?? scenarioId;
       }
 
@@ -879,9 +889,9 @@ serve(async (req) => {
         model: OPENAI_CHAT_SIMULATION_MODEL,
         business,
         messages: buildSimulationApiMessages(
-          customerPromptFor(liveCustomerName, liveScenario, liveMessageCount),
+          customerPromptFor(liveCustomerName, liveScenario, liveMessageCount, liveChannel),
           history,
-          customerTurnInstruction(mode === "start" ? "start" : "respond", liveAgentMessage, liveCustomerName, liveScenario, liveMessageCount),
+          customerTurnInstruction(mode === "start" ? "start" : "respond", liveAgentMessage, liveCustomerName, liveScenario, liveMessageCount, liveChannel),
         ),
         temperature: 0.9,
         maxCompletionTokens: 700,

@@ -402,6 +402,11 @@ export const CS_SKILLS_TITLE = "Skills check";
 export const CS_SKILLS_DESCRIPTION = "Five short questions about real situations in this work.";
 export const CS_CHAT_TITLE = "Customer chat practice";
 export const CS_CHAT_DESCRIPTION = "Answer one realistic customer chat, the way you would on the job.";
+// An email agent's practice (the walkthrough of 2026-10-31: an Email job's plan said "1 chat", and nothing in it tested
+// writing an email). Same step, same cases and grading; the customer writes emails and the page frames each reply as one
+// (ai-chat-simulation reads the step's own config.channel; ChatSimulationPhase.tsx).
+export const CS_EMAIL_TITLE = "Customer email practice";
+export const CS_EMAIL_DESCRIPTION = "Answer one realistic customer email, the way you would on the job.";
 // Where most applicants read English as their first language: no note about second-language readers.
 const ENGLISH_FIRST = new Set(["US", "GB", "CA", "AU", "NZ", "IE"]);
 // The note for a job that is not remote: its typing is not counted (assessmentRecord, trigger-ava-analysis).
@@ -478,16 +483,19 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
   if (quizIndex >= 0) out[quizIndex] = quiz;
   else out.splice(Math.min(1, out.length), 0, quiz);
 
+  const email = channel === "email";
   const chat: ScreeningPhase = {
     id: "ph_sim",
     kind: "simulation",
     order: 0,
-    title: CS_CHAT_TITLE,
-    candidateDescription: CS_CHAT_DESCRIPTION,
+    title: email ? CS_EMAIL_TITLE : CS_CHAT_TITLE,
+    candidateDescription: email ? CS_EMAIL_DESCRIPTION : CS_CHAT_DESCRIPTION,
     rationale:
       channel === "phone" || channel === "mixed"
         ? `One real ${pack.counterpart} conversation from ${pack.business}, typed${remote ? ", with typing speed measured as they reply" : ""}.${hasInterview ? " The written interview asks how they handle calls." : ""}${remote ? "" : NOT_TIMED}`
-        : `One real ${pack.counterpart} chat from ${pack.business}${remote ? ", with typing speed and reply time measured as they write" : ""}.${remote ? "" : NOT_TIMED}`,
+        : email
+          ? `One real ${pack.counterpart} email from ${pack.business}, answered in writing the way your team replies to email${remote ? ", with typing speed and reply time measured as they write" : ""}.${remote ? "" : NOT_TIMED}`
+          : `One real ${pack.counterpart} chat from ${pack.business}${remote ? ", with typing speed and reply time measured as they write" : ""}.${remote ? "" : NOT_TIMED}`,
     config: {
       kind: "simulation",
       pack: pack.id,
@@ -497,12 +505,12 @@ export function applyCustomerServicePack(phases: ScreeningPhase[], brief: JobBri
     } satisfies SimulationConfig,
     rubric: {
       criteria: [
-        { id: "sim_handling", label: "Handling the chat", guidance: pack.evaluatorNote, weightWithinPhase: 1 },
+        { id: "sim_handling", label: email ? "Handling the email" : "Handling the chat", guidance: pack.evaluatorNote, weightWithinPhase: 1 },
       ],
     },
     weight: 0.2,
     scoringMode: "auto",
-    countLabel: "1 chat",
+    countLabel: email ? "1 email" : "1 chat",
     durationLabel: "~8 min",
   };
   const simIndex = out.findIndex((p) => p.kind === "simulation");

@@ -13,6 +13,37 @@ export function passDialogWords(who: string, offered: boolean): string {
     : `${who} comes off your list and gets this note in your name:`;
 }
 
+/**
+ * The move-on confirm's title and words, one set for the profile and the
+ * dashboard (the walkthrough of 2026-10-31: the profile promised "I'll tell
+ * Nadia you'd like to meet" while nothing is sent for a move to Interview,
+ * and the dashboard said the opposite under another title). Moving into
+ * review or interview sends nothing: notify_application_status_change tells
+ * them about an offer, a hire or a pass only; an interview's own card goes
+ * when a time is offered. `asksForTimes`: the page asks for a time next (the
+ * profile's InterviewMoment); elsewhere they offer one from the profile.
+ */
+export function advanceAskWords(who: string, label: string | null, opts: { asksForTimes: boolean }): { title: string; body: string } {
+  if (label === "Review") {
+    return { title: `Move ${who} into review?`, body: `I'll move ${who} into review on your list. Nothing is sent to them. To mark them as one of your picks instead, use Add to shortlist.` };
+  }
+  if (label === "Interview") {
+    return {
+      title: `Take ${who} to interview?`,
+      body: `Nothing is sent to ${who} until you offer a time${opts.asksForTimes ? "; I'll ask you for times next." : ". Offer one from their profile."}`,
+    };
+  }
+  if (label === "Offer") {
+    return { title: `Make ${who} an offer?`, body: `I'll let ${who} know an offer is on its way from you, so nothing goes quiet while you write it.` };
+  }
+  return { title: `Move ${who} forward?`, body: `I'll move ${who} on to the next step.` };
+}
+
+/** The take-back-an-offer and pass confirm's title and button, one set for the profile and the dashboard. */
+export function passAskWords(who: string, offered: boolean): { title: string; confirm: string } {
+  return offered ? { title: `Take back ${who}'s offer?`, confirm: "Take back offer" } : { title: `Pass on ${who}?`, confirm: "Pass" };
+}
+
 /** The note they will read, word for word (src/lib/declineNote.ts: the email's own words). */
 export function DeclineNotePreview({ jobTitle }: { jobTitle?: string | null }) {
   return <span>&ldquo;{declineNoteText(jobTitle)}&rdquo;</span>;
@@ -64,18 +95,9 @@ export function ApplicantDecisionDialogs({
       {open === "advance" && candidate && (() => {
         const label = advanceTargetLabel(status);
         const rec = avaAdvanceRec(candidate.overall ?? 0, candidate.analyzed, candidate.recommendedAction, candidate.hardRejectReason);
-        // Moving into review sends nothing: the database's status trigger
-        // (notify_application_status_change) only tells them about an offer,
-        // a hire or a pass, and no email goes for it either. It used to
-        // promise "I'll let them know".
-        const ask =
-          label === "Review"
-            ? { title: `Move ${who} into review?`, body: `I'll move ${who} into review on your list. Nothing is sent to them. To mark them as one of your picks instead, use Add to shortlist.` }
-            : label === "Interview"
-              ? { title: `Take ${who} to interview?`, body: `I'll tell ${who} you'd like to meet. You can pick the time straight after this.` }
-              : label === "Offer"
-                ? { title: `Make ${who} an offer?`, body: `I'll let ${who} know an offer is on its way from you, so nothing goes quiet while you write it.` }
-                : { title: `Move ${who} forward?`, body: `I'll move ${who} on to the next step and let them know.` };
+        // Moving into review or interview sends nothing (advanceAskWords).
+        // The profile asks for a time straight after a move to Interview.
+        const ask = advanceAskWords(who, label, { asksForTimes: true });
         return (
           <ActionDialog
             open
@@ -110,9 +132,9 @@ export function ApplicantDecisionDialogs({
       {/* Hire is its own box since 2026-10-10 (HireDialog): the documents ticked and one welcome email. */}
       <ActionDialog
         open={open === "reject" && !!candidate}
-        title={candidate ? (offered ? `Take back ${who}'s offer?` : `Pass on ${who}?`) : ""}
+        title={candidate ? passAskWords(who, offered).title : ""}
         description={candidate ? passDialogWords(who, offered) : ""}
-        confirmLabel={candidate && offered ? "Take back offer" : "Pass"}
+        confirmLabel={passAskWords(who, offered).confirm}
         tone="danger"
         busy={busy}
         // A plain confirm: no reason to type. What they will read is shown,

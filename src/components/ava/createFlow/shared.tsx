@@ -90,6 +90,24 @@ export function StepRail({
   );
 }
 
+/** One thing the applicant reads in a step: a question (with its choices and right answer), a case, or a bar. */
+export interface ReviewDetailItem {
+  text: string;
+  /** A readable tag (a skills question's area, a case's customer name). */
+  label?: string | null;
+  options?: string[];
+  answer?: string | null;
+}
+
+/** What a review card opens to: the step's own content, so the business reads it before Publish. */
+export interface ReviewPhaseDetails {
+  /** The toggle's words, e.g. "See the 5 questions". */
+  toggle: string;
+  /** One line above the list, when it needs one ("Each applicant gets one of these"). */
+  note?: string | null;
+  items: ReviewDetailItem[];
+}
+
 export interface ReviewPhaseCard {
   id: string;
   kind: string;
@@ -100,6 +118,67 @@ export interface ReviewPhaseCard {
   rationale: string;
   count: string;
   duration: string;
+  /** The questions, cases or bars (the walkthrough of 2026-10-31: the cards showed only a title and a count). */
+  details?: ReviewPhaseDetails | null;
+}
+
+/**
+ * The step's own content under its card, closed until asked for. Read only:
+ * the words are Ava's from the business's answers; the card's title and line
+ * are what the pencil changes.
+ */
+function ReviewDetailsBlock({ details }: { details: ReviewPhaseDetails }) {
+  const [open, setOpen] = useState(false);
+  if (details.items.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 rounded-md text-[13px] font-semibold underline-offset-2 hover:underline focus-visible:underline"
+        style={{ color: "var(--hf-action)" }}
+      >
+        {open ? "Hide" : details.toggle}
+        {open ? <ArrowUp className="h-3.5 w-3.5" aria-hidden /> : <ArrowDown className="h-3.5 w-3.5" aria-hidden />}
+      </button>
+      {open && (
+        <div className="mt-2.5 rounded-lg p-3 sm:p-3.5" style={{ background: "var(--hf-surface-strong)", border: "1px solid var(--hf-border)" }}>
+          {details.note && (
+            <p className="mb-2.5 text-[12.5px] leading-[1.5]" style={{ color: "var(--hf-text-soft)" }}>{details.note}</p>
+          )}
+          <ol className="space-y-3">
+            {details.items.map((item, i) => (
+              <li key={i} className="text-[13.5px] leading-[1.55]" style={{ color: "var(--hf-text)" }}>
+                <div className="flex gap-2">
+                  <span className="shrink-0 font-semibold" style={{ color: "var(--hf-text-muted)", fontVariantNumeric: "tabular-nums" }}>{i + 1}.</span>
+                  <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+                    {item.label && (
+                      <span className="mb-0.5 block text-[11.5px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--hf-text-muted)" }}>{item.label}</span>
+                    )}
+                    <span className="whitespace-pre-line">{item.text}</span>
+                    {item.options && item.options.length > 0 && (
+                      <ul className="mt-1.5 space-y-1">
+                        {item.options.map((opt, oi) => {
+                          const right = !!item.answer && opt === item.answer;
+                          return (
+                            <li key={oi} className="flex items-start gap-1.5 text-[13px]" style={{ color: right ? "var(--hf-text)" : "var(--hf-text-soft)", fontWeight: right ? 600 : 400 }}>
+                              {right ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0" style={{ color: "var(--hf-action)" }} aria-label="Right answer" /> : <span className="mt-0.5 inline-block h-3.5 w-3.5 shrink-0" aria-hidden />}
+                              <span>{opt}{right && <span className="sr-only"> (right answer)</span>}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function PhaseRow({
@@ -222,6 +301,8 @@ export function PhaseRow({
             <span style={{ margin: "0 0.5em", opacity: 0.55 }}>·</span>
             {phase.duration}
           </p>
+
+          {phase.details && <ReviewDetailsBlock details={phase.details} />}
 
           {/* Ava's note — a brass rule in the margin, the way a hand annotates
               a page. No fill, no box, no synthetic oblique (Inter ships no

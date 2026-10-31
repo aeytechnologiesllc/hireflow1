@@ -17,6 +17,19 @@ export interface DayCutoff {
   minute: number;
 }
 
+/**
+ * How far ahead the first offered time must be. With only "not passed" the
+ * wheel could offer a time twenty minutes away, and clicking straight
+ * through sent an interview that started almost at once (the walkthrough
+ * of 2026-10-31). Booking an agreed time outright is not held to it.
+ */
+export const OFFER_LEAD_MINUTES = 120;
+
+/** The earliest moment a time may be offered from `now`. */
+export function offerFloor(now: Date, leadMinutes: number = OFFER_LEAD_MINUTES): Date {
+  return new Date(now.getTime() + Math.max(0, leadMinutes) * 60_000);
+}
+
 /** "HH:mm" on `day`, as a moment on this machine's clock. */
 export function atClock(day: Date, clock: string): Date {
   const [hours, minutes] = clock.split(":").map(Number);

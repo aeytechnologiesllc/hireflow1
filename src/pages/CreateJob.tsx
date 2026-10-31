@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile, useUpdateProfile } from "@/hooks/useProfile";
 import { useCreateJob, useUpdateJob, useJob, useJobHasApplications } from "@/hooks/useJobs";
+import { supabase } from "@/integrations/supabase/client";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -643,6 +644,13 @@ function changedJobEditColumns(
   return columns;
 }
 
+/** A quiz question's area as words: "fee_math" reads "Fee math" (the raw key showed as a badge). */
+function quizAreaLabel(category: unknown): string {
+  if (typeof category !== "string" || !category.trim()) return "";
+  const words = category.trim().replace(/[_-]+/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** Only the named columns of a job row, for the update call. */
 function pickJobColumns<T extends Record<string, unknown>>(row: T, columns: ReadonlySet<string>): Partial<T> {
   const picked: Partial<T> = {};
@@ -889,6 +897,8 @@ export default function CreateJob() {
   // of them (jobs_applicant_words_fixed; the twentieth Phase 5 review), so
   // the questions are shown read-only too. src/lib/jobStepsFixed.ts.
   const { data: stepsFixed = false } = useJobHasApplications(isEditMode ? id : undefined);
+  // Whether that count has come back: until it has, the steps stay read-only.
+  const { isSuccess: stepsChecked } = useJobHasApplications(isEditMode ? id : undefined);
   // Text-only screening (owner decision, 2026-10-04): the generated plan keeps
   // its written interview and never swaps in a voice interview.
   const hasVoiceInterviewAccess = false;
@@ -1085,6 +1095,44 @@ export default function CreateJob() {
       loadedEditFieldsRef.current = { ...loadedForm, ...loadedWorkflow, status: existingJob.status, slug: existingJob.slug ?? "" };
     }
   }, [isEditMode, existingJob]);
+
+  // A saved job's quiz comes back without its right answers (the database
+  // files them in job_quiz_keys, which no applicant can read). While its
+  // quiz can still be edited (nobody has applied), the owner's own keys are
+  // read back once, so each question shows its right answer and the edit
+  // dialog starts from it. Also on the load snapshot: an unchanged quiz
+  // still sends nothing.
+  const quizKeysMergedForRef = useRef<unknown>(null);
+  useEffect(() => {
+    if (!isEditMode || !id || !stepsChecked || stepsFixed || !existingJob) return;
+    // Once for each load of the job (the load effect above sets the quiz again on a refetch).
+    if (quizKeysMergedForRef.current === existingJob || !loadedEditFieldsRef.current) return;
+    quizKeysMergedForRef.current = existingJob;
+    void (async () => {
+      const { data, error } = await supabase.rpc("get_job_quiz_keys", { p_job_id: id });
+      if (error || !Array.isArray(data)) return;
+      const keys = new Map<string, Record<string, unknown>>();
+      for (const row of data as { step_id?: unknown; question_id?: unknown; key?: unknown }[]) {
+        if (row.step_id === "__quiz_questions__" && typeof row.question_id === "string" && row.key && typeof row.key === "object") {
+          keys.set(row.question_id, row.key as Record<string, unknown>);
+        }
+      }
+      if (keys.size === 0) return;
+      const withKeys = (list: QuizQuestion[]) =>
+        list.map((q, i) => {
+          const key = keys.get(q.id || `__idx_${i}`);
+          if (!key) return q;
+          const filled: Record<string, unknown> = { ...q };
+          for (const [field, value] of Object.entries(key)) if (filled[field] == null) filled[field] = value;
+          return filled as unknown as QuizQuestion;
+        });
+      const loaded = loadedEditFieldsRef.current;
+      if (loaded && Array.isArray(loaded.quiz_questions)) {
+        loadedEditFieldsRef.current = { ...loaded, quiz_questions: withKeys(loaded.quiz_questions as QuizQuestion[]) };
+      }
+      setQuizQuestions((current) => withKeys(current));
+    })();
+  }, [isEditMode, id, stepsChecked, stepsFixed, existingJob]);
 
   // Load guest job data from localStorage (after guest signs up/in)
   useEffect(() => {
@@ -2334,6 +2382,13 @@ export default function CreateJob() {
   // every edit as contact let three throwaway drafts pause a business that
   // added a "Weekend" choice).
   const questionsLocked = isEditMode && stepsFixed;
+  // The quiz and the steps follow the same rule as the questions: a job
+  // nobody has applied to yet (a draft, a Copy to drafts copy, a live job
+  // with no applications) can still change them; the database refuses it
+  // only once someone has applied (jobs_applicant_words_fixed). They were
+  // read-only on every saved job, so the copy the refusal points to could
+  // not be changed either (the walkthrough of 2026-10-31).
+  const stepsEditable = !isEditMode || (stepsChecked && !stepsFixed && workflowGenerated);
   const applicationQuestionsSection = (
     <div className="space-y-2">
       <span className="text-[11px] font-semibold tracking-widest uppercase text-muted-foreground/60">Application</span>
@@ -3284,8 +3339,9 @@ export default function CreateJob() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
-              {/* Edit Mode: the tests stay read-only; the application questions stay editable until someone applies */}
-              {isEditMode ? (
+              {/* Edit Mode: once someone has applied the tests stay read-only (and the
+                  questions with them); before that they are edited below as when the job was made */}
+              {isEditMode && !stepsEditable ? (
                 <>
                 <Card className="bg-card border-border">
                   <CardHeader>
@@ -3294,12 +3350,14 @@ export default function CreateJob() {
                       Screening Plan (Read Only)
                       </CardTitle>
                     <CardDescription>
-                      The tests and their order cannot be changed after the job is created.
                       {questionsLocked
-                        ? workflowSteps.some((step) => step.type === 'equipment_check')
-                          ? " People have applied, so the application questions stay as they are too. You can still change the connection the computer and connection check asks for."
-                          : " People have applied, so the application questions stay as they are too."
-                        : ` You can still edit the application questions below${workflowSteps.some((step) => step.type === 'equipment_check') ? ", and the connection the computer and connection check asks for." : "."}`}
+                        ? "People have applied, so the tests, their order and the application questions stay as they are. To ask something different, use Copy to drafts on the Jobs page and edit the copy."
+                        : stepsChecked
+                          ? "This job has no screening plan saved to change here. Its application questions are below."
+                          : "Until we know whether anyone has applied, the tests stay as they are. The application questions are below."}
+                      {workflowSteps.some((step) => step.type === 'equipment_check')
+                        ? " You can still change the connection the computer and connection check asks for."
+                        : ""}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -3331,6 +3389,18 @@ export default function CreateJob() {
                   ))}
                 {applicationQuestionsSection}
                 </>
+              ) : isEditMode ? (
+                <Card className="bg-card border-border">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <AvaSeal size={20} />
+                      Screening Plan
+                    </CardTitle>
+                    <CardDescription data-steps-editable>
+                      Nobody has applied yet, so you can still change the questions, the quiz and the steps below. Once someone applies, they stay as they are.
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
               ) : (
                 <>
                   {!workflowGenerated ? (
@@ -3449,10 +3519,11 @@ export default function CreateJob() {
                 </>
               )}
 
-              {/* Generated Workflow - Only show in create mode */}
-              {!isEditMode && workflowGenerated && (
+              {/* The plan's steps, editable: in create mode, and in edit mode while nobody has applied */}
+              {stepsEditable && workflowGenerated && (
                 <div className="space-y-6">
                   {/* Success banner */}
+                  {!isEditMode && (
                   <motion.div
                     initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -3465,6 +3536,7 @@ export default function CreateJob() {
                       <p className="text-xs text-primary/60">Ava built the screening plan and automation rules for you.</p>
                     </div>
                   </motion.div>
+                  )}
 
                   <Card className="bg-card border-border">
                     <CardHeader className="pb-3">
@@ -3593,7 +3665,7 @@ export default function CreateJob() {
                                   {index + 1}. {q.question.length > 55 ? `${q.question.substring(0, 55)}...` : q.question}
                                 </span>
                                 <span className="text-xs text-muted-foreground shrink-0 ml-3">
-                                  {q.time_limit_seconds}s • {q.category}
+                                  {q.time_limit_seconds}s{quizAreaLabel(q.category) ? ` • ${quizAreaLabel(q.category)}` : ""}
                                 </span>
                               </div>
                             </AccordionTrigger>
@@ -4280,7 +4352,7 @@ export default function CreateJob() {
                               <div key={question.id || `${question.question}-${index}`} className="rounded-md border border-border/70 bg-secondary/20 p-3">
                                 <div className="flex items-start justify-between gap-3">
                                   <p className="text-sm text-foreground break-words [overflow-wrap:anywhere]">{index + 1}. {question.question}</p>
-                                  <Badge variant="outline">{question.category || "Assessment"}</Badge>
+                                  <Badge variant="outline">{quizAreaLabel(question.category) || "Assessment"}</Badge>
                                 </div>
                                 <p className="mt-1 text-xs text-muted-foreground">
                                   Time limit: {question.time_limit_seconds || 0}s

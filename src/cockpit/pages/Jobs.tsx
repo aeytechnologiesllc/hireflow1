@@ -187,7 +187,7 @@ function JobListRow({
     >
       {/* who / what */}
       <div className="min-w-0 flex-1 basis-[240px] sm:min-w-[240px]">
-        <div className="text-[14px] font-semibold leading-tight" style={{ color: "var(--ink)" }}>
+        <div className="text-[14px] font-semibold leading-tight" style={{ color: job.status === "closed" ? "var(--ink-2)" : "var(--ink)" }}>
           {job.title}
           <JobStatusChip status={job.status} filled={filled} />
         </div>
@@ -583,13 +583,20 @@ export default function CockpitJobs() {
   // Closed roles are done, so the default view leaves them out. Explicitly
   // choosing the "Closed" pill still shows them; otherwise the quiet toggle
   // below the list appends them in their own muted section.
+  // No search, status or place set: an empty list then means every role is
+  // closed, never "nothing matches" (the walkthrough of 2026-10-31: after
+  // closing the only live role the page said "No open roles match that" and
+  // offered a Clear filters that did nothing, with the role tucked away).
+  const filtersSet = query.trim() !== "" || status !== "all" || place !== "all";
+  const onlyClosed = !filtersSet && jobs.length > 0 && jobs.every((j) => j.status === "closed");
+  const closedShown = showClosed || onlyClosed;
   const visible = useMemo(() => {
     const filtered = jobs.filter((j) => (status === "all" || j.status === status) && matchesSearch(j));
     if (status === "closed") return { active: sortRows(filtered), closed: [] as JobRow[] };
     const active = filtered.filter((j) => j.status !== "closed");
-    const closed = showClosed ? filtered.filter((j) => j.status === "closed") : [];
+    const closed = closedShown ? filtered.filter((j) => j.status === "closed") : [];
     return { active: sortRows(active), closed: sortRows(closed) };
-  }, [jobs, status, matchesSearch, sortRows, showClosed]);
+  }, [jobs, status, matchesSearch, sortRows, closedShown]);
 
   // How many closed roles the current search/location filters hide, so the
   // toggle's count is honest even when it's collapsed.
@@ -737,7 +744,15 @@ export default function CockpitJobs() {
           )}
 
           {/* ── The roles ────────────────────────────────────── */}
-          {visible.active.length === 0 && visible.closed.length === 0 ? (
+          {onlyClosed ? (
+            <div className="ck-card-flat px-4 py-6 text-center">
+              <p className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
+                {visible.closed.length === 1
+                  ? "No open roles. Your closed role is below: post it again or copy it to drafts."
+                  : "No open roles. Your closed roles are below: post one again or copy it to drafts."}
+              </p>
+            </div>
+          ) : visible.active.length === 0 && visible.closed.length === 0 ? (
             <div className="ck-card-flat px-4 py-8 text-center">
               <p className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
                 {hiddenClosedCount > 0 ? "No open roles match that." : "No roles match that."}
@@ -777,16 +792,26 @@ export default function CockpitJobs() {
           {/* ── Closed roles, tucked away by default ─────────── */}
           {status === "all" && hiddenClosedCount > 0 && (
             <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={toggleShowClosed}
-                className="self-start text-[12px] font-semibold uppercase tracking-[0.06em] transition-opacity hover:opacity-75"
-                style={{ color: "var(--ink-3)" }}
-              >
-                {showClosed ? "Hide closed" : `Show closed (${hiddenClosedCount})`}
-              </button>
-              {showClosed && visible.closed.length > 0 && (
-                <div className="flex flex-col gap-2" style={{ opacity: 0.6 }}>
+              {/* With nothing but closed roles they are simply shown: there is nothing to hide them behind. */}
+              {onlyClosed ? (
+                <span className="self-start text-[12px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--ink-3)" }}>
+                  Closed ({hiddenClosedCount})
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={toggleShowClosed}
+                  className="self-start text-[12px] font-semibold uppercase tracking-[0.06em] transition-opacity hover:opacity-75"
+                  style={{ color: "var(--ink-3)" }}
+                >
+                  {showClosed ? "Hide closed" : `Show closed (${hiddenClosedCount})`}
+                </button>
+              )}
+              {/* Full colour: the Closed chip and the muted title say it is closed;
+                  its buttons still work, so they keep their contrast (they were
+                  faded to 0.6, Delete at 2.7:1). */}
+              {closedShown && visible.closed.length > 0 && (
+                <div className="flex flex-col gap-2">
                   {visible.closed.map((job, i) => (
                     <JobListRow
                       key={job.id}

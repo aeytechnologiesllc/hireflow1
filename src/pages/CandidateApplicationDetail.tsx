@@ -558,6 +558,10 @@ export default function CandidateApplicationDetail() {
   const applicationStatus = application.status;
   const isRejected = applicationStatus === "rejected";
   const isHired = applicationStatus === "hired";
+  // An offer is out: their answer is what comes next, never "when the hiring
+  // team decides" (the walkthrough of 2026-10-31: Your applications said
+  // "Offer extended" while this page said the team was still deciding).
+  const isOffered = applicationStatus === "offered";
 
   // A live interview with the hiring team is all this page is about: the
   // step panel and the list of steps are not shown beside it (the owner:
@@ -744,6 +748,22 @@ export default function CandidateApplicationDetail() {
                   </p>
                 </div>
               </div>
+            ) : isOffered ? (
+              <div className="mt-5 flex flex-wrap items-start justify-between gap-3 border-t border-[var(--hair)] pt-5" data-offer-header>
+                <div className="flex min-w-0 items-start gap-3">
+                  <GlyphCheckSeal size={26} className="shrink-0 text-[var(--action)]" />
+                  <div className="min-w-0">
+                    <p className="font-display text-base font-medium text-foreground sm:text-lg">You have an offer</p>
+                    <p className="mt-0.5 break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                      The hiring team has offered you this job. When they send an offer letter, it is in your Documents to read and sign; if
+                      you accept, sign it there. Questions? Message the team.
+                    </p>
+                  </div>
+                </div>
+                <Button size="sm" onClick={() => navigate("/my-documents")} className="shrink-0">
+                  Open Documents
+                </Button>
+              </div>
             ) : interviewLive ? null : phases.length > 0 ? (
               <div className="mt-5 border-t border-[var(--hair)] pt-5">
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
@@ -877,7 +897,7 @@ export default function CandidateApplicationDetail() {
               const skipped =
                 isBehind &&
                 (isEmployerSkipped(phase.id, phase.type) || isImplicitlySkipped(index, phase.id, phase.type));
-              const isDecided = isHired || isRejected;
+              const isDecided = isHired || isRejected || isOffered;
 
               // A decided application has no "Upcoming". This list used to
               // contradict the banner directly above it: a hired candidate saw
@@ -889,9 +909,12 @@ export default function CandidateApplicationDetail() {
               let statusText = "Upcoming";
               if (skipped) statusText = "Skipped";
               else if (isBehind) statusText = "Completed";
-              else if (isDecisionStep && isDecided) statusText = isHired ? "Offer" : "Closed";
+              else if (isDecisionStep && isDecided) statusText = isHired || isOffered ? "Offer" : "Closed";
               else if (isHired) {
                 // Finished it, or the employer decided before reaching it.
+                statusText = isDone ? "Completed" : "Not needed";
+              } else if (isOffered) {
+                // An offer is a decision made: nothing left is pending.
                 statusText = isDone ? "Completed" : "Not needed";
               } else if (isRejected) statusText = index === effectivePhaseIndex ? "Not passed" : "Not reached";
               else if (isDone) statusText = "Completed";
@@ -908,7 +931,7 @@ export default function CandidateApplicationDetail() {
                         : isCompleted
                         ? "text-[var(--action)]"
                         : isDecisionStep && isDecided
-                        ? isHired
+                        ? isHired || isOffered
                           ? "text-[var(--action)]"
                           : "text-[var(--crit)]"
                         : isCurrent

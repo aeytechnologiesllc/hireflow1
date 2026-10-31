@@ -430,8 +430,16 @@ console.log("\nThe set-up screen opens on a day with times left");
   check("a clock time on a day is that moment on this machine's clock", D.atClock(day(1), "14:30").getTime() === new Date(2026, 9, 8, 14, 30).getTime());
 
   const wizard = await read("src/components/InterviewSchedulingWizard.tsx");
-  check("the screen asks that one place which day to open on, each time it opens", /useEffect\(\(\) => \{\s*if \(!open\) return;\s*setViewDayIndex\(firstDayWithTimes\(dayOptions, SLOT_VALUES, durationMinutes, new Date\(\), DAY_CUTOFF\)\);[\s\S]{0,200}\}, \[open\]\);/.test(wizard));
-  check("…and what is left of the day it shows", /new Set\(timesLeftOn\(viewDay, SLOT_VALUES, durationMinutes, new Date\(\), DAY_CUTOFF\)\)/.test(wizard));
+  // (2026-10-31: both read from two hours ahead, offerFloor, so an offer never starts almost at once.)
+  check("the screen asks that one place which day to open on, each time it opens", /useEffect\(\(\) => \{\s*if \(!open\) return;\s*setViewDayIndex\(firstDayWithTimes\(dayOptions, SLOT_VALUES, durationMinutes, offerFloor\(new Date\(\)\), DAY_CUTOFF\)\);[\s\S]{0,200}\}, \[open\]\);/.test(wizard));
+  check("…and what is left of the day it shows", /new Set\(timesLeftOn\(viewDay, SLOT_VALUES, durationMinutes, offerFloor\(new Date\(\)\), DAY_CUTOFF\)\)/.test(wizard));
+  {
+    const now = new Date(2026, 9, 31, 13, 40);
+    const floor = D.offerFloor(now);
+    check("an offered time is at least two hours away (offerFloor)", D.OFFER_LEAD_MINUTES === 120 && floor.getTime() - now.getTime() === 120 * 60_000);
+    check("…so at 1:40 PM the first time offered that day is 4:00 PM, never 2:00 PM", D.timesLeftOn(now, ["14:00", "15:30", "16:00"], 30, floor, { hour: 20, minute: 30 }).join(",") === "16:00");
+  }
+  check("changing a booked time says what is booked and that a new time replaces it", /data-testid="current-booking"/.test(wizard) && /A new time replaces it, and \{firstName\} is asked again\./.test(wizard) && /queryKey: \["interviews", "live-for-application", applicationId\][\s\S]{0,400}\.eq\("application_id", applicationId!\)\s*\.eq\("status", "scheduled"\)/.test(wizard));
   check("the same start times and cutoff are used for both", /const SLOT_VALUES = timeSlots\.map\(\(slot\) => slot\.value\);/.test(wizard) && /const DAY_CUTOFF = \{ hour: 20, minute: 30 \};/.test(wizard));
   // Booking a time outright had the same hole: every time of today could be chosen, passed or not.
   check("booking outright: a time that has passed is not offered, and Next waits for one that is ahead", /disabled=\{exactTimePassed\(slot\.value\)\}/.test(wizard) && /if \(exactTimeMode\) return !!\(selectedDate && selectedTime\) && !exactTimePassed\(selectedTime\);/.test(wizard) && /if \(selectedTime && exactTimePassed\(selectedTime\)\) setSelectedTime\(""\);/.test(wizard));

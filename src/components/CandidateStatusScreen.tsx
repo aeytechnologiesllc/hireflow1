@@ -186,7 +186,6 @@ function RejectedStateCard({ jobTitle, applicationId }: { jobTitle?: string; app
                   disabled={isGenerating}
                   variant="outline"
                   className="gap-2"
-                  style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
                 >
                   <Download className="h-4 w-4" />
                   PDF

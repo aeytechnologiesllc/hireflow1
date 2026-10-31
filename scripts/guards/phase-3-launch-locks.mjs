@@ -51,6 +51,46 @@ function rgbOf(value) {
   return null;
 }
 
+/**
+ * Every <button>/<Button> opening tag in a .tsx file, attributes and all: the
+ * tag runs to its first ">" outside braces, quotes and comments (an arrow
+ * function's "=>" and a class like "[&>svg]" are not its end).
+ */
+function buttonTags(text) {
+  const out = [];
+  const re = /<(button|Button)(?=[\s>/])/g;
+  let m;
+  while ((m = re.exec(text))) {
+    let i = m.index + m[0].length;
+    let depth = 0;
+    let q = null;
+    for (; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === "\\") i++;
+        else if (c === q) q = null;
+        continue;
+      }
+      if (depth > 0 && c === "/" && text[i + 1] === "/") {
+        i = text.indexOf("\n", i);
+        if (i < 0) break;
+        continue;
+      }
+      if (depth > 0 && c === "/" && text[i + 1] === "*") {
+        i = text.indexOf("*/", i + 2) + 1;
+        if (i <= 0) break;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === "`") q = c;
+      else if (c === "{") depth++;
+      else if (c === "}") depth--;
+      else if (c === ">" && depth === 0 && text[i - 1] !== "=") break;
+    }
+    out.push({ index: m.index, attrs: text.slice(m.index, i) });
+  }
+  return out;
+}
+
 /** Hue in degrees and chroma 0-1 (how far from grey). */
 function hueChroma([r, g, b]) {
   const max = Math.max(r, g, b), min = Math.min(r, g, b), c = max - min;
@@ -214,9 +254,22 @@ export default [
       "passed test, a 70+ score, a finished step) is the same jade. The default button and the action " +
       "pill fill with the action colour and focus rings are the action colour, so brass never reads " +
       "as a plain button or as \"this will be charged\" on Pass, Hire or Save.",
-    run: async ({ read }) => {
+    run: async ({ read, walk }) => {
       const detail = [];
       const css = (await read("src/index.css")) ?? "";
+      // No button is drawn in brass by its own style either: a brass fill or
+      // outline set inline made the free Improvement Report's two buttons look
+      // paid (the walkthrough of 2026-10-31), past every class-based check
+      // here. Money has its own class (.ck-btn-paid); a brass word in a
+      // text-only link of Ava's (her read's "show all") is not a button shape.
+      for (const rel of await walk("src", [".tsx"])) {
+        const text = (await read(rel)) ?? "";
+        for (const { index, attrs } of buttonTags(text)) {
+          const style = /\bstyle=\{\{([\s\S]*?)\}\}/.exec(attrs)?.[1] ?? "";
+          if (/\b(?:background\w*|border\w*|outline\w*|boxShadow)\s*:\s*[^,}]*var\(--(?:brass|ck-brass|hf-gold)/.test(style))
+            detail.push(`${rel}:${text.slice(0, index).split("\n").length}: a button is filled or outlined in brass by its style (brass is never a button; money uses .ck-btn-paid)`);
+        }
+      }
       // The action colour and "good" are the jade, Day and Night.
       for (const name of ["action", "action-bright", "primary", "ring", "ck-action", "ck-action-bright", "hf-action", "good", "success"]) {
         const found = [...css.matchAll(new RegExp(`--${name}:\\s*([^;]+);`, "g"))];

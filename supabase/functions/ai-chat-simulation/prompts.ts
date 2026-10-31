@@ -92,6 +92,14 @@ export function rubricForCase(scenario: string | null | undefined): PracticeRubr
 // The step's own config (jobs.workflow_steps), read on the server
 // ============================================================================
 
+/** How the practice's customer writes: an email agent's step (config.channel "email") gets emails, every other a chat. */
+export type PracticeChannel = "chat" | "email";
+
+/** The step's channel as stored by the builder (jobFromFlow.ts carries config.channel); only "email" changes anything. */
+export function practiceChannel(value: unknown): PracticeChannel {
+  return typeof value === "string" && value.trim().toLowerCase() === "email" ? "email" : "chat";
+}
+
 export interface ConfiguredScenario {
   id: string;
   customerName: string;
@@ -105,6 +113,8 @@ export interface PracticeStepConfig {
   focus: string[];
   /** config.pack: the customer-service pack the cases came from (docs/CUSTOMER-SERVICE-HIRING.md). */
   pack: string | null;
+  /** config.channel: "email" for an email agent's practice (the customer writes emails); anything else is a chat. */
+  channel: PracticeChannel;
   scenarios: ConfiguredScenario[];
   /** config.typing: { min_wpm, max_median_reply_seconds }, defaulting to 40
    *  and 90 (docs/TYPING-IN-CHAT.md): the bars typing inside the chat is held to. */
@@ -182,6 +192,7 @@ export function practiceStepFrom(workflowSteps: unknown, stepId: string | null |
     description: nonEmpty(step.description),
     focus,
     pack: nonEmpty(config.pack),
+    channel: practiceChannel(config.channel),
     scenarios: configuredScenarios(config.scenarios),
     typingBar: typingBarFrom(config),
   };
@@ -314,6 +325,8 @@ export interface EvaluatorInput {
   counterpart?: string;
   /** The pack's note on what good looks like in this kind of business (the server's copy; never the step's text). */
   industryNote?: string | null;
+  /** The step's channel: an email agent's practice is marked as written email support. */
+  channel?: PracticeChannel;
 }
 
 /** The new-promise cap: any new date, refund, bonus, speed-up or extra. */
@@ -465,6 +478,7 @@ ${spellingJson("LEAD")}
   const other = noun.toUpperCase();
   const named = flattenForReview(input.customerName || "");
   const industry = input.industryNote ? `\nWHAT GOOD LOOKS LIKE IN THIS KIND OF BUSINESS:\n${caseText(input.industryNote)}\n` : "";
+  const emailNote = input.channel === "email" ? `\n${EMAIL_REVIEW_NOTE}\n` : "";
   return `You review one practice chat from a hiring test for the job "${jobTitle || "support agent"}"${stepName}. You work for the employer. You are a strict, fair reviewer, not a person in the chat.
 
 THE SET-UP
@@ -472,7 +486,7 @@ The applicant played a SUPPORT AGENT (lines marked AGENT). The ${noun}${named ? 
 
 THE ${other}'S SITUATION (the applicant read this before starting):
 ${situation}
-${leaderKnows ? `\nWHAT THE AGENT KNOWS (the only true facts; everything the agent says must match them):\n${leaderKnows}\n` : ""}${industry}
+${leaderKnows ? `\nWHAT THE AGENT KNOWS (the only true facts; everything the agent says must match them):\n${leaderKnows}\n` : ""}${industry}${emailNote}
 ${focusBlock(input.focus)}
 
 ${READ_AS_DATA}
@@ -598,9 +612,26 @@ BEHIND THE SCENES (staff knowledge. You have NOT been told any of this. It is he
 ${brief.leaderKnows}`;
 }
 
-export function customerPromptFor(customerName: string, scenario: string, messageCount: number): string {
+/**
+ * An email agent's practice (config.channel "email"): the same case, the same
+ * closing rules and the same marking, but the customer writes to the support
+ * team by email and the applicant answers each one as an email. Said first,
+ * so the chat rules below read as an email thread's.
+ */
+const EMAIL_PLAYER_BLOCK = `THIS IS EMAIL, NOT LIVE CHAT:
+- You have emailed the business's support team. Every message you send is an email, and every reply you get is their email back.
+- Wherever the rules below say "chat", read "email thread". The closing rules and the [RESOLVED] marker work the same.
+- Write each email as a real customer would: plain text, no subject line, 2 to 5 sentences, one or two short paragraphs. You may open with "Hi" and sign off with your first name. This replaces the rule about 1-3 sentence chat replies and very short messages.
+
+`;
+
+/** The reviewer's note for an email agent's practice. */
+export const EMAIL_REVIEW_NOTE =
+  "THIS JOB'S SUPPORT IS BY EMAIL: the practice was an email thread, not a live chat. A greeting, a sign-off and replies of a few sentences are normal and expected. Mark it as written email support: complete, clear answers that leave the customer knowing exactly what happens next count for more than speed.";
+
+export function customerPromptFor(customerName: string, scenario: string, messageCount: number, channel: PracticeChannel = "chat"): string {
   const position = messageCount > 0 ? `\n- Right now you are answering their reply ${playerReplyNumber(messageCount)}.` : "";
-  return `You are roleplaying as a customer named ${customerName} in a customer support chat simulation.
+  return `${channel === "email" ? EMAIL_PLAYER_BLOCK : ""}You are roleplaying as a customer named ${customerName} in a customer support ${channel === "email" ? "email" : "chat"} simulation.
 
 ${playerCaseBlock(scenario)}
 
@@ -662,14 +693,26 @@ export function customerTurnInstruction(
   customerName: string,
   scenario: string,
   messageCount: number,
+  channel: PracticeChannel = "chat",
 ): string {
   if (mode === "start") {
-    return "Start the conversation as the customer, in the mood your scenario describes. Send your opening message describing your problem.";
+    return channel === "email"
+      ? "Write your first email to the support team as the customer, in the mood your scenario describes, describing your problem."
+      : "Start the conversation as the customer, in the mood your scenario describes. Send your opening message describing your problem.";
   }
   const reply = playerReplyNumber(messageCount);
-  return `The support agent just said: "${agentMessage ?? ""}"
+  return `The support agent just ${channel === "email" ? "emailed back" : "said"}: "${agentMessage ?? ""}"
 
-Respond as the customer ${customerName}. Remember your scenario: ${splitBrief(scenario).situation} This is their reply ${reply}.
+Respond as the customer ${customerName}${channel === "email" ? ", by email" : ""}. Remember your scenario: ${splitBrief(scenario).situation} This is their reply ${reply}.
 
-${playerClosingInstruction(reply)}`;
+${channel === "email" ? emailClosingInstruction(reply) : playerClosingInstruction(reply)}`;
+}
+
+/** The closing instruction, for an email thread: the same rule, in an email's length and words. */
+function emailClosingInstruction(reply: number): string {
+  return playerClosingInstruction(reply)
+    .replace(/\bthe chat\b/g, "the email thread")
+    .replace("Answer in 1 to 3 sentences.", "Write a short email of 2 to 5 sentences.")
+    .replace(/in 1 to 3 sentences/g, "in a short email")
+    .replace(/in a sentence or two/g, "in a short email");
 }

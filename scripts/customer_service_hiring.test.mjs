@@ -2433,6 +2433,17 @@ console.log("\n-- createJobFromFlow: what the jobs table receives --");
   check("the chat step carries the six cases with their names, and the pack", chat?.config?.pack === "medical" && chat.config.scenarios.length === 6 && chat.config.scenarios.every((s, i) => s.customerName === M.SCENARIO_PACKS.medical.cases[i].customerName && s.scenario === M.SCENARIO_PACKS.medical.cases[i].scenario));
   check("its title is the customer chat practice", chat?.title === "Customer chat practice");
 }
+// The walkthrough of 2026-10-31: an Email job's plan offered "Customer chat practice ... 1 chat", so nothing it approved
+// tested writing an email. The answer "Email" now gets the email practice, saved with its channel for the server to read.
+{
+  const b = { ...M.briefFromForm({ role: "Email Support Agent", location: "Remote (worldwide)", type: "Full-time", workMode: "Remote", pay: "$900/mo", start: "ASAP", work: "Answer customer emails about orders" }), followUps: [{ questionId: "cs-channel", question: "", answer: "Email" }, { questionId: "cs-industry", question: "", answer: "Online store" }] };
+  const sim = M.generateTemplateFlow({ brief: b, rigor: "standard" }).flow.phases.find((p) => p.kind === "simulation");
+  check("an Email job gets the customer email practice: its title, line and count say email", sim?.title === "Customer email practice" && /one realistic customer email/.test(sim?.candidateDescription ?? "") && sim?.countLabel === "1 email" && sim?.config?.channel === "email", JSON.stringify({ t: sim?.title, c: sim?.countLabel, ch: sim?.config?.channel }));
+  check("…and its note says it is an email, answered in writing", /customer email from/.test(sim?.rationale ?? "") && !/\bchat\b from/.test(sim?.rationale ?? ""), sim?.rationale);
+  const chatB = { ...b, followUps: [{ questionId: "cs-channel", question: "", answer: "Chat and email" }, { questionId: "cs-industry", question: "", answer: "Online store" }] };
+  const chatSim = M.generateTemplateFlow({ brief: chatB, rigor: "standard" }).flow.phases.find((p) => p.kind === "simulation");
+  check("…while 'Chat and email' stays the chat practice", chatSim?.title === "Customer chat practice" && chatSim?.countLabel === "1 chat", chatSim?.title);
+}
 
 /* ── 7. The server's side ─────────────────────────────────────────────── */
 console.log("\n-- the server: the step's pack, the grader, the person played --");
@@ -2441,6 +2452,15 @@ console.log("\n-- the server: the step's pack, the grader, the person played --"
   const step = P.practiceStepFrom([{ id: "s1", type: "chat_simulation", title: "Customer chat practice", config: { pack: "medical", scenarios: [medicalCase] } }], "s1");
   check("the step's pack is read", step.pack === "medical");
   check("a step with no pack reads null", P.practiceStepFrom([{ id: "s1", type: "chat_simulation", config: {} }], "s1").pack === null);
+  // An email agent's practice: the server reads the step's own channel, and the customer writes emails.
+  check("the step's channel is read: email, else chat", P.practiceStepFrom([{ id: "s1", type: "chat_simulation", config: { channel: "email" } }], "s1").channel === "email" && P.practiceStepFrom([{ id: "s1", type: "chat_simulation", config: { channel: "phone" } }], "s1").channel === "chat" && step.channel === "chat");
+  {
+    const emailPlayer = P.customerPromptFor("Ana", medicalCase.scenario, 0, "email");
+    const chatPlayer = P.customerPromptFor("Ana", medicalCase.scenario, 0);
+    check("an email practice's customer writes emails; a chat's prompt is unchanged", /THIS IS EMAIL, NOT LIVE CHAT/.test(emailPlayer) && /customer support email simulation/.test(emailPlayer) && !/THIS IS EMAIL/.test(chatPlayer) && /customer support chat simulation/.test(chatPlayer));
+    check("…its first message is an email, and each turn asks for one", /first email/.test(P.customerTurnInstruction("start", undefined, "Ana", medicalCase.scenario, 0, "email")) && /by email/.test(P.customerTurnInstruction("respond", "Hello", "Ana", medicalCase.scenario, 1, "email")) && !/1 to 3 sentences/.test(P.customerTurnInstruction("respond", "Hello", "Ana", medicalCase.scenario, 1, "email")));
+    check("…and it still closes on [RESOLVED] by reply 6", /\[RESOLVED\]/.test(P.customerTurnInstruction("respond", "Bye", "Ana", medicalCase.scenario, 11, "email")) && /LAST message/.test(P.customerTurnInstruction("respond", "Bye", "Ana", medicalCase.scenario, 11, "email")));
+  }
   const input = {
     rubric: P.rubricForCase(medicalCase.scenario),
     scenario: medicalCase.scenario,

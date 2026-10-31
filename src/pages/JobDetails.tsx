@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useBusinessStanding } from "@/hooks/useBusinessStanding";
 import { resolveEmployerIdForJobAccess } from "@/hooks/useJobs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -157,6 +158,11 @@ export default function JobDetails() {
     },
     enabled: !!lookupKey && !isShowcase && isEmployer && !!user && !hireflowLoading && !job,
   });
+  // A job of theirs that is published yet has no public page: the usual cause
+  // is a business paused by reports (its jobs leave published_jobs_public), so
+  // the owner is told that, never asked to publish what is already published.
+  const ownedPublishedHidden = ownedButUnpublished?.status === "published";
+  const standing = useBusinessStanding(ownedPublishedHidden);
 
   // Employer company name/logo (for JobPosting structured data hiringOrganization).
   const { data: employerProfile } = useQuery({
@@ -509,13 +515,26 @@ export default function JobDetails() {
           <CardContent className="p-8 text-center sm:p-8">
             <GlyphJobPost size={48} className="mx-auto mb-4 opacity-60" style={{ color: "var(--hf-text-muted)" }} />
             <h2 className="text-xl font-semibold text-foreground mb-2">
-              {ownedButUnpublished ? "Candidates can\u2019t see this yet" : "This role isn\u2019t open"}
+              {ownedPublishedHidden
+                ? "Candidates can\u2019t see this right now"
+                : ownedButUnpublished
+                  ? "Candidates can\u2019t see this yet"
+                  : "This role isn\u2019t open"}
             </h2>
             <p className="text-muted-foreground mb-4">
-              {ownedButUnpublished
-                ? `This posting is ${ownedButUnpublished.status ?? "not published"}, so it has no candidate view yet. Publish it and this link goes live.`
-                : "It may have closed, or the link may be incomplete. You can still see the roles that are open."}
+              {ownedPublishedHidden
+                ? standing?.status === "suspended"
+                  ? "Your business is paused while we look at reports, so this page is hidden from applicants. Message us from Help."
+                  : "This job is published, but its page is hidden from applicants right now. Message us from Help and we\u2019ll look into it."
+                : ownedButUnpublished
+                  ? `This posting is ${ownedButUnpublished.status ?? "not published"}, so it has no candidate view yet. Publish it and this link goes live.`
+                  : "It may have closed, or the link may be incomplete. You can still see the roles that are open."}
             </p>
+            {ownedPublishedHidden && (
+              <Button variant="outline" className="mb-2 w-full sm:mb-0 sm:mr-2 sm:w-auto" onClick={() => navigate("/help")}>
+                Open Help
+              </Button>
+            )}
             {/* "See open roles" moves forward (the careers page, or the one
                 open role), so its arrow points forward. */}
             <Button onClick={() => navigate(ownedButUnpublished ? "/jobs" : strandedRoute)}>

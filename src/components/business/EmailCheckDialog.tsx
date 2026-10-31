@@ -149,9 +149,11 @@ export function EmailCheckDialog({
         )}
 
         {/* A typo at sign-up would otherwise be a dead end: nothing else in
-            the app changes the sign-in address. */}
+            the app changes the sign-in address. In a new tab: in the same tab
+            it left the job builder mid-publish, and Back built the plan again
+            (the walkthrough of 2026-10-31). */}
         <p className="text-xs text-muted-foreground">
-          <Link to="/help" className="underline underline-offset-2" onClick={() => onOpenChange(false)}>
+          <Link to="/help" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">
             {W.wrongAddress}
           </Link>
         </p>

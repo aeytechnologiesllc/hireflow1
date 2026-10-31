@@ -537,16 +537,12 @@ function ApplicationCard({ application, onDelete, onOpenBlueprint }: Application
               e.stopPropagation();
               onOpenBlueprint(application.id);
             }}
-            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-[10px] border px-4 text-sm font-semibold transition-colors hover:bg-[var(--amber-bg)]"
-            style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
+            // The plain outline: the report is free, and brass is for Ava's
+            // seal and what costs money, never a button (the locked colours).
+            className="ck-btn ck-btn-outline min-h-[44px] !px-4 !text-sm"
           >
             <Download className="h-4 w-4" />
-            {/* The price belongs on the button, not behind it — never conceal
-                a charge until after the click, especially here. While billing
-                is off (app_settings 'blueprint_paid' = false) the report is
-                free, so the button says so honestly instead of quoting a
-                price nobody will be charged. */}
-            <>Get Improvement Report</>
+            Get Improvement Report
           </button>
         )}
 

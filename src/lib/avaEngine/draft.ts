@@ -18,6 +18,10 @@ export interface AvaCreateDraft {
   rigor: Rigor;
   rigorTouched: boolean;
   flow: JobFlow | null;
+  /** The builder's step when it was left (AvaCreateJob's restoredStep); an older draft has none. */
+  step?: number;
+  /** The review's renames, order and removals, card by card; an older draft has none. */
+  reviewEdits?: { id: string; title: string; candidate: string }[];
 }
 
 export function loadDraft(): AvaCreateDraft | null {

@@ -141,6 +141,8 @@
 
     --muted: 69 19.4% 86.9%;
     --muted-foreground: 147 10.7% 32.9%;
+    /* A field's placeholder: the muted ink, which by Day already reads 5.6:1 on the input paper. */
+    --placeholder-ink: hsl(147 10.7% 32.9%);
 
     --accent: 140 28.1% 87.5%;
     --accent-foreground: 164 76.8% 18.6%;
@@ -300,6 +302,8 @@
 
     --muted: 33 19% 9%;
     --muted-foreground: 37 10% 53%;
+    /* By Night the muted ink is 4.4:1 on the inputs' --ck-surface-2: a step lighter, 5.4:1 there and 6:1 on a card. */
+    --placeholder-ink: #A39A8B;
 
     --accent: 30 16% 15%;
     --accent-foreground: 42 44% 92%;
@@ -419,6 +423,17 @@
     @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', system-ui, sans-serif;
     min-width: 0;
+  }
+
+  /* Every placeholder in the theme's own placeholder ink. Without this, a plain
+     <input>/<textarea> (the job builder's brief, the report dialog) kept
+     Tailwind's gray-400: about 2:1 on the Day paper, where the placeholder is
+     the only guidance on what to write (the walkthrough of 2026-10-31).
+     A field's own placeholder: class still wins (utilities come later). */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--placeholder-ink);
+    opacity: 1;
   }
 
   h1, h2, h3, h4, h5, h6 {

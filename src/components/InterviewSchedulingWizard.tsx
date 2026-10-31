@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect, mem
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCreateInterview, useInterviews } from "@/hooks/useInterviews";
 import { clashAt, clashWords, type BusyInterview } from "@/lib/interviewClash";
-import { atClock, firstDayWithTimes, timesLeftOn } from "@/lib/interviewOfferDays";
+import { atClock, firstDayWithTimes, offerFloor, timesLeftOn } from "@/lib/interviewOfferDays";
 import { sayClock, suggestTimes, suggestionWords } from "@/lib/interviewSuggestion";
 import { useJobInterviewHints } from "@/hooks/useJobInterviewHints";
 import { useUpdateApplication } from "@/hooks/useApplications";
@@ -325,6 +325,31 @@ export default function InterviewSchedulingWizard({
   // before it is sent (src/lib/interviewClash.ts). This applicant's own
   // earlier interview is left out: it is replaced by the one being set up.
   const allInterviews = useInterviews().data;
+  // This applicant's own live interview, if any: a new time replaces it, so
+  // the wizard says so before anything is sent (the walkthrough of
+  // 2026-10-31: "Change the time" opened the first-booking wizard with no sign
+  // of the time they had confirmed, and sending cancelled it silently).
+  // Read for this application itself, the way the booking below finds the
+  // earlier interview it replaces.
+  const ownLive = useQuery({
+    queryKey: ["interviews", "live-for-application", applicationId],
+    enabled: open && !!applicationId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("interviews")
+        .select("id, scheduled_at, candidate_response, status, created_at")
+        .eq("application_id", applicationId!)
+        .eq("status", "scheduled");
+      if (error) throw error;
+      return (data ?? []) as { id: string; scheduled_at: string | null; candidate_response: string | null; status: string; created_at: string | null }[];
+    },
+  });
+  const currentBooking = useMemo(() => {
+    const own = (ownLive.data ?? []).filter((row) => row.status === "scheduled");
+    if (own.length === 0) return null;
+    const latest = [...own].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")))[0];
+    return { at: latest.scheduled_at ? new Date(latest.scheduled_at) : null, response: latest.candidate_response ?? null };
+  }, [ownLive.data]);
   const busy = useMemo<BusyInterview[]>(
     () =>
       (allInterviews ?? [])
@@ -372,7 +397,9 @@ export default function InterviewSchedulingWizard({
   // 30-min slots for the viewed day that still fit the chosen duration before
   // the day's cutoff, and aren't already in the past.
   const daySlots = useMemo(() => {
-    const left = new Set(timesLeftOn(viewDay, SLOT_VALUES, durationMinutes, new Date(), DAY_CUTOFF));
+    // Never a time within the next two hours (offerFloor): an offer needs
+    // time for them to see it and answer.
+    const left = new Set(timesLeftOn(viewDay, SLOT_VALUES, durationMinutes, offerFloor(new Date()), DAY_CUTOFF));
     return timeSlots.filter((slot) => left.has(slot.value));
   }, [viewDay, durationMinutes]);
 
@@ -381,7 +408,7 @@ export default function InterviewSchedulingWizard({
   // slots left"), and the owner sets interviews up in the evening.
   useEffect(() => {
     if (!open) return;
-    setViewDayIndex(firstDayWithTimes(dayOptions, SLOT_VALUES, durationMinutes, new Date(), DAY_CUTOFF));
+    setViewDayIndex(firstDayWithTimes(dayOptions, SLOT_VALUES, durationMinutes, offerFloor(new Date()), DAY_CUTOFF));
     // Only when it opens: after that the day is the owner's own choice.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -1270,6 +1297,30 @@ export default function InterviewSchedulingWizard({
                     style={{ willChange: "transform, opacity", transform: "translateZ(0)" }}
                     className="space-y-4"
                   >
+                    {/* What is already set up, and what a new time does to it. */}
+                    {currentBooking && (
+                      <div
+                        className="rounded-lg border px-3.5 py-3 text-sm leading-relaxed"
+                        style={{ borderColor: "var(--line)", background: "var(--surface-2)", color: "var(--ink)" }}
+                        data-testid="current-booking"
+                      >
+                        <p className="font-semibold">
+                          {currentBooking.response === "confirmed" ? "Booked" : "Offered"}
+                          {currentBooking.at && !Number.isNaN(currentBooking.at.getTime())
+                            ? `: ${format(currentBooking.at, "EEE MMM d, h:mm a")}`
+                            : ""}
+                          {currentBooking.response === "confirmed"
+                            ? ` (${firstName} confirmed)`
+                            : currentBooking.response === "reschedule_requested"
+                              ? ` (${firstName} asked for another time)`
+                              : ` (waiting for ${firstName})`}
+                        </p>
+                        <p className="mt-0.5" style={{ color: "var(--ink-2)" }}>
+                          A new time replaces it, and {firstName} is asked again.
+                        </p>
+                      </div>
+                    )}
+
                     {/* Exact-time toggle — quiet text link, not a bordered row */}
                     <div className="flex justify-end">
                       <button

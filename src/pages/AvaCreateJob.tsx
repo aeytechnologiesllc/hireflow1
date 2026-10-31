@@ -99,6 +99,68 @@ const KIND_LABEL: Record<string, string> = {
   simulation: "chat practice",
 };
 
+/** A skills question's area as words ("fee_math" reads "Fee math"). */
+function areaLabel(category: unknown): string | null {
+  if (typeof category !== "string" || !category.trim()) return null;
+  const words = category.trim().replace(/[_-]+/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** What a step's card opens to before Publish: its questions, cases or bars, read from the plan itself. */
+function phaseDetails(p: JobFlow["phases"][number]): ReviewPhaseCard["details"] {
+  const cfg = p.config as Record<string, unknown>;
+  const text = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const many = (n: number, one: string, more: string) => (n === 1 ? one : more.replace("#", String(n)));
+  if (p.kind === "application") {
+    const qs = (Array.isArray(cfg.questions) ? cfg.questions : [])
+      .map((q) => text(typeof q === "string" ? q : (q as { question?: unknown; text?: unknown } | null)?.question ?? (q as { text?: unknown } | null)?.text))
+      .filter(Boolean);
+    return qs.length ? { toggle: many(qs.length, "See the question", "See the # questions"), items: qs.map((q) => ({ text: q })) } : null;
+  }
+  if (p.kind === "quiz") {
+    const items = (Array.isArray(cfg.items) ? cfg.items : []) as { scenario?: unknown; options?: unknown; correctAnswer?: unknown; category?: unknown; good?: unknown }[];
+    const list = items
+      .map((q) => ({
+        text: text(q.scenario),
+        label: areaLabel(q.category),
+        options: Array.isArray(q.options) ? q.options.map(text).filter(Boolean) : undefined,
+        answer: text(q.correctAnswer) || null,
+      }))
+      .filter((q) => q.text);
+    return list.length
+      ? { toggle: many(list.length, "See the question", "See the # questions"), note: list.some((q) => q.answer) ? "The right answer is ticked. Applicants never see it." : null, items: list }
+      : null;
+  }
+  if (p.kind === "simulation") {
+    const cases = (Array.isArray(cfg.scenarios) ? cfg.scenarios : []) as { prompt?: unknown; title?: unknown; customerName?: unknown }[];
+    const list = cases.map((c) => ({ text: text(c.prompt), label: text(c.customerName) || text(c.title) || null })).filter((c) => c.text);
+    const email = cfg.channel === "email";
+    return list.length
+      ? {
+          toggle: many(list.length, "See the case", "See the # cases"),
+          note: list.length > 1 ? `Each applicant gets one of these, and ${email ? "the customer writes to them by email" : "the customer messages them first"}.` : null,
+          items: list,
+        }
+      : null;
+  }
+  if (p.kind === "voice_interview") {
+    const qs = (Array.isArray(cfg.questions) ? cfg.questions : []) as { prompt?: unknown }[];
+    const list = qs.map((q) => ({ text: text(typeof q === "string" ? q : q.prompt) })).filter((q) => q.text);
+    return list.length ? { toggle: many(list.length, "See the question", "See the # questions"), items: list } : null;
+  }
+  if (p.kind === "equipment_check") {
+    const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    const down = n(cfg.minDownloadMbps), up = n(cfg.minUploadMbps), ping = n(cfg.maxLatencyMs);
+    const items = [
+      down != null ? { text: `Download speed of at least ${down} Mbps` } : null,
+      up != null ? { text: `Upload speed of at least ${up} Mbps` } : null,
+      ping != null ? { text: `A delay (ping) of no more than ${ping} ms` } : null,
+    ].filter((x): x is { text: string } => !!x);
+    return items.length ? { toggle: "See what it checks", items } : null;
+  }
+  return null;
+}
+
 function flowToReviewCards(flow: JobFlow): ReviewPhaseCard[] {
   const post: ReviewPhaseCard = {
     id: "job-post",
@@ -113,9 +175,12 @@ function flowToReviewCards(flow: JobFlow): ReviewPhaseCard[] {
   };
   const phases = flow.phases.map((p) => {
     const meta = KIND_ICON[p.kind] ?? { icon: FileText, accent: "good" as const };
+    // An email agent's practice says so on its card too (its title and "1 email" come from the plan).
+    const emailPractice = p.kind === "simulation" && (p.config as { channel?: unknown }).channel === "email";
     return {
       id: p.id,
       kind: KIND_LABEL[p.kind] ?? p.kind.replace(/_/g, " "),
+      ...(emailPractice ? { kind: "email practice" } : {}),
       icon: meta.icon,
       accent: meta.accent,
       title: p.title,
@@ -123,9 +188,34 @@ function flowToReviewCards(flow: JobFlow): ReviewPhaseCard[] {
       rationale: p.rationale,
       count: p.countLabel ?? "—",
       duration: p.durationLabel ?? "—",
+      details: phaseDetails(p),
     };
   });
   return [post, ...phases];
+}
+
+/** The review's edits as the draft keeps them (a card's icon is a component, never stored). */
+type ReviewEdit = { id: string; title: string; candidate: string };
+
+/** The cards for a saved plan with the business's own renames, order and removals put back. */
+function restoreReviewCards(flow: JobFlow, edits: ReviewEdit[] | undefined): ReviewPhaseCard[] {
+  const cards = flowToReviewCards(flow);
+  if (!Array.isArray(edits) || edits.length === 0) return cards;
+  const byId = new Map(cards.map((c) => [c.id, c]));
+  const restored = edits
+    .filter((e) => e && typeof e.id === "string" && byId.has(e.id))
+    .map((e) => ({ ...byId.get(e.id)!, title: typeof e.title === "string" ? e.title : byId.get(e.id)!.title, candidate: typeof e.candidate === "string" ? e.candidate : byId.get(e.id)!.candidate }));
+  return restored.length ? restored : cards;
+}
+
+/** Where a saved draft picks up: the review when it has a plan, a question step as it was, else the brief.
+ *  Never the build (it would build again) or the published screen. */
+function restoredStep(saved: { step?: number; flow: JobFlow | null } | null): number {
+  const at = saved?.step;
+  if (typeof at !== "number") return 0;
+  if (at >= 3 && saved?.flow) return 4;
+  if (at === 1 || at === 2) return at;
+  return 0;
 }
 
 function applyReviewEdits(flow: JobFlow, cards: ReviewPhaseCard[]): JobFlow {
@@ -166,9 +256,12 @@ export default function AvaCreateJob() {
   // production, so this never reads real query params there.
   const previewParams =
     import.meta.env.DEV && typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  // A draft picks up where it was left (the walkthrough of 2026-10-31: the
+  // email check's Help link, then Back, restarted at the brief and built the
+  // plan again, losing every rename and removal on the review).
   const [step, setStep] = useState(() => {
     const raw = previewParams?.get("__previewStep");
-    return raw != null && !Number.isNaN(Number(raw)) ? Number(raw) : 0;
+    return raw != null && !Number.isNaN(Number(raw)) ? Number(raw) : restoredStep(saved);
   });
   // No talking to Ava (the owner, 2026-10-29): every business, the
   // platform's own account included, tells her about the role in writing.
@@ -195,7 +288,7 @@ export default function AvaCreateJob() {
   const [geoPreview, setGeoPreview] = useState<import("@/lib/geocode").GeoPlace | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
   const [flow, setFlow] = useState<JobFlow | null>(saved?.flow ?? null);
-  const [reviewCards, setReviewCards] = useState<ReviewPhaseCard[]>(() => (saved?.flow ? flowToReviewCards(saved.flow) : []));
+  const [reviewCards, setReviewCards] = useState<ReviewPhaseCard[]>(() => (saved?.flow ? restoreReviewCards(saved.flow, saved.reviewEdits) : []));
   const [generating, setGenerating] = useState(false);
   const [genSource, setGenSource] = useState<"openai" | "template" | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -269,8 +362,18 @@ export default function AvaCreateJob() {
   }, []);
 
   useEffect(() => {
-    saveDraft({ briefFields, chipAnswers, rigor, rigorTouched, flow });
-  }, [briefFields, chipAnswers, rigor, rigorTouched, flow]);
+    // Published: the draft was cleared and stays cleared.
+    if (publishedCode) return;
+    saveDraft({
+      briefFields,
+      chipAnswers,
+      rigor,
+      rigorTouched,
+      flow,
+      step,
+      reviewEdits: reviewCards.map(({ id, title, candidate }) => ({ id, title, candidate })),
+    });
+  }, [briefFields, chipAnswers, rigor, rigorTouched, flow, step, reviewCards, publishedCode]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth?redirect=createJob", { replace: true });

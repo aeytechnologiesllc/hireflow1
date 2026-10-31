@@ -116,7 +116,6 @@ export function ImprovementBlueprintCard({ applicationId }: ImprovementBlueprint
                 size="lg"
                 variant="outline"
                 className="gap-2"
-                style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
               >
                 <Download className="h-5 w-5" />
                 PDF

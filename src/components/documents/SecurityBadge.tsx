@@ -28,7 +28,9 @@ const variantConfig = {
     icon: ShieldCheck,
     label: "Protected",
     tooltip: "Your document is stored in a secure, private vault",
-    className: "bg-accent/10 text-accent border-accent/20",
+    // An ink, like Encrypted: --accent is a surface token, so text-accent read
+    // 1.1:1 by Day and 1.0:1 by Night (the walkthrough of 2026-10-31).
+    className: "bg-primary/10 text-primary border-primary/20",
   },
   verified: {
     icon: CheckCircle,

@@ -220,7 +220,6 @@ export function ImprovementBlueprintView({ data, onDownloadPdf, isDownloading }:
               disabled={isDownloading}
               variant="outline"
               className="gap-2"
-              style={{ borderColor: "var(--brass-line)", color: "var(--brass)" }}
             >
               {isDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               Download as PDF

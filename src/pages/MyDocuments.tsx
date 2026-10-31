@@ -60,9 +60,18 @@ function SignDocumentRow({ doc, onView, askedBy, now }: { doc: DocumentWithAppli
           {askedBy && <span className="font-medium" style={{ color: "var(--ink-2)" }}>{askedBy} · </span>}
           Sent {format(new Date(doc.created_at), "MMM d, yyyy")}
         </div>
+        {/* On a phone the chip sits under the title, so the title and date
+            get the row's width (beside it, "Handbook Acknowledgment" was cut
+            to 78px: the walkthrough of 2026-10-31). */}
+        <span
+          className="mt-1.5 inline-block rounded-[5px] px-2 py-[3px] text-[10px] font-bold uppercase leading-none tracking-[0.06em] sm:hidden"
+          style={{ background: chip.bg, color: chip.fg }}
+        >
+          {chip.label}
+        </span>
       </div>
       <span
-        className="shrink-0 rounded-[5px] px-2 py-[3px] text-[10px] font-bold uppercase leading-none tracking-[0.06em]"
+        className="hidden shrink-0 rounded-[5px] px-2 py-[3px] text-[10px] font-bold uppercase leading-none tracking-[0.06em] sm:inline-block"
         style={{ background: chip.bg, color: chip.fg }}
       >
         {chip.label}

@@ -308,6 +308,10 @@ export default function ChatSimulationPhase() {
       // of your agents…"), so the page says what this step really is.
       title: typeof chatStep?.title === "string" && chatStep.title.trim() ? chatStep.title.trim() : null,
       description: typeof chatStep?.description === "string" && chatStep.description.trim() ? chatStep.description.trim() : null,
+      // An email agent's practice (the builder's "Email" answer, config.channel):
+      // the customer writes emails (ai-chat-simulation reads the same config)
+      // and each reply is framed as an email here.
+      email: (chatStep?.config as { channel?: unknown } | undefined)?.channel === "email",
     };
   }, [application?.jobs?.workflow_steps, stepId]);
 
@@ -1153,7 +1157,7 @@ export default function ChatSimulationPhase() {
 
         <div className="space-y-2.5">
           <h1 className="font-display ck-ink text-2xl text-foreground sm:text-3xl">
-            {chatConfig.title ?? "Chat practice"}
+            {chatConfig.title ?? (chatConfig.email ? "Email practice" : "Chat practice")}
           </h1>
 
           {chatConfig.description && (
@@ -1214,7 +1218,10 @@ export default function ChatSimulationPhase() {
                       </span>
                     ) : (
                       <span>
-                        <strong className="text-foreground">{preselectedScenario.customerName}</strong> messages you first. Reply the way you would at work: kind, clear, and true to what you know.
+                        <strong className="text-foreground">{preselectedScenario.customerName}</strong>{" "}
+                        {chatConfig.email
+                          ? "emails you first. Answer each email the way you would at work: kind, clear, complete, and true to what you know."
+                          : "messages you first. Reply the way you would at work: kind, clear, and true to what you know."}
                       </span>
                     )}
                   </li>
@@ -1257,7 +1264,7 @@ export default function ChatSimulationPhase() {
               {state === "chatting" && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-foreground">In conversation</span>
+                    <span className="font-medium text-foreground">{chatConfig.email ? "Email thread" : "In conversation"}</span>
                     <span className="ck-num text-muted-foreground">
                       {agentReplyCount} / {chatConfig.minMessages} replies
                     </span>
@@ -1297,7 +1304,7 @@ export default function ChatSimulationPhase() {
                           >
                             {message.role === "customer" && (
                               <p className="text-xs font-semibold mb-1 text-primary">
-                                {currentScenario.customerName}
+                                {chatConfig.email ? `Email from ${currentScenario.customerName}` : currentScenario.customerName}
                               </p>
                             )}
                             <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -1358,7 +1365,11 @@ export default function ChatSimulationPhase() {
                         ref={inputRef}
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="Type your reply... (Enter to send)"
+                        placeholder={
+                          chatConfig.email
+                            ? "Write your email reply... (Enter to send, Shift+Enter for a new line)"
+                            : "Type your reply... (Enter to send)"
+                        }
                         onKeyDown={handleTextareaKeyDown}
                         disabled={isTyping}
                         rows={3}
