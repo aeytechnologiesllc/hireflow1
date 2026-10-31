@@ -9,6 +9,10 @@
  * holds the two together. Its own small module so Settings does not carry
  * the whole policy.
  *
+ * A business is also told that its payment records and its email's one-way
+ * fingerprint stay (pricing v9, docs/BILLING.md: job_passes.owner_id goes
+ * NULL, billing_free_job_emails keeps no account).
+ *
  * `summary` is the line under "Delete Account" in Settings' Danger Zone, in
  * the confirm's own words (the fourteenth Phase 5 review: that row still said
  * "Permanently delete your account and all data" after the confirm was fixed).
@@ -32,6 +36,11 @@ export function deleteAccountWords(who: "applicant" | "business" | "team"): { su
     kept: [
       "The record of each document you signed (your name, email address, the time, your IP address, browser, device and approximate place), kept as proof of the signature.",
       "A few technical records the Privacy Policy lists, such as a count of test attempts, block-list entries and error reports.",
+      ...(who === "business"
+        ? [
+            "A record of each payment your business made (the amount, the date and the payment's reference), kept for our accounts, and a one-way fingerprint of your email address, kept so that one address gets one free job. Neither has your name.",
+          ]
+        : []),
     ],
   };
 }

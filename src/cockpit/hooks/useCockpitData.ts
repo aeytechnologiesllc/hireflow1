@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
-import { useSubscription } from "@/hooks/useSubscription";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { useEmployerApplications, useApplicationStats, useUpdateApplication } from "@/hooks/useApplications";
 import { useActivityFeed } from "@/hooks/useActivityFeed";
@@ -54,7 +53,6 @@ export { useSchemaMode };
 export function useCockpitAccount() {
   const { data: mode } = useSchemaMode();
   const { data: profile, isLoading: profileLoading, isError: profileFailed, refetch: refetchProfile } = useProfile();
-  const { subscriptionBypass } = useSubscription();
 
   const showcaseQ = useQuery({
     queryKey: ["showcase-account"],
@@ -83,7 +81,6 @@ export function useCockpitAccount() {
     // nothing". Pages must branch on this before rendering an empty state.
     isError: mode === "showcase" ? showcaseQ.isError : profileFailed,
     refetch,
-    subscriptionBypass: mode === "showcase" ? false : subscriptionBypass,
   };
 }
 

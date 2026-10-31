@@ -236,6 +236,33 @@ Hire box each closed letter.
 The café's Barista job ($15 to $18 an hour) shows an hourly range's letter
 starting on "an hour".
 
+### Billing (pricing v9; docs/BILLING.md)
+
+`&__previewBilling=` (src/dev-preview/previewBilling.ts) picks what
+get-subscription answers and what the stand-in database refuses; nothing
+reaches Stripe. `off` (as live today): no price, plan or days left anywhere,
+no Billing card. `free`: on, the free job not used yet. `paygo`: on, the free
+job used: Barista "12 days left", Server "Free job, last day", Shift Lead's
+"Its 30 days ended" (its "Post it again" opens the payment dialog), and a
+publish refused as `jobs_publish_needs_pass` refuses it (HINT
+`payment_required`: the editor saves the job, then opens the dialog).
+`unlimited`, `ending` (cancelled), `pastdue` (a payment failed), `canceled`
+(ended), `exempt` (the platform's own account) for Settings → Billing. Add
+`paid:<job id>` for the page Checkout comes back to (the job goes live four
+seconds later, as the webhook would put it) and `slow` to never go live (the
+calm message after 30 seconds). In the dialog, "Pay $99 and publish" and "Go
+Unlimited" go to that page, not to Stripe.
+
+| Screen | URL |
+|---|---|
+| Billing off: Jobs, nothing about billing | `/jobs?__preview=1&__previewRole=employer&__previewBilling=off` |
+| Jobs: days left, a last free day, 30 days ended | `/jobs?__preview=1&__previewRole=employer&__previewBilling=paygo` |
+| Job page: its 30 days ended (Post it again → the payment dialog) | `/jobs/20000000-0000-4000-8000-000000000004?__preview=1&__previewRole=employer&__previewBilling=paygo` |
+| Editor: Publish with the free job used | `/jobs/edit/20000000-0000-4000-8000-000000000003?__preview=1&__previewRole=employer&__previewBilling=paygo` |
+| Back from Checkout: goes live | `/jobs/20000000-0000-4000-8000-000000000003?__preview=1&__previewRole=employer&__previewBilling=paygo,paid:20000000-0000-4000-8000-000000000003&billing=paid` |
+| Settings → Billing (each state) | `/settings?__preview=1&__previewRole=employer&__previewBilling=paygo` (or `free`, `unlimited`, `ending`, `pastdue`, `canceled`, `exempt`) |
+| A teammate: days left, no Billing card | `/jobs?__preview=1&__previewRole=team_member&__previewBilling=paygo` |
+
 ### Create job
 
 | Screen | URL |

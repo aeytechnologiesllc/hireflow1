@@ -4,7 +4,11 @@ import { formatDistanceToNow } from "date-fns";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useUpdateJob } from "@/hooks/useJobs";
+import { useBilling } from "@/hooks/useSubscription";
+import { jobPassLine, repostNeedsPayment } from "@/lib/billing";
 import { jobShareUrl } from "@/lib/jobLinks";
+import { PublishPaymentDialog } from "@/components/billing/PublishPaymentDialog";
+import { BillingReturnNote } from "../components/BillingReturnNote";
 import { ShareKitDialog } from "../components/ShareKitDialog";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { JobStatusChip } from "../components/JobStatusChip";
@@ -30,6 +34,10 @@ export default function CockpitJobDetail() {
   const { jobs, rawJobs, isLoading, isError, refetch } = useCockpitJobsData();
   const updateJob = useUpdateJob();
   const [shareOpen, setShareOpen] = useState(false);
+  // Billing (pricing v9): days left on the job, and "Post it again" straight to
+  // paying when the job needs it. Nothing while billing is off.
+  const { billing, refetch: refetchBilling } = useBilling();
+  const [payOpen, setPayOpen] = useState(false);
 
   const job = useMemo(() => jobs.find((j) => j.id === jobId) ?? null, [jobs, jobId]);
 
@@ -42,8 +50,8 @@ export default function CockpitJobDetail() {
     const when = stamp
       ? `${job.dateLabel} ${formatDistanceToNow(new Date(stamp), { addSuffix: true })}`
       : `${job.dateLabel} ${job.date === "Recently" ? "recently" : job.date}`;
-    return [when, job.pay, job.location].filter(Boolean).join(" · ");
-  }, [job, rawJobs]);
+    return [jobPassLine(billing, job.id, job.status), when, job.pay, job.location].filter(Boolean).join(" · ");
+  }, [job, rawJobs, billing]);
 
   const back = (
     <Link
@@ -146,7 +154,7 @@ export default function CockpitJobDetail() {
               <button
                 type="button"
                 className="ck-btn ck-btn-outline !px-3.5 !py-2 !text-[12.5px]"
-                onClick={() => navigate(`/jobs/edit/${job.id}`)}
+                onClick={() => (!live && repostNeedsPayment(billing, job.id) ? setPayOpen(true) : navigate(`/jobs/edit/${job.id}`))}
               >
                 {live ? "Edit job" : "Post it again"}
               </button>
@@ -174,7 +182,27 @@ export default function CockpitJobDetail() {
         </header>
       </div>
 
+      <BillingReturnNote
+        billing={billing}
+        live={live}
+        onRefresh={() => {
+          void refetch();
+          void refetchBilling();
+        }}
+      />
+
       <CockpitApplicants jobId={job.id} />
+
+      <PublishPaymentDialog
+        open={payOpen}
+        onOpenChange={setPayOpen}
+        jobId={job.id}
+        jobTitle={job.title}
+        onPublishInstead={() => {
+          setPayOpen(false);
+          navigate(`/jobs/edit/${job.id}`);
+        }}
+      />
 
       <ShareKitDialog open={shareOpen} job={job} applyUrl={jobShareUrl(job)} onClose={() => setShareOpen(false)} />
     </div>

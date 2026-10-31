@@ -280,6 +280,35 @@
  *      quiz, or two settings), and a save back to draft with new words, are
  *      refused once people have applied; a number, the same words in another
  *      key order and closing the job are taken.
+ *  33. Billing, pricing v9 (20261031100000; docs/BILLING.md). Off (the
+ *      default, and every section above runs with it off): every publish, a
+ *      re-open and a teammate's publish go through, nothing is recorded, the
+ *      hourly run closes nothing, no plan is reported, checkout refuses, and
+ *      anything but true is off. On: the first publish takes the free job (30
+ *      days, once, kept when the job is deleted); a second job, inserted live
+ *      or put live, by the owner or a teammate, is refused (HINT
+ *      payment_required); the email check still comes first and spends
+ *      nothing; the platform admin is never asked and nothing is recorded,
+ *      while home_alias and subscription_bypass are no exemption; a paid
+ *      checkout records 30 days and puts the job live, the same event or
+ *      session again changes nothing, another customer's or business's
+ *      payment puts nothing live; an ended pass is refused on re-open; the
+ *      hourly run closes only what nothing covers, tells the owner once, and
+ *      makes no pass (billing_switch_on gives the jobs live then 30 days, the
+ *      first time only); Unlimited covers every job without spending the free
+ *      job, a late event about an older subscription changes nothing, and its
+ *      end closes what it covered with one card; refunds, failed payments
+ *      (once a day), checkout's questions; no browser writes or calls any of
+ *      it; the check sits beside the other publish checks; teammates,
+ *      documents and drafts are never limited; switched off again, nothing is
+ *      refused. And the independent review's findings (2026-10-31), each
+ *      weakening M1 to M10 failing a check here or a guard: Unlimited's period
+ *      end and statuses, 7 days past_due, nothing closed until billing-sync
+ *      has read it again; never two Unlimited; money with nothing given owed
+ *      back, a refunded payment putting nothing live; one Checkout at a time;
+ *      the free job once per email address; payment records outliving the
+ *      account; teammates reading only their jobs' days and never a Stripe
+ *      id; a paused business; switched on again, no new days.
  *
  * Two repo migrations were never applied live and fail on any database since
  * (docs/MIGRATION-HISTORY.md, section 3b); they are skipped with that reason.
@@ -4922,6 +4951,705 @@ console.log("\n32. The step-words lock reads each word with the key that holds i
   check("…a number, the same words saved again (in any key order) and closing it are taken", ok.every(([, r]) => r.ok && r.rows.length === 1), show(ok.map(([l, r]) => `${l}: ${r.ok || r.error}`)));
   const tree = await one(`select p.prosecdef d, has_function_privilege('authenticated', p.oid, 'execute') a from pg_proc p where p.proname = 'job_words_tree'`);
   check("…job_words_tree is the database's own (no browser may call it)", tree?.a === false, show(tree));
+}
+
+console.log("\n33. Billing (pricing v9): nothing changes while it is off; on, the first job is free, then a pass or Unlimited; platform_admins the only exemption\n");
+{
+  // 20261031100000_billing_pricing_v9.sql (docs/BILLING.md). Every section
+  // above ran with billing off and this migration applied: what they prove
+  // still holds. Here: the switch itself, the publish check, the hourly run,
+  // the webhook's and billing-sync's database half and who may write what.
+  // The independent review of the build (2026-10-31) found weakenings M1 to
+  // M10 no test caught; each now fails a check here, named with it.
+  const R33 = (n) => `9d330000-0000-4000-8000-${String(n).padStart(12, "0")}`;
+  const [A, MATE, B, U, L, H, NEW33, CAND] = [R33(1), R33(2), R33(3), R33(4), R33(5), R33(6), R33(7), R33(11)];
+  const [U2, P2, S2, MATE2, D2, Q2] = [R33(20), R33(21), R33(22), R33(23), R33(24), R33(25)];
+  const [E1, E2, E3] = [R33(30), R33(31), R33(32)];
+  await makeUser(A, "employer", { full_name: "Pay owner", company_name: "Pay Clinic 33" });
+  await makeUser(MATE, "team_member", { full_name: "Pay teammate" });
+  await makeUser(B, "employer", { full_name: "Other owner", company_name: "Other Shop 33" });
+  await makeUser(U, "employer", { full_name: "Unlimited owner", company_name: "Big Desk 33" });
+  await makeUser(L, "employer", { full_name: "Early owner", company_name: "Early Co 33" });
+  await makeUser(H, "employer", { full_name: "Home owner", company_name: "Home Co 33" });
+  await makeUser(NEW33, "employer", { full_name: "Unconfirmed owner", company_name: "Fresh Co 33" });
+  await makeUser(CAND, "candidate");
+  for (const [who, name] of [[U2, "Clock Co 33"], [P2, "Refund Co 33"], [S2, "Paused Co 33"], [D2, "Twice Co 33"], [Q2, "Retry Co 33"]]) await makeUser(who, "employer", { full_name: `${name} owner`, company_name: name });
+  await makeUser(MATE2, "team_member", { full_name: "One-job teammate" });
+  // The free job's email accounts: made with their own addresses (makeUser's are all different).
+  const makeWithEmail = async (who, email, name) => {
+    await db.query(`insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, $3::jsonb)`, [who, email, JSON.stringify({ full_name: name, company_name: name })]);
+    await db.query(`insert into public.user_roles (user_id, role) values ($1, 'employer')`, [who]);
+  };
+  await makeWithEmail(E1, "Pat.Lee+hire@gmail.com", "Pat Co 33");
+  await makeWithEmail(E2, "patlee@googlemail.com", "Pat Again 33");
+  await makeWithEmail(E3, "someone.new@example.test", "New Inbox 33");
+  await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = any($1::uuid[])`, [[A, B, U, L, H, U2, P2, S2, D2, Q2, E1, E2, E3]]);
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_create_jobs, can_manage_pipeline, assigned_job_ids) values ($1, $2, $3, 'active', true, true, '{}'::uuid[])`, [MATE, A, emailOf(MATE)]);
+  // What has never been an exemption: HireFlow's own careers address (home_alias) and the old app-metadata bypass.
+  await db.query(`update public.business_pages set home_alias = false where home_alias`);
+  await db.query(`insert into public.business_pages (employer_id, slug, home_alias) values ($1, 'home-co-33', true) on conflict (employer_id) do update set home_alias = true`, [H]);
+  await db.query(`update auth.users set raw_app_meta_data = '{"subscription_bypass": true}'::jsonb where id = $1`, [H]);
+
+  const setBilling = (on) => db.query(`update public.app_settings set value = $1::jsonb where key = 'billing_enabled'`, [on ? "true" : "false"]);
+  const newJob = async (who, owner, title, status = "published") => as(user(who), `insert into public.jobs (employer_id, title, description, status) values ($1, $2, 'Answer customers by chat.', $3) returning id`, [owner, title, status]);
+  const setStatus = (who, job, status) => as(user(who), `update public.jobs set status = $2 where id = $1 returning id`, [job, status]);
+  const statusOf = async (job) => (await one(`select status from public.jobs where id = $1`, [job]))?.status;
+  const passes = async (where, params) => (await db.query(`select kind, status, job_id, owner_id, ends_at, starts_at, amount_cents, stripe_payment_intent_id from public.job_passes where ${where} order by created_at`, params)).rows;
+  const paymentRefused = (r) => !r.ok && /Your free job is used/.test(r.error ?? "");
+  const cards = async (who, title) => Number((await one(`select count(*)::int n from public.notifications where user_id = $1 and title = $2`, [who, title])).n);
+  const svc = (sql, params = []) => as(SERVICE, sql, params);
+  const val = async (sql, params = []) => {
+    const r = await svc(sql, params);
+    if (!r.ok) throw new Error(`section 33: ${sql.slice(0, 80)}: ${r.error}`);
+    return r.rows[0]?.r;
+  };
+  const days = (t) => (new Date(t).getTime() - Date.now()) / 86400000;
+  const sub = (owner, customer) => (event, type, subscription, status, periodEnd, job = null, cancel = false) =>
+    svc(`select public.billing_apply_subscription($1, $2, false, $7, $3, $4, now() - interval '1 day', ${periodEnd}, $5, 29900, 'usd', $6) r`, [event, type, subscription, status, cancel, job, customer]);
+  const pay = (event, session, job, owner, customer, pi = `pi_${session.slice(3)}`) =>
+    svc(`select public.billing_apply_job_payment($1, 'checkout.session.completed', false, $2, $3, $4, $5, $6, 9900, 'usd') r`, [event, owner, customer, job, session, pi]);
+  const ask = async (who, kind, job) => (await svc(`select public.billing_checkout_check($1, $2, $3, false) r`, [who, kind, job])).rows?.[0]?.r;
+  const plan = async (owner, viewer = null) => (await svc(`select public.billing_state($1, $2) s`, [owner, viewer])).rows?.[0]?.s;
+
+  // (a) Billing off (as today): publish never refused, nothing recorded, nothing closed, no plan reported.
+  const offState = await one(`select public.billing_on() v`);
+  const offJobs = [];
+  for (const title of ["Chat agent", "Email agent", "Night chat agent"]) offJobs.push(await newJob(A, A, title));
+  const closedOff = await setStatus(A, offJobs[0].rows?.[0]?.id, "closed");
+  const reopenedOff = await setStatus(A, offJobs[0].rows?.[0]?.id, "published");
+  const byMateOff = await newJob(MATE, A, "Weekend chat agent");
+  const lateOff = await newJob(L, L, "Early chat agent");
+  const closeRunOff = await svc(`select public.billing_close_ended_jobs() n`);
+  const stateOff = await svc(`select public.billing_state($1) s`, [A]);
+  const checkoutOff = await svc(`select public.billing_checkout_check($1, 'job', $2, false) r`, [A, offJobs[1].rows?.[0]?.id]);
+  const syncOff = await val(`select public.billing_sync_due(false, true) r`);
+  check(
+    "(a) billing off (the default): every publish, a re-open and a teammate's publish go through, no pass is recorded, the hourly run closes nothing, no plan is reported, checkout refuses and billing-sync has nothing to read",
+    offState.v === false && offJobs.every((r) => r.ok) && closedOff.ok && reopenedOff.ok && byMateOff.ok && lateOff.ok &&
+      (await passes(`owner_id = any($1::uuid[])`, [[A, L]])).length === 0 &&
+      closeRunOff.ok && closeRunOff.rows[0].n === 0 && (await statusOf(offJobs[0].rows[0].id)) === "published" &&
+      stateOff.ok && stateOff.rows[0].s.billingEnabled === false && stateOff.rows[0].s.plan === null && JSON.stringify(stateOff.rows[0].s.jobs) === "{}" &&
+      checkoutOff.ok && checkoutOff.rows[0].r.reason === "billing_off" && JSON.stringify(syncOff) === "[]",
+    show([offState, offJobs.map((r) => r.ok || r.error), closedOff.ok || closedOff.error, reopenedOff.ok || reopenedOff.error, byMateOff.ok || byMateOff.error, closeRunOff, stateOff.rows?.[0], checkoutOff.rows?.[0], syncOff]),
+  );
+  const malformed = [];
+  for (const v of [`'"yes"'`, `'1'`, `'null'`, `'{"on": true}'`]) {
+    await db.query(`update public.app_settings set value = ${v}::jsonb where key = 'billing_enabled'`);
+    malformed.push((await one(`select public.billing_on() v`)).v);
+  }
+  await db.query(`delete from public.app_settings where key = 'billing_enabled'`);
+  const missing = (await one(`select public.billing_on() v`)).v;
+  await db.query(`insert into public.app_settings (key, value) values ('billing_enabled', 'false'::jsonb)`);
+  check("…anything but true (a missing row, a string, a number, null) is off", malformed.every((v) => v === false) && missing === false, show([malformed, missing]));
+  // The schedules: the hourly close, and billing-sync ten minutes before it, which proves itself with a secret kept in Vault.
+  const jobsRun = (await db.query(`select jobname, schedule, command from cron.job where jobname in ('billing-close-ended-jobs', 'billing-sync') order by jobname`)).rows;
+  const secret = (await one(`select decrypted_secret s from vault.decrypted_secrets where name = 'billing_sync_secret'`))?.s ?? "";
+  const matches = [await val(`select public.billing_sync_secret_matches($1) r`, [secret]), await val(`select public.billing_sync_secret_matches($1) r`, ["x".repeat(64)]), await val(`select public.billing_sync_secret_matches('') r`)];
+  const browserSecret = await as(user(A), `select public.billing_sync_secret_matches($1)`, [secret]);
+  check(
+    "…pg_cron runs the hourly close at minute 17 and billing-sync at minute 7, which sends the secret Vault keeps (made in the database, 64 hex characters); only that secret matches, and no browser may ask",
+    jobsRun.length === 2 && jobsRun[0].jobname === "billing-close-ended-jobs" && jobsRun[0].schedule === "17 * * * *" && jobsRun[0].command === "select public.billing_close_ended_jobs()" &&
+      jobsRun[1].jobname === "billing-sync" && jobsRun[1].schedule === "7 * * * *" && jobsRun[1].command.includes("https://yqklrkpptnhubsnijqze.supabase.co/functions/v1/billing-sync") &&
+      /'x-billing-sync-secret', coalesce\(\s*\(select decrypted_secret from vault\.decrypted_secrets where name = 'billing_sync_secret' limit 1\)/.test(jobsRun[1].command) &&
+      /^[0-9a-f]{64}$/.test(secret) && matches[0] === true && matches[1] === false && matches[2] === false && !browserSecret.ok,
+    show([jobsRun, matches, browserSecret.ok]),
+  );
+
+  // (b) On, as the owner turns it on (billing_switch_on): the jobs live then get 30 days, once.
+  const switchedByBrowser = await as(user(A), `select public.billing_switch_on()`);
+  const switched = await val(`select public.billing_switch_on() r`);
+  const lateJob = lateOff.rows[0].id;
+  const latePass = await passes(`job_id = $1`, [lateJob]);
+  check(
+    "(b) billing_switch_on (the server's only) turns billing on and gives each job live then that never had a pass 30 days (a launch pass); the admin's jobs none",
+    !switchedByBrowser.ok && switched?.ok === true && switched.first === true && switched.grandfathered >= 5 && (await one(`select public.billing_on() v`)).v === true &&
+      latePass.length === 1 && latePass[0].kind === "launch" && Math.abs(days(latePass[0].ends_at) - 30) < 0.01 &&
+      (await passes(`job_id = $1`, [offJobs[1].rows[0].id]))[0]?.kind === "launch" &&
+      (await passes(`owner_id = $1`, [ADMIN])).length === 0,
+    show([switchedByBrowser.ok, switched, latePass]),
+  );
+  // The first job is free (30 days), once.
+  const A1 = (await newJob(A, A, "Billing chat agent", "draft")).rows[0].id;
+  const freeGo = await setStatus(A, A1, "published");
+  const freePass = await passes(`job_id = $1`, [A1]);
+  check(
+    "…the business's first publish goes live on its free job, 30 days",
+    freeGo.ok && freePass.length === 1 && freePass[0].kind === "free" && freePass[0].status === "active" && Math.abs(days(freePass[0].ends_at) - 30) < 0.01,
+    show([freeGo.ok || freeGo.error, freePass]),
+  );
+  const second = await newJob(A, A, "Second chat agent");
+  const secondDraft = (await newJob(A, A, "Second chat agent", "draft")).rows[0].id;
+  const secondGo = await setStatus(A, secondDraft, "published");
+  const byMate = await setStatus(MATE, secondDraft, "published");
+  let hint = null;
+  try {
+    await db.transaction(async (tx) => {
+      await tx.query(`select set_config('request.jwt.claims', $1, true), set_config('role', 'authenticated', true)`, [JSON.stringify({ sub: A, role: "authenticated" })]);
+      await tx.query(`update public.jobs set status = 'published' where id = $1`, [secondDraft]);
+    });
+  } catch (e) {
+    hint = e.hint ?? null;
+  }
+  // M4: a write with no role at all (a session that sends no claims) is no exemption: only the service role and a platform admin are.
+  let noRole = null;
+  try {
+    await db.query(`update public.jobs set status = 'published' where id = $1`, [secondDraft]);
+    noRole = "taken";
+  } catch (e) {
+    noRole = e.message;
+  }
+  check(
+    "…a second job (inserted live, or a draft put live, by the owner, a teammate or a write with no role at all) is refused with HINT payment_required, and stays a draft (M4)",
+    paymentRefused(second) && paymentRefused(secondGo) && paymentRefused(byMate) && hint === "payment_required" && /Your free job is used/.test(noRole ?? "") && (await statusOf(secondDraft)) === "draft" &&
+      (await passes(`owner_id = $1 and kind = 'free'`, [A])).length === 1,
+    show([second.ok || second.error, secondGo.ok || secondGo.error, byMate.ok || byMate.error, hint, noRole]),
+  );
+  const closedEarly = await setStatus(A, A1, "closed");
+  const reopenedEarly = await setStatus(A, A1, "published");
+  check("…its free job closed early and re-opened within its 30 days goes live again, with no new pass", closedEarly.ok && reopenedEarly.ok && (await passes(`job_id = $1`, [A1])).length === 1, show([closedEarly.ok || closedEarly.error, reopenedEarly.ok || reopenedEarly.error]));
+  // Deleting the free job never frees the free job again.
+  const gone = (await newJob(B, B, "Throwaway chat agent")).rows?.[0]?.id;
+  const deleted = await as(user(B), `delete from public.jobs where id = $1 returning id`, [gone]);
+  const afterDelete = await newJob(B, B, "Another chat agent");
+  check(
+    "…deleting the free job keeps it used (its pass stays, job_id NULL): the next job is refused",
+    !!gone && deleted.ok && paymentRefused(afterDelete) && (await passes(`owner_id = $1 and kind = 'free'`, [B])).length === 1 && (await passes(`owner_id = $1 and kind = 'free'`, [B]))[0].job_id === null,
+    show([gone, deleted.ok || deleted.error, afterDelete.ok || afterDelete.error, await passes(`owner_id = $1`, [B])]),
+  );
+
+  // The email check and good standing still come first, and spend nothing.
+  const unconfirmed = await newJob(NEW33, NEW33, "Unconfirmed chat agent");
+  check(
+    "…a business that has not confirmed its email is refused for that first (email_not_verified), and its free job is not spent",
+    !unconfirmed.ok && /Confirm your email/.test(unconfirmed.error ?? "") && (await passes(`owner_id = $1`, [NEW33])).length === 0,
+    show(unconfirmed),
+  );
+
+  // (c) The platform admin: never asked, never closed, nothing recorded; home_alias and subscription_bypass are no exemption.
+  const adminJobs = [];
+  for (const title of ["Admin chat 1", "Admin chat 2", "Admin chat 3"]) adminJobs.push(await newJob(ADMIN, ADMIN, title));
+  const homeFirst = await newJob(H, H, "Home chat 1");
+  const homeSecond = await newJob(H, H, "Home chat 2");
+  check(
+    "(c) the platform admin publishes any number of jobs with billing on and nothing is recorded; home_alias and the old subscription_bypass are no exemption",
+    adminJobs.every((r) => r.ok) && (await passes(`owner_id = $1`, [ADMIN])).length === 0 && homeFirst.ok && paymentRefused(homeSecond),
+    show([adminJobs.map((r) => r.ok || r.error), homeFirst.ok || homeFirst.error, homeSecond.ok || homeSecond.error]),
+  );
+
+  // (d) A paid pass, as billing-webhook records it.
+  const saved = await svc(`select public.billing_save_customer($1, false, 'cus_A33') c`, [A]);
+  const savedAgain = await svc(`select public.billing_save_customer($1, false, 'cus_A33other') c`, [A]);
+  const payA = (event, session, job = secondDraft, owner = A, customer = "cus_A33") => pay(event, session, job, owner, customer);
+  const paid = await payA("evt_33paid1", "cs_33paid1");
+  const paidPass = await passes(`job_id = $1`, [secondDraft]);
+  const again = await payA("evt_33paid1", "cs_33paid1");
+  const sameSession = await payA("evt_33paid1b", "cs_33paid1");
+  check(
+    "(d) a paid checkout: the pass (30 days) is recorded and the job goes live, the owner told; the same event again, or the same session under another event, changes nothing",
+    saved.ok && saved.rows[0].c === "cus_A33" && savedAgain.rows?.[0]?.c === "cus_A33" &&
+      paid.ok && paid.rows[0].r.published === "published" && (await statusOf(secondDraft)) === "published" &&
+      paidPass.length === 1 && paidPass[0].kind === "paid" && Math.abs(days(paidPass[0].ends_at) - 30) < 0.01 &&
+      again.rows?.[0]?.r?.duplicate === true && sameSession.rows?.[0]?.r?.duplicate === true && (await passes(`job_id = $1`, [secondDraft])).length === 1 &&
+      (await cards(A, "Your job is live")) === 1 &&
+      Number((await one(`select count(*)::int n from public.billing_events where id in ('evt_33paid1', 'evt_33paid1b')`)).n) === 2,
+    show([saved.rows?.[0], savedAgain.rows?.[0], paid.rows?.[0] ?? paid.error, again.rows?.[0], sameSession.rows?.[0], paidPass]),
+  );
+  const B2 = (await newJob(B, B, "Other paid agent", "draft")).rows[0].id;
+  const mismatch = await payA("evt_33mismatch", "cs_33mismatch", B2, B, "cus_A33");
+  const wrongJob = await payA("evt_33wrongjob", "cs_33wrongjob", B2, A, "cus_A33");
+  check(
+    "…a payment whose customer is not the named owner's (M6), or for another business's job, puts nothing live and is owed back (a refund for billing-webhook to make, naming the customer's business)",
+    mismatch.rows?.[0]?.r?.ignored === "owner_mismatch" && wrongJob.rows?.[0]?.r?.ignored === "not_owner" && (await statusOf(B2)) === "draft" && (await passes(`job_id = $1`, [B2])).length === 0 &&
+      mismatch.rows[0].r.refund?.kind === "job_payment" && mismatch.rows[0].r.refund.reason === "owner_mismatch" && mismatch.rows[0].r.refund.paymentIntent === "pi_33mismatch" &&
+      wrongJob.rows[0].r.refund?.reason === "not_owner" &&
+      (await one(`select owner_id o from public.billing_refunds where stripe_payment_intent_id = 'pi_33mismatch'`))?.o === A,
+    show([mismatch.rows?.[0] ?? mismatch.error, wrongJob.rows?.[0] ?? wrongJob.error]),
+  );
+  // Ended: a re-open is refused; the hourly run closes and tells.
+  await db.query(`update public.job_passes set ends_at = now() - interval '1 minute', starts_at = now() - interval '30 days' where job_id = $1`, [secondDraft]);
+  const closeEnded = await setStatus(A, secondDraft, "closed");
+  const reopenEnded = await setStatus(A, secondDraft, "published");
+  check("…once its 30 days are over, re-opening it is refused (payment_required)", closeEnded.ok && paymentRefused(reopenEnded) && (await statusOf(secondDraft)) === "closed", show([closeEnded.ok || closeEnded.error, reopenEnded.ok || reopenEnded.error]));
+  // Paying again: 30 more days, from now (the old pass is over).
+  const paidAgain = await payA("evt_33paid2", "cs_33paid2");
+  check("…paying again puts it live for 30 days from now", paidAgain.rows?.[0]?.r?.published === "published" && (await statusOf(secondDraft)) === "published" && Math.abs(days((await one(`select max(ends_at) e from public.job_passes where job_id = $1`, [secondDraft])).e) - 30) < 0.01, show([paidAgain.rows?.[0] ?? paidAgain.error, await passes(`job_id = $1`, [secondDraft])]));
+
+  // (e) The hourly run: closes what nothing covers, tells the owner, and only that; it makes no pass.
+  await db.query(`update public.job_passes set ends_at = now() - interval '1 minute', starts_at = now() - interval '30 days' where job_id = $1`, [A1]);
+  const passCount = async () => Number((await one(`select count(*)::int n from public.job_passes`)).n);
+  const beforeRun = await passCount();
+  const firstRun = await svc(`select public.billing_close_ended_jobs() n`);
+  check(
+    "(e) the hourly run closes the free job whose 30 days ended, marks its pass ended and tells the owner; the paid job with time left stays live; it makes no pass",
+    firstRun.ok && (await statusOf(A1)) === "closed" && (await passes(`job_id = $1`, [A1]))[0].status === "ended" &&
+      (await cards(A, "Your job's 30 days have ended")) === 1 && (await statusOf(secondDraft)) === "published" && (await passCount()) === beforeRun,
+    show([firstRun.rows?.[0] ?? firstRun.error, await passes(`owner_id = $1`, [A])]),
+  );
+  check(
+    "…the job that went live while billing was off has its 30 days from the switch, never closed unannounced; the admin's jobs are never closed",
+    (await statusOf(lateJob)) === "published" &&
+      (await one(`select count(*)::int n from public.jobs where employer_id = $1 and status = 'published'`, [ADMIN])).n >= 3,
+  );
+  await db.query(`update public.job_passes set ends_at = now() - interval '1 minute', starts_at = now() - interval '30 days' where job_id = $1`, [lateJob]);
+  const secondRun = await svc(`select public.billing_close_ended_jobs() n`);
+  const thirdRun = await svc(`select public.billing_close_ended_jobs() n`);
+  check(
+    "…when that ends it closes too; a run with nothing to do closes nothing and tells nobody again",
+    secondRun.rows?.[0]?.n === 1 && (await statusOf(lateJob)) === "closed" && thirdRun.rows?.[0]?.n === 0 && (await cards(A, "Your job's 30 days have ended")) === 1 && (await cards(L, "Your job's 30 days have ended")) === 1,
+    show([secondRun.rows?.[0], thirdRun.rows?.[0]]),
+  );
+  const lockClause = (await one(`select prosrc s from pg_proc where proname = 'billing_close_for'`))?.s ?? "";
+  check("…it skips a job another transaction holds with FOR NO KEY UPDATE SKIP LOCKED, so new applications never hold it up (finding 12)", /for no key update of j skip locked/i.test(lockClause) && !/for update of j/i.test(lockClause));
+
+  // (f) Unlimited.
+  await svc(`select public.billing_save_customer($1, false, 'cus_U33')`, [U]);
+  const subU = sub(U, "cus_U33");
+  const U0 = (await newJob(U, U, "Unlimited chat agent", "draft")).rows[0].id;
+  const started = await subU("evt_33sub1", "checkout.session.completed", "sub_U33a", "active", "now() + interval '29 days'", U0);
+  const uJobs = [];
+  for (const title of ["Unlimited email 1", "Unlimited email 2", "Unlimited email 3"]) uJobs.push(await newJob(U, U, title));
+  const uState = await plan(U);
+  check(
+    "(f) Unlimited: the job named at checkout goes live, then every job the owner publishes, without spending the free job",
+    started.rows?.[0]?.r?.published === "published" && (await statusOf(U0)) === "published" && uJobs.every((r) => r.ok) &&
+      (await passes(`owner_id = $1 and kind = 'free'`, [U])).length === 0 && (await passes(`owner_id = $1 and kind = 'unlimited'`, [U])).length === 4 &&
+      uState?.plan === "unlimited" && uState.freeJobAvailable === true && uState.unlimited?.active === true &&
+      (await cards(U, "Unlimited is on")) === 1,
+    show([started.rows?.[0] ?? started.error, uJobs.map((r) => r.ok || r.error), uState]),
+  );
+  const hourly = await svc(`select public.billing_close_ended_jobs() n`);
+  const stale = await subU("evt_33old", "customer.subscription.deleted", "sub_U33old", "canceled", "now() - interval '40 days'");
+  // A renewal whose payment failed (past_due, Stripe still retrying) closes nothing.
+  const pending = await subU("evt_33pending", "customer.subscription.created", "sub_U33a", "past_due", "now() + interval '29 days'");
+  check(
+    "…the hourly run leaves Unlimited's jobs live, a late event about an older subscription changes nothing, and a payment failing (past_due) closes nothing",
+    hourly.ok && (await statusOf(uJobs[0].rows[0].id)) === "published" && stale.rows?.[0]?.r?.ignored === "older_subscription" &&
+      (await one(`select stripe_subscription_id s from public.subscriptions where user_id = $1`, [U])).s === "sub_U33a" &&
+      pending.rows?.[0]?.r?.closed === 0 && Number((await one(`select count(*)::int n from public.jobs where employer_id = $1 and status = 'published'`, [U])).n) === 4,
+    show([hourly.rows?.[0], stale.rows?.[0] ?? stale.error, pending.rows?.[0] ?? pending.error]),
+  );
+  const ended = await subU("evt_33sub2", "customer.subscription.deleted", "sub_U33a", "canceled", "now()");
+  const uLive = Number((await one(`select count(*)::int n from public.jobs where employer_id = $1 and status = 'published'`, [U])).n);
+  check(
+    "…when it ends every job it covered closes at once, with one card for the owner; re-opening one then takes the free job, and the next is refused",
+    ended.rows?.[0]?.r?.closed === 4 && uLive === 0 && (await cards(U, "Your Unlimited plan has ended")) === 1 &&
+      (await setStatus(U, U0, "published")).ok && paymentRefused(await setStatus(U, uJobs[0].rows[0].id, "published")),
+    show([ended.rows?.[0] ?? ended.error, uLive]),
+  );
+
+  // (g) Refunds and failed payments.
+  const refund = await svc(`select public.billing_apply_refund('evt_33refund', 'charge.refunded', false, 'pi_33paid2', true) r`);
+  const refundAgain = await svc(`select public.billing_apply_refund('evt_33refund', 'charge.refunded', false, 'pi_33paid2', true) r`);
+  const partial = await svc(`select public.billing_apply_refund('evt_33partial', 'charge.refunded', false, 'pi_33paid1', false) r`);
+  check(
+    "(g) a full refund ends that payment's pass and closes its job (the owner told); the same event again does nothing; a partial refund ends nothing (M7)",
+    refund.rows?.[0]?.r?.ended === 1 && (await statusOf(secondDraft)) === "closed" && (await cards(A, "Your payment was refunded")) === 1 &&
+      refundAgain.rows?.[0]?.r?.duplicate === true && partial.rows?.[0]?.r?.ignored === "partial" &&
+      (await passes(`stripe_payment_intent_id = 'pi_33paid1'`, []))[0].status !== "refunded" &&
+      (await passes(`owner_id = $1 and kind = 'free'`, [A]))[0].status !== "refunded",
+    show([refund.rows?.[0] ?? refund.error, refundAgain.rows?.[0], partial.rows?.[0]]),
+  );
+  const failedPay = await svc(`select public.billing_apply_payment_failed('evt_33failed', 'invoice.payment_failed', false, 'cus_U33', 'sub_U33a') r`);
+  const failedRetry = await svc(`select public.billing_apply_payment_failed('evt_33failed2', 'invoice.payment_failed', false, 'cus_U33', 'sub_U33a') r`);
+  const failedOther = await svc(`select public.billing_apply_payment_failed('evt_33failed3', 'invoice.payment_failed', false, 'cus_U33', 'sub_U33b') r`);
+  const unknown = await svc(`select public.billing_apply_payment_failed('evt_33unknown', 'invoice.payment_failed', false, 'cus_nobody') r`);
+  check(
+    "…a failed payment tells the owner in the app, at most once a day for a subscription (Stripe's next try the same day tells nobody; another subscription's does, finding 15); an unknown customer is recorded and ignored",
+    failedPay.rows?.[0]?.r?.told === true && failedRetry.rows?.[0]?.r?.told === false && failedOther.rows?.[0]?.r?.told === true &&
+      (await cards(U, "Your payment didn't go through")) === 2 && unknown.rows?.[0]?.r?.ignored === "unknown_customer",
+    show([failedPay.rows?.[0] ?? failedPay.error, failedRetry.rows?.[0], failedOther.rows?.[0], unknown.rows?.[0]]),
+  );
+
+  // (h) Checkout's questions.
+  const B3 = (await newJob(B, B, "Other draft", "draft")).rows[0].id;
+  // A teammate who may create jobs, assigned to one of A's jobs only.
+  const mateJob = (await newJob(A, A, "Assigned draft", "draft")).rows[0].id;
+  const otherJob = (await newJob(A, A, "Not assigned draft", "draft")).rows[0].id;
+  await db.query(`insert into public.team_members (user_id, employer_id, email, status, can_create_jobs, can_manage_pipeline, assigned_job_ids) values ($1, $2, $3, 'active', true, true, $4::uuid[])`, [MATE2, A, emailOf(MATE2), `{${mateJob},${A1}}`]);
+  // A closed job with days still paid for (its launch pass): nothing to pay.
+  const closedWithDays = offJobs[2].rows[0].id;
+  await setStatus(A, closedWithDays, "closed");
+  const answers = {
+    applicant: (await ask(CAND, "job", B3))?.reason,
+    admin: (await ask(ADMIN, "unlimited", null))?.reason,
+    stranger: (await ask(A, "job", B3))?.reason,
+    unconfirmed: (await ask(NEW33, "unlimited", null))?.reason,
+    live: (await ask(A, "job", offJobs[1].rows[0].id))?.reason,
+    closedWithDays: (await ask(A, "job", closedWithDays))?.reason,
+    freeLeft: (await ask(L, "job", lateJob))?.reason,
+    mate: await ask(MATE, "job", (await newJob(A, A, "Mate draft", "draft")).rows[0].id),
+    mateUnlimited: (await ask(MATE, "unlimited", null))?.reason,
+    assigned: (await ask(MATE2, "job", mateJob))?.ok,
+    notAssigned: (await ask(MATE2, "job", otherJob))?.reason,
+    owner: await ask(B, "job", B3),
+  };
+  check(
+    "(h) checkout refuses an applicant, the exempt admin, another business's job, a job with days still paid for (live or closed, X6), a business whose free job is unused and an unconfirmed business; takes the owner's or a teammate's own job, naming the owner who pays",
+    answers.applicant === "not_hiring_account" && answers.admin === "exempt" && answers.stranger === "job_not_found" && answers.unconfirmed === "email_not_verified" &&
+      answers.live === "job_has_time" && answers.closedWithDays === "job_has_time" && answers.freeLeft === "free_job_available" &&
+      answers.mate?.ok === true && answers.mate.owner_id === A && answers.mate.customer_id === "cus_A33" && answers.owner?.ok === true && answers.owner.owner_id === B && answers.owner.customer_id === null,
+    show(answers),
+  );
+  check(
+    "…a teammate pays $99 only for a job they are assigned to (M3), and never starts Unlimited (the owner's, as the billing portal is: finding 10)",
+    answers.assigned === true && answers.notAssigned === "job_not_found" && answers.mateUnlimited === "owner_only",
+    show(answers),
+  );
+  const portal = {
+    mate: (await val(`select public.billing_portal_check($1, false) r`, [MATE]))?.reason,
+    oneJobMate: (await val(`select public.billing_portal_check($1, false) r`, [MATE2]))?.reason,
+    owner: await val(`select public.billing_portal_check($1, false) r`, [A]),
+    neverPaid: (await val(`select public.billing_portal_check($1, false) r`, [L]))?.reason,
+    admin: (await val(`select public.billing_portal_check($1, false) r`, [ADMIN]))?.reason,
+  };
+  check(
+    "…the billing portal is the owner's own customer's, never a teammate's (M5), not the exempt admin's, nothing for an owner who never paid",
+    portal.mate === "owner_only" && portal.oneJobMate === "owner_only" && portal.owner?.ok === true && portal.owner.customer_id === "cus_A33" && portal.neverPaid === "no_customer" && portal.admin === "exempt",
+    show(portal),
+  );
+
+  // (i) Nobody but the server writes billing.
+  const P = (await passes(`owner_id = $1`, [A]))[0];
+  const writes = [
+    ["a pass", await as(user(A), `insert into public.job_passes (job_id, owner_id, kind, ends_at) values ($1, $2, 'paid', now() + interval '1 year') returning id`, [secondDraft, A])],
+    ["a longer pass", await as(user(A), `update public.job_passes set ends_at = now() + interval '1 year' where owner_id = $1 returning id`, [A])],
+    ["a customer", await as(user(A), `insert into public.billing_customers (owner_id, livemode, stripe_customer_id) values ($1, true, 'cus_forged') returning owner_id`, [A])],
+    ["an event", await as(user(A), `insert into public.billing_events (id, type) values ('evt_forged', 'x') returning id`)],
+    ["a fingerprint gone", await as(user(B), `delete from public.billing_free_job_emails returning email_hash`)],
+    ["a refund owed", await as(user(A), `insert into public.billing_refunds (event_id, kind, reason) values ('evt_forged', 'job_payment', 'x') returning id`)],
+    ["a checkout claim", await as(user(A), `insert into public.billing_checkouts (claim_key, owner_id, kind, livemode) values ('x', $1, 'unlimited', false) returning id`, [A])],
+    ["Unlimited", await as(user(B), `insert into public.subscriptions (user_id, plan_type, status, current_period_end) values ($1, 'unlimited', 'active', now() + interval '1 year') returning id`, [B])],
+    ["Unlimited, on their own row", await as(user(U), `update public.subscriptions set status = 'active', current_period_end = now() + interval '1 year' where user_id = $1 returning id`, [U])],
+    ["the webhook's call", await as(user(A), `select public.billing_apply_job_payment('evt_forged2', 'checkout.session.completed', false, $1, 'cus_A33', $2, 'cs_forged', 'pi_forged', 0, 'usd')`, [A, secondDraft])],
+    ["a refund marked done", await as(user(A), `select public.billing_refund_result(gen_random_uuid(), 're_x', null)`)],
+    ["the hourly run", await as(user(A), `select public.billing_close_ended_jobs()`)],
+    ["the switch", await as(user(A), `select public.billing_switch_on()`)],
+    ["billing-sync's write", await as(user(U), `select public.billing_sync_subscription('sub_U33a', 'cus_U33', 'active', now(), now() + interval '1 year', false, 0, 'usd', false)`)],
+    ["a card to the admins", await as(user(A), `select public.billing_alert_admins(null, 'x', 'y')`)],
+    ["another business's state", await as(user(A), `select public.billing_state($1)`, [B])],
+    ["checkout's question", await as(ANON, `select public.billing_checkout_check($1, 'job', null, false)`, [A])],
+    ["checkout's claim", await as(user(A), `select public.billing_checkout_begin($1, 'unlimited', null, false)`, [A])],
+  ];
+  const unchanged = (await passes(`owner_id = $1`, [A])).every((p) => p.ends_at && days(p.ends_at) < 31) && (await one(`select count(*)::int n from public.billing_events where id like 'evt_forged%'`)).n === 0;
+  check(
+    "(i) no browser writes a pass, a customer, an event, a fingerprint, a refund, a checkout claim or Unlimited (on any row), or calls the webhook's, the hourly run's, the switch's, billing-sync's or checkout's functions",
+    writes.every(([, r]) => !r.ok || r.rows.length === 0) && unchanged && !!P,
+    show(writes.map(([label, r]) => `${label}: ${r.ok ? `taken (${r.rows.length})` : "refused"}`)),
+  );
+  const reads = {
+    own: (await as(user(A), `select count(*)::int n from public.job_passes`)).rows?.[0]?.n,
+    mate: (await as(user(MATE), `select count(*)::int n from public.job_passes where job_id is not null`)).rows?.[0]?.n,
+    oneJobMate: (await as(user(MATE2), `select array_agg(distinct job_id) j from public.job_passes where job_id is not null`)).rows?.[0]?.j,
+    other: (await as(user(B), `select count(*)::int n from public.job_passes where owner_id = $1`, [A])).rows?.[0]?.n,
+    customer: (await as(user(B), `select count(*)::int n from public.billing_customers`)).rows?.[0]?.n,
+    events: await as(user(A), `select count(*)::int n from public.billing_events`),
+    days: await as(user(MATE), `select kind, status, ends_at from public.job_passes limit 1`),
+    stripeIds: [
+      await as(user(A), `select stripe_checkout_session_id from public.job_passes`),
+      await as(user(MATE), `select stripe_payment_intent_id from public.job_passes`),
+      await as(user(A), `select * from public.job_passes`),
+      await as(user(A), `select amount_cents from public.job_passes`),
+    ],
+  };
+  check(
+    "…an owner reads their own passes and their teammates those of the jobs they are on, never a Stripe session or payment id (finding 17); nobody reads another business's passes or customer, or the events",
+    reads.own >= 3 && reads.mate >= 2 && JSON.stringify(reads.oneJobMate) === JSON.stringify([A1]) && reads.other === 0 && reads.customer === 0 && (!reads.events.ok || reads.events.rows[0].n === 0) &&
+      reads.days.ok && reads.stripeIds.every((r) => !r.ok),
+    show({ ...reads, events: reads.events.ok, days: reads.days.ok, stripeIds: reads.stripeIds.map((r) => r.ok || r.error) }),
+  );
+  const viewed = {
+    owner: Object.keys((await plan(A, A))?.jobs ?? {}),
+    server: Object.keys((await plan(A))?.jobs ?? {}),
+    everyJobMate: Object.keys((await plan(A, MATE))?.jobs ?? {}),
+    oneJobMate: Object.keys((await plan(A, MATE2))?.jobs ?? {}),
+  };
+  check(
+    "…and what get-subscription reports a teammate (billing_state with the viewer) has the days of the jobs they are on only",
+    viewed.owner.length >= 4 && viewed.server.length === viewed.owner.length && viewed.everyJobMate.length === viewed.owner.length && JSON.stringify(viewed.oneJobMate) === JSON.stringify([A1]),
+    show(viewed),
+  );
+
+  // (j) The check is the database's own, beside the other publish checks.
+  const trig = (await db.query(`select tgname, tgtype, pg_get_triggerdef(t.oid) d from pg_trigger t where tgrelid = 'public.jobs'::regclass and tgname in ('jobs_publish_needs_pass', 'jobs_publish_needs_email_check', 'jobs_publish_needs_good_standing') order by tgname`)).rows;
+  const fnRights = await one(`select bool_or(has_function_privilege('authenticated', p.oid, 'execute')) a, bool_or(has_function_privilege('anon', p.oid, 'execute')) n from pg_proc p where p.proname like 'billing\\_%' or p.proname = 'jobs_publish_needs_pass'`);
+  const limits = await one(`select public.team_member_limit_for_user($1) t, public.document_workflow_limit_for_user($1) d, public.job_limit_for_user($1) j, (select count(*)::int from public.get_employer_sealed_application_ids()) s`, [A]);
+  check(
+    "(j) the check runs AFTER INSERT OR UPDATE for each row beside the email and good-standing checks; no browser may call a billing function; teammates, documents and drafts are never limited, nothing is sealed",
+    trig.length === 3 && /AFTER INSERT OR UPDATE ON public\.jobs FOR EACH ROW EXECUTE FUNCTION (public\.)?jobs_publish_needs_pass\(\)/.test(trig.find((t) => t.tgname === "jobs_publish_needs_pass")?.d ?? "") &&
+      fnRights.a === false && fnRights.n === false && limits.t === -1 && limits.d === -1 && limits.j === -1 && limits.s === 0,
+    show([trig, fnRights, limits]),
+  );
+
+  // (m) Unlimited's clock: its period end (M1), the statuses that count (M2), 7 days past_due (finding 3), and nothing closed until billing-sync has read it again (finding 2).
+  await svc(`select public.billing_save_customer($1, false, 'cus_U2x33')`, [U2]);
+  const subU2 = sub(U2, "cus_U2x33");
+  const u2Free = await newJob(U2, U2, "Clock free agent");
+  await subU2("evt_33u2a", "customer.subscription.created", "sub_U2a33", "active", "now() + interval '1 day'");
+  const u2Jobs = [await newJob(U2, U2, "Clock agent 1"), await newJob(U2, U2, "Clock agent 2")];
+  const u2Ids = u2Jobs.map((r) => r.rows?.[0]?.id);
+  const u2Live = async () => Number((await one(`select count(*)::int n from public.jobs where id = any($1::uuid[]) and status = 'published'`, [`{${u2Ids.join(",")}}`])).n);
+  // The period ran out three days ago by the database's clock, and nobody has read it from Stripe since (a webhook missed across the renewal).
+  await db.query(`update public.subscriptions set current_period_end = now() - interval '3 days', stripe_checked_at = now() - interval '4 days' where user_id = $1`, [U2]);
+  const lapsed = await plan(U2);
+  const lapsedPublish = await newJob(U2, U2, "Clock agent 3");
+  const heldRun = await svc(`select public.billing_close_ended_jobs() n`);
+  const due = await val(`select public.billing_sync_due(false) r`);
+  check(
+    "(m) an Unlimited whose period ended (past the day's grace) no longer counts: no plan, a new publish refused (M1)",
+    u2Free.ok && u2Jobs.every((r) => r.ok) && lapsed?.plan === "pay_per_job" && lapsed.unlimited?.active === false && paymentRefused(lapsedPublish),
+    show([u2Free.ok || u2Free.error, lapsed, lapsedPublish.ok || lapsedPublish.error]),
+  );
+  check(
+    "…but the hourly run closes none of its jobs until billing-sync has read it again from Stripe, and billing-sync is asked to read it (finding 2)",
+    heldRun.ok && (await u2Live()) === 2 && Array.isArray(due) && due.some((d) => d.subscription === "sub_U2a33" && d.owner === U2),
+    show([heldRun.rows?.[0], await u2Live(), due]),
+  );
+  // Read again: Stripe charged the renewal (the webhook was missed). It counts again, nothing was closed.
+  const renewed = await val(`select public.billing_sync_subscription('sub_U2a33', 'cus_U2x33', 'active', now() - interval '3 days', now() + interval '27 days', false, 29900, 'usd', false) r`);
+  const dueAfter = await val(`select public.billing_sync_due(false) r`);
+  const wrongCustomer = await val(`select public.billing_sync_subscription('sub_U2a33', 'cus_A33', 'canceled', now(), now(), false, 0, 'usd', false) r`);
+  const notOurs = await val(`select public.billing_sync_subscription('sub_nobody', 'cus_U2x33', 'canceled', now(), now(), false, 0, 'usd', false) r`);
+  check(
+    "…billing-sync's read of a renewal brings it back (and marks when it read it), so the business never loses a live job; a subscription it does not track, or another customer's, changes nothing",
+    renewed?.closed === 0 && (await plan(U2))?.plan === "unlimited" && (await u2Live()) === 2 && !dueAfter.some((d) => d.subscription === "sub_U2a33") &&
+      Math.abs(days((await one(`select stripe_checked_at t from public.subscriptions where user_id = $1`, [U2])).t)) < 0.01 &&
+      wrongCustomer?.ignored === "customer_mismatch" && notOurs?.ignored === "not_tracked" && (await plan(U2))?.plan === "unlimited",
+    show([renewed, dueAfter, wrongCustomer, notOurs]),
+  );
+  // Ended, and read again after its end: now the hourly run closes its jobs.
+  await db.query(`update public.subscriptions set current_period_end = now() - interval '3 days', stripe_checked_at = now() - interval '1 hour' where user_id = $1`, [U2]);
+  const confirmedRun = await svc(`select public.billing_close_ended_jobs() n`);
+  check(
+    "…read again after its period ended, still ended: the hourly run closes its jobs, one card",
+    confirmedRun.ok && (await u2Live()) === 0 && (await cards(U2, "Your Unlimited plan has ended")) === 1,
+    show([confirmedRun.rows?.[0], await u2Live()]),
+  );
+  // past_due counts for 7 days from when it went past_due; unpaid and incomplete never (M2).
+  await svc(`select public.billing_save_customer($1, false, 'cus_Q2x33')`, [Q2]);
+  const subQ2 = sub(Q2, "cus_Q2x33");
+  const since = async () => (await one(`select past_due_since t from public.subscriptions where user_id = $1`, [Q2]))?.t ?? null;
+  await subQ2("evt_33q1", "customer.subscription.updated", "sub_Q2a33", "past_due", "now() + interval '20 days'");
+  const firstSince = await since();
+  const qJob = await newJob(Q2, Q2, "Retry agent 1");
+  await db.query(`update public.subscriptions set past_due_since = now() - interval '3 days' where user_id = $1`, [Q2]);
+  await subQ2("evt_33q2", "customer.subscription.updated", "sub_Q2a33", "past_due", "now() + interval '20 days'");
+  const keptSince = await since();
+  await subQ2("evt_33q3", "customer.subscription.updated", "sub_Q2a33", "active", "now() + interval '20 days'");
+  const clearedSince = await since();
+  check(
+    "…past_due: the time it went past_due is kept while it stays so and cleared once paid (the webhook, finding 3); within 7 days it counts",
+    !!firstSince && Math.abs(days(firstSince)) < 0.01 && qJob.ok && !!keptSince && Math.abs(days(keptSince) + 3) < 0.01 && clearedSince === null,
+    show([firstSince, qJob.ok || qJob.error, keptSince, clearedSince]),
+  );
+  await subQ2("evt_33q4", "customer.subscription.updated", "sub_Q2a33", "past_due", "now() + interval '20 days'");
+  await db.query(`update public.subscriptions set past_due_since = now() - interval '8 days' where user_id = $1`, [Q2]);
+  const pastWeek = await plan(Q2);
+  const pastWeekRun = await svc(`select public.billing_close_ended_jobs() n`);
+  check(
+    "…past_due for more than 7 days no longer counts (X4), and the hourly run closes its jobs with a card that says the payment failed",
+    pastWeek?.plan === "pay_per_job" && pastWeekRun.ok && (await statusOf(qJob.rows[0].id)) === "closed" && (await cards(Q2, "Your Unlimited payment didn't go through")) === 1,
+    show([pastWeek, pastWeekRun.rows?.[0]]),
+  );
+  const qFree = await newJob(Q2, Q2, "Retry agent 2");
+  const statusCounts = {};
+  for (const [event, status] of [["evt_33q5", "unpaid"], ["evt_33q6", "incomplete"]]) {
+    await subQ2(event, "customer.subscription.updated", "sub_Q2a33", status, "now() + interval '20 days'");
+    statusCounts[status] = { plan: (await plan(Q2))?.plan, publish: await newJob(Q2, Q2, `Retry agent ${status}`) };
+  }
+  check(
+    "…unpaid and incomplete, with a period still ahead, never count as Unlimited: a publish past the free job is refused (M2)",
+    qFree.ok && Object.values(statusCounts).every((s) => s.plan === "pay_per_job" && paymentRefused(s.publish)),
+    show(Object.fromEntries(Object.entries(statusCounts).map(([k, v]) => [k, [v.plan, v.publish.ok || v.publish.error]]))),
+  );
+
+  // (n) Never two Unlimited (finding 1, the database's half; billing-checkout and billing-webhook do the rest).
+  await svc(`select public.billing_save_customer($1, false, 'cus_D2x33')`, [D2]);
+  const subD2 = sub(D2, "cus_D2x33");
+  await subD2("evt_33d1", "checkout.session.completed", "sub_D2a33", "active", "now() + interval '29 days'");
+  const secondSub = (await subD2("evt_33d2", "customer.subscription.created", "sub_D2b33", "active", "now() + interval '30 days'")).rows?.[0]?.r;
+  const tracked = async () => (await one(`select stripe_subscription_id s from public.subscriptions where user_id = $1`, [D2]))?.s;
+  const afterSecond = await tracked();
+  const firstAgain = (await subD2("evt_33d3", "customer.subscription.updated", "sub_D2a33", "active", "now() + interval '29 days'")).rows?.[0]?.r;
+  const secondAgain = (await subD2("evt_33d4", "checkout.session.completed", "sub_D2b33", "active", "now() + interval '30 days'")).rows?.[0]?.r;
+  check(
+    "(n) a second live Unlimited for one business is owed back (cancel and refund it), the first stays tracked whatever order the events come in (X2)",
+    secondSub?.ignored === "second_subscription" && secondSub.refund?.kind === "second_subscription" && secondSub.refund.subscription === "sub_D2b33" &&
+      afterSecond === "sub_D2a33" && firstAgain?.status === "active" && (await tracked()) === "sub_D2a33" &&
+      secondAgain?.ignored === "second_subscription" && secondAgain.refund?.id === secondSub.refund.id,
+    show([secondSub, afterSecond, firstAgain, secondAgain]),
+  );
+  const owedOnRetry = await val(`select public.billing_refund_owed('evt_33d2') r`);
+  const failedOnce = await val(`select public.billing_refund_result($1, null, 'Stripe did not answer') r`, [secondSub.refund.id]);
+  const owedStill = await val(`select public.billing_refund_owed('evt_33d2') r`);
+  const adminCards = async (title) => cards(ADMIN, title);
+  const failedAlerts = await adminCards("A refund failed");
+  await val(`select public.billing_refund_result($1, null, 'Stripe did not answer again') r`, [secondSub.refund.id]);
+  const done = await val(`select public.billing_refund_result($1, 're_33d2', null) r`, [secondSub.refund.id]);
+  const owedAfter = await val(`select public.billing_refund_owed('evt_33d2') r`);
+  const lateDeleted = (await subD2("evt_33d5", "customer.subscription.deleted", "sub_D2b33", "canceled", "now()")).rows?.[0]?.r;
+  check(
+    "…until Stripe has done it, Stripe's retry of the event finds it still owed; a failure tells the admins once a day; done, the admins and the business are told, and the second's own end changes nothing",
+    owedOnRetry?.refund?.id === secondSub.refund.id && failedOnce?.status === "failed" && owedStill?.refund?.id === secondSub.refund.id &&
+      failedAlerts === 1 && (await adminCards("A refund failed")) === 1 && done?.status === "done" && JSON.stringify(owedAfter) === "{}" &&
+      (await adminCards("A second Unlimited was cancelled")) === 1 && (await cards(D2, "Your second Unlimited was cancelled")) === 1 &&
+      lateDeleted?.ignored === "older_subscription" && (await tracked()) === "sub_D2a33" && (await plan(D2))?.plan === "unlimited",
+    show([owedOnRetry, failedOnce, owedStill, failedAlerts, done, owedAfter, lateDeleted]),
+  );
+  const askD2 = [(await ask(D2, "unlimited", null))?.reason];
+  await db.query(`update public.subscriptions set status = 'past_due', past_due_since = null, current_period_end = now() - interval '3 days' where user_id = $1`, [D2]);
+  askD2.push((await ask(D2, "unlimited", null))?.reason);
+  await db.query(`update public.subscriptions set status = 'canceled' where user_id = $1`, [D2]);
+  askD2.push((await ask(D2, "unlimited", null))?.ok);
+  check(
+    "…checkout refuses a business that has Unlimited, and one whose Unlimited payment Stripe is still retrying (past_due, even past its grace: X2b); once it is cancelled it may start again",
+    askD2[0] === "already_unlimited" && askD2[1] === "unlimited_retrying" && askD2[2] === true,
+    show(askD2),
+  );
+
+  // (o) Money is never kept with nothing given (finding 5), nor a job put live on a payment already refunded (finding 8, X3).
+  await svc(`select public.billing_save_customer($1, false, 'cus_P2x33')`, [P2]);
+  await newJob(P2, P2, "Refund free agent");
+  const pGone = (await newJob(P2, P2, "Refund gone agent", "draft")).rows[0].id;
+  await as(user(P2), `delete from public.jobs where id = $1`, [pGone]);
+  const goneRun = (await pay("evt_33p1", "cs_33p1", pGone, P2, "cus_P2x33")).rows?.[0]?.r;
+  const goneAgain = (await pay("evt_33p1", "cs_33p1", pGone, P2, "cus_P2x33")).rows?.[0]?.r;
+  check(
+    "(o) a payment for a job deleted before it arrived records no pass and is owed back; Stripe's retry of it is a duplicate, and the refund is still owed",
+    goneRun?.published === "job_gone" && goneRun.refund?.reason === "job_gone" && goneRun.refund.paymentIntent === "pi_33p1" &&
+      (await passes(`stripe_payment_intent_id = 'pi_33p1'`, [])).length === 0 && goneAgain?.duplicate === true &&
+      (await val(`select public.billing_refund_owed('evt_33p1') r`))?.refund?.id === goneRun.refund.id,
+    show([goneRun, goneAgain]),
+  );
+  const refunded = await val(`select public.billing_refund_result($1, 're_33p1', null) r`, [goneRun.refund.id]);
+  check(
+    "…once refunded, the business and the admins are told",
+    refunded?.status === "done" && (await cards(P2, "We refunded your payment")) === 1 && (await adminCards("A payment was refunded")) >= 1,
+    show(refunded),
+  );
+  const pLater = (await newJob(P2, P2, "Refund later agent", "draft")).rows[0].id;
+  const earlyRefund = (await svc(`select public.billing_apply_refund('evt_33p2ref', 'charge.refunded', false, 'pi_33p2', true) r`)).rows?.[0]?.r;
+  const lateArrival = (await pay("evt_33p2", "cs_33p2", pLater, P2, "cus_P2x33")).rows?.[0]?.r;
+  check(
+    "…a payment refunded in full before its own event arrived (a retried delivery) puts nothing live and records no pass (X3)",
+    earlyRefund?.ended === 0 && lateArrival?.ignored === "refunded" && (await statusOf(pLater)) === "draft" && (await passes(`job_id = $1`, [pLater])).length === 0,
+    show([earlyRefund, lateArrival]),
+  );
+  const unpaid = await val(`select public.billing_record_unpaid_checkout('evt_33p3', 'checkout.session.completed', false, 'cs_33p3', 'job', 'unpaid') r`);
+  check(
+    "…a Checkout that finished unpaid (Checkout takes cards only) gives nothing, is recorded, and the admins are told (finding 4)",
+    unpaid?.ignored === "not_paid" && (await adminCards("A checkout finished unpaid")) === 1 &&
+      /^not paid: unpaid/.test((await one(`select outcome o from public.billing_events where id = 'evt_33p3'`))?.o ?? ""),
+    show(unpaid),
+  );
+
+  // (p) One open Checkout: for Unlimited per business, for $99 per job; two requests at the same moment do not both open one (finding 1, finding 9).
+  const begin = (owner, kind, job = null) => val(`select public.billing_checkout_begin($1, $2, $3, false) r`, [owner, kind, job]);
+  const c1 = await begin(P2, "unlimited");
+  const busy = await begin(P2, "unlimited");
+  await val(`select public.billing_checkout_opened($1, 'cs_33claim1') r`, [c1.claim]);
+  const c2 = await begin(P2, "unlimited");
+  const j1 = await begin(P2, "job", pLater);
+  const jBusy = await begin(P2, "job", pLater);
+  const otherJobClaim = await begin(P2, "job", pGone);
+  await val(`select public.billing_checkout_closed('cs_33claim1', 'expired') r`);
+  await val(`select public.billing_checkout_opened($1, null) r`, [c2.claim]);
+  const c3 = await begin(P2, "unlimited");
+  await db.query(`update public.billing_checkouts set created_at = now() - interval '3 minutes' where id = $1`, [j1.claim]);
+  const jStale = await begin(P2, "job", pLater);
+  check(
+    "(p) a Checkout claim: the second at the same moment is told one is opening; the next hands back the earlier open page to expire; a job's claim is its own; a claim that never finished lets go after two minutes",
+    c1?.ok === true && JSON.stringify(c1.earlier) === "[]" && busy?.reason === "checkout_busy" && c2?.ok === true && JSON.stringify(c2.earlier) === JSON.stringify(["cs_33claim1"]) &&
+      j1?.ok === true && jBusy?.reason === "checkout_busy" && otherJobClaim?.ok === true && c3?.ok === true && JSON.stringify(c3.earlier) === "[]" && jStale?.ok === true &&
+      (await one(`select status s from public.billing_checkouts where id = $1`, [j1.claim]))?.s === "failed",
+    show([c1, busy, c2, j1, jBusy, otherJobClaim, c3, jStale]),
+  );
+
+  // (q) The free job is once per email address (finding 6), and a payment's record outlives the account (finding 11).
+  const fp = await one(`select public.billing_email_fingerprint('Pat.Lee+hire@GoogleMail.com') a, public.billing_email_fingerprint(' patlee@gmail.com ') b,
+    public.billing_email_fingerprint('pat.lee@example.com') c, public.billing_email_fingerprint('patlee@example.com') d, public.billing_email_fingerprint('Pat.Lee+x@Example.com') e,
+    public.billing_email_fingerprint('not an address') f, public.billing_email_fingerprint('+tag@example.com') g`);
+  check(
+    "(q) the email's fingerprint: one-way (64 hex), lower case, no +tag, Gmail's dots and googlemail.com the same inbox; other domains keep their dots; nothing for what is not an address",
+    /^[0-9a-f]{64}$/.test(fp.a) && fp.a === fp.b && fp.c !== fp.d && fp.e === fp.c && fp.f === null && fp.g === null && !Object.values(fp).some((v) => v && /patlee|example/i.test(v)),
+    show(fp),
+  );
+  await svc(`select public.billing_save_customer($1, false, 'cus_E1x33')`, [E1]);
+  const e1Free = await newJob(E1, E1, "Pat's first agent");
+  const e1Draft = (await newJob(E1, E1, "Pat's paid agent", "draft")).rows[0].id;
+  await pay("evt_33e1", "cs_33e1", e1Draft, E1, "cus_E1x33");
+  const e1Stored = (await one(`select count(*)::int n from public.billing_free_job_emails where email_hash = $1`, [fp.a])).n;
+  await db.query(`delete from auth.users where id = $1`, [E1]); // Delete Account: Supabase Auth deletes the user
+  const e1Kept = await passes(`stripe_payment_intent_id = 'pi_33e1' or (kind = 'free' and owner_id is null and job_id is null and created_at > now() - interval '1 minute')`, []);
+  check(
+    "…a business's first job takes the free job and the fingerprint of its confirmed address; deleting the account keeps the fingerprint and each payment's record (amount, Stripe's ids), with no owner and no job",
+    e1Free.ok && e1Stored === 1 && (await one(`select count(*)::int n from public.billing_free_job_emails where email_hash = $1`, [fp.a])).n === 1 &&
+      e1Kept.some((p) => p.kind === "paid" && p.owner_id === null && p.job_id === null && p.amount_cents === 9900) &&
+      Number((await one(`select count(*)::int n from public.billing_free_job_emails`)).n) >= 1,
+    show([e1Free.ok || e1Free.error, e1Stored, e1Kept]),
+  );
+  const e2State = await plan(E2);
+  const e2First = await newJob(E2, E2, "Pat again agent");
+  const e2Draft = (await newJob(E2, E2, "Pat again draft", "draft")).rows[0].id;
+  const e2Checkout = await ask(E2, "job", e2Draft);
+  const e3First = await newJob(E3, E3, "New inbox agent");
+  check(
+    "…a new account with the same inbox (dots, a +tag, googlemail.com) gets no free job: its first publish is refused for payment and checkout lets it pay; another inbox's first job is free",
+    e2State?.freeJobAvailable === false && paymentRefused(e2First) && e2Checkout?.ok === true && e3First.ok && (await passes(`owner_id = $1 and kind = 'free'`, [E3])).length === 1 &&
+      (await passes(`owner_id = $1`, [E2])).length === 0,
+    show([e2State, e2First.ok || e2First.error, e2Checkout, e3First.ok || e3First.error]),
+  );
+
+  // (s) A paused business: checkout refuses (M9) and a payment that lands anyway puts nothing live (M8).
+  await svc(`select public.billing_save_customer($1, false, 'cus_S2x33')`, [S2]);
+  await newJob(S2, S2, "Paused free agent");
+  const sDraft = (await newJob(S2, S2, "Paused paid agent", "draft")).rows[0].id;
+  await svc(`select public.business_pause($1, 'section 33', null)`, [S2]);
+  const sAsk = (await ask(S2, "job", sDraft))?.reason;
+  const sPaid = (await pay("evt_33s1", "cs_33s1", sDraft, S2, "cus_S2x33")).rows?.[0]?.r;
+  check("(s) a paused business: checkout refuses it (business_suspended, M9)", sAsk === "business_suspended", show(sAsk));
+  check(
+    "…and a payment that lands anyway records its days but puts nothing live (M8)",
+    sPaid?.published === "business_suspended" && (await statusOf(sDraft)) === "draft" && (await passes(`job_id = $1 and kind = 'paid'`, [sDraft])).length === 1,
+    show(sPaid),
+  );
+
+  // Back to off, as the live database is: everything above stays recorded, nothing is refused.
+  await setBilling(false);
+  const offAgain = await newJob(A, A, "After billing chat agent");
+  const reopenOff = await setStatus(A, secondDraft, "published");
+  const runOff = await svc(`select public.billing_close_ended_jobs() n`);
+  check("(k) switched off again: A publishes and re-opens with no pass, and the hourly run does nothing", offAgain.ok && reopenOff.ok && runOff.rows?.[0]?.n === 0 && (await statusOf(secondDraft)) === "published", show([offAgain.ok || offAgain.error, reopenOff.ok || reopenOff.error, runOff.rows?.[0]]));
+
+  // (l) On again: no job gets new days (X1); a live job with no pass is left as it is, and the admins are told once a day (finding 7).
+  const offJob = offAgain.rows[0].id;
+  const switchedAgain = await val(`select public.billing_switch_on() r`);
+  const passesBefore = await passCount();
+  const runAgain = await svc(`select public.billing_close_ended_jobs() n`);
+  const runAgain2 = await svc(`select public.billing_close_ended_jobs() n`);
+  check(
+    "(l) switched on again: nothing is given (the first switch-on only); a job put live while it was off keeps no pass and stays live, and the hourly run, which makes no pass, tells the admins once a day",
+    switchedAgain?.first === false && switchedAgain.grandfathered === 0 && runAgain.ok && runAgain2.ok && (await passCount()) === passesBefore &&
+      (await passes(`job_id = $1`, [offJob])).length === 0 && (await statusOf(offJob)) === "published" && (await adminCards("Live jobs with no pass")) === 1,
+    show([switchedAgain, runAgain.rows?.[0], runAgain2.rows?.[0], await adminCards("Live jobs with no pass")]),
+  );
+
+  // (t) An Unlimited paid after its account was deleted (a checkout page left open) is owed back; one for a customer HireFlow never made only tells the admins (the final billing review, N1).
+  const tRemembered = await one(`select livemode from public.billing_deleted_customers where stripe_customer_id = 'cus_E1x33'`);
+  const tPaid = (await sub(null, "cus_E1x33")("evt_33t1", "checkout.session.completed", "sub_E1x33", "active", "now() + interval '30 days'")).rows?.[0]?.r;
+  const tPaidAgain = (await sub(null, "cus_E1x33")("evt_33t2", "customer.subscription.created", "sub_E1x33", "active", "now() + interval '30 days'")).rows?.[0]?.r;
+  const tDone = tPaid?.refund?.id ? await val(`select public.billing_refund_result($1, 're_33t1', null) r`, [tPaid.refund.id]) : null;
+  const tEnded = (await sub(null, "cus_E1x33")("evt_33t3", "customer.subscription.deleted", "sub_E1x33x", "canceled", "now()")).rows?.[0]?.r;
+  const tStranger = (await sub(null, "cus_Stranger33")("evt_33t4", "customer.subscription.created", "sub_Stranger33", "active", "now() + interval '30 days'")).rows?.[0]?.r;
+  const tStrangerOwed = Number((await one(`select count(*)::int n from public.billing_refunds where stripe_subscription_id = 'sub_Stranger33'`)).n);
+  check(
+    "(t) a deleted account's Stripe customer is remembered; an Unlimited Stripe bills to it afterwards is owed back once (cancel and refund) and the admins are told when it is done; one already over, or for a customer HireFlow never made, is owed nothing, and the stranger rings the admins",
+    tRemembered?.livemode === false && tPaid?.ignored === "deleted_account" && tPaid.refund?.kind === "second_subscription" &&
+      tPaid.refund.subscription === "sub_E1x33" && tPaidAgain?.refund?.id === tPaid.refund.id && tDone?.status === "done" &&
+      (await adminCards("An Unlimited paid after its account was deleted")) === 1 && tEnded?.ignored === "unknown_customer" && !tEnded.refund &&
+      tStranger?.ignored === "unknown_customer" && !tStranger.refund && tStrangerOwed === 0 && (await adminCards("An Unlimited for an unknown customer")) === 1,
+    show([tRemembered, tPaid, tPaidAgain, tDone, tEnded, tStranger, tStrangerOwed]),
+  );
+  await setBilling(false);
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

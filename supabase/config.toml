@@ -158,3 +158,30 @@ verify_jwt = true
 # caller holding the secret kept in Vault (document_cleanup_secret_matches)
 # and takes no input: it deletes approved identity papers 30 days on.
 verify_jwt = false
+
+[functions.billing-checkout]
+# A Stripe Checkout page for a job ($99) or Unlimited ($299 a month)
+# (docs/BILLING.md). The function also asks who is signed in, and the
+# database decides whether the checkout makes sense (billing_checkout_check).
+# Answers 503 "billing is not set up" until the Stripe secrets are set.
+verify_jwt = true
+
+[functions.billing-portal]
+# Stripe's billing page (manage or cancel Unlimited, invoices) for the
+# signed-in business owner only (billing_portal_check). 503 until set up.
+verify_jwt = true
+
+[functions.billing-webhook]
+# Stripe calls it, and Stripe has no HireFlow sign-in. Nothing is believed
+# until the Stripe-Signature header checks out against STRIPE_WEBHOOK_SECRET
+# (HMAC-SHA256 of the raw body, constant-time, 5 minutes' tolerance); each
+# event's id is recorded with its effect, so a repeat changes nothing.
+verify_jwt = false
+
+[functions.billing-sync]
+# Called every hour by pg_cron through pg_net, which has no JWT (the
+# billing-sync job in supabase/migrations/20261031100000_billing_pricing_v9.sql).
+# It answers only a caller holding the secret kept in Vault
+# (billing_sync_secret_matches), and only reads Unlimited subscriptions again
+# from Stripe (docs/BILLING.md). 503 until the Stripe secrets are set.
+verify_jwt = false

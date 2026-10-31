@@ -917,6 +917,10 @@ worth the risk.
 
 ### Stripe (order of work from the 2026-10-24 audit)
 
+*Steps 1–8 were built on 2026-10-31, behind `app_settings.billing_enabled` (off), except Stripe Tax, a
+grace period beyond Stripe's own retries, the Terms, pricing on the landing and the full test-mode run
+with replayed webhooks: docs/BILLING.md and the Progress log entry of that day.*
+
 1. Pricing details (owner): what $99 buys (days, applicants, re-opening),
    whether $299/mo is unlimited, what "free first job" means (published, not
    drafted).
@@ -956,6 +960,48 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
+
+### 2026-10-31 — Billing, pricing v9, built behind the switch (not applied, not deployed, not committed)
+
+Built by a subagent session (Opus 5.5) from the owner's decisions: a business's first published job free
+for 30 days, then $99 a job (30 days, unlimited applicants) or Unlimited at $299 a month; the owner's own
+account exempt through `platform_admins` only. Everything is behind `app_settings.billing_enabled`
+(false): while it is off nothing changes for anyone. docs/BILLING.md has the model, the switch, the
+secrets and the go-live steps (the owner's, last).
+
+- **Database**, `20261031100000_billing_pricing_v9.sql` (not applied): `job_passes`, `billing_customers`,
+  `billing_events`, Unlimited on `subscriptions`; the publish check `jobs_publish_needs_pass` (AFTER INSERT
+  OR UPDATE on jobs, after the email check; HINT `payment_required`; the free job once, under a unique
+  index, kept when the job is deleted); the hourly `billing_close_ended_jobs` (pg_cron), which closes what
+  nothing pays for and tells the owner (`billing_switch_on()` gives the jobs live then 30 days, once); the webhook's
+  functions (`billing_apply_*`, each recording the Stripe event id first); the old per-plan limits -1 for
+  everyone, the $49 model's sealing off, `business_has_paid` reading real payments.
+- **Edge functions**: `billing-checkout`, `billing-portal`, `billing-webhook` (public; Stripe-Signature,
+  constant-time, 5 minutes), all 503 "billing is not set up" without the two secrets; prices by lookup key;
+  `get-subscription` reports `{ teamAccess, billing }`; `delete-account` cancels a live Unlimited first.
+- **Screens**: the payment dialog on a publish refused for payment (the job saved first), the return from
+  Checkout (polls, then a calm message), days left and "Its 30 days ended" on Jobs and the job page,
+  Settings → Billing for the owner ("Your account is exempt" for the platform's own). Dev preview
+  `__previewBilling=` (docs/DEV-PREVIEW.md); checked on desktop and phone, Day and Night.
+- **Locks**: guards `billing-off-changes-nothing`, `billing-exemption-is-platform-admins-only`,
+  `billing-webhook-verifies-and-is-idempotent`, `billing-tables-server-written`, `publish-needs-a-pass`,
+  `billing-prices-by-lookup-key` (each caught its weakening in a mutation run); launch_locks_behaviour
+  section 33 (25 checks); `scripts/billing_webhook.test.mjs`, `scripts/billing_checkout.test.mjs`,
+  `scripts/billing_screens.test.mjs`, `scripts/delete_account.test.mjs` (the cancel).
+- **Independent review, same day, and its fixes** (still not applied, deployed or committed): one HIGH (two
+  Unlimited subscriptions for one business), MEDIUM and LOW findings, and weakenings M1 to M10 no test caught.
+  Fixed: never two Unlimited (one Checkout claim at a time, the earlier page expired, Stripe's own list asked;
+  the webhook cancels and refunds a second; delete-account cancels every subscription Stripe lists, never
+  across test and live mode); `billing-sync` (pg_cron, Vault secret) reads an Unlimited again before the hourly
+  close acts on it; past_due counts 7 days; cards only; money with nothing given refunded automatically; the
+  free job once per email address (a one-way fingerprint, in the Privacy Policy); `billing_switch_on()`, the
+  hourly run never makes a pass; payment records outlive the account (the Delete Account confirm says so);
+  teammates see only their jobs' days and no Stripe id. Section 33 now 52 checks; every M fails a check or a
+  guard; new guards `never-two-unlimited-and-money-given-back`, `billing-sync-checks-its-caller`; new tests
+  `scripts/billing_sync.test.mjs`, the fakes' RPC arguments held to the SQL (`scripts/billing_sql_signatures.mjs`).
+- **Open**: the owner's go-live steps (docs/BILLING.md); the Terms and Privacy Policy still say the site is
+  free (true while billing is off; change them before the switch); no Pass C fresh review has run yet;
+  Stripe step 9 (Philippines payment methods, tax) and pricing on the landing are not done.
 
 ### 2026-10-30 (latest) — Sage paper for Day; the app opens in Day
 

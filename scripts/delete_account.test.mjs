@@ -21,13 +21,19 @@
  *   - the signing record stays, and no delete of it is even tried, so the
  *     deletion ends with no "still hold their data" error;
  *   - a team member's chats and sent documents go to the business's owner,
- *     and the business's documents and message attachments stay.
+ *     and the business's documents and message attachments stay;
+ *   - a business (pricing v9): every subscription it still pays for is
+ *     cancelled in Stripe first (the tracked Unlimited and every one Stripe
+ *     lists for its customer in the key's mode); Stripe down: nothing
+ *     deleted, try again; no keys, or a subscription in the other mode:
+ *     nothing deleted, the admins told, "message us from Help".
  *
  * Run with: node scripts/delete_account.test.mjs
  */
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
+import { rpcArgsProblem, sqlSignatures } from "./billing_sql_signatures.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -77,6 +83,7 @@ const OWNER = id(3); // a business
 const TM = id(4); // on OWNER's team
 const BUCKETS = ["avatars", "resumes", "portfolios", "videos", "message-attachments", "documents", "requested-documents"];
 
+const SIGNATURES = sqlSignatures();
 let world;
 function freshWorld() {
   return {
@@ -89,6 +96,8 @@ function freshWorld() {
     passwords: { "ana@example.test": "ana-password", "tm@example.test": "tm-password" },
     deletedUsers: [],
     auditDeletesTried: 0,
+    rpcCalls: [],
+    rpcProblems: [],
   };
 }
 
@@ -151,6 +160,15 @@ function client(key) {
       },
     },
     from: query,
+    rpc: async (fn, args) => {
+      const problem = rpcArgsProblem(SIGNATURES, fn, args);
+      if (problem) {
+        world.rpcProblems.push(problem);
+        return { data: null, error: { message: `Could not find the function: ${problem}` } };
+      }
+      world.rpcCalls.push({ fn, args });
+      return { data: true, error: null };
+    },
     storage: {
       from: (bucket) => ({
         listV2: async ({ prefix, limit }) => {
@@ -250,6 +268,142 @@ console.log("\nA team member deletes their account\n");
   check("…their chats with applicants and the documents they sent go to the business's owner, as the confirm says", world.tables.messages[0]?.sender_id === OWNER && world.tables.documents[0]?.sender_id === OWNER, show({ m: world.tables.messages, d: world.tables.documents }));
   check("…the business's documents and message attachments stay; their other files go", world.storage.documents.has(`${TM}/1729000000000_documents.bin`) && world.storage["message-attachments"].has(`${TM}/1729000000000_message-attachments.bin`) && !world.storage.resumes.has(`${TM}/1729000000000_resumes.bin`) && !world.storage.avatars.has(`${TM}/1729000000000_avatars.bin`));
   check("…and the signing record stays", world.tables.document_audit_logs.length === 1 && world.auditDeletesTried === 0 && !errors.some((e) => /still hold their data/.test(e)), show(errors));
+}
+
+console.log("\nA business on Unlimited deletes its account (pricing v9)\n");
+{
+  const filled = (w, plan = {}) => {
+    w.tables.user_roles.push({ user_id: OWNER, role: "employer" });
+    w.tables.profiles.push({ id: "p4", user_id: OWNER });
+    w.tables.jobs.push({ id: "job9", employer_id: OWNER });
+    w.tables.subscriptions = [{ id: "s1", user_id: OWNER, plan_type: "unlimited", status: "active", stripe_subscription_id: "sub_owner_1", livemode: false, ...plan }];
+    w.tables.billing_customers = [{ owner_id: OWNER, stripe_customer_id: "cus_owner_test", livemode: false }, { owner_id: OWNER, stripe_customer_id: "cus_owner_live", livemode: true }];
+    w.sessions["owner-token"] = { id: OWNER, email: "owner@example.test" };
+    w.passwords["owner@example.test"] = "owner-password";
+  };
+  // A fake Stripe: the subscriptions of each customer, cancelled by DELETE,
+  // and its open Checkout pages, expired by POST .../expire.
+  const asked = [];
+  let stripe;
+  let pages = {};
+  let stripeDown = false;
+  let expireStuck = false;
+  const freshPages = () => ({
+    cs_owner_open: { id: "cs_owner_open", customer: "cus_owner_test", status: "open" },
+    cs_owner_paid: { id: "cs_owner_paid", customer: "cus_owner_test", status: "complete" },
+    cs_live_open: { id: "cs_live_open", customer: "cus_owner_live", status: "open" },
+  });
+  const freshStripe = () => ({
+    sub_owner_1: { id: "sub_owner_1", customer: "cus_owner_test", status: "active" },
+    sub_owner_2: { id: "sub_owner_2", customer: "cus_owner_test", status: "past_due" },
+    sub_owner_old: { id: "sub_owner_old", customer: "cus_owner_test", status: "canceled" },
+    sub_live_1: { id: "sub_live_1", customer: "cus_owner_live", status: "active" },
+  });
+  const answer = (status, body) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+  globalThis.fetch = async (input, init = {}) => {
+    const url = new URL(typeof input === "string" ? input : input.url);
+    if (url.origin !== "https://api.stripe.com") throw new Error(`the function reached outside: ${url}`);
+    const method = init.method ?? "GET";
+    const p = url.pathname.replace(/^\/v1/, "");
+    asked.push({ method, path: p, query: url.search, auth: init.headers?.Authorization });
+    if (stripeDown) return answer(500, { error: { message: "Stripe is down" } });
+    if (method === "GET" && p === "/checkout/sessions") {
+      return answer(200, { object: "list", data: Object.values(pages).filter((x) => x.customer === url.searchParams.get("customer") && x.status === url.searchParams.get("status")) });
+    }
+    const page = /^\/checkout\/sessions\/([^/]+)(\/expire)?$/.exec(p);
+    if (page) {
+      const found = pages[decodeURIComponent(page[1])];
+      if (!found) return answer(404, { error: { code: "resource_missing", message: "No such checkout session" } });
+      if (method === "GET") return answer(200, found);
+      if (found.status !== "open" || expireStuck) return answer(400, { error: { message: "Only open sessions can be expired" } });
+      found.status = "expired";
+      return answer(200, found);
+    }
+    if (method === "GET" && p === "/subscriptions") return answer(200, { object: "list", data: Object.values(stripe).filter((x) => x.customer === url.searchParams.get("customer")) });
+    const one = /^\/subscriptions\/([^/]+)$/.exec(p);
+    const sub = one && stripe[decodeURIComponent(one[1])];
+    if (!sub) return answer(404, { error: { code: "resource_missing", message: "No such subscription" } });
+    if (method === "GET") return answer(200, sub);
+    if (sub.status === "canceled") return answer(400, { error: { message: "already canceled" } });
+    sub.status = "canceled";
+    return answer(200, sub);
+  };
+  const alerts = () => world.rpcCalls.filter((c) => c.fn === "billing_alert_admins");
+
+  reset(filled);
+  stripe = freshStripe();
+  const unset = await call("owner-token", "owner-password");
+  check(
+    "billing not set up while an Unlimited still bills: 409 \"message us from Help\", the admins told, nothing deleted, Stripe never asked (the billing review, finding 11)",
+    unset.status === 409 && unset.body?.code === "billing_contact_us" && /Message us from Help/.test(unset.body?.error ?? "") && alerts().length === 1 &&
+      world.deletedUsers.length === 0 && world.tables.jobs.length === 1 && asked.length === 0,
+    show([unset, alerts()]),
+  );
+  ENV.STRIPE_SECRET_KEY = "sk_test_x";
+  ENV.STRIPE_WEBHOOK_SECRET = "whsec_x";
+  reset((w) => filled(w, { livemode: true, stripe_subscription_id: "sub_live_1" }));
+  stripe = freshStripe();
+  asked.length = 0;
+  const otherMode = await call("owner-token", "owner-password");
+  check(
+    "a live-mode Unlimited and a test-mode key: never taken as \"no such subscription\"; 409, the admins told, nothing deleted, nothing cancelled",
+    otherMode.status === 409 && otherMode.body?.code === "billing_contact_us" && alerts().length === 1 && world.deletedUsers.length === 0 &&
+      !asked.some((a) => a.method === "DELETE") && stripe.sub_live_1.status === "active",
+    show([otherMode, asked]),
+  );
+  reset(filled);
+  stripe = freshStripe();
+  stripeDown = true;
+  const down = await call("owner-token", "owner-password");
+  stripeDown = false;
+  check("Stripe failing: 502 \"try again\" and nothing deleted", down.status === 502 && down.body?.code === "billing_cancel_failed" && world.deletedUsers.length === 0 && world.tables.jobs.length === 1, show(down));
+  reset(filled);
+  stripe = freshStripe();
+  pages = freshPages();
+  expireStuck = true;
+  const stuck = await call("owner-token", "owner-password");
+  expireStuck = false;
+  check(
+    "an open Checkout page Stripe will not expire: 502 \"try again\", nothing deleted (a page paid after the account went would bill nobody: the final billing review, N1)",
+    stuck.status === 502 && stuck.body?.code === "billing_cancel_failed" && world.deletedUsers.length === 0 && pages.cs_owner_open.status === "open",
+    show([stuck]),
+  );
+  reset(filled);
+  stripe = freshStripe();
+  pages = freshPages();
+  asked.length = 0;
+  const ok = await call("owner-token", "owner-password");
+  const deletes = asked.filter((a) => a.method === "DELETE").map((a) => a.path);
+  check(
+    "with Stripe set up: the Unlimited it tracks and every other subscription Stripe lists for the business's customer in this mode that still bills are cancelled at once (finding 1), then the account is deleted",
+    ok.status === 200 && world.deletedUsers.includes(OWNER) && deletes.includes("/subscriptions/sub_owner_1") && deletes.includes("/subscriptions/sub_owner_2") && !deletes.includes("/subscriptions/sub_owner_old") &&
+      deletes.indexOf("/subscriptions/sub_owner_1") === 0 && asked.some((a) => a.method === "GET" && a.path === "/subscriptions" && /customer=cus_owner_test/.test(a.query)) &&
+      !asked.some((a) => /cus_owner_live/.test(a.query)) && asked.every((a) => a.auth === "Bearer sk_test_x") && stripe.sub_owner_2.status === "canceled",
+    show([ok, asked]),
+  );
+  check(
+    "…and the customer's open Checkout pages are expired first (none can be paid once the account is gone; N1); a completed page and the other mode's are not touched",
+    pages.cs_owner_open.status === "expired" && pages.cs_owner_paid.status === "complete" && pages.cs_live_open.status === "open" &&
+      asked.findIndex((a) => a.path === "/checkout/sessions/cs_owner_open/expire") < asked.findIndex((a) => a.method === "GET" && a.path === "/subscriptions"),
+    show(asked),
+  );
+  reset(filled);
+  stripe = freshStripe();
+  delete stripe.sub_owner_1;
+  asked.length = 0;
+  const missing = await call("owner-token", "owner-password");
+  check("Stripe has no such subscription, in the key's own mode: it is gone, and the account is deleted", missing.status === 200 && world.deletedUsers.includes(OWNER), show([missing, asked]));
+  reset((w) => {
+    filled(w);
+    w.tables.subscriptions[0].status = "canceled";
+  });
+  stripe = { sub_owner_1: { id: "sub_owner_1", customer: "cus_owner_test", status: "canceled" } };
+  asked.length = 0;
+  const done = await call("owner-token", "owner-password");
+  check("an Unlimited that already ended is not touched", done.status === 200 && !asked.some((a) => a.method === "DELETE") && world.deletedUsers.includes(OWNER), show([done, asked]));
+  check("every database call named the SQL function's own arguments", world.rpcProblems.length === 0, show(world.rpcProblems));
+  delete ENV.STRIPE_SECRET_KEY;
+  delete ENV.STRIPE_WEBHOOK_SECRET;
 }
 
 console.error = realError;

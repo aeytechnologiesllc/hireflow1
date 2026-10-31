@@ -21,6 +21,9 @@ import { useCockpitJobsData, useSchemaMode } from "../hooks/useCockpitData";
 import type { JobRow, JobStatus } from "../data";
 import { jobShareUrl } from "@/lib/jobLinks";
 import { shortLinkFor } from "@/lib/jobSlug";
+import { useBilling } from "@/hooks/useSubscription";
+import { jobPassLine, repostNeedsPayment } from "@/lib/billing";
+import { PublishPaymentDialog } from "@/components/billing/PublishPaymentDialog";
 
 /**
  * Your jobs.
@@ -115,6 +118,8 @@ interface RowExtras {
   when: string;
   /** Who was hired out of this role, when we can name them honestly. */
   hiredName: string | null;
+  /** Billing's line ("12 days left", "Its 30 days ended"); null while billing is off (src/lib/billing.ts). */
+  passLine?: string | null;
 }
 
 function JobListRow({
@@ -153,7 +158,7 @@ function JobListRow({
     ? `${extras.when} · finish it and I'll put it live`
     : filled && extras.hiredName
       ? `Hired ${extras.hiredName} · ${extras.when.toLowerCase()}`
-      : [extras.when, job.pay, job.location].filter(Boolean).join(" · ");
+      : [extras.passLine, extras.when, job.pay, job.location].filter(Boolean).join(" · ");
 
   // One ink number per row, and only when there is something real behind it.
   const second =
@@ -349,6 +354,11 @@ export default function CockpitJobs() {
   const [newJobOpen, setNewJobOpen] = useState(false);
   // The job whose copy is being saved (one at a time).
   const [copyingId, setCopyingId] = useState<string | null>(null);
+  // Billing (pricing v9): days left on each job; "Post it again" straight to
+  // paying when the job needs it. Nothing while billing is off.
+  const { billing } = useBilling();
+  const [payFor, setPayFor] = useState<JobRow | null>(null);
+  const editOrPay = (job: JobRow) => (job.status === "closed" && repostNeedsPayment(billing, job.id) ? setPayFor(job) : navigate(`/jobs/edit/${job.id}`));
 
   // Delete is real and final, so it only shows where it can actually happen: not on the
   // showcase dataset, and not for a team member whose role does not include it.
@@ -479,10 +489,10 @@ export default function CockpitJobs() {
       const hire = applications.find((a) => a.job_id === job.id && a.status === "hired");
       const hiredFull = hire?.profiles?.full_name?.trim();
 
-      map.set(job.id, { when, hiredName: hiredFull ? shortName(hiredFull) : null });
+      map.set(job.id, { when, hiredName: hiredFull ? shortName(hiredFull) : null, passLine: jobPassLine(billing, job.id, job.status) });
     }
     return map;
-  }, [jobs, rawJobs, applications]);
+  }, [jobs, rawJobs, applications, billing]);
 
   // What a new job can start from: every job on this page, drafts first.
   const startOptions = useMemo<JobStartOption[]>(() => {
@@ -778,7 +788,7 @@ export default function CockpitJobs() {
                   index={i}
                   extras={extras.get(job.id) ?? { when: `${job.dateLabel} ${job.date}`, hiredName: null }}
                   onOpen={() => navigate(`/jobs/${job.id}`)}
-                  onEdit={() => navigate(`/jobs/edit/${job.id}`)}
+                  onEdit={() => editOrPay(job)}
                   onBoost={() => setKitJob(job)}
                   onCloseRole={() => void closeRole(job)}
                   onDelete={canDelete ? () => setPendingDelete(job) : null}
@@ -819,7 +829,7 @@ export default function CockpitJobs() {
                       index={i}
                       extras={extras.get(job.id) ?? { when: `${job.dateLabel} ${job.date}`, hiredName: null }}
                       onOpen={() => navigate(`/jobs/${job.id}`)}
-                      onEdit={() => navigate(`/jobs/edit/${job.id}`)}
+                      onEdit={() => editOrPay(job)}
                       onBoost={() => setKitJob(job)}
                       onCloseRole={() => void closeRole(job)}
                       onDelete={canDelete ? () => setPendingDelete(job) : null}
@@ -833,6 +843,18 @@ export default function CockpitJobs() {
           )}
         </>
       )}
+
+      <PublishPaymentDialog
+        open={!!payFor}
+        onOpenChange={(open) => !open && setPayFor(null)}
+        jobId={payFor?.id ?? null}
+        jobTitle={payFor?.title}
+        onPublishInstead={() => {
+          const id = payFor?.id;
+          setPayFor(null);
+          if (id) navigate(`/jobs/edit/${id}`);
+        }}
+      />
 
       <ShareKitDialog
         open={!!kitJob}

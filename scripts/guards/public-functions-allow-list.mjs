@@ -23,6 +23,8 @@ const PUBLIC_FUNCTIONS = new Set([
   "delete-account", // resolves the caller; asks for the password
   "deduct-voice-minutes", // resolves the caller
   "get-subscription", // resolves the caller
+  "billing-webhook", // Stripe: refused unless the Stripe-Signature header checks out; each event once
+  "billing-sync", // pg_cron; Vault secret; reads Stripe again, writes only through billing_sync_*
   "verify-document", // public check by design; rate-limited
   "client-errors", // crash reports; size caps, limits, sanitised
   "page-views", // page counter; size caps, limits, sanitised

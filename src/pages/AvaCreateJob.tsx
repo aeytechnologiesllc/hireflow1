@@ -66,6 +66,8 @@ import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { createJobFromFlow, fetchEmployerCompanyName } from "@/lib/jobFromFlow";
 import { EmailCheckDialog } from "@/components/business/EmailCheckDialog";
 import { isEmailNotVerifiedError, OWNER_MUST_CONFIRM_EMAIL } from "@/lib/emailCheck";
+import { PublishPaymentDialog } from "@/components/billing/PublishPaymentDialog";
+import { isPaymentRequiredError, PUBLISH_PAYMENT_WORDS } from "@/lib/billing";
 import { geocodePlace, formatPlace } from "@/lib/geocode";
 import { placeSaysHybrid, placeSaysRemote } from "@/lib/jobLocation";
 import type { LucideIcon } from "lucide-react";
@@ -320,6 +322,10 @@ export default function AvaCreateJob() {
   // the publish that was waiting carries on once it has.
   const [emailCheckOpen, setEmailCheckOpen] = useState(false);
   const emailCheckRetryRef = useRef<{ companyNameOverride?: string } | null>(null);
+  // With billing on, a business whose free job is used pays to put a job live
+  // (pricing v9, src/lib/billing.ts): the job is saved as a draft first, then
+  // paid for. Never while billing is off (the database never refuses then).
+  const [paymentJob, setPaymentJob] = useState<{ id: string; title: string } | null>(null);
   const [companyNameDraft, setCompanyNameDraft] = useState("");
   const [savingCompanyName, setSavingCompanyName] = useState(false);
   const advanceBuildRef = useRef(false);
@@ -467,12 +473,12 @@ export default function AvaCreateJob() {
     }
 
     setPublishing(true);
+    const edited = applyReviewEdits(flow, reviewCards);
+    const brief = briefFromForm({
+      ...briefFields,
+      followUps: briefAnswers(followUps),
+    });
     try {
-      const edited = applyReviewEdits(flow, reviewCards);
-      const brief = briefFromForm({
-        ...briefFields,
-        followUps: briefAnswers(followUps),
-      });
       const created = await createJobFromFlow(edited, brief, { status: "published", voiceInterview: hasVoiceInterviews });
       clearDraft();
       sessionStorage.removeItem(DRAFT_SESSION_KEY);
@@ -497,6 +503,21 @@ export default function AvaCreateJob() {
         } else {
           emailCheckRetryRef.current = { companyNameOverride };
           setEmailCheckOpen(true);
+        }
+        return;
+      }
+      // Billing on and the free job used (jobs_publish_needs_pass, HINT
+      // payment_required): nothing was saved, so the job is kept as a draft
+      // and offered for payment.
+      if (isPaymentRequiredError(err)) {
+        try {
+          const draft = await createJobFromFlow(edited, brief, { status: "draft", voiceInterview: hasVoiceInterviews });
+          clearDraft();
+          sessionStorage.removeItem(DRAFT_SESSION_KEY);
+          await queryClient.invalidateQueries({ queryKey: ["jobs"] });
+          setPaymentJob({ id: draft.id, title: draft.title });
+        } catch (saveErr) {
+          toast.error(saveErr instanceof Error ? saveErr.message : "Couldn't save the job. Please try again.");
         }
         return;
       }
@@ -901,6 +922,25 @@ export default function AvaCreateJob() {
           </AnimatePresence>
         </div>
       </main>
+
+      <PublishPaymentDialog
+        open={!!paymentJob}
+        onOpenChange={(open) => {
+          if (open || !paymentJob) return;
+          const id = paymentJob.id;
+          setPaymentJob(null);
+          toast(PUBLISH_PAYMENT_WORDS.saved);
+          navigate(`/jobs/${id}`);
+        }}
+        jobId={paymentJob?.id ?? null}
+        jobTitle={paymentJob?.title}
+        justSaved
+        onPublishInstead={() => {
+          const id = paymentJob?.id;
+          setPaymentJob(null);
+          if (id) navigate(`/jobs/edit/${id}`);
+        }}
+      />
 
       <EmailCheckDialog
         open={emailCheckOpen}

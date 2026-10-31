@@ -16,6 +16,7 @@ import { LUCKY_USER, previewAppliedToBoth, previewBusinesses } from "./previewBu
 import { previewTrustHandlers } from "./previewTrust";
 import { previewPushHandlers, previewPushInvoke } from "./previewPush";
 import { installPreviewSampleAi, previewChatAgentJob, previewSampleInvoke } from "./previewChatAgent";
+import { previewBilling } from "./previewBilling";
 import {
   APP_QUIZ_ID,
   APP_ZULU_RETAKE_ID,
@@ -1584,10 +1585,12 @@ export function install(params: URLSearchParams): void {
   // with `__previewBusinesses=two`).
   const signedIn = role === "employer" && params.get("__previewEmployer") === "lucky" ? LUCKY_USER : ROLE_USERS[role];
   const emailCheck = previewEmailCheck(params.get("__previewEmailCheck"));
+  // Billing on or off, offline (previewBilling.ts): get-subscription, checkout and the refused publish.
+  const billing = previewBilling(tables, params.get("__previewBilling"), role);
   const base = createFixtureSupabaseClient({
     user: signedIn,
     tables,
-    refuseWrite: emailCheck.refuseWrite,
+    refuseWrite: (table, type, payload) => emailCheck.refuseWrite?.(table, type, payload) ?? billing.refuseWrite?.(table, type, payload) ?? null,
     rpc: {
       ...emailCheck.rpc,
       ...buildFixtureRpcHandlers(scenario),
@@ -1641,6 +1644,8 @@ export function install(params: URLSearchParams): void {
         if (emailed) return emailed;
         const coded = emailCheck.invoke(name, options);
         if (coded) return coded;
+        const billed = billing.invoke(name, options);
+        if (billed) return billed;
         // `?__previewMail=sent`: the mail service accepts every notification
         // (the default answers as it does with no mail service at all).
         if (name === "send-notification-email" && params.get("__previewMail") === "sent") {

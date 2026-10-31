@@ -31,6 +31,7 @@ import { TipsSettingCard } from "@/cockpit/tips/TipsSettingCard";
 import { TwoStepSignIn } from "@/components/settings/TwoStepSignIn";
 import { usePlatformAdminAccount } from "@/hooks/usePlatformAdmin";
 import { deleteAccountWords } from "@/content/deleteAccount";
+import { BillingCard } from "@/components/billing/BillingCard";
 
 export default function Settings() {
   const { user, role, loading, isTeamMember } = useAuth();
@@ -140,6 +141,16 @@ export default function Settings() {
                 : "Your sign-in has ended. Sign out, sign in again, then try once more.",
           );
           return;
+        }
+        // A business on Unlimited whose subscription could not be cancelled
+        // first (pricing v9): nothing was deleted, and the dialog says so
+        // (try again, or message us from Help).
+        if (status === 502 || status === 409) {
+          const reply = await (error as { context?: Response }).context?.json?.().catch(() => null);
+          if ((reply?.code === "billing_cancel_failed" || reply?.code === "billing_contact_us") && typeof reply.error === "string") {
+            setDeleteError(reply.error);
+            return;
+          }
         }
         throw error;
       }
@@ -334,6 +345,10 @@ export default function Settings() {
         <TabsContent value="account" className="space-y-6 mt-6">
           {/* The business's careers page (owners; the 2026-10-11 mock-ups, #3). */}
           {isEmployer && !isTeamMember && <CareersPageCard />}
+
+          {/* Billing (pricing v9, docs/BILLING.md): the owner only, and only
+              while billing is on (BillingCard draws nothing otherwise). */}
+          {isEmployer && !isTeamMember && <BillingCard />}
 
           {/* Account Settings */}
           <Card className="bg-card border-border">

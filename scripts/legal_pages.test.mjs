@@ -147,6 +147,20 @@ check("it tells people how to delete their account, by the button's own name", /
       /a count of your test attempts, a block-list entry if the account was blocked/.test(privacy) && /and error reports\./.test(privacy),
     show(words),
   );
+  // Pricing v9 (docs/BILLING.md; the billing review, findings 6 and 11): a
+  // business's payment records and its email's one-way fingerprint outlive
+  // the account (job_passes.owner_id ON DELETE SET NULL; billing_free_job_emails
+  // has no account in it), and both the policy and the confirm say so.
+  const v9 = read("supabase/migrations/20261031100000_billing_pricing_v9.sql");
+  check(
+    "the policy and a business's Delete Account confirm say its payment records and its email's one-way fingerprint stay (one free job per address), as the database keeps them",
+    /a record of each payment it made \(the amount, the date and the payment's reference\) is kept for our accounts after the account is deleted, without your name\. So is a one-way fingerprint of your sign-in email address, which cannot be turned back into the address: we keep it so that one email address gets one free job\./.test(privacy) &&
+      words.business.kept.length === 3 && /A record of each payment your business made/.test(words.business.kept[2]) && /one-way fingerprint of your email address, kept so that one address gets one free job/.test(words.business.kept[2]) &&
+      words.applicant.kept.length === 2 && words.team.kept.length === 2 &&
+      /owner_id uuid references auth\.users \(id\) on delete set null,\s*kind text not null check \(kind in \('free', 'paid', 'launch', 'unlimited'\)\)/.test(v9) &&
+      /create table if not exists public\.billing_free_job_emails \(\s*email_hash text primary key check \(email_hash ~ '\^\[0-9a-f\]\{64\}\$'\),\s*used_at timestamptz not null default now\(\)\s*\);/.test(v9),
+    show(words.business.kept),
+  );
   check(
     "…which is what delete-account does: it never deletes the signing record (and no longer tries)",
     ops.length > 0 && !/document_audit_logs/.test(ops) && /prevent_audit_delete refuses any delete/.test(fn) && /BEFORE DELETE ON public\.document_audit_logs/.test(read("supabase/migrations/20251215015158_dff41abe-b1cf-4851-b3ff-0665a3e61c65.sql")),

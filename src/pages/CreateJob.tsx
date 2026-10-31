@@ -117,6 +117,8 @@ import { subscribeToAvaFormCommands, AvaFormCommand } from "@/utils/avaFormEvent
 import { JobPublishedDialog } from "@/components/JobPublishedDialog";
 import { EmailCheckDialog } from "@/components/business/EmailCheckDialog";
 import { isEmailNotVerifiedError, OWNER_MUST_CONFIRM_EMAIL } from "@/lib/emailCheck";
+import { PublishPaymentDialog } from "@/components/billing/PublishPaymentDialog";
+import { isPaymentRequiredError, PUBLISH_PAYMENT_WORDS, statusAfterRefusedPublish } from "@/lib/billing";
 import { isJobStepsFixedError, JOB_STEPS_FIXED_MESSAGE, JOB_STEPS_FIXED_NOTE } from "@/lib/jobStepsFixed";
 import { SLUG_MESSAGES, slugCandidates, slugProblem, slugSaveProblem, suggestJobSlug, tidySlugInput } from "@/lib/jobSlug";
 import { claimSuggestedSlug, firstFreeSlug, takenSlugs } from "@/lib/jobSlugAvailability";
@@ -1029,6 +1031,10 @@ export default function CreateJob() {
   // A business confirms its email at its first publish (src/lib/emailCheck.ts);
   // the save that was waiting carries on once it has.
   const [emailCheckRetry, setEmailCheckRetry] = useState<{ status: "draft" | "published"; companyNameOverride?: string } | null>(null);
+  // With billing on, a business whose free job is used pays to put a job live
+  // (pricing v9, src/lib/billing.ts): what was written is saved first (as it
+  // stands, not live), then paid for. Never while billing is off.
+  const [paymentJob, setPaymentJob] = useState<{ id: string; title: string } | null>(null);
   const [companyNameDraft, setCompanyNameDraft] = useState("");
   const [isSavingCompanyName, setIsSavingCompanyName] = useState(false);
   const overlayStartedAtRef = useRef<number | null>(null);
@@ -1717,6 +1723,9 @@ export default function CreateJob() {
 
     // Names the database refuses during this save, kept for the field.
     const refusedThisSave: string[] = [];
+    // What this save writes, for a publish the database refuses for payment
+    // (saved then as it stands, not live; see the catch below).
+    let saveNotLive: (() => Promise<{ id: string; title: string } | null>) | null = null;
     setIsSubmitting(true);
     try {
       const locationText = formData.location.trim();
@@ -1795,6 +1804,21 @@ export default function CreateJob() {
         processing_mode: processingMode,
         passing_score: passingScore,
         required_wpm: requiredWpm,
+      };
+
+      saveNotLive = async () => {
+        if (isEditMode && id) {
+          const columns = editedColumns ?? new Set<string>();
+          // The job's status as the database has it now, not as the editor
+          // loaded it: a job the hourly run closed meanwhile stays closed.
+          const { data: current, error: currentError } = await supabase.from("jobs").select("status").eq("id", id).maybeSingle();
+          if (currentError) throw currentError;
+          const keep = statusAfterRefusedPublish(current?.status);
+          if (columns.size > 0) await updateJob.mutateAsync({ id, ...pickJobColumns(jobData, columns), status: keep });
+          return { id, title: formData.title };
+        }
+        const draft = await createJob.mutateAsync({ ...jobData, status: "draft", slug: slug || null });
+        return draft ? { id: draft.id, title: draft.title } : null;
       };
 
       if (isEditMode && id) {
@@ -1884,6 +1908,20 @@ export default function CreateJob() {
       if (isEmailNotVerifiedError(error)) {
         if (isTeamMember) toast.error(OWNER_MUST_CONFIRM_EMAIL);
         else setEmailCheckRetry({ status, companyNameOverride });
+        return;
+      }
+      // Billing on and the free job used (jobs_publish_needs_pass, HINT
+      // payment_required): what was written is kept, not live, and offered
+      // for payment.
+      if (isPaymentRequiredError(error) && saveNotLive) {
+        try {
+          const saved = await saveNotLive();
+          await queryClient.invalidateQueries({ queryKey: ["jobs"] });
+          if (saved) setPaymentJob(saved);
+        } catch (saveError) {
+          console.error("Error saving job before payment:", saveError);
+          toast.error(isEditMode ? "Failed to update job" : "Failed to create job");
+        }
         return;
       }
       // People applied while the page was open: the questions, quiz and steps
@@ -4449,6 +4487,24 @@ export default function CreateJob() {
           )}
         </div>
       </div>
+
+      <PublishPaymentDialog
+        open={!!paymentJob}
+        onOpenChange={(open) => {
+          if (open || !paymentJob) return;
+          const saved = paymentJob;
+          setPaymentJob(null);
+          toast(PUBLISH_PAYMENT_WORDS.saved);
+          navigate(`/jobs/${saved.id}`);
+        }}
+        jobId={paymentJob?.id ?? null}
+        jobTitle={paymentJob?.title}
+        justSaved
+        onPublishInstead={() => {
+          setPaymentJob(null);
+          void handleSubmit("published");
+        }}
+      />
 
       <EmailCheckDialog
         open={!!emailCheckRetry}

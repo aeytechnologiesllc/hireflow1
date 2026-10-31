@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
+import { cancelEverySubscription, stripeConfig } from "../_shared/stripe.ts";
 
 // Not `ReturnType<typeof createClient>`: createClient is overloaded, and
 // ReturnType of an overloaded function type resolves against its LAST
@@ -296,6 +297,48 @@ serve(async (req) => {
     // records with it (messages are deleted with an account).
     const { data: roleRows } = await supabaseAdmin.from('user_roles').select('role').eq('user_id', user.id);
     const isBusiness = (roleRows ?? []).some((r: { role?: string }) => r.role === 'employer');
+
+    // A business (pricing v9, docs/BILLING.md): every subscription it still
+    // pays for is cancelled first, so a deleted account is never charged
+    // again: the Unlimited HireFlow tracks, and every one Stripe lists for its
+    // customers in the key's mode. If that cannot be done now, nothing is
+    // deleted. If it cannot be done at all from here (the keys missing, or of
+    // the other mode, while Unlimited still bills), the admins are told and
+    // the business is asked to message us. Its payment records stay
+    // (job_passes, owner_id NULL), its own data goes.
+    if (isBusiness) {
+      const [{ data: plans, error: planError }, { data: customers, error: customerError }] = await Promise.all([
+        supabaseAdmin
+          .from('subscriptions')
+          .select('stripe_subscription_id, status, plan_type, livemode')
+          .eq('user_id', user.id)
+          .eq('plan_type', 'unlimited'),
+        supabaseAdmin.from('billing_customers').select('stripe_customer_id, livemode').eq('owner_id', user.id),
+      ]);
+      const cancel = planError || customerError
+        ? { ok: false as const, cancelled: [] as string[], reason: 'try_again' as const }
+        : await cancelEverySubscription(stripeConfig((key) => Deno.env.get(key)), plans ?? [], customers ?? []);
+      if (!cancel.ok && cancel.reason === 'contact_us') {
+        console.error('Delete account: a subscription cannot be cancelled from here (nothing deleted):', cancel.detail);
+        const { error: alertError } = await supabaseAdmin.rpc('billing_alert_admins', {
+          p_key: `billing:delete-account:${user.id}`,
+          p_title: 'An account could not be deleted',
+          p_message: `A business asked to delete its account, but its Unlimited could not be cancelled from here: ${cancel.detail}. Cancel it in Stripe; once its subscriptions row says canceled (the webhook, with the right keys, or by hand), the business can delete its account.`,
+        });
+        if (alertError) console.error('Delete account: the admins could not be told:', alertError.message);
+        return new Response(
+          JSON.stringify({ error: "We couldn't cancel your Unlimited plan, so nothing was deleted. Message us from Help and we'll cancel it for you.", code: 'billing_contact_us' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      if (!cancel.ok) {
+        console.error('Delete account: a subscription could not be cancelled (nothing deleted):', planError?.message ?? customerError?.message ?? 'Stripe refused or did not answer');
+        return new Response(
+          JSON.stringify({ error: "We couldn't cancel your Unlimited plan just now, so nothing was deleted. Try again in a moment.", code: 'billing_cancel_failed' }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
     const { data: teamRows } = isBusiness
       ? { data: [] as { employer_id: string }[] }
       : await supabaseAdmin.from('team_members').select('employer_id').eq('user_id', user.id).order('created_at', { ascending: false }).limit(1);

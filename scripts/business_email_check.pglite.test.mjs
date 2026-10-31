@@ -168,6 +168,23 @@ await db.exec(`
   alter table public.jobs enable row level security;
   create policy jobs_any on public.jobs for all to authenticated using (true) with check (true);
   grant select, insert, update on public.jobs to authenticated, service_role;
+
+  -- What 20261031100000_billing_pricing_v9.sql (a second publish check on
+  -- jobs, behind app_settings.billing_enabled, off here as live) builds on:
+  -- every check below then runs with it in place.
+  create table public.app_settings (key text primary key, value jsonb not null, updated_at timestamptz not null default now());
+  insert into public.app_settings (key, value) values ('billing_enabled', 'false'::jsonb);
+  create table public.subscriptions (id uuid primary key default gen_random_uuid(), user_id uuid not null unique, stripe_customer_id text,
+    stripe_subscription_id text, plan_type text not null default 'trial', status text not null default 'trialing', trial_start timestamptz,
+    trial_end timestamptz, current_period_start timestamptz, current_period_end timestamptz, cancel_at_period_end boolean default false,
+    currency text, amount integer, onboarding_completed boolean default false, created_at timestamptz not null default now(), updated_at timestamptz not null default now());
+  create table public.team_members (id uuid primary key default gen_random_uuid(), user_id uuid, employer_id uuid, status text,
+    can_create_jobs boolean default false, assigned_job_ids uuid[], joined_at timestamptz default now());
+  create table public.notifications (id uuid primary key default gen_random_uuid(), user_id uuid, type text, title text, message text, link text, is_read boolean default false);
+  create function public.update_updated_at_column() returns trigger language plpgsql as $$ begin new.updated_at := now(); return new; end $$;
+  create function public.is_active_team_member_for_job(p_job_id uuid, p_user_id uuid, a boolean default false, b boolean default false, c boolean default false)
+    returns boolean language sql stable as $$ select false $$;
+  create function public.business_status_of(p_employer uuid) returns text language sql stable as $$ select 'approved'::text $$;
 `);
 console.log(`\nApplied, in order: ${LATER.join(", ")}\n`);
 for (const name of LATER) {

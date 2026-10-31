@@ -471,6 +471,8 @@ the next. Same migration, different version stamp, as in section 2: match by
 | `20261025750000_applicant_notes_not_the_teams.sql` | `20261029192948` | `applicant_notes_not_the_teams` |
 | `20261025760000_job_words_keep_their_keys.sql` | `20261029192952` | `job_words_keep_their_keys` |
 
+`20261031100000_billing_pricing_v9.sql` (billing, off) was applied on 2026-10-31 from its file through `npx supabase db query --linked --project-ref …`, in one transaction with its own history row under the file's own version (`20261031100000`, name `billing_pricing_v9`, statements = the file), so a later `db push` finds it.
+
 620000 and 630000 were applied after 640000, and 650000 and 660000 after 670000 (neither pair touches anything the later one changed; the behaviour test applies them in file order; document-cleanup was deployed between 650000 and 660000), each from its file through `supabase db query --linked --project-ref …`, in one transaction with its own history row (statements = the file), so nothing was copied by hand.
 
 The live copies carry a short header pointing at the repo file instead of

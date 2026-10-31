@@ -85,16 +85,10 @@ export default function AppLayout() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const { user, loading, role, signOut, isTeamMember } = useAuth();
-  const { teamAccess, isLoading: subLoading, error: subError, completeOnboarding, needsOnboarding: hookNeedsOnboarding } = useSubscription();
   // A new business lands on the Dashboard's first steps (the 2026-10-11
-  // mock-ups, #2), not a separate welcome screen: the flag that showed that
-  // screen is simply marked done, once.
-  const onboardingMarked = useRef(false);
-  useEffect(() => {
-    if (!hookNeedsOnboarding || role !== "employer" || onboardingMarked.current) return;
-    onboardingMarked.current = true;
-    completeOnboarding.mutate();
-  }, [hookNeedsOnboarding, role, completeOnboarding]);
+  // mock-ups, #2); the old welcome screen's flag on the trial row is gone with
+  // the trial row (pricing v9, docs/BILLING.md).
+  const { teamAccess, isLoading: subLoading, error: subError } = useSubscription();
   const isMobile = useIsMobile();
   usePushNotifications(); // Auto-registers device for push notifications in Natively
   useWebPushSync(); // Puts this browser's notification subscription back at sign-in (phone Home Screen, Android, desktop)
