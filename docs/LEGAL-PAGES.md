@@ -62,14 +62,34 @@ On 2026-10-09, against the repo and the live project.
 | Three people the business has been in touch with pause it by their reports; once a report has been looked at and closed, a new one from that person counts again only after the business is in touch with them again | `employer_reports_auto_pause` reads the record of contact (`private.business_contacts`, `20261025670000`) and leaves out someone an admin already heard (`report_already_heard`: a report of theirs closed by the reopen or by Close, with no contact since; the fifteenth Phase 5 review, `20261025680000`); a card the business writes into its applicant's bell counts as a message; since the sixteenth review ("by message, by an email other than turning them down") an email from the hiring team counts too, but a decline (send-notification-email records it, `business_contacts_remember_email`, `20261025690000`), a report someone adds to is worked out again, and a browser's new time, link or notes on an interview is contact; since the seventeenth ("by moving their application forward"), the hiring team's browser moving an application to an interview, an offer, a hire or another step is contact, never a move to rejected (`business_contacts_remember_move`, `20261025700000`), and a decline names the job and the business as they were when the person applied and goes once, for a real decline; since the eighteenth ("by an email its hiring team sends them other than turning them down"), the applicant's own two emails ("application received", "Email me the link"), which come from the business by name and are no contact, name the job and the business as they were when they applied, and so do their own pages; since the nineteenth a report can name the business once its job is gone ("or its business once the job is gone"; `report_employer`'s `p_employer`, `report_choices`), and since the twentieth the way to it is named where it always is ("Once the job is gone, use Report a business you were in touch with: it is on Contact us, and on Messages when you have no chat there"; `ReportBusinessNote` on Help and Messages). The nineteenth's "So it is when it changes what its job, its steps or its own name say to them where the public cannot read it" is gone with the two triggers that made it so (`20261025730000`; an ordinary edit let three throwaway drafts pause a real business); what is true instead: "Once anyone has applied to a job, its business can no longer change the job's application questions, quiz or steps, and an applicant's own pages name the job, its place and type and the business as they were when they applied" (`jobs_applicant_words_fixed`, `applied_location`, `applied_job_type`); docs/BUSINESS-TRUST.md, launch_locks_behaviour sections 22 to 29 |
 | What we collect names reports (the job, the reason, the note, when, and who) and a Contact us thread, read by us, kept until the account is deleted; the note of contact keeps when each kind first and last happened and decides when a report does not count | `employer_reports` (`reporter_id` ON DELETE CASCADE, `details` up to 1,000 characters, `20261011100000`), `help_messages` (an applicant's thread keyed to their account, ON DELETE CASCADE, `20261011180000`, `20261025200000`); `private.business_contacts.first_at` / `last_at` and `report_already_heard` (`20261025680000`), an email from the hiring team recorded as a message (`20261025690000`); the sixteenth Phase 5 review, finding 4; the hiring team moving an application forward recorded as a message (`20261025700000`), the seventeenth |
 
+## Business responsibilities (2026-10-31)
+
+The owner asked that the hiring business carry its own responsibilities, in
+the usual plain style a business owner is used to ("don't scare them, just a
+normal procedure"). The Terms ("If you are hiring") now also say the business
+is the employer (HireFlow is a tool, not an employer, recruiter or staffing
+agency; pay, contracts, taxes and worker classification are between the
+business and the people it hires) and that information it copies off the
+site is its own to protect. A new section, "Claims about your hiring", has
+the business cover HireFlow's reasonable costs, including legal fees, for a
+claim that comes from its jobs, its hiring decisions, its use of applicants'
+information or its breaking the terms. "Our responsibility" caps HireFlow's
+total responsibility at what the user paid in the 12 months before, or 100
+US dollars. The business agrees at sign-up (the ticked agreement linking the
+Terms and the Privacy Policy, guard `applicant-signup-shows-privacy-notice`).
+Not legal advice: a lawyer's read before billing goes live is still on the
+list.
+
 ## Still to add
 
 1. **How to contact the company directly.** Southern Digital Technologies LLC
    is named (2026-10-25). Still waiting on the owner: a contact email for
    legal and privacy questions (one that is read; the Philippines Data Privacy
    Act expects a data-protection contact) and the postal address, if any.
-2. **Which state's law applies** to the terms: the state the LLC is
-   registered in (owner input).
+2. **Which state's law applies** to the terms. Done 2026-10-31: the owner
+   confirmed Southern Digital Technologies LLC is registered in Georgia; the
+   Terms have "Which law applies" (Georgia, with protections that cannot be
+   waived where the reader lives kept).
 3. **Agreement at sign-up.** Done 2026-10-25: the business sign-up's
    agreement links the Terms and the Privacy Policy; the applicant sign-up
    says creating an account agrees to the Terms and links the Privacy Policy;

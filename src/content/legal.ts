@@ -15,8 +15,9 @@
  *    each one was checked. If the site changes (a new step, a new provider,
  *    a retention period), this changes with it.
  * 2. The company is named: Southern Digital Technologies LLC (the owner,
- *    2026-10-24, "that's the main one"). Still no postal address, no email
- *    address and no governing-law state until the owner gives them
+ *    2026-10-24, "that's the main one"). Registered in Georgia, whose law
+ *    governs the terms (the owner, 2026-10-31). Still no postal address and no
+ *    email address until the owner gives them
  *    (docs/LAUNCH-PLAN.md, Phase 5, owner inputs). The way to reach the
  *    company is Help in the account ("Contact us" for an applicant,
  *    20261025200000_help_for_applicants.sql): the platform admin reads it,
@@ -43,7 +44,7 @@ export interface LegalDocument {
   sections: LegalSection[];
 }
 
-export const LEGAL_UPDATED = "October 27, 2026";
+export const LEGAL_UPDATED = "October 31, 2026";
 
 export const PRIVACY_POLICY: LegalDocument = {
   title: "Privacy Policy",
@@ -294,9 +295,11 @@ export const TERMS: LegalDocument = {
         {
           list: [
             "Your jobs are your responsibility. They must be real, accurate and lawful.",
+            "You are the employer. We are a hiring tool, not an employer, recruiter or staffing agency, and we are not part of any job you offer. Pay, contracts, taxes and how you classify the people you hire are between you and them.",
             "Your decisions are yours. Scores and summaries are there to help you; you must review each applicant and decide yourself.",
             "You must follow the employment, anti-discrimination and privacy laws that apply to you and to the people who apply.",
             "Use applicants' information only to hire for the job they applied to, keep it confidential, and act on a request to delete it.",
+            "Information you copy or download from the site is yours to protect, under the privacy laws that apply to you.",
             "You are responsible for the people you invite to your team and for what they do here.",
             "Documents you send, such as offer letters, are yours. The site gives you the tool, not legal advice.",
             "Never charge applicants. You may not ask an applicant for money for anything: applying, training, equipment or papers.",
@@ -361,10 +364,18 @@ export const TERMS: LegalDocument = {
       body: ["We may change, pause or stop any part of the site. We work to keep it running, but we do not promise that it will always be available or free of errors."],
     },
     {
+      id: "claims",
+      title: "Claims about your hiring",
+      body: [
+        "If someone makes a claim against us because of your jobs, your hiring decisions, how you used applicants' information, or your breaking these terms, you agree to cover our reasonable costs of dealing with it, including legal fees. We will tell you about the claim and let you help handle it.",
+      ],
+    },
+    {
       id: "liability",
       title: "Our responsibility",
       body: [
         "The site is provided as it is. As far as the law allows, we are not responsible for hiring decisions made by hiring teams, for what other users do, for an opportunity you did not get, or for indirect losses.",
+        "If we are responsible for something, our total responsibility to you is limited to what you paid us in the 12 months before it happened, or 100 US dollars if you paid nothing.",
         "Nothing in these terms takes away a right the law gives you that cannot be taken away.",
       ],
     },
@@ -374,6 +385,14 @@ export const TERMS: LegalDocument = {
       body: [
         "You can stop using the site and delete your account at any time, in Settings.",
         "We may suspend or close an account that breaks these terms or puts other people at risk.",
+      ],
+    },
+    {
+      id: "law",
+      title: "Which law applies",
+      body: [
+        "These terms are governed by the laws of the State of Georgia, in the United States, where Southern Digital Technologies LLC is registered, without regard to its rules on conflicts of law.",
+        "If you live somewhere whose law gives you protections that cannot be waived, those still apply to you.",
       ],
     },
     {

@@ -455,8 +455,8 @@ export default [
     id: "legal-pages-name-entity-and-contact",
     why:
       `A privacy policy names who is responsible and how to reach them. Both pages name ${ENTITY} (the owner, ` +
-      "2026-10-24) in their opening and end with how to reach us. The contact email and the governing-law state " +
-      "are owner inputs still to come (docs/LEGAL-PAGES.md); this guard will require them once given.",
+      "2026-10-24) in their opening and end with how to reach us; the Terms say Georgia law applies (the owner, " +
+      "2026-10-31). The contact email is an owner input still to come (docs/LEGAL-PAGES.md).",
     run: async ({ read }) => {
       const detail = [];
       const legal = (await read("src/content/legal.ts")) ?? "";
@@ -471,6 +471,9 @@ export default [
         if (!/chooses Contact us; a hiring team opens Help/.test(contact)) detail.push(`legal.ts: ${doc}'s "How to reach us" no longer names Contact us (an applicant) and Help (a hiring team)`);
         if (/write to the hiring team|message us in your account/i.test(block)) detail.push(`legal.ts: ${doc} sends people to Messages to reach us; Messages reach the business, not the company`);
       }
+      // The governing-law state the owner gave (2026-10-31): Georgia.
+      const terms = legal.slice(legal.indexOf("export const TERMS: LegalDocument = {"));
+      if (!/id: "law",\s*title: "Which law applies",[\s\S]{0,200}laws of the State of Georgia/.test(terms)) detail.push('legal.ts: the Terms no longer say the laws of the State of Georgia apply ("Which law applies")');
       const help = (await read("src/cockpit/pages/Help.tsx")) ?? "";
       const header = (await read("src/components/AppHeader.tsx")) ?? "";
       const layout = (await read("src/components/AppLayout.tsx")) ?? "";

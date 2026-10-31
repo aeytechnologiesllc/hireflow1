@@ -274,7 +274,9 @@ check("a hiring team's decisions are its own, and AI is not to be relied on alon
 check("no price is charged, and none without agreement", /free at the moment/.test(terms) && /nothing will be charged without your agreement/.test(terms) && !/\$\s?\d|USD\s?\d|per month|subscription/i.test(terms));
 check("signing electronically is explained, and can be declined", /typing or drawing your name/.test(terms) && /You can decline to sign\./.test(terms));
 check("it takes away no right the law protects", /Nothing in these terms takes away a right the law gives you that cannot be taken away\./.test(terms));
-check("it names no governing law or court (there is no company named to hang one on yet)", !/governed by|jurisdiction|courts? of|arbitrat/i.test(terms));
+// The owner, 2026-10-31: the LLC is registered in Georgia, so Georgia law governs the terms.
+// No court, venue or arbitration clause was given, so none is invented.
+check("Georgia law governs the terms, and no court, venue or arbitration is invented", /governed by the laws of the State of Georgia/.test(terms) && !/jurisdiction|courts? of|venue|arbitrat/i.test(terms));
 {
   // The fifteenth Phase 5 review (finding 1): after a reopen the same three
   // people paused a business again, for good. Someone whose report an admin
