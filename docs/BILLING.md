@@ -302,7 +302,7 @@ paygo, unlimited, ending, pastdue, canceled, exempt; plus `paid:<job id>` and
 
 ## Going live (the owner, in this order)
 
-Steps 1 and 2 were done on 2026-10-31 (the owner: "Yes, put it in"): the
+**Billing is on since 2026-11-01.** Steps 3 to 7 were done that day: the two live prices and the webhook were made through the Stripe API (the owner approved), the three old webhooks disabled, the portal given the Terms and Privacy links, the owner set the two secrets, the Terms and Privacy Policy cover paying, and `billing_switch_on()` ran (first: true, 0 jobs grandfathered). Still the owner's: Stripe's failed-payment setting (cancel the subscription when all retries fail) and the public business website. Steps 1 and 2 were done on 2026-10-31 (the owner: "Yes, put it in"): the
 migration is live as `20261031100000 billing_pricing_v9` with every check below
 as expected, the six functions are deployed, and billing is off.
 
