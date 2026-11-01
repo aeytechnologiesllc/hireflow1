@@ -8,7 +8,9 @@
  *     freeJobAvailable, Unlimited's status and period end, hasCustomer, and
  *     each job's pass: kind, end, time left; a teammate only for the jobs
  *     they are on). While billing is off it says only that, so no screen
- *     shows a price or a plan.
+ *     shows a price or a plan. For the business owner it also carries
+ *     `payments` (public.billing_history, 2026-11-01): Settings -> Billing's
+ *     payment history and the confirmation's amount; a teammate gets none.
  *
  * An applicant gets neither (billing never shows to applicants). The old
  * answer's trial row, usage counts, plan limits and the 120-minute voice
@@ -102,7 +104,20 @@ serve(async (req) => {
       console.error("Error reading billing state:", billingError.message);
       return json({ teamAccess, billing: null });
     }
-    return json({ teamAccess, billing: billing ?? null });
+    if (!billing) return json({ teamAccess, billing: null });
+
+    // The owner's payment history (2026-11-01; public.billing_history): the
+    // business owner's only, never a teammate's (they never see an amount),
+    // and nothing while billing is off or for the exempt account. Null when it
+    // could not be read (the page says so), [] when there is none.
+    let payments: unknown = null;
+    const state = billing as { billingEnabled?: unknown; exempt?: unknown };
+    if (!isTeamMemberRole && ownerId === user.id && state.billingEnabled === true && state.exempt !== true) {
+      const { data: history, error: historyError } = await admin.rpc("billing_history", { p_owner: ownerId });
+      if (historyError) console.error("Error reading payment history:", historyError.message);
+      else payments = Array.isArray(history) ? history : [];
+    }
+    return json({ teamAccess, billing: { ...(billing as Record<string, unknown>), payments } });
   } catch (error: unknown) {
     console.error("Error in get-subscription:", error);
     const message = error instanceof Error ? error.message : "Unknown error";

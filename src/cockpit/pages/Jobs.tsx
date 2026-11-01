@@ -827,6 +827,13 @@ export default function CockpitJobs() {
           setPayFor(null);
           if (id) navigate(`/jobs/edit/${id}`);
         }}
+        onDone={(next) => {
+          const paid = payFor;
+          setPayFor(null);
+          void refetch();
+          if (next === "share" && paid) setKitJob(paid);
+          if (next === "billing") navigate("/settings?tab=billing");
+        }}
       />
 
       <ShareKitDialog

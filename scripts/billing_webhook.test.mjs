@@ -154,6 +154,7 @@ function fakeStripe() {
   const charges = new Map();
   const invoices = new Map();
   const invoicePayments = new Map();
+  const invoiceById = new Map();
   const asked = [];
   const refunds = [];
   let down = false;
@@ -165,6 +166,7 @@ function fakeStripe() {
     charges,
     invoices,
     invoicePayments,
+    invoiceById,
     asked,
     refunds,
     setDown(v) {
@@ -190,6 +192,11 @@ function fakeStripe() {
       }
       if (method === "GET" && p === "/charges") return reply(200, { object: "list", data: charges.get(params.payment_intent) ?? [{ id: "ch_x", paid: true, status: "succeeded", refunded: false }] });
       if (method === "GET" && p === "/invoices") return reply(200, { object: "list", data: invoices.get(params.subscription) ?? [] });
+      const inv = /^\/invoices\/([^/?]+)$/.exec(p);
+      if (inv && method === "GET") {
+        const found = invoiceById.get(decodeURIComponent(inv[1]));
+        return found ? reply(200, found) : missing("invoice");
+      }
       if (method === "GET" && p === "/invoice_payments") return reply(200, { object: "list", data: invoicePayments.get(params.invoice) ?? [] });
       if (method === "POST" && p === "/refunds") {
         const r = refundAnswer(params);
@@ -334,8 +341,96 @@ console.log("\n2. Each event, against a fake Stripe and a fake database\n");
   const broke = await H.handleStripeEvent(event("evt_job_9", "checkout.session.completed", { ...paidSession, id: "cs_test_9" }), deps);
   const fixed = await H.handleStripeEvent(event("evt_job_9", "checkout.session.completed", { ...paidSession, id: "cs_test_9" }), deps);
   check("the database failing: 500 and nothing recorded; Stripe's retry then applies it once", broke.status === 500 && fixed.status === 200 && db.calls.filter((c) => c.fn === "billing_apply_job_payment" && c.args.p_event_id === "evt_job_9").length === 1, show([broke, fixed]));
-  check("the six events billing-webhook acts on are the ones docs/BILLING.md tells Stripe to send", show(H.HANDLED_EVENTS) === show(["checkout.session.completed", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted", "invoice.payment_failed", "charge.refunded"]));
+  check("the seven events billing-webhook acts on are the ones docs/BILLING.md tells Stripe to send (invoice.paid since 2026-11-01)", show(H.HANDLED_EVENTS) === show(["checkout.session.completed", "customer.subscription.created", "customer.subscription.updated", "customer.subscription.deleted", "invoice.payment_failed", "charge.refunded", "invoice.paid"]));
   check("every call the webhook made named the SQL function's own arguments", db.problems.length === 0, show(db.problems));
+}
+
+console.log("\n2a. Receipts and Unlimited's invoices, for the owner's payment history (2026-11-01)\n");
+{
+  const db = fakeDatabase();
+  const stripe = fakeStripe();
+  const deps = { rpc: (fn, args) => db.rpc(fn, args), stripe: (m, p, params, options) => stripe.call(m, p, params, options) };
+  const event = (id, type, object, livemode = false) => ({ id, object: "event", type, livemode, data: { object } });
+  const HOSTED = "https://invoice.stripe.com/i/acct_1/test_inv_1";
+  const RECEIPT = "https://pay.stripe.com/receipts/payment/test_ch_1";
+  const saves = (fn) => db.calls.filter((c) => c.fn === fn);
+
+  // A $99 (here $1) payment with the invoice Checkout made for it.
+  stripe.invoiceById.set("in_job_1", { id: "in_job_1", status: "paid", amount_paid: 100, hosted_invoice_url: HOSTED });
+  stripe.charges.set("pi_r1", [{ id: "ch_r1", paid: true, status: "succeeded", refunded: false, receipt_url: RECEIPT }]);
+  const s1 = { id: "cs_r1", object: "checkout.session", mode: "payment", payment_status: "paid", customer: "cus_A", payment_intent: "pi_r1", invoice: "in_job_1", amount_total: 100, currency: "usd", metadata: { owner_id: OWNER, job_id: JOB, kind: "job" } };
+  const r1 = await H.handleStripeEvent(event("evt_r1", "checkout.session.completed", s1), deps);
+  const apply = db.calls.find((c) => c.fn === "billing_apply_job_payment" && c.args.p_event_id === "evt_r1");
+  check(
+    "a paid job: the pass first, with what Stripe actually charged ($1 is $1), then its receipt (the invoice Checkout made, read again from Stripe) kept with it",
+    r1.status === 200 && apply?.args.p_amount === 100 && db.calls.indexOf(apply) < db.calls.indexOf(saves("billing_save_receipt")[0]) &&
+      show(saves("billing_save_receipt")[0]?.args) === show({ p_payment_intent: "pi_r1", p_invoice: "in_job_1", p_receipt_url: HOSTED }) &&
+      stripe.asked.some((a) => a.method === "GET" && a.path === "/invoices/in_job_1"),
+    show([r1, db.calls]),
+  );
+  stripe.charges.set("pi_r2", [{ id: "ch_r2", paid: true, status: "succeeded", refunded: false, receipt_url: RECEIPT }]);
+  await H.handleStripeEvent(event("evt_r2", "checkout.session.completed", { ...s1, id: "cs_r2", payment_intent: "pi_r2", invoice: null }), deps);
+  check("no invoice (a page made before invoices were on): the charge's own receipt", show(saves("billing_save_receipt").at(-1)?.args) === show({ p_payment_intent: "pi_r2", p_invoice: null, p_receipt_url: RECEIPT }), show(saves("billing_save_receipt")));
+  stripe.invoiceById.set("in_job_3", { id: "in_job_3", status: "paid", amount_paid: 9900, hosted_invoice_url: "https://evil.example/invoice" });
+  stripe.charges.set("pi_r3", [{ id: "ch_r3", paid: true, status: "succeeded", refunded: false, receipt_url: "javascript:alert(1)" }]);
+  await H.handleStripeEvent(event("evt_r3", "checkout.session.completed", { ...s1, id: "cs_r3", payment_intent: "pi_r3", invoice: "in_job_3" }), deps);
+  check("an address that is not Stripe's own https page is never kept as a receipt", saves("billing_save_receipt").at(-1)?.args.p_receipt_url === null && saves("billing_save_receipt").at(-1)?.args.p_invoice === "in_job_3", show(saves("billing_save_receipt").at(-1)));
+  const before = saves("billing_save_receipt").length;
+  db.answers.billing_apply_job_payment = () => ({ ok: true, published: "job_gone", refund: { id: "r-1", eventId: "evt_r4", kind: "job_payment", reason: "job_gone", paymentIntent: "pi_r4" } });
+  stripe.charges.set("pi_r4", [{ id: "ch_r4", paid: true, status: "succeeded", refunded: false, receipt_url: RECEIPT }]);
+  await H.handleStripeEvent(event("evt_r4", "checkout.session.completed", { ...s1, id: "cs_r4", payment_intent: "pi_r4" }), deps);
+  delete db.answers.billing_apply_job_payment;
+  check("a payment owed back (nothing given for it) keeps no receipt as a payment", saves("billing_save_receipt").length === before, show(saves("billing_save_receipt")));
+  const savedBefore = saves("billing_save_receipt").length;
+  db.failOnce();
+  const failed = await H.handleStripeEvent(event("evt_r5", "checkout.session.completed", { ...s1, id: "cs_r5", payment_intent: "pi_r1" }), deps);
+  check("the pass not recorded (the database failing): 500 and no receipt kept, so Stripe's retry does both", failed.status === 500 && saves("billing_save_receipt").length === savedBefore && !db.events.has("evt_r5"), show(failed));
+
+  // Unlimited: its first invoice when it starts, each renewal on invoice.paid.
+  stripe.subscriptions.set("sub_r1", unlimitedSub("sub_r1", "active", { latest_invoice: "in_sub_1" }));
+  const paidInvoice = (id, extra = {}) => ({
+    id, object: "invoice", status: "paid", amount_paid: 29900, currency: "usd", customer: "cus_A", payment_intent: `pi_${id}`,
+    parent: { type: "subscription_details", subscription_details: { subscription: "sub_r1" } }, hosted_invoice_url: `https://invoice.stripe.com/i/acct_1/${id}`,
+    status_transitions: { paid_at: now }, lines: { data: [{ period: { start: now, end: now + 30 * 86400 } }] }, ...extra,
+  });
+  stripe.invoiceById.set("in_sub_1", paidInvoice("in_sub_1"));
+  const u1 = await H.handleStripeEvent(event("evt_u1", "checkout.session.completed", { id: "cs_u1", mode: "subscription", payment_status: "paid", customer: "cus_A", subscription: "sub_r1", metadata: { owner_id: OWNER, kind: "unlimited" } }), deps);
+  const kept1 = saves("billing_save_invoice")[0];
+  check(
+    "Unlimited starting: after the subscription is applied, its first invoice (read again from Stripe, paid) is kept: amount, when paid, the month it paid for, its receipt",
+    u1.status === 200 && kept1 && db.calls.indexOf(db.calls.find((c) => c.fn === "billing_apply_subscription")) < db.calls.indexOf(kept1) &&
+      show(kept1.args) === show({ p_customer: "cus_A", p_subscription: "sub_r1", p_invoice: "in_sub_1", p_payment_intent: "pi_in_sub_1", p_amount: 29900, p_currency: "usd", p_paid_at: new Date(now * 1000).toISOString(), p_period_start: new Date(now * 1000).toISOString(), p_period_end: new Date((now + 30 * 86400) * 1000).toISOString(), p_receipt_url: "https://invoice.stripe.com/i/acct_1/in_sub_1", p_livemode: false }),
+    show([u1, kept1]),
+  );
+  stripe.invoiceById.set("in_sub_draft", paidInvoice("in_sub_draft", { status: "draft", amount_paid: 0 }));
+  stripe.subscriptions.set("sub_r1", unlimitedSub("sub_r1", "active", { latest_invoice: "in_sub_draft" }));
+  await H.handleStripeEvent(event("evt_u2", "customer.subscription.updated", { id: "sub_r1" }), deps);
+  check("a renewal's invoice not paid yet (Stripe leaves it a draft for an hour) is not a payment", saves("billing_save_invoice").length === 1, show(saves("billing_save_invoice")));
+  db.answers.billing_apply_subscription = () => ({ ok: true, ignored: "second_subscription", refund: { id: "r-2", eventId: "evt_u3", kind: "second_subscription", reason: "second_unlimited", subscription: "sub_r1" } });
+  stripe.subscriptions.set("sub_r1", unlimitedSub("sub_r1", "active", { latest_invoice: "in_sub_1" }));
+  await H.handleStripeEvent(event("evt_u3", "customer.subscription.created", { id: "sub_r1" }), deps);
+  delete db.answers.billing_apply_subscription;
+  check("a second Unlimited (cancelled and refunded) is never kept as a payment", saves("billing_save_invoice").length === 1, show(saves("billing_save_invoice")));
+
+  db.answers.billing_save_invoice = () => ({ ok: true, kept: true });
+  stripe.invoiceById.set("in_sub_2", paidInvoice("in_sub_2"));
+  const renewal = await H.handleStripeEvent(event("evt_u4", "invoice.paid", paidInvoice("in_sub_2", { amount_paid: 1 })), deps);
+  check(
+    "invoice.paid (a renewal): the invoice is read again from Stripe (its amount, not the event's) and kept, and the event recorded once",
+    renewal.status === 200 && saves("billing_save_invoice").at(-1)?.args.p_invoice === "in_sub_2" && saves("billing_save_invoice").at(-1)?.args.p_amount === 29900 &&
+      db.calls.at(-1).fn === "billing_record_event" && db.calls.at(-1).args.p_outcome === "invoice kept" && db.events.has("evt_u4"),
+    show([renewal, db.calls.at(-1)]),
+  );
+  const jobInvoice = await H.handleStripeEvent(event("evt_u5", "invoice.paid", { id: "in_job_1", object: "invoice", status: "paid", amount_paid: 9900 }), deps);
+  check("invoice.paid for a $99 job's invoice (no subscription): recorded and left (its receipt goes with the pass)", jobInvoice.status === 200 && db.calls.at(-1).args.p_outcome === "ignored: not a subscription's invoice" && saves("billing_save_invoice").at(-1)?.args.p_invoice === "in_sub_2", show(db.calls.at(-1)));
+  const realRpc = db.rpc;
+  db.rpc = async (fn, args) => (fn === "billing_save_invoice" ? { data: null, error: { message: "could not serialize access" } } : realRpc(fn, args));
+  stripe.invoiceById.set("in_sub_3", paidInvoice("in_sub_3"));
+  const broke = await H.handleStripeEvent(event("evt_u6", "invoice.paid", paidInvoice("in_sub_3")), deps);
+  db.rpc = realRpc;
+  delete db.answers.billing_save_invoice;
+  check("the database refusing to keep a renewal: 500 and the event not recorded, so Stripe sends it again", broke.status === 500 && !db.events.has("evt_u6"), show(broke));
+  check("every call named the SQL function's own arguments (the receipts' too)", db.problems.length === 0, show(db.problems));
 }
 
 console.log("\n2b. Money owed back is refunded in Stripe (the billing review, findings 1 and 5)\n");

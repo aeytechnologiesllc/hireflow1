@@ -1,16 +1,17 @@
 import { useAuth } from "@/hooks/useAuth";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useTheme } from "next-themes";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { User, Loader2, Bell, AlertTriangle } from "lucide-react";
+import { Loader2, AlertTriangle, Moon, Sun } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -31,7 +32,46 @@ import { TipsSettingCard } from "@/cockpit/tips/TipsSettingCard";
 import { TwoStepSignIn } from "@/components/settings/TwoStepSignIn";
 import { usePlatformAdminAccount } from "@/hooks/usePlatformAdmin";
 import { deleteAccountWords } from "@/content/deleteAccount";
-import { BillingCard } from "@/components/billing/BillingCard";
+import { BillingTab } from "@/components/billing/BillingTab";
+import { useBilling } from "@/hooks/useSubscription";
+import { billingTabShown } from "@/lib/billing";
+import { SETTINGS_TABS, settingsTabFrom, shownSettingsTab, type SettingsTab } from "@/lib/settingsTabs";
+
+/** Day or Night, as the moon in the sidebar sets it (remembered on this browser). */
+function AppearanceCard() {
+  const { resolvedTheme, setTheme } = useTheme();
+  const night = resolvedTheme === "dark";
+  const choices = [
+    { key: "light", label: "Day", icon: Sun, on: !night },
+    { key: "dark", label: "Night", icon: Moon, on: night },
+  ] as const;
+  return (
+    <Card className="bg-card border-border" data-settings-appearance>
+      <CardHeader>
+        <CardTitle className="text-lg">Appearance</CardTitle>
+        <CardDescription>Day or Night. Remembered on this browser.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div role="radiogroup" aria-label="Appearance" className="inline-flex gap-1 rounded-xl p-1" style={{ background: "var(--surface-2)" }}>
+          {choices.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              role="radio"
+              aria-checked={c.on}
+              onClick={() => setTheme(c.key)}
+              className="inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13px] font-medium transition-colors"
+              style={c.on ? { background: "var(--surface)", color: "var(--ink)", boxShadow: "var(--shadow-md)" } : { color: "var(--ink-3)" }}
+            >
+              <c.icon className="h-4 w-4" aria-hidden />
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function Settings() {
   const { user, role, loading, isTeamMember } = useAuth();
@@ -49,6 +89,21 @@ export default function Settings() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // The hiring side's tabs (src/lib/settingsTabs.ts): General, Billing (the
+  // owner, while billing is on, never the exempt account), Account,
+  // Notifications. A link opens one: /settings?tab=billing.
+  const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { billing, isLoading: billingLoading } = useBilling();
+  const billingTab = isEmployer && !isTeamMember && billingTabShown(billing);
+  const shownTab = shownSettingsTab(settingsTabFrom(location.search, location.hash), billingTab, billingLoading);
+  const selectTab = (key: SettingsTab) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", key);
+    if (key !== "billing") next.delete("billing");
+    setSearchParams(next, { replace: true });
+  };
 
   const { data: emailPrefs, isLoading: prefsLoading } = useEmailPreferences();
   const updatePrefs = useUpdateEmailPreferences();
@@ -339,17 +394,50 @@ export default function Settings() {
         <p className="text-muted-foreground mt-1">Manage your account</p>
       </div>
 
-      <Tabs value="account" className="w-full">
+      <Tabs value={shownTab === "loading" ? "billing" : shownTab} onValueChange={(value) => selectTab(value as SettingsTab)} className="w-full">
+        <TabsList
+          aria-label="Settings"
+          className="h-auto w-full justify-start gap-5 overflow-x-auto rounded-none border-b bg-transparent p-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          style={{ borderColor: "var(--line)" }}
+        >
+          {SETTINGS_TABS.filter((t) => t.key !== "billing" || billingTab).map((t) => (
+            <TabsTrigger
+              key={t.key}
+              value={t.key}
+              data-settings-tab={t.key}
+              className="-mb-px shrink-0 rounded-none border-b-2 border-transparent bg-transparent px-0 py-2.5 text-[14px] shadow-none data-[state=active]:border-[var(--action)] data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-[var(--hf-text)] data-[state=active]:shadow-none data-[state=inactive]:text-[var(--ink-3)] data-[state=inactive]:hover:bg-transparent"
+            >
+              {t.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
 
-        {/* Account Tab */}
-        <TabsContent value="account" className="space-y-6 mt-6">
+        {/* General: how the app looks, the careers page, the one-time tips. */}
+        <TabsContent value="general" className="space-y-6 mt-6">
+          <AppearanceCard />
+
           {/* The business's careers page (owners; the 2026-10-11 mock-ups, #3). */}
           {isEmployer && !isTeamMember && <CareersPageCard />}
 
-          {/* Billing (pricing v9, docs/BILLING.md): the owner only, and only
-              while billing is on (BillingCard draws nothing otherwise). */}
-          {isEmployer && !isTeamMember && <BillingCard />}
+          {/* One-time tips (a business or team member who joined from 2026-10-11). */}
+          <TipsSettingCard />
+        </TabsContent>
 
+        {/* Billing (pricing v9, docs/BILLING.md): the owner only, only while
+            billing is on, never the exempt account (billingTabShown). */}
+        <TabsContent value="billing" className="mt-6">
+          {billingTab ? (
+            <BillingTab />
+          ) : (
+            <div className="space-y-4">
+              <Skeleton className="h-40 w-full rounded-xl" />
+              <Skeleton className="h-28 w-full rounded-xl" />
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Account: the sign-in, the admin's two-step sign-in, deleting the account. */}
+        <TabsContent value="account" className="space-y-6 mt-6">
           {/* Account Settings */}
           <Card className="bg-card border-border">
             <CardHeader>
@@ -395,6 +483,31 @@ export default function Settings() {
             </CardContent>
           </Card>
 
+          {/* The platform admin's two-step sign-in (shows for that account only). */}
+          <TwoStepSignIn />
+
+          {/* Danger Zone */}
+          <Card className="bg-card border-destructive/50">
+            <CardHeader>
+              <CardTitle className="text-lg text-destructive">Danger Zone</CardTitle>
+              <CardDescription>Irreversible actions</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-foreground">Delete Account</p>
+                  <p className="text-sm text-muted-foreground">
+                    {deleteWords.summary}
+                  </p>
+                </div>
+                {deleteAccountDialog}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Notifications: on this device, and by email. */}
+        <TabsContent value="notifications" className="space-y-6 mt-6">
           {/* Notification Settings */}
           <Card className="bg-card border-border">
             <CardHeader>
@@ -494,31 +607,6 @@ export default function Settings() {
               </div>
                 </>
               )}
-            </CardContent>
-          </Card>
-
-          {/* One-time tips (a business or team member who joined from 2026-10-11). */}
-          <TipsSettingCard />
-
-          {/* The platform admin's two-step sign-in (shows for that account only). */}
-          <TwoStepSignIn />
-
-          {/* Danger Zone */}
-          <Card className="bg-card border-destructive/50">
-            <CardHeader>
-              <CardTitle className="text-lg text-destructive">Danger Zone</CardTitle>
-              <CardDescription>Irreversible actions</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-foreground">Delete Account</p>
-                  <p className="text-sm text-muted-foreground">
-                    {deleteWords.summary}
-                  </p>
-                </div>
-                {deleteAccountDialog}
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

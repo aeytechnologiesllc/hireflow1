@@ -72,6 +72,8 @@ const REVIEWED = {
   "src/lib/safeLink.ts": ["href"], // openExternal itself, after externalHref
   "src/cockpit/pages/Messages.tsx": ["fileHref", "fileHref ?? undefined"], // = externalHref(...)
   "src/cockpit/components/AvasRead.tsx": ["recording"], // = externalHref(...)
+  "src/components/billing/BillingTab.tsx": ["receipt"], // = externalHref(...) of Stripe's receipt (stripe.com only, also checked by the database)
+  "src/components/billing/PaymentConfirmation.tsx": ["receipt"], // = externalHref(...) of Stripe's receipt
 };
 
 /**
@@ -84,6 +86,8 @@ const SAFE_ASSIGNMENTS = {
   "src/pages/Notifications.tsx": /const link = inAppPath\(/,
   "src/cockpit/pages/Messages.tsx": /const fileHref = file \? externalHref\(file\.url\) : null;/,
   "src/cockpit/components/AvasRead.tsx": /const recording = externalHref\(/,
+  "src/components/billing/BillingTab.tsx": /const receipt = externalHref\(row\.receiptUrl\);/,
+  "src/components/billing/PaymentConfirmation.tsx": /const receipt = externalHref\(c\.payment\?\.receiptUrl \?\? null\);/,
   "src/components/documents/SignedDocumentViewer.tsx": /const sent = externalHref\(documentData\?\.uploadedFileUrl\);[\s\S]*?let address = sent;[\s\S]*?const kept = externalHref\([\s\S]*?address = kept;[\s\S]*?const response = await fetch\(address\);[\s\S]*?blobUrl = URL\.createObjectURL\(new Blob\(\[bytes\], \{ type: "application\/pdf" \}\)\);\s*setShownPdf\(\{ src: blobUrl, hash \}\);/,
   "src/pages/CandidateAuth.tsx": /const safeRedirectTarget = inAppPath\(redirectTarget\);/,
   "src/pages/AuthCallback.tsx": /return inAppPath\(value\);/,

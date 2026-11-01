@@ -357,7 +357,10 @@ check("a hiring team's decisions are its own, and AI is not to be relied on alon
   check(
     "Unlimited renews monthly until cancelled, in Settings under Billing (the owner), to the end of the month paid, no refund for part of a month",
     /Unlimited renews every month until you cancel it\. The account owner can cancel it at any time in Settings, under Billing\. It stays on until the end of the month you have already paid for\. We do not refund part of a month\./.test(payText) &&
-      /title: "Billing",/.test(read("src/lib/billing.ts")) && /\{isEmployer && !isTeamMember && <BillingCard \/>\}/.test(read("src/pages/Settings.tsx")),
+      // Settings has a Billing tab since 2026-11-01 (the owner's, while billing is on): "in Settings, under Billing" still names it.
+      /title: "Billing",/.test(read("src/lib/billing.ts")) && /\{ key: "billing", label: "Billing" \}/.test(read("src/lib/settingsTabs.ts")) &&
+      /const billingTab = isEmployer && !isTeamMember && billingTabShown\(billing\);/.test(read("src/pages/Settings.tsx")) && /\{billingTab \? \(\s*<BillingTab \/>/.test(read("src/pages/Settings.tsx")) &&
+      /<BillingCard onSeeHistory=\{seeHistory\} \/>/.test(read("src/components/billing/BillingTab.tsx")),
   );
   check(
     "a $99 job: not refunded once live, except where the law requires it or for our mistake (which we refund); it closes after its 30 days unless paid again or under Unlimited",

@@ -19,6 +19,8 @@ import { fileURLToPath } from "node:url";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const MIGRATIONS = [
   "supabase/migrations/20261031100000_billing_pricing_v9.sql",
+  // Receipts and the payment history (2026-11-01).
+  "supabase/migrations/20261101100000_billing_receipts.sql",
   // Called by billing functions' callers too, defined before v9.
   "supabase/migrations/20261025400000_daily_alert_claims.sql",
 ];

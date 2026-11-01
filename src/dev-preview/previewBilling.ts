@@ -20,12 +20,25 @@
  *   paid:<job id>  back from Checkout for that job: it goes live 4 seconds in
  *                  (as billing-webhook would), with 30 days paid
  *   slow           with paid:…, it never does (the calm message after 30 s)
+ *   embedded       paying inside HireFlow (2026-11-01): the page has a
+ *                  publishable key, billing-checkout answers a client secret,
+ *                  and a stand-in for Stripe's form (PreviewCheckoutForm.tsx;
+ *                  Stripe.js cannot load offline) "pays"; the payment lands 3
+ *                  seconds later, as billing-webhook would record it
+ *   onedollar      what was charged is $1.00 (the owner's live test), not the
+ *                  list price: the confirmation and the history say $1.00
  *
- * billing-checkout answers with this preview's own job page (?billing=paid)
- * or Settings (?billing=unlimited); billing-portal with Settings.
+ * The states that are on carry the owner's payment history (billing_history):
+ * paygo the Barista's $99 (with its receipt) and Shift Lead's ended one;
+ * unlimited, ending and pastdue two months of Unlimited; canceled both kinds.
+ *
+ * Without embedded, billing-checkout answers with this preview's own job page
+ * (?billing=paid) or Settings (?billing=unlimited); billing-portal with Settings.
  */
 import type { FixtureClientOptions, FixtureTables } from "./fixtureClient";
+import { setCheckoutStandIn } from "@/lib/billingApi";
 import { JOB_BARISTA_ID, JOB_SERVER_ID, JOB_SHIFT_LEAD_CLOSED_ID } from "./ids";
+import { makePreviewCheckoutForm } from "./PreviewCheckoutForm";
 
 type InvokeOptions = { body?: unknown };
 type InvokeReply = { data: unknown; error: unknown };
@@ -36,9 +49,17 @@ const at = (offset: number) => new Date(Date.now() + offset).toISOString();
 const MODES = ["off", "free", "paygo", "unlimited", "ending", "pastdue", "canceled", "exempt"] as const;
 type Mode = (typeof MODES)[number];
 
+const RECEIPT = (n: number) => `https://invoice.stripe.com/i/acct_preview/test_preview_receipt_${n}`;
+
+/** A payment as billing_history reports it. */
+function payment(kind: "job" | "unlimited", paidDaysAgo: number, cents: number, extra: Record<string, unknown> = {}) {
+  const paidAt = at(-paidDaysAgo * day);
+  return { kind, jobId: null, title: null, amountCents: cents, currency: "usd", paidAt, startsAt: paidAt, endsAt: at((30 - paidDaysAgo) * day), receiptUrl: null, refunded: false, ...extra };
+}
+
 function stateFor(mode: Mode) {
   if (mode === "off") {
-    return { billingEnabled: false, exempt: false, plan: null, freeJobAvailable: null, unlimited: null, hasCustomer: false, jobs: {} as Record<string, unknown> };
+    return { billingEnabled: false, exempt: false, plan: null, freeJobAvailable: null, unlimited: null, hasCustomer: false, jobs: {} as Record<string, unknown>, payments: null as unknown[] | null };
   }
   const base = {
     billingEnabled: true,
@@ -48,6 +69,7 @@ function stateFor(mode: Mode) {
     unlimited: null as Record<string, unknown> | null,
     hasCustomer: mode !== "free" && mode !== "exempt",
     jobs: {} as Record<string, unknown>,
+    payments: (mode === "exempt" ? null : []) as unknown[] | null,
   };
   if (mode === "paygo" || mode === "canceled") {
     base.jobs[JOB_BARISTA_ID] = { kind: "paid", endsAt: at(12 * day - 3_600_000), timeLeft: true, refunded: false };
@@ -67,6 +89,23 @@ function stateFor(mode: Mode) {
   if (mode === "canceled") {
     base.unlimited = { status: "canceled", active: false, periodEnd: at(-3 * day), cancelAtPeriodEnd: false };
   }
+  // The owner's payment history (newest first), as billing_history reports it.
+  if (mode === "paygo") {
+    base.payments = [
+      payment("job", 18, 9900, { jobId: JOB_BARISTA_ID, title: "Barista", receiptUrl: RECEIPT(1) }),
+      payment("job", 50, 9900, { jobId: JOB_SHIFT_LEAD_CLOSED_ID, title: "Shift Lead", receiptUrl: RECEIPT(2) }),
+    ];
+  }
+  if (mode === "unlimited" || mode === "ending" || mode === "pastdue") {
+    base.payments = [payment("unlimited", 12, 29900, { receiptUrl: RECEIPT(3) }), payment("unlimited", 42, 29900, { receiptUrl: RECEIPT(4) })];
+  }
+  if (mode === "canceled") {
+    base.payments = [
+      payment("job", 18, 9900, { jobId: JOB_BARISTA_ID, title: "Barista", receiptUrl: RECEIPT(1) }),
+      payment("unlimited", 33, 29900, { receiptUrl: RECEIPT(3) }),
+      payment("job", 50, 9900, { jobId: null, title: null, refunded: true }),
+    ];
+  }
   return base;
 }
 
@@ -83,15 +122,48 @@ export function previewBilling(
   const mode: Mode = MODES.find((m) => parts.includes(m)) ?? "off";
   const paidJob = parts.find((p) => p.startsWith("paid:"))?.slice(5) ?? null;
   const slow = parts.includes("slow");
+  const embedded = parts.includes("embedded");
+  const charged = parts.includes("onedollar") ? 100 : null;
   const state = stateFor(mode);
+
+  // What billing-webhook records once Stripe confirms a payment: the job's 30
+  // days and the job live, or Unlimited on; and the owner's payment row.
+  const land = (kind: "job" | "unlimited", jobId: string | null) => {
+    const job = jobId ? (tables.jobs ?? []).find((j) => j.id === jobId) : null;
+    if (job) job.status = "published";
+    if (kind === "unlimited") {
+      state.plan = "unlimited";
+      state.unlimited = { status: "active", active: true, periodEnd: at(30 * day), cancelAtPeriodEnd: false };
+      if (jobId) state.jobs[jobId] = { kind: "unlimited", endsAt: null, timeLeft: false, refunded: false };
+    } else if (jobId && state.plan !== "unlimited") {
+      state.jobs[jobId] = { kind: "paid", endsAt: at(30 * day), timeLeft: true, refunded: false };
+    }
+    if (state.payments) {
+      state.payments.unshift(
+        payment(kind, 0, charged ?? (kind === "job" ? 9900 : 29900), {
+          jobId: kind === "job" ? jobId : null,
+          title: kind === "job" ? ((job?.title as string | undefined) ?? null) : null,
+          receiptUrl: RECEIPT(9),
+        }),
+      );
+    }
+  };
 
   // Back from Checkout: the webhook puts the job live a few seconds later.
   if (paidJob && !slow) {
-    window.setTimeout(() => {
-      const job = (tables.jobs ?? []).find((j) => j.id === paidJob);
-      if (job) job.status = "published";
-      if (state.plan !== "unlimited") state.jobs[paidJob] = { kind: "paid", endsAt: at(30 * day), timeLeft: true, refunded: false };
-    }, 4_000);
+    window.setTimeout(() => land(mode === "unlimited" ? "unlimited" : "job", paidJob), 4_000);
+  }
+
+  // Paying inside HireFlow: a publishable key, and the stand-in for Stripe's form.
+  if (embedded) {
+    setCheckoutStandIn({
+      publishableKey: "pk_test_preview",
+      Form: makePreviewCheckoutForm((secret) => {
+        const [, , , kind, , plainId] = secret.split("_");
+        const jobId = (tables.jobs ?? []).find((j) => String(j.id).replace(/-/g, "") === plainId)?.id as string | undefined;
+        if (!slow) window.setTimeout(() => land(kind === "unlimited" ? "unlimited" : "job", jobId ?? null), 3_000);
+      }),
+    });
   }
 
   // A page in this preview, with these preview settings (and another billing mode).
@@ -112,6 +184,12 @@ export function previewBilling(
       }
       if (name === "billing-checkout") {
         const jobId = typeof body.jobId === "string" ? body.jobId : null;
+        // Inside HireFlow: a client secret naming what is paid for (cs_test_preview_<kind>_<cents>_<job>_secret_x).
+        if ((body as { ui?: unknown }).ui === "embedded") {
+          const kind = body.kind === "unlimited" ? "unlimited" : "job";
+          const cents = charged ?? (kind === "job" ? 9900 : 29900);
+          return { data: { clientSecret: `cs_test_preview_${kind}_${cents}_${jobId ? jobId.replace(/-/g, "") : "none"}_secret_x` }, error: null };
+        }
         if (body.kind === "unlimited") {
           return { data: { url: jobId ? previewUrl(`/jobs/${jobId}`, `unlimited,paid:${jobId}`, "unlimited") : previewUrl("/settings", "unlimited", "unlimited") }, error: null };
         }

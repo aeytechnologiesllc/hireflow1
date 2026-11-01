@@ -1,45 +1,28 @@
 /**
- * Settings → Billing, for the business owner (pricing v9; docs/BILLING.md):
- * the plan, when Unlimited renews or ends, "Go Unlimited", and "Manage
- * billing" (Stripe's own page: the card, invoices and receipts, cancelling).
- * The exempt platform account sees "Your account is exempt." While billing is
- * off the card is not drawn at all (billingCard answers null), and a teammate
- * or an applicant never sees it (Settings shows it to the owner only).
+ * Settings -> Billing -> Your plan, for the business owner (pricing v9;
+ * docs/BILLING.md): the plan, when Unlimited renews or ends, a failed
+ * payment's warning, "Go Unlimited" (Stripe's form inside HireFlow, then the
+ * confirmation in place: CheckoutDialog), and "Manage card or cancel"
+ * (Stripe's own billing page: the card, invoices and receipts, cancelling).
+ * While billing is off the card is not drawn at all (billingCard answers
+ * null), and a teammate or an applicant never sees it (Settings shows the
+ * Billing tab to the owner only, never to the exempt account).
  */
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useBilling } from "@/hooks/useSubscription";
-import { BILLING_CARD_WORDS as W, SETTINGS_RETURN_WORDS as R, billingCard, billingReturn } from "@/lib/billing";
+import { BILLING_CARD_WORDS as W, BILLING_TAB_WORDS as T, PRICE_JOB, PRICE_UNLIMITED, PASS_DAYS, billingCard } from "@/lib/billing";
 import { openBillingPortal, startCheckout } from "@/lib/billingApi";
+import { CheckoutDialog } from "./CheckoutDialog";
 
-export function BillingCard() {
+export function BillingCard({ onSeeHistory }: { onSeeHistory?: () => void }) {
   const { billing, refetch } = useBilling();
+  const navigate = useNavigate();
   const card = billingCard(billing);
-  const [params] = useSearchParams();
-  const back = billingReturn(params.get("billing"));
   const [busy, setBusy] = useState<"unlimited" | "manage" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [slow, setSlow] = useState(false);
-  const refresh = useRef(refetch);
-  refresh.current = refetch;
-
-  // Back from Checkout for Unlimited: ask again until the webhook has turned it on.
-  const waiting = back === "unlimited" && billing?.plan !== "unlimited";
-  useEffect(() => {
-    if (!waiting) return;
-    const started = Date.now();
-    let timer: number | undefined;
-    const tick = () => {
-      const elapsed = Date.now() - started;
-      if (elapsed > 5 * 60_000) return;
-      if (elapsed > 30_000) setSlow(true);
-      void refresh.current();
-      timer = window.setTimeout(tick, elapsed > 30_000 ? 10_000 : 2_000);
-    };
-    timer = window.setTimeout(tick, 1_500);
-    return () => window.clearTimeout(timer);
-  }, [waiting]);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
 
   if (!card) return null;
 
@@ -47,6 +30,11 @@ export function BillingCard() {
     setBusy(what);
     setProblem(null);
     const outcome = what === "unlimited" ? await startCheckout("unlimited") : await openBillingPortal();
+    if (outcome.kind === "embedded") {
+      setBusy(null);
+      setClientSecret(outcome.clientSecret);
+      return;
+    }
     if (outcome.kind === "redirect") {
       window.location.assign(outcome.url);
       return;
@@ -56,22 +44,24 @@ export function BillingCard() {
     if (outcome.kind === "publish") void refetch();
   };
 
-  const returned =
-    back === "unlimited" ? (billing?.plan === "unlimited" ? R.on : slow ? R.slow : R.waiting) : back === "cancelled" ? R.cancelled : null;
+  const unlimited = billing?.plan === "unlimited";
 
   return (
     <Card className="bg-card border-border" data-billing-card>
-      <CardHeader>
-        <CardTitle className="text-lg">{W.title}</CardTitle>
-        <CardDescription>{W.description}</CardDescription>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg">{T.plan}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {returned && (
-          <p role="status" aria-live="polite" className="text-sm" style={{ color: billing?.plan === "unlimited" ? "var(--good)" : "var(--ink-2)" }}>
-            {returned}
-          </p>
-        )}
-        {card.lines.map((line) => (
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <span className="font-display text-[24px] leading-tight" style={{ color: "var(--ink)", fontWeight: 600 }} data-plan-name>
+            {unlimited ? "Unlimited" : "Pay per job"}
+          </span>
+          {/* What it costs: money, brass. */}
+          <span className="text-[14px] font-medium" style={{ color: "var(--brass)" }}>
+            {unlimited ? PRICE_UNLIMITED : `${PRICE_JOB} a job, ${PASS_DAYS} days each`}
+          </span>
+        </div>
+        {card.lines.slice(1).map((line) => (
           <p key={line} className="text-sm text-foreground">
             {line}
           </p>
@@ -95,12 +85,32 @@ export function BillingCard() {
             )}
             {card.canManage && (
               <button type="button" className="ck-btn ck-btn-outline !px-3.5 !py-2 !text-[12.5px]" disabled={busy !== null} onClick={() => void go("manage")}>
-                {busy === "manage" ? W.opening : W.manage}
+                {busy === "manage" ? W.opening : T.manage}
               </button>
             )}
           </div>
         )}
+        {card.canManage && (
+          <p className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+            {T.manageNote}
+          </p>
+        )}
       </CardContent>
+      <CheckoutDialog
+        clientSecret={clientSecret}
+        onClose={() => {
+          setClientSecret(null);
+          void refetch();
+        }}
+        onSeeJobs={() => {
+          setClientSecret(null);
+          navigate("/jobs");
+        }}
+        onSeeBilling={() => {
+          setClientSecret(null);
+          onSeeHistory?.();
+        }}
+      />
     </Card>
   );
 }

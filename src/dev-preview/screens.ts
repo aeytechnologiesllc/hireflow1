@@ -181,6 +181,13 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "billing-settings-canceled", group: "Billing (pricing v9)", label: "Settings: Unlimited ended, pay per job again", role: "employer", path: "/settings?__previewBilling=canceled" },
   { id: "billing-settings-exempt", group: "Billing (pricing v9)", label: "Settings: the exempt platform account", role: "employer", path: "/settings?__previewBilling=exempt" },
   { id: "billing-team-jobs", group: "Billing (pricing v9)", label: "A teammate's Jobs: days left, no Billing card in Settings", role: "team_member", path: "/jobs?__previewBilling=paygo" },
+  // Paying inside HireFlow, the confirmation, the plan button, Settings -> Billing (2026-11-01).
+  { id: "billing-tab-paygo", group: "Billing (pricing v9)", label: "Settings -> Billing: plan, live jobs with their rings, payment history", role: "employer", path: "/settings?tab=billing&__previewBilling=paygo,embedded" },
+  { id: "billing-tab-unlimited", group: "Billing (pricing v9)", label: "Settings -> Billing on Unlimited: renewal, two months paid", role: "employer", path: "/settings?tab=billing&__previewBilling=unlimited,embedded" },
+  { id: "billing-pay-inside", group: "Billing (pricing v9)", label: "Pay inside HireFlow ($1 test): Post it again -> Pay -> the stand-in form -> the confirmation", role: "employer", path: `/jobs/${JOB_SHIFT_LEAD_CLOSED_ID}?__previewBilling=paygo,embedded,onedollar` },
+  { id: "billing-unlimited-inside", group: "Billing (pricing v9)", label: "Go Unlimited inside HireFlow, from Settings -> Billing", role: "employer", path: "/settings?tab=billing&__previewBilling=paygo,embedded" },
+  { id: "billing-back-confirmation", group: "Billing (pricing v9)", label: "Back from Stripe's hosted page (the fallback): the confirmation", role: "employer", path: `/jobs/${JOB_CASHIER_DRAFT_ID}?__previewBilling=paygo,paid:${JOB_CASHIER_DRAFT_ID}&billing=paid` },
+  { id: "billing-more-plan", group: "Billing (pricing v9)", label: "Phone: the plan at the top of More", role: "employer", path: "/more?__previewBilling=paygo" },
   { id: "billing-applicant", group: "Billing (pricing v9)", label: "An applicant with billing on: nothing about it", role: "candidate", path: "/applications?__previewBilling=paygo" },
 
   // -------------------------------------------------------------- extra states

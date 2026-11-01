@@ -2,7 +2,15 @@
  * billing-checkout — a Stripe Checkout page for a job ($99, 30 days) or for
  * Unlimited ($299 a month) (pricing v9; docs/BILLING.md).
  *
- *   POST { kind: "job" | "unlimited", jobId? }  ->  { url }
+ *   POST { kind: "job" | "unlimited", jobId?, ui? }  ->  { url } | { clientSecret }
+ *
+ * Paying inside HireFlow (2026-11-01): with ui: "embedded" the session is
+ * Stripe's embedded form (ui_mode embedded_page, or embedded on an account
+ * whose API version predates 2026-03-25) and the answer is its client secret,
+ * which the page mounts with Stripe.js; without it, Stripe's hosted page and
+ * its address, as before. Either way each $99 payment gets an invoice
+ * (invoice_creation) saying which job it was for, so it shows in Stripe's
+ * billing page and the business's email.
  *
  * Who is asking comes from their sign-in; who pays is their business's owner
  * (a teammate who may create jobs pays for a job they may publish; only the
@@ -37,8 +45,11 @@ import {
   returnOrigin,
   STILL_BILLING,
   stripeConfig,
+  stripeErrorParam,
   stripeRequest,
   subscriptionsOfCustomer,
+  type FormValue,
+  type StripeReply,
 } from "../_shared/stripe.ts";
 
 const corsHeaders = {
@@ -82,7 +93,7 @@ serve(async (req) => {
   const caller = await requireSignedInUser(req, corsHeaders);
   if (caller.refusal) return caller.refusal;
 
-  let body: { kind?: unknown; jobId?: unknown };
+  let body: { kind?: unknown; jobId?: unknown; ui?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -92,6 +103,7 @@ serve(async (req) => {
   if (!kind) return json({ error: "That request could not be read.", code: "bad_kind" }, 400);
   const jobId = typeof body.jobId === "string" && UUID.test(body.jobId) ? body.jobId : null;
   if (kind === "job" && !jobId) return json({ error: REFUSALS.job_not_found.error, code: "job_not_found" }, 404);
+  const embedded = body.ui === "embedded";
 
   const admin = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", {
     auth: { persistSession: false },
@@ -230,34 +242,68 @@ serve(async (req) => {
   // Back to HireFlow's own pages, never an address from the request.
   const origin = returnOrigin(req.headers.get("origin"), (key) => Deno.env.get(key));
   const back = jobId ? `${origin}/jobs/${jobId}` : `${origin}/settings`;
+  const paid = `${back}?billing=${kind === "job" ? "paid" : "unlimited"}`;
   const metadata: Record<string, string> = { owner_id: ownerId, kind, ...(jobId ? { job_id: jobId } : {}) };
+  // What the receipt and Stripe's billing page say it was for.
+  const description = kind === "job" ? jobPaymentDescription(check.job_title) : `HireFlow Unlimited: every job live while it lasts, unlimited applicants`;
 
-  const session = await stripeRequest(
-    config,
-    "POST",
-    "/checkout/sessions",
-    {
-      mode: kind === "job" ? "payment" : "subscription",
-      customer: customerId,
-      client_reference_id: ownerId,
-      line_items: [{ price: price.id, quantity: 1 }],
-      // Cards only: a payment that settles days later would be taken with nothing given.
-      payment_method_types: ["card"],
-      success_url: `${back}?billing=${kind === "job" ? "paid" : "unlimited"}`,
-      cancel_url: `${back}?billing=cancelled`,
-      metadata,
-      ...(kind === "job" ? { payment_intent_data: { metadata } } : { subscription_data: { metadata } }),
-    },
-    { idempotencyKey: `hireflow-checkout-${claimId}` },
-  );
+  const fields = {
+    mode: kind === "job" ? "payment" : "subscription",
+    customer: customerId,
+    client_reference_id: ownerId,
+    line_items: [{ price: price.id, quantity: 1 }],
+    // Cards only: a payment that settles days later would be taken with nothing given.
+    payment_method_types: ["card"],
+    metadata,
+    ...(kind === "job"
+      ? {
+          payment_intent_data: { metadata, description },
+          // An invoice for each $99 payment, so it is in Stripe's billing page
+          // and the business's email with what it paid for (subscriptions make
+          // their own). Stripe charges a small fee per invoice (docs/BILLING.md).
+          invoice_creation: { enabled: true, invoice_data: { description, metadata } },
+        }
+      : { subscription_data: { metadata, description } }),
+  };
+  // Inside HireFlow (Stripe's embedded form, when the page asked for it) or
+  // Stripe's own page. Embedded: no redirect for a card (the page shows the
+  // confirmation itself); the way back is only for a payment that needs one.
+  // Stripe's 2026-03-25 API renamed "embedded" to "embedded_page": the account's
+  // version decides, so the other name is tried when Stripe refuses the first.
+  const pages: Array<Record<string, FormValue>> = embedded
+    ? [
+        { ui_mode: "embedded_page", return_url: paid, redirect_on_completion: "if_required" },
+        { ui_mode: "embedded", return_url: paid, redirect_on_completion: "if_required" },
+      ]
+    : [{ success_url: paid, cancel_url: `${back}?billing=cancelled` }];
+  let session: StripeReply = { ok: false, status: 0, body: null };
+  for (const page of pages) {
+    session = await stripeRequest(
+      config,
+      "POST",
+      "/checkout/sessions",
+      { ...fields, ...page },
+      { idempotencyKey: `hireflow-checkout-${claimId}` },
+    );
+    // Only a refused ui_mode tries the other name (a refused request is not kept for its Idempotency-Key).
+    if (session.ok || !(embedded && session.status === 400 && stripeErrorParam(session) === "ui_mode")) break;
+  }
   const url = typeof session.body?.url === "string" ? session.body.url : null;
+  const clientSecret = typeof session.body?.client_secret === "string" ? session.body.client_secret : null;
   const sessionId = typeof session.body?.id === "string" ? session.body.id : null;
-  if (!session.ok || !url || !/^https:\/\//.test(url) || !sessionId) {
+  const usable = embedded ? !!clientSecret && /^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(clientSecret) : !!url && /^https:\/\//.test(url);
+  if (!session.ok || !usable || !sessionId) {
     console.error("[billing-checkout] Stripe did not make the checkout:", session.status, JSON.stringify(session.body?.error ?? null));
     await release();
     return failed("stripe");
   }
   const { error: openedError } = await admin.rpc("billing_checkout_opened", { p_claim: claimId, p_session: sessionId });
   if (openedError) console.error("[billing-checkout] could not record the checkout:", openedError.message);
-  return json({ url });
+  return json(embedded ? { clientSecret } : { url });
 });
+
+/** "HireFlow: “Chat agent” live for 30 days, unlimited applicants" (the job's title made plain, cut to 80). */
+function jobPaymentDescription(title: unknown): string {
+  const plain = typeof title === "string" ? title.replace(/[\u0000-\u001f\u007f<>]/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) : "";
+  return plain ? `HireFlow: “${plain}” live for 30 days, unlimited applicants` : "HireFlow: one job live for 30 days, unlimited applicants";
+}

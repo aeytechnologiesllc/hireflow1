@@ -45,6 +45,28 @@ export interface UnlimitedState {
   cancelAtPeriodEnd: boolean;
 }
 
+/**
+ * One payment, as HireFlow recorded it (public.billing_history, 2026-11-01):
+ * a $99 job pass, or an Unlimited invoice. Only the business owner is given
+ * these (get-subscription): a teammate never sees an amount.
+ */
+export interface BillingPayment {
+  kind: "job" | "unlimited";
+  jobId: string | null;
+  /** The job's title (as it is now, or as it was when paid for). */
+  title: string | null;
+  /** What was actually charged, in cents (the $1 test shows $1.00). */
+  amountCents: number | null;
+  currency: string | null;
+  paidAt: string;
+  /** What it paid for: a job's 30 days, or Unlimited's month. */
+  startsAt: string | null;
+  endsAt: string | null;
+  /** Stripe's own receipt or invoice page (https on stripe.com only), or null. */
+  receiptUrl: string | null;
+  refunded: boolean;
+}
+
 export interface BillingState {
   billingEnabled: boolean;
   exempt: boolean;
@@ -53,10 +75,36 @@ export interface BillingState {
   unlimited: UnlimitedState | null;
   hasCustomer: boolean;
   jobs: Record<string, JobPass>;
+  /** The owner's payment history, newest first; null when not given (a teammate) or unreadable. */
+  payments: BillingPayment[] | null;
 }
 
 const isObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
 const text = (value: unknown): string | null => (typeof value === "string" && value ? value : null);
+
+/** A receipt address worth showing: Stripe's own page, https only (the database keeps nothing else either). */
+export function stripeReceiptUrl(value: unknown): string | null {
+  return typeof value === "string" && value.length <= 2000 && /^https:\/\/([a-z0-9-]+\.)*stripe\.com\/[^\s"'<>]*$/.test(value) ? value : null;
+}
+
+function readPayment(raw: unknown): BillingPayment | null {
+  if (!isObject(raw)) return null;
+  const kind = raw.kind === "job" || raw.kind === "unlimited" ? raw.kind : null;
+  const paidAt = text(raw.paidAt);
+  if (!kind || !paidAt || !Number.isFinite(Date.parse(paidAt))) return null;
+  return {
+    kind,
+    jobId: text(raw.jobId),
+    title: text(raw.title),
+    amountCents: typeof raw.amountCents === "number" && Number.isFinite(raw.amountCents) && raw.amountCents >= 0 ? Math.round(raw.amountCents) : null,
+    currency: typeof raw.currency === "string" && /^[a-z]{3}$/i.test(raw.currency) ? raw.currency.toLowerCase() : null,
+    paidAt,
+    startsAt: text(raw.startsAt),
+    endsAt: text(raw.endsAt),
+    receiptUrl: stripeReceiptUrl(raw.receiptUrl),
+    refunded: raw.refunded === true,
+  };
+}
 
 /** get-subscription's `billing`, read defensively. Anything unreadable is null, which every screen treats as off. */
 export function readBillingState(raw: unknown): BillingState | null {
@@ -85,6 +133,7 @@ export function readBillingState(raw: unknown): BillingState | null {
     unlimited,
     hasCustomer: raw.hasCustomer === true,
     jobs,
+    payments: Array.isArray(raw.payments) ? raw.payments.map(readPayment).filter((p): p is BillingPayment => p !== null) : null,
   };
 }
 
@@ -186,6 +235,17 @@ export const PUBLISH_PAYMENT_WORDS = {
   later: "Not now",
 } as const;
 
+/** Paying inside HireFlow: Stripe's form in a dialog (StripeCheckoutForm). */
+export const CHECKOUT_DIALOG_WORDS = {
+  jobTitle: (jobTitle?: string | null) => `Pay for ${jobTitle ? `“${jobTitle}”` : "this job"}`,
+  unlimitedTitle: "Go Unlimited",
+  secure: "Your card goes straight to Stripe, our payment processor. HireFlow never sees it.",
+  back: "Choose another way",
+  paidTitle: "Payment",
+  paidDescription: "What you paid, and what it bought.",
+  opening: "Opening checkout…",
+} as const;
+
 /** After Checkout, back on the job page (?billing=…). */
 export const PAID_RETURN_WORDS = {
   waiting: "Payment received. Putting your job live…",
@@ -253,6 +313,8 @@ export const BILLING_CARD_WORDS = {
 
 export type BillingCallOutcome =
   | { kind: "redirect"; url: string }
+  /** Stripe's payment form inside HireFlow (Embedded Checkout): mount it with this client secret. */
+  | { kind: "embedded"; clientSecret: string }
   /** No payment is needed after all (Unlimited, or the exempt account): publish as usual. */
   | { kind: "publish"; message: string }
   /** The business must confirm its email first (the Publish screen asks for the code). */
@@ -265,6 +327,8 @@ const TRY_AGAIN = "Payments aren't available just now. Try again in a moment.";
 /** billing-checkout's or billing-portal's answer, as the page acts on it. */
 export function billingCallOutcome(status: number | null | undefined, body: unknown): BillingCallOutcome {
   const b = isObject(body) ? body : {};
+  // The form inside HireFlow: a Checkout Session's client secret (cs_test_…_secret_… or cs_live_…).
+  if (status === 200 && typeof b.clientSecret === "string" && /^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(b.clientSecret) && b.clientSecret.length <= 500) return { kind: "embedded", clientSecret: b.clientSecret };
   // Stripe's pages are https; a local preview's own page (src/dev-preview/previewBilling.ts) is http://localhost.
   if (status === 200 && typeof b.url === "string" && /^(?:https:\/\/|http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/)/.test(b.url)) return { kind: "redirect", url: b.url };
   const said = typeof b.error === "string" && b.error.trim() ? b.error.trim() : null;
@@ -286,4 +350,307 @@ export function billingCallOutcome(status: number | null | undefined, body: unkn
       if (status === 503) return { kind: "failed", message: NOT_SET_UP };
       return { kind: "failed", message: status && said && status < 500 ? said : TRY_AGAIN };
   }
+}
+
+// ---------------------------------------------------------------------------
+// What a business sees after paying, and where it sees what it pays for
+// (2026-11-01). The owner, after his own $1 test payment: "there was no
+// payment confirmation ... I don't get to see what package I'm on ... If they
+// can't see what they paid for, what they got ... that could be a really big
+// trouble." So: a confirmation that says what was paid and what it bought; a
+// plan button by the account (the plan, each live job's days draining as a
+// ring); and Settings -> Billing with the payment history. Every function
+// here answers nothing while billing is off, and nothing for the exempt
+// account (never a price).
+// ---------------------------------------------------------------------------
+
+/** "$1.00", "$99.00": what was actually charged (from HireFlow's own record), never the list price. */
+export function formatMoney(cents: number | null | undefined, currency: string | null | undefined = "usd"): string | null {
+  if (typeof cents !== "number" || !Number.isFinite(cents) || cents < 0) return null;
+  const code = (typeof currency === "string" && /^[a-z]{3}$/i.test(currency) ? currency : "usd").toUpperCase();
+  try {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency: code }).format(cents / 100);
+  } catch {
+    return `${(cents / 100).toFixed(2)} ${code}`;
+  }
+}
+
+/** "Nov 1, 2026". */
+export function shortBillingDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const at = Date.parse(iso);
+  if (!Number.isFinite(at)) return null;
+  return new Date(at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+/** "Nov 1 to Dec 1, 2026" (across years, both years). */
+function shortRange(from: string | null | undefined, to: string | null | undefined): string | null {
+  const a = from ? Date.parse(from) : NaN;
+  const b = to ? Date.parse(to) : NaN;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  const sameYear = new Date(a).getFullYear() === new Date(b).getFullYear();
+  const start = new Date(a).toLocaleDateString("en-US", sameYear ? { month: "short", day: "numeric" } : { month: "short", day: "numeric", year: "numeric" });
+  return `${start} to ${shortBillingDate(to)}`;
+}
+
+/**
+ * Settings -> Billing and the plan button: the business that pays, while
+ * billing is on. Never the exempt account (it is never asked to pay, and
+ * sees no price), never while billing is off or unknown. Settings shows the
+ * tab to the business owner only, as it showed the Billing card.
+ */
+export function billingTabShown(state: BillingState | null | undefined): state is BillingState {
+  if (!billingShown(state) || state.exempt) return false;
+  return true;
+}
+
+export type LiveJobLine = {
+  id: string;
+  title: string;
+  kind: PassKind | null;
+  /** Whole days left (rounded up); null under Unlimited. */
+  daysLeft: number | null;
+  /** The ring's whole: 30 days (more when days were added to days left). */
+  total: number;
+  /** "23 days left", "Free job, 23 days left", "Last day", "Live while Unlimited lasts". */
+  line: string;
+};
+
+export type PlanSummary = {
+  name: "Pay per job" | "Unlimited";
+  /** The button's second line: "23 days left", "2 jobs live", "Renews Dec 1". */
+  sub: string;
+  /** The soonest-ending live job's ring, drawn on the button (pay per job). */
+  ring: { left: number; total: number } | null;
+  jobs: LiveJobLine[];
+  /** "Renews December 1, 2026." or "Ends December 1, 2026. Your jobs close then." */
+  unlimitedLine: string | null;
+  /** What the plan costs: "$99 a job, live for 30 days" or "$299 a month". */
+  priceLine: string;
+  freeLine: string | null;
+  warning: string | null;
+};
+
+/**
+ * The plan button and its dropdown. `liveJobs` are the business's live jobs
+ * (as the page has them: id and title); each one a free, paid or launch pass
+ * keeps live gets a ring of its days left out of 30, draining as the days
+ * pass. Null while billing is off and for the exempt account: no button.
+ */
+export function planSummary(
+  state: BillingState | null | undefined,
+  liveJobs: ReadonlyArray<{ id: string; title: string }>,
+  now: number = Date.now(),
+): PlanSummary | null {
+  if (!billingShown(state) || state.exempt) return null;
+  if (state.plan === "unlimited") {
+    const sub = state.unlimited;
+    const when = billingDate(sub?.periodEnd);
+    // The button's line is short: "Renews Dec 4" (the dropdown says the year).
+    const end = sub?.periodEnd ? Date.parse(sub.periodEnd) : NaN;
+    const short = Number.isFinite(end) ? new Date(end).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : null;
+    const jobs: LiveJobLine[] = liveJobs.map((j) => ({ id: j.id, title: j.title, kind: "unlimited", daysLeft: null, total: PASS_DAYS, line: "Live while Unlimited lasts" }));
+    return {
+      name: "Unlimited",
+      sub:
+        sub?.status === "past_due"
+          ? "Payment failed"
+          : short
+            ? `${sub?.cancelAtPeriodEnd ? "Ends" : "Renews"} ${short}`
+            : `${jobs.length} ${jobs.length === 1 ? "job" : "jobs"} live`,
+      ring: null,
+      jobs,
+      unlimitedLine: when ? (sub?.cancelAtPeriodEnd ? `Ends ${when}. Your jobs close then.` : `Renews ${when}.`) : null,
+      priceLine: PRICE_UNLIMITED,
+      freeLine: null,
+      warning: sub?.status === "past_due" ? "Your last payment didn't go through. Update your card to keep your jobs live." : null,
+    };
+  }
+  const jobs: LiveJobLine[] = [];
+  for (const job of liveJobs) {
+    const pass = state.jobs[job.id];
+    if (!pass || !pass.timeLeft || !(pass.kind === "free" || pass.kind === "paid" || pass.kind === "launch")) continue;
+    const left = daysLeft(pass.endsAt, now);
+    if (left === null) continue;
+    const words = left <= 1 ? "last day" : `${left} days left`;
+    jobs.push({
+      id: job.id,
+      title: job.title,
+      kind: pass.kind,
+      daysLeft: left,
+      total: Math.max(PASS_DAYS, left),
+      line: pass.kind === "free" ? `Free job, ${words}` : `${words.charAt(0).toUpperCase()}${words.slice(1)}`,
+    });
+  }
+  jobs.sort((a, b) => (a.daysLeft ?? 0) - (b.daysLeft ?? 0));
+  const soonest = jobs[0] ?? null;
+  let sub: string;
+  if (!soonest) sub = state.freeJobAvailable ? "First job free" : "No job live";
+  else if (jobs.length > 1) sub = `${jobs.length} jobs live`;
+  else sub = (soonest.daysLeft ?? 0) <= 1 ? "Last day" : `${soonest.daysLeft} days left`;
+  return {
+    name: "Pay per job",
+    sub,
+    ring: soonest ? { left: soonest.daysLeft ?? 0, total: soonest.total } : null,
+    jobs,
+    unlimitedLine: null,
+    priceLine: `${PRICE_JOB} a job, live for ${PASS_DAYS} days`,
+    freeLine: state.freeJobAvailable ? `Your first job is free for ${PASS_DAYS} days.` : null,
+    warning: null,
+  };
+}
+
+/** How full a job's ring is: its days left out of its whole (0 to 1). */
+export function ringFraction(left: number | null | undefined, total: number | null | undefined): number {
+  if (typeof left !== "number" || typeof total !== "number" || !(total > 0)) return 0;
+  return Math.max(0, Math.min(1, left / total));
+}
+
+export const PLAN_WORDS = {
+  button: "Your plan",
+  billing: "Billing",
+  history: "Payment history",
+  noJobs: "No job is live right now.",
+  liveJobs: "Live jobs",
+} as const;
+
+export type HistoryRow = {
+  key: string;
+  /** "Nov 1, 2026". */
+  date: string;
+  /** "“Chat agent”, 30 days" or "Unlimited, one month". */
+  what: string;
+  /** "Nov 1 to Dec 1, 2026". */
+  period: string | null;
+  /** "$1.00" (what was charged), or null when HireFlow has no amount for it. */
+  amount: string | null;
+  receiptUrl: string | null;
+  refunded: boolean;
+};
+
+/** Settings -> Billing -> Payment history, from HireFlow's own records. Null when there is none to show (off, exempt, a teammate, unreadable). */
+export function paymentHistoryRows(state: BillingState | null | undefined): HistoryRow[] | null {
+  if (!billingShown(state) || state.exempt || !state.payments) return null;
+  return state.payments.map((p, i) => ({
+    key: `${p.kind}:${p.paidAt}:${i}`,
+    date: shortBillingDate(p.paidAt) ?? "",
+    what: p.kind === "unlimited" ? "Unlimited, one month" : `${p.title ? `“${p.title}”` : "A job since deleted"}, ${PASS_DAYS} days`,
+    period: shortRange(p.startsAt, p.endsAt),
+    amount: formatMoney(p.amountCents, p.currency),
+    receiptUrl: p.receiptUrl,
+    refunded: p.refunded,
+  }));
+}
+
+export const BILLING_TAB_WORDS = {
+  plan: "Your plan",
+  live: "Live jobs",
+  liveNote: `Each job is live for ${PASS_DAYS} days from when it is paid for. The ring empties as the days pass.`,
+  liveUnlimited: "Every job stays live while Unlimited lasts.",
+  liveNone: "No job is live right now.",
+  history: "Payment history",
+  historyNote: "Every payment, from HireFlow's own records. Each receipt is also emailed to you.",
+  historyEmpty: "No payments yet.",
+  historyEmptyFree: "No payments yet. Your first job is free.",
+  historyUnread: "Your payment history couldn't be loaded just now. Refresh the page to try again.",
+  receipt: "Receipt",
+  refunded: "Refunded",
+  manage: "Manage card or cancel",
+  manageNote: "Stripe's billing page: change your card, download invoices and receipts, or cancel Unlimited.",
+} as const;
+
+/** One payment's confirmation, as the business sees it right after paying. */
+export type ConfirmationInput = {
+  what: "job" | "unlimited";
+  jobTitle?: string | null;
+  /** HireFlow's record of this payment (the owner), or null (not in yet, or a teammate). */
+  payment: BillingPayment | null;
+  /** A job: the end of its paid days. Unlimited: its period end. */
+  endsAt: string | null;
+  cancelAtPeriodEnd?: boolean;
+  /** Whether the job is live now (null when there is no job). */
+  live: boolean | null;
+  state: "waiting" | "slow" | "confirmed";
+};
+
+export type ConfirmationWords = {
+  heading: string;
+  lead: string;
+  /** "$1.00", or null when the amount is not known here. */
+  paid: string | null;
+  paidOn: string | null;
+  forWhat: string;
+  /** What it bought, in one line; null while waiting. */
+  got: string | null;
+  receipt: string;
+};
+
+export const PAYMENT_CONFIRMATION_WORDS = {
+  waitingHeading: "Confirming your payment",
+  waitingNote: "You can close this. Nothing more is needed from you, and the payment shows in Settings, under Billing.",
+  confirmedHeading: "Payment confirmed",
+  confirmedLead: "Thank you. Here is what you paid for.",
+  paid: "Paid",
+  forWhat: "For",
+  got: "What you get",
+  receiptLabel: "Receipt",
+  receipt: "A receipt is on its way to your email.",
+  viewReceipt: "View receipt",
+  share: "Share your job",
+  seeBilling: "See billing",
+  seeJobs: "See your jobs",
+} as const;
+
+/** The confirmation's words (src/components/billing/PaymentConfirmation.tsx draws them). */
+export function confirmationWords(input: ConfirmationInput): ConfirmationWords {
+  const W = PAYMENT_CONFIRMATION_WORDS;
+  const title = input.jobTitle?.trim() ? `“${input.jobTitle.trim()}”` : null;
+  const forWhat = input.what === "unlimited" ? "Unlimited, billed monthly. Cancel any time." : `${title ?? "Your job"}, live for ${PASS_DAYS} days`;
+  if (input.state !== "confirmed") {
+    const slow = input.state === "slow";
+    const lead = input.what === "unlimited" ? (slow ? SETTINGS_RETURN_WORDS.slow : SETTINGS_RETURN_WORDS.waiting) : slow ? PAID_RETURN_WORDS.slow : PAID_RETURN_WORDS.waiting;
+    return { heading: W.waitingHeading, lead, paid: null, paidOn: null, forWhat, got: null, receipt: W.receipt };
+  }
+  const until = billingDate(input.endsAt);
+  let got: string;
+  if (input.what === "unlimited") {
+    got = `Unlimited is on. Every job stays live while it lasts.${until ? ` ${input.cancelAtPeriodEnd ? "Ends" : "Renews"} ${until}.` : ""}`;
+  } else if (input.live === false) {
+    got = `Its ${PASS_DAYS} days are paid for${until ? `, until ${until}` : ""}. Press Publish on the job to put it live.`;
+  } else {
+    got = `${title ?? "Your job"} is live${until ? ` until ${until}` : ` for ${PASS_DAYS} days`}. Unlimited applicants.`;
+  }
+  return {
+    heading: W.confirmedHeading,
+    lead: W.confirmedLead,
+    paid: input.payment ? formatMoney(input.payment.amountCents, input.payment.currency) : null,
+    paidOn: input.payment ? billingDate(input.payment.paidAt) : null,
+    forWhat,
+    got,
+    receipt: W.receipt,
+  };
+}
+
+/**
+ * The payment just made, from HireFlow's own record: the newest for this job
+ * (or the newest Unlimited payment) made since a little before `since`, so an
+ * older payment is never shown as this one.
+ */
+export function paymentSince(
+  state: BillingState | null | undefined,
+  what: "job" | "unlimited",
+  jobId: string | null | undefined,
+  since: number,
+): BillingPayment | null {
+  if (!billingShown(state) || !state.payments) return null;
+  const from = since - 30 * 60_000;
+  return state.payments.find((p) => p.kind === what && (what === "unlimited" || p.jobId === jobId) && Date.parse(p.paidAt) >= from) ?? null;
+}
+
+/** Whether billing-webhook has recorded the payment: the job has paid days on it, or Unlimited is on. */
+export function paymentConfirmed(state: BillingState | null | undefined, what: "job" | "unlimited", jobId: string | null | undefined): boolean {
+  if (!billingShown(state)) return false;
+  if (what === "unlimited") return state.plan === "unlimited";
+  const pass = jobId ? state.jobs[jobId] : undefined;
+  return state.plan === "unlimited" || (!!pass && pass.timeLeft && pass.kind === "paid");
 }

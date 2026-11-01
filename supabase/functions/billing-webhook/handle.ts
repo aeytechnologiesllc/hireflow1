@@ -24,6 +24,15 @@
  *                                   jobs close and the owner is told. Stripe
  *                                   has no such subscription: recorded, 200.
  *   invoice.payment_failed          the owner is told in the app (once a day).
+ *   invoice.paid                    (since 2026-11-01) an Unlimited renewal,
+ *                                   read again from Stripe, kept for the
+ *                                   owner's payment history.
+ *
+ * Receipts (2026-11-01): after a $99 payment's pass, its receipt (the
+ * invoice Checkout made, or the charge's receipt) is kept with the pass
+ * (billing_save_receipt); after Unlimited is applied, its latest invoice once
+ * paid (billing_save_invoice). Both best effort, after the event's own
+ * effect: Stripe's billing page and email have every receipt anyway.
  *   charge.refunded                 a full refund ends that job's pass and
  *                                   closes the job unless something else
  *                                   covers it.
@@ -42,9 +51,13 @@
 import {
   STILL_BILLING,
   idOf,
+  invoicePeriod,
+  invoiceSubscription,
   isResourceMissing,
   isUnlimitedSubscription,
+  isoFromUnix,
   stripeErrorCode,
+  stripeReceiptUrl,
   subscriptionAmount,
   subscriptionPeriod,
   type FormValue,
@@ -69,6 +82,9 @@ export const HANDLED_EVENTS = [
   "customer.subscription.deleted",
   "invoice.payment_failed",
   "charge.refunded",
+  // Since 2026-11-01: each Unlimited renewal, for the owner's payment history
+  // (add it to the endpoint's events in Stripe: docs/BILLING.md).
+  "invoice.paid",
 ] as const;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -230,26 +246,84 @@ async function applySubscription(event: Event, subscriptionId: string | null, jo
   }
   const period = subscriptionPeriod(subscription);
   const money = subscriptionAmount(subscription);
-  return done(
-    await deps.rpc("billing_apply_subscription", {
-      p_event_id: event.id,
-      p_event_type: event.type,
-      p_livemode: event.livemode,
-      p_customer: idOf(subscription.customer),
-      p_subscription: idOf(subscription.id),
-      p_status: typeof subscription.status === "string" ? subscription.status : null,
-      p_period_start: period.start,
-      p_period_end: period.end,
-      p_cancel_at_period_end: subscription.cancel_at_period_end === true,
-      p_amount: money.amount,
-      p_currency: money.currency,
-      p_job: jobId,
-    }),
-    event.type,
-    event,
-    deps,
-    true,
-  );
+  const applied = await deps.rpc("billing_apply_subscription", {
+    p_event_id: event.id,
+    p_event_type: event.type,
+    p_livemode: event.livemode,
+    p_customer: idOf(subscription.customer),
+    p_subscription: idOf(subscription.id),
+    p_status: typeof subscription.status === "string" ? subscription.status : null,
+    p_period_start: period.start,
+    p_period_end: period.end,
+    p_cancel_at_period_end: subscription.cancel_at_period_end === true,
+    p_amount: money.amount,
+    p_currency: money.currency,
+    p_job: jobId,
+  });
+  const outcome = await done(applied, event.type, event, deps, true);
+  // Its latest invoice, once paid, for the owner's payment history (never a second Unlimited's, never one owed back).
+  if (outcome.status === 200 && kept(applied)) {
+    const latest = idOf(subscription.latest_invoice);
+    if (latest) await keepInvoice(deps, latest, event.livemode);
+  }
+  return outcome;
+}
+
+/** Whether the database recorded something a receipt belongs to (not ignored, nothing owed back). */
+function kept(result: RpcResult): boolean {
+  const data = (result.data ?? {}) as Record<string, unknown>;
+  return !result.error && !data.ignored && !data.refund;
+}
+
+/**
+ * A paid Unlimited invoice, read again from Stripe, kept for the owner's
+ * payment history (billing_save_invoice: only the Unlimited HireFlow tracks
+ * for the business whose customer paid). Best effort when it rides on
+ * another event: Stripe's billing page always has the invoice.
+ */
+async function keepInvoice(deps: WebhookDeps, invoiceId: string, livemode: boolean): Promise<RpcResult | null> {
+  const reply = await deps.stripe("GET", `/invoices/${encodeURIComponent(invoiceId)}`);
+  const invoice = reply.ok ? reply.body : null;
+  if (!invoice) return null;
+  const subscription = invoiceSubscription(invoice);
+  if (!subscription || invoice.status !== "paid" || typeof invoice.amount_paid !== "number" || invoice.amount_paid <= 0) return null;
+  const paidWith = idOf(invoice.payment_intent) ?? (((await invoicePayments(deps, invoice)) ?? []).find((t): t is { payment_intent: string } => "payment_intent" in t)?.payment_intent ?? null);
+  const period = invoicePeriod(invoice);
+  const paidAt = isoFromUnix((invoice.status_transitions as { paid_at?: unknown } | undefined)?.paid_at);
+  const result = await deps.rpc("billing_save_invoice", {
+    p_customer: idOf(invoice.customer),
+    p_subscription: subscription,
+    p_invoice: invoiceId,
+    p_payment_intent: paidWith,
+    p_amount: invoice.amount_paid,
+    p_currency: typeof invoice.currency === "string" ? invoice.currency : null,
+    p_paid_at: paidAt,
+    p_period_start: period.start,
+    p_period_end: period.end,
+    p_receipt_url: stripeReceiptUrl(invoice.hosted_invoice_url),
+    p_livemode: livemode,
+  });
+  if (result.error) console.error("[billing-webhook] could not keep the invoice:", result.error.message ?? result.error);
+  return result;
+}
+
+/**
+ * The receipt of a $99 payment, kept with its pass (billing_save_receipt):
+ * the invoice Checkout made for it (its Stripe-hosted page), or else the
+ * charge's own receipt. Best effort: the pass is what matters, and Stripe's
+ * billing page and email have the receipt either way.
+ */
+async function keepJobReceipt(deps: WebhookDeps, session: Record<string, unknown>, paymentIntent: string, charges: Array<Record<string, unknown>>): Promise<void> {
+  const invoiceId = idOf(session.invoice);
+  let url: string | null = null;
+  if (invoiceId) {
+    const reply = await deps.stripe("GET", `/invoices/${encodeURIComponent(invoiceId)}`);
+    if (reply.ok) url = stripeReceiptUrl(reply.body?.hosted_invoice_url);
+  }
+  url = url ?? charges.map((c) => stripeReceiptUrl(c.receipt_url)).find((u) => u !== null) ?? null;
+  if (!url && !invoiceId) return;
+  const result = await deps.rpc("billing_save_receipt", { p_payment_intent: paymentIntent, p_invoice: invoiceId, p_receipt_url: url });
+  if (result.error) console.error("[billing-webhook] could not keep the receipt:", result.error.message ?? result.error);
 }
 
 /** A $99 checkout: the payment as Stripe has it now, then the pass. */
@@ -268,24 +342,22 @@ async function applyJobPayment(event: Event, object: Record<string, unknown>, me
   const succeeded = (charges.body!.data as Array<Record<string, unknown>>).filter((c) => c.paid === true && c.status === "succeeded");
   if (!succeeded.length) return done(await notPaid(deps, event, session, "job", "no payment went through"), event.type, event, deps);
   if (succeeded.every((c) => c.refunded === true)) return done(await record(deps, event, "ignored: refunded before it was recorded"), event.type, event, deps);
-  return done(
-    await deps.rpc("billing_apply_job_payment", {
-      p_event_id: event.id,
-      p_event_type: event.type,
-      p_livemode: event.livemode,
-      p_owner: owner,
-      p_customer: idOf(object.customer),
-      p_job: job,
-      p_session: session,
-      p_payment_intent: paymentIntent,
-      p_amount: typeof object.amount_total === "number" ? object.amount_total : null,
-      p_currency: typeof object.currency === "string" ? object.currency : null,
-    }),
-    event.type,
-    event,
-    deps,
-    true,
-  );
+  const applied = await deps.rpc("billing_apply_job_payment", {
+    p_event_id: event.id,
+    p_event_type: event.type,
+    p_livemode: event.livemode,
+    p_owner: owner,
+    p_customer: idOf(object.customer),
+    p_job: job,
+    p_session: session,
+    p_payment_intent: paymentIntent,
+    p_amount: typeof object.amount_total === "number" ? object.amount_total : null,
+    p_currency: typeof object.currency === "string" ? object.currency : null,
+  });
+  const outcome = await done(applied, event.type, event, deps, true);
+  // Its receipt, with the pass it bought (the owner's payment history).
+  if (outcome.status === 200 && kept(applied)) await keepJobReceipt(deps, object, paymentIntent, succeeded);
+  return outcome;
 }
 
 export async function handleStripeEvent(raw: unknown, deps: WebhookDeps): Promise<WebhookOutcome> {
@@ -324,6 +396,18 @@ export async function handleStripeEvent(raw: unknown, deps: WebhookDeps): Promis
         event,
         deps,
       );
+    }
+    case "invoice.paid": {
+      // An Unlimited renewal paid: kept for the owner's payment history. A
+      // $99 job's invoice (no subscription) is kept with its pass when its
+      // checkout completes, not here.
+      const invoiceId = idOf(object.id);
+      if (!invoiceId || !invoiceSubscription(object)) return done(await record(deps, event, "ignored: not a subscription's invoice"), type, event, deps);
+      const saved = await keepInvoice(deps, invoiceId, event.livemode);
+      // The database refused: nothing recorded, so Stripe's retry keeps it.
+      if (saved?.error) return { status: 500, body: { error: "not recorded; Stripe will send it again" } };
+      const data = (saved?.data ?? {}) as Record<string, unknown>;
+      return done(await record(deps, event, data.kept === true ? "invoice kept" : `invoice: ${String(data.ignored ?? data.reason ?? "not kept").slice(0, 60)}`), type, event, deps);
     }
     case "charge.refunded":
       return done(

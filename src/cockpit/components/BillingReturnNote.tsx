@@ -1,41 +1,45 @@
 /**
- * Back from Stripe Checkout on the job page (?billing=paid | unlimited |
- * cancelled; pricing v9, docs/BILLING.md). billing-webhook puts the job live
- * once Stripe confirms the payment, usually within seconds: the page asks
- * again every 2 seconds for half a minute, then every 10 seconds for five
- * minutes, and says so calmly if it is slow. Never shown while billing is
- * off, or not known (billingShown): a link someone made up with ?billing=paid
- * says nothing then.
+ * Back from Stripe's hosted Checkout page on the job page (?billing=paid |
+ * unlimited | cancelled; pricing v9, docs/BILLING.md). Since 2026-11-01 the
+ * business pays inside HireFlow (PublishPaymentDialog) and this is the
+ * fallback's way back, used until the site has Stripe's publishable key, or
+ * when a card needs a redirect.
+ *
+ * Paid: the confirmation, as a dialog, once (PaymentConfirmationDialog: what
+ * was paid, what it bought, the receipt, Share your job, See billing).
+ * billing-webhook puts the job live once Stripe confirms the payment, usually
+ * within seconds; until then the confirmation says so calmly and asks again
+ * (every 2 seconds for half a minute, then every 10 seconds for five
+ * minutes). Closing it takes ?billing= off the address, so it shows once.
+ * Cancelled: one quiet line. Never shown while billing is off, or not known
+ * (billingShown): a link someone made up with ?billing=paid says nothing then.
  */
-import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { X } from "lucide-react";
 import { PAID_RETURN_WORDS as W, billingReturn, billingShown, type BillingState } from "@/lib/billing";
+import { PaymentConfirmationDialog } from "@/components/billing/PaymentConfirmation";
 
-export function BillingReturnNote({ billing, live, onRefresh }: { billing: BillingState | null | undefined; live: boolean; onRefresh: () => void }) {
+export function BillingReturnNote({
+  billing,
+  onRefresh,
+  jobId,
+  jobTitle,
+  onShare,
+}: {
+  billing: BillingState | null | undefined;
+  /** Whether the job is live now (kept for the callers; the confirmation reads it itself). */
+  live?: boolean;
+  onRefresh: () => void;
+  jobId?: string | null;
+  jobTitle?: string | null;
+  /** Open this job's share kit. */
+  onShare?: () => void;
+}) {
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const back = billingShown(billing) ? billingReturn(params.get("billing")) : null;
-  const [slow, setSlow] = useState(false);
-  const startedAt = useRef<number>(Date.now());
-  const refresh = useRef(onRefresh);
-  refresh.current = onRefresh;
-
-  const waiting = (back === "paid" || back === "unlimited") && !live;
-
-  useEffect(() => {
-    if (!waiting) return;
-    startedAt.current = Date.now();
-    let timer: number | undefined;
-    const tick = () => {
-      const elapsed = Date.now() - startedAt.current;
-      if (elapsed > 5 * 60_000) return;
-      if (elapsed > 30_000) setSlow(true);
-      refresh.current();
-      timer = window.setTimeout(tick, elapsed > 30_000 ? 10_000 : 2_000);
-    };
-    timer = window.setTimeout(tick, 1_500);
-    return () => window.clearTimeout(timer);
-  }, [waiting]);
+  const [since] = useState(() => Date.now());
 
   if (!back || back === "back") return null;
 
@@ -43,21 +47,35 @@ export function BillingReturnNote({ billing, live, onRefresh }: { billing: Billi
     const next = new URLSearchParams(params);
     next.delete("billing");
     setParams(next, { replace: true });
+    onRefresh();
   };
 
-  const message =
-    back === "cancelled" ? W.cancelled : live ? (back === "unlimited" ? W.liveUnlimited : W.live) : slow ? W.slow : W.waiting;
-  const tone = back === "cancelled" ? "var(--ink-2)" : live ? "var(--good)" : "var(--ink-2)";
+  if (back === "paid" || back === "unlimited") {
+    return (
+      <PaymentConfirmationDialog
+        open
+        onClose={dismiss}
+        what={back === "paid" ? "job" : "unlimited"}
+        jobId={jobId ?? null}
+        jobTitle={jobTitle}
+        since={since}
+        onShare={
+          onShare
+            ? () => {
+                dismiss();
+                onShare();
+              }
+            : undefined
+        }
+        onSeeBilling={() => navigate("/settings?tab=billing")}
+      />
+    );
+  }
 
   return (
-    <div
-      role="status"
-      aria-live="polite"
-      data-billing-return={back}
-      className="ck-card-flat ck-reveal flex items-start gap-3 px-4 py-3"
-    >
-      <p className="min-w-0 flex-1 text-[13.5px] leading-snug" style={{ color: tone }}>
-        {message}
+    <div role="status" aria-live="polite" data-billing-return={back} className="ck-card-flat ck-reveal flex items-start gap-3 px-4 py-3">
+      <p className="min-w-0 flex-1 text-[13.5px] leading-snug" style={{ color: "var(--ink-2)" }}>
+        {W.cancelled}
       </p>
       <button type="button" aria-label="Dismiss" className="shrink-0 rounded p-0.5 opacity-70 transition-opacity hover:opacity-100" onClick={dismiss}>
         <X className="h-4 w-4" style={{ color: "var(--ink-3)" }} />

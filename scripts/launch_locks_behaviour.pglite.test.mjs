@@ -5649,7 +5649,67 @@ console.log("\n33. Billing (pricing v9): nothing changes while it is off; on, th
       tStranger?.ignored === "unknown_customer" && !tStranger.refund && tStrangerOwed === 0 && (await adminCards("An Unlimited for an unknown customer")) === 1,
     show([tRemembered, tPaid, tPaidAgain, tDone, tEnded, tStranger, tStrangerOwed]),
   );
+
+  // (u) Receipts and the payment history (20261101100000_billing_receipts.sql; the owner's $1 test, 2026-11-01):
+  // what was actually charged, its Stripe receipt (Stripe's own https pages only), the owner's own rows only.
+  const RC = R33(40);
+  await makeUser(RC, "employer", { full_name: "Receipt owner", company_name: "Receipt Co 33" });
+  await db.query(`update public.profiles set email_verified_at = now(), email_verified_for = email where user_id = $1`, [RC]);
+  await svc(`select public.billing_save_customer($1, false, 'cus_R33')`, [RC]);
+  await newJob(RC, RC, "Receipt free agent");
+  const rcJob = (await newJob(RC, RC, "Receipt chat agent", "draft")).rows[0].id;
+  const rcPaid = await val(`select public.billing_apply_job_payment('evt_33u1', 'checkout.session.completed', false, $1, 'cus_R33', $2, 'cs_33u1', 'pi_33u1', 100, 'usd') r`, [RC, rcJob]);
+  const receipt = "https://invoice.stripe.com/i/acct_33/test_33u1";
+  const kept1 = await val(`select public.billing_save_receipt('pi_33u1', 'in_33u1', $1) r`, [receipt]);
+  const keptBad = [];
+  for (const bad of ["javascript:alert(1)", "https://evil.example/receipt", "https://stripe.com.evil.example/x", "http://invoice.stripe.com/i/x", null]) keptBad.push(await val(`select public.billing_save_receipt('pi_33u1', null, $1) r`, [bad]));
+  const rcPass = await one(`select receipt_url, stripe_invoice_id, job_title from public.job_passes where stripe_payment_intent_id = 'pi_33u1'`);
+  const forged = await svc(`update public.job_passes set receipt_url = 'https://evil.example/x' where stripe_payment_intent_id = 'pi_33u1'`);
+  const browserReceipt = await as(user(RC), `select receipt_url from public.job_passes where owner_id = $1`, [RC]);
+  const browserDays = await as(user(RC), `select ends_at from public.job_passes where owner_id = $1`, [RC]);
+  check(
+    "(u) a $1 payment is recorded as $1 (what Stripe charged), and its receipt is kept with the pass, with the job's title; only Stripe's own https pages are ever kept (a bad address never replaces a kept one), the database refuses another even from the server, and a browser reads a pass's days but never its receipt",
+    rcPaid?.published === "published" && kept1?.ok === true && kept1.kept === 1 && keptBad.every((r) => r?.ok === true) &&
+      rcPass?.receipt_url === receipt && rcPass.stripe_invoice_id === "in_33u1" && rcPass.job_title === "Receipt chat agent" &&
+      !forged.ok && !browserReceipt.ok && browserDays.ok && browserDays.rows.length >= 2,
+    show([rcPaid, kept1, keptBad, rcPass, forged.error, browserReceipt.error, browserDays.ok]),
+  );
+  // Unlimited's invoices: only the subscription HireFlow tracks for the business whose customer paid.
+  await sub(RC, "cus_R33")("evt_33u2", "checkout.session.completed", "sub_R33", "active", "now() + interval '30 days'");
+  const inv = (invoice, subscription, customer = "cus_R33", amount = 29900, pi = `pi_${invoice.slice(3)}`) =>
+    val(`select public.billing_save_invoice($1, $2, $3, $4, $5, 'usd', now(), now(), now() + interval '30 days', $6, false) r`, [customer, subscription, invoice, pi, amount, `https://invoice.stripe.com/i/acct_33/test_${invoice}`]);
+  const inv1 = await inv("in_33u2", "sub_R33");
+  const inv1Again = await inv("in_33u2", "sub_R33");
+  const invSecond = await inv("in_33u3", "sub_R33second");
+  const invStranger = await inv("in_33u4", "sub_R33", "cus_Stranger33");
+  const invZero = await inv("in_33u5", "sub_R33", "cus_R33", 0);
+  const invRows = Number((await one(`select count(*)::int n from public.billing_invoices where owner_id = $1`, [RC])).n);
+  check(
+    "…an Unlimited invoice is kept once (by Stripe's id) for the business whose customer paid; a second Unlimited's (cancelled and refunded), an unknown customer's and one that took nothing are never a payment",
+    inv1?.kept === true && inv1Again?.kept === true && invSecond?.ignored === "not_the_tracked_unlimited" && invStranger?.ignored === "unknown_customer" && invZero?.ignored === "nothing_paid" && invRows === 1,
+    show([inv1, inv1Again, invSecond, invStranger, invZero, invRows]),
+  );
+  await svc(`select public.billing_apply_refund('evt_33u6', 'charge.refunded', false, 'pi_33u2', true)`);
+  const history = await val(`select public.billing_history($1) r`, [RC]);
+  const otherHistory = await val(`select public.billing_history($1) r`, [B]);
+  const adminHistory = await val(`select public.billing_history($1) r`, [ADMIN]);
+  const browserHistory = await as(user(RC), `select public.billing_history($1)`, [RC]);
+  const browserSave = await as(user(RC), `select public.billing_save_receipt('pi_33u1', null, 'https://invoice.stripe.com/i/x')`);
+  const browserInvoice = await as(user(RC), `select public.billing_save_invoice('cus_R33', 'sub_R33', 'in_33u9', null, 1, 'usd', now(), null, null, null, false)`);
+  const browserTable = await as(user(RC), `select * from public.billing_invoices`);
+  check(
+    "…the payment history: the owner's own payments only, newest first, each with what it paid for, the amount charged, its receipt, and whether it was refunded; nothing for the exempt account; no browser reads it, writes a receipt or reads the invoices",
+    Array.isArray(history) && history.length === 2 && history[0].kind === "unlimited" && history[0].amountCents === 29900 && history[0].refunded === true &&
+      history[0].receiptUrl === "https://invoice.stripe.com/i/acct_33/test_in_33u2" &&
+      history[1].kind === "job" && history[1].jobId === rcJob && history[1].title === "Receipt chat agent" && history[1].amountCents === 100 && history[1].currency === "usd" &&
+      history[1].receiptUrl === receipt && history[1].refunded === false && Math.abs(days(history[1].endsAt) - 30) < 0.01 &&
+      !(otherHistory ?? []).some((p) => p.jobId === rcJob || p.receiptUrl === receipt) && JSON.stringify(adminHistory) === "[]" &&
+      !browserHistory.ok && !browserSave.ok && !browserInvoice.ok && !browserTable.ok,
+    show([history, adminHistory, browserHistory.error, browserSave.error, browserInvoice.error, browserTable.error]),
+  );
   await setBilling(false);
+  const offHistory = await val(`select public.billing_history($1) r`, [RC]);
+  check("…and while billing is off, no payment history at all (nothing shows)", JSON.stringify(offHistory) === "[]", show(offHistory));
 }
 
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);

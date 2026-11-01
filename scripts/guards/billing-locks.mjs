@@ -36,6 +36,13 @@
  *   - billing-sync-checks-its-caller: billing-sync, called by pg_cron without
  *     a sign-in, answers only the Vault secret and is scheduled before the
  *     hourly close.
+ *   - payment-history-is-the-owners (2026-11-01; 20261101100000_billing_receipts.sql):
+ *     the payment history, the receipts and the amounts are the business
+ *     owner's only (never a teammate's, never while billing is off, never the
+ *     exempt account's); a receipt is only ever Stripe's own https page; paying
+ *     inside HireFlow keeps every rule of Checkout (cards only, one claim, the
+ *     Idempotency-Key, the way back on HireFlow's own host), and Stripe.js is
+ *     allowed by the Content-Security-Policy.
  *
  * Behaviour: launch_locks_behaviour section 33 (the SQL),
  * scripts/billing_webhook.test.mjs, scripts/billing_checkout.test.mjs,
@@ -88,12 +95,17 @@ const BILLING_SQL_FUNCTIONS = [
   "billing_apply_payment_failed",
   "billing_apply_refund",
   "billing_record_event",
+  // 20261101100000_billing_receipts.sql: receipts and the payment history.
+  "billing_receipt_url",
+  "billing_save_receipt",
+  "billing_save_invoice",
+  "billing_history",
 ];
 
 const APPLY_FUNCTIONS = ["billing_apply_job_payment", "billing_apply_subscription", "billing_apply_payment_failed", "billing_apply_refund", "billing_record_event", "billing_record_unpaid_checkout"];
 
 /** The billing tables: written by the service role only. */
-const BILLING_TABLES = ["billing_customers", "job_passes", "billing_events", "billing_free_job_emails", "billing_refunds", "billing_refunded_payments", "billing_checkouts", "billing_switch_ons", "billing_deleted_customers"];
+const BILLING_TABLES = ["billing_customers", "job_passes", "billing_events", "billing_free_job_emails", "billing_refunds", "billing_refunded_payments", "billing_checkouts", "billing_switch_ons", "billing_deleted_customers", "billing_invoices"];
 /** What a browser may read: an owner their customer; job_passes' days, never a Stripe id or the amount. */
 const BROWSER_READS = { billing_customers: "select", job_passes: "columns" };
 
@@ -120,6 +132,12 @@ const BILLING_CODE_FILES = [
   "src/cockpit/components/BillingReturnNote.tsx",
   "supabase/functions/billing-sync/index.ts",
   "supabase/functions/billing-sync/sync.ts",
+  "src/components/billing/PaymentConfirmation.tsx",
+  "src/components/billing/PlanButton.tsx",
+  "src/components/billing/BillingTab.tsx",
+  "src/components/billing/CheckoutDialog.tsx",
+  "src/components/billing/StripeCheckoutForm.tsx",
+  "src/components/billing/DaysRing.tsx",
 ];
 
 /** HireFlow's own prices, however they are written. */
@@ -196,7 +214,7 @@ export default [
         if (PRICE.test(text)) detail.push(`${rel}: shows one of HireFlow's prices (they live in src/lib/billing.ts; the front page only in its one price line)`);
       }
       const words = code(await read("src/lib/billing.ts"));
-      for (const fn of ["jobPassLine", "billingCard", "repostNeedsPayment"]) {
+      for (const fn of ["jobPassLine", "billingCard", "repostNeedsPayment", "billingTabShown", "planSummary", "paymentHistoryRows"]) {
         const m = new RegExp(`export function ${fn}\\([\\s\\S]*?\\)[^{]*\\{([\\s\\S]*?)\\n\\}`).exec(words);
         if (!m || !/if \(!billingShown\(state\)/.test(m[1].split("\n").slice(0, 3).join("\n"))) detail.push(`src/lib/billing.ts: ${fn} must answer nothing unless billingShown(state)`);
       }
@@ -346,7 +364,7 @@ export default [
             if (!/anon|authenticated|public/i.test(m[2])) continue;
             const what = m[1].trim();
             const columns = /^select\s*\(([^)]*)\)$/i.exec(what);
-            const ok = (BROWSER_READS[table] === "select" && /^select$/i.test(what)) || (BROWSER_READS[table] === "columns" && columns && !/\b(stripe_\w+|amount_cents|currency|livemode)\b/i.test(columns[1]));
+            const ok = (BROWSER_READS[table] === "select" && /^select$/i.test(what)) || (BROWSER_READS[table] === "columns" && columns && !/\b(stripe_\w+|amount_cents|currency|livemode|receipt_url|job_title)\b/i.test(columns[1]));
             if (!ok) detail.push(`${rel}: grants ${what.slice(0, 80)} on ${table} to a browser role${table === "job_passes" ? " (its days only: never a Stripe id or the amount)" : ""}`);
           }
         }
@@ -365,10 +383,11 @@ export default [
         const def = await latestDefinition(ctx, fn);
         if (def && !def.securityDefiner) detail.push(`${def.rel}: ${fn} must run as its owner (SECURITY DEFINER)`);
       }
-      const v9 = migrations.find((m) => m.rel.endsWith("20261031100000_billing_pricing_v9.sql"))?.sql ?? "";
+      // Each is revoked from the browser roles in the migration that makes it (v9, or one after it).
+      const fromV9 = migrations.filter((m) => fromV9On(m.rel)).map((m) => m.sql).join("\n");
       for (const fn of BILLING_SQL_FUNCTIONS) {
         if (fn === "jobs_publish_needs_pass" || fn === "billing_close_for") continue;
-        if (!new RegExp(`revoke all on function public\\.${fn}\\(`, "i").test(v9) && !new RegExp(`'public\\.${fn}\\(`, "i").test(v9)) detail.push(`20261031100000_billing_pricing_v9.sql: public.${fn} is not revoked from the browser roles`);
+        if (!new RegExp(`revoke all on function public\\.${fn}\\(`, "i").test(fromV9) && !new RegExp(`'public\\.${fn}\\(`, "i").test(fromV9)) detail.push(`supabase/migrations: public.${fn} is not revoked from the browser roles`);
       }
       return detail.length ? { ok: false, detail } : { ok: true };
     },
@@ -527,6 +546,62 @@ export default [
         detail.push("supabase/migrations: billing-sync must be scheduled at minute 7 (before the close at 17) with the Vault secret");
       const matches = plain((await latestDefinition(ctx, "billing_sync_secret_matches"))?.body);
       if (!/length\(p_given\) >= 32 and p_given = \(select s\.decrypted_secret from vault\.decrypted_secrets s where s\.name = 'billing_sync_secret' limit 1\)/i.test(matches)) detail.push("billing_sync_secret_matches: only the Vault secret (32 characters or more) matches");
+      return detail.length ? { ok: false, detail } : { ok: true };
+    },
+  },
+  {
+    id: "payment-history-is-the-owners",
+    why:
+      "After the owner's own $1 test payment (2026-11-01) a business sees what it paid: a confirmation, a plan " +
+      "button, Settings -> Billing with its payment history and receipts. Those are the business owner's only: " +
+      "a teammate never sees an amount, nothing shows while billing is off or to the exempt account, a receipt " +
+      "is only ever Stripe's own https page, and paying inside HireFlow (Stripe's embedded form) keeps every " +
+      "rule Checkout had: cards only, one claim at a time, the Idempotency-Key, the way back on HireFlow's own host.",
+    run: async (ctx) => {
+      const { read } = ctx;
+      const detail = [];
+      // The database: nothing while off, nothing for the exempt account.
+      const history = plain((await latestDefinition(ctx, "billing_history"))?.body);
+      const off = history.search(/IF NOT public\.billing_on\(\) THEN RETURN '\[\]'::jsonb; END IF;/i);
+      const exempt = history.search(/IF p_owner IS NULL OR public\.billing_exempt\(p_owner\) THEN RETURN '\[\]'::jsonb; END IF;/i);
+      const reads = history.search(/job_passes|billing_invoices/i);
+      if (off < 0 || exempt < 0 || reads < 0 || !(off < exempt && exempt < reads)) detail.push("billing_history: it must answer [] while billing is off and for the exempt account, before it reads a payment");
+      if (!/where p\.owner_id = p_owner and p\.kind = 'paid'/i.test(history) || !/where i\.owner_id = p_owner/i.test(history)) detail.push("billing_history: only the owner's own payments");
+      const url = plain((await latestDefinition(ctx, "billing_receipt_url"))?.body);
+      if (!/p_url ~ '\^https:\/\/\(\[a-z0-9-\]\+\\\.\)\*stripe\\\.com\//.test(url)) detail.push("billing_receipt_url: a receipt is kept only when it is https on stripe.com");
+      const all = (await migrationTexts(ctx)).map((m) => m.sql).join("\n");
+      if (!/add constraint job_passes_receipt_on_stripe\s+check \(receipt_url is null or \(length\(receipt_url\) <= 2000 and receipt_url ~ '\^https:\/\/\(\[a-z0-9-\]\+\\\.\)\*stripe\\\.com\//i.test(all)) detail.push("job_passes: receipt_url must be held to Stripe's https pages by a CHECK");
+      const save = plain((await latestDefinition(ctx, "billing_save_invoice"))?.body);
+      if (!/v_owner := public\.billing_owner_of_customer\(p_customer\);/i.test(save) || !/s\.user_id = v_owner and s\.plan_type = 'unlimited' and s\.stripe_subscription_id = p_subscription/i.test(save))
+        detail.push("billing_save_invoice: an invoice is kept only for the Unlimited HireFlow tracks for the business whose Stripe customer paid");
+      // get-subscription: the history for the owner only.
+      const gs = code(await read("supabase/functions/get-subscription/index.ts"));
+      const gate = gs.indexOf("if (!isTeamMemberRole && ownerId === user.id && state.billingEnabled === true && state.exempt !== true) {");
+      const ask = gs.indexOf('admin.rpc("billing_history", { p_owner: ownerId })');
+      if (gate < 0 || ask < 0 || ask < gate || (gs.match(/billing_history/g) ?? []).length !== 1) detail.push("supabase/functions/get-subscription/index.ts: the payment history goes to the business owner only, while billing is on, never the exempt account");
+      // The receipt address: Stripe's own pages only, on the server and the page.
+      const stripe = code(await read("supabase/functions/_shared/stripe.ts"));
+      const words = code(await read("src/lib/billing.ts"));
+      const rule = "/^https:\\/\\/([a-z0-9-]+\\.)*stripe\\.com\\/[^\\s\"'<>]*$/";
+      if (!stripe.includes(rule) || !words.includes(rule)) detail.push("stripeReceiptUrl (_shared/stripe.ts and src/lib/billing.ts): a receipt is only ever an https page on stripe.com");
+      // The pages: the Billing tab and the plan button for the owner, through billingTabShown / planSummary.
+      const settings = code(await read("src/pages/Settings.tsx"));
+      if (!/const billingTab = isEmployer && !isTeamMember && billingTabShown\(billing\);/.test(settings) || !/\{billingTab \? \(\s*<BillingTab \/>/.test(settings) || !/SETTINGS_TABS\.filter\(\(t\) => t\.key !== "billing" \|\| billingTab\)/.test(settings))
+        detail.push("src/pages/Settings.tsx: the Billing tab is the owner's, only while billingTabShown (billing on, not exempt)");
+      const plan = code(await read("src/components/billing/PlanButton.tsx"));
+      if (!/const owner = role === "employer" && !isTeamMember;/.test(plan) || !/if \(!owner\) return null;/.test(plan) || !/return planSummary\(billing, live\);/.test(plan) || !/if \(!plan\) return null;/.test(plan))
+        detail.push("src/components/billing/PlanButton.tsx: the plan button is the owner's, and only what planSummary answers (nothing while off or for the exempt account)");
+      // Paying inside HireFlow keeps Checkout's rules (the order and the claim are held by never-two-unlimited-and-money-given-back).
+      const checkout = code(await read("supabase/functions/billing-checkout/index.ts"));
+      if (!/const embedded = body\.ui === "embedded";/.test(checkout) || !/\{ ui_mode: "embedded_page", return_url: paid, redirect_on_completion: "if_required" \}/.test(checkout) || !/const paid = `\$\{back\}\?billing=\$\{kind === "job" \? "paid" : "unlimited"\}`;/.test(checkout))
+        detail.push("billing-checkout: the embedded form comes back (if a payment needs a redirect) only to HireFlow's own job or Settings page");
+      if (!/invoice_creation: \{ enabled: true, invoice_data: \{ description, metadata \} \}/.test(checkout)) detail.push("billing-checkout: each $99 payment makes an invoice (invoice_creation) saying what it paid for");
+      if ((checkout.match(/"\/checkout\/sessions",/g) ?? []).length !== 1) detail.push("billing-checkout: one place makes the Checkout page (cards only, the claim's Idempotency-Key), embedded or hosted");
+      const api = code(await read("src/lib/billingApi.ts"));
+      if (!/return \/\^pk_\(\?:live\|test\)_\[A-Za-z0-9\]\+\$\/\.test\(key\) \? key : null;/.test(api)) detail.push("src/lib/billingApi.ts: only a publishable key (pk_live_ / pk_test_) is read for Stripe.js, never a secret");
+      // Stripe.js is allowed by the Content-Security-Policy.
+      const csp = (await read("scripts/csp.mjs")) ?? "";
+      for (const host of ["https://js.stripe.com", "https://hooks.stripe.com", "https://checkout.stripe.com", "https://api.stripe.com"]) if (!csp.includes(`"${host}"`)) detail.push(`scripts/csp.mjs: ${host} is not in the policy (Stripe's embedded form)`);
       return detail.length ? { ok: false, detail } : { ok: true };
     },
   },

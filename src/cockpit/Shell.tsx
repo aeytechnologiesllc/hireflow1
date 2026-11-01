@@ -11,6 +11,7 @@ import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { useInterviewsLeftToday } from "./hooks/useInterviewsLeftToday";
 import { Wordmark } from "./components/Wordmark";
 import { AccountMenu } from "./components/AccountMenu";
+import { PlanButton } from "@/components/billing/PlanButton";
 import { NavIcon, playNavIcon, type NavIconName } from "./components/NavIcon";
 
 interface NavItem {
@@ -182,6 +183,13 @@ function Sidebar() {
           <div className="flex flex-col items-center gap-2 min-[1121px]:w-full min-[1121px]:flex-row min-[1121px]:justify-end">
             <ThemeSwitch />
             <NotificationBell />
+          </div>
+          {/* The plan (2026-11-01): what the business is on and each live
+              job's remaining days (from its real pass), one click from anywhere. The owner only, while
+              billing is on, never the exempt account (PlanButton draws nothing
+              otherwise). */}
+          <div className="w-full min-w-0">
+            <PlanButton />
           </div>
           <div className="w-full min-w-0">
             <AccountMenu align="start" side="top">

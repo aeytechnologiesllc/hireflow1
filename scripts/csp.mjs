@@ -15,7 +15,9 @@
  * the built-in video room; the Supabase
  * project; OpenAI's realtime endpoint (the voice interview); Google's OAuth
  * and Calendar API (the scheduling wizard); ipify (the signing record's IP);
- * Google Fonts.
+ * Google Fonts; Stripe.js and its payment form (paying inside HireFlow,
+ * 2026-11-01: Embedded Checkout, as Stripe's CSP guide lists it:
+ * https://docs.stripe.com/security/guide#content-security-policy).
  *
  * It ships as Content-Security-Policy-Report-Only first: nothing is blocked,
  * every violation is reported to the client-errors function (?kind=csp,
@@ -35,6 +37,9 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const SUPABASE = "https://yqklrkpptnhubsnijqze.supabase.co";
 const SUPABASE_WSS = "wss://yqklrkpptnhubsnijqze.supabase.co";
 export const REPORT_URI = `${SUPABASE}/functions/v1/client-errors?kind=csp`;
+const STRIPE_JS = "https://js.stripe.com";
+const STRIPE_JS_FRAMES = "https://*.js.stripe.com";
+const STRIPE_CHECKOUT = "https://checkout.stripe.com";
 
 const sha256 = (text) => `'sha256-${createHash("sha256").update(text, "utf8").digest("base64")}'`;
 
@@ -80,6 +85,10 @@ export function buildPolicy({ indexHtml, landingHtml }) {
         // site (src/lib/pdfWorker.ts), so no package host is trusted.
         "https://cdn.jsdelivr.net/npm/natively@2.20.0/",
         "https://*.daily.co",
+        // Stripe.js (loaded only when a payment form opens) and Checkout.
+        STRIPE_JS,
+        STRIPE_JS_FRAMES,
+        STRIPE_CHECKOUT,
         "blob:",
       ],
     ],
@@ -100,9 +109,26 @@ export function buildPolicy({ indexHtml, landingHtml }) {
         "https://oauth2.googleapis.com",
         "https://api.ipify.org",
         "https://cdn.jsdelivr.net",
+        "https://api.stripe.com",
+        STRIPE_CHECKOUT,
       ],
     ],
-    ["frame-src", ["'self'", "blob:", "data:", SUPABASE, "https://*.daily.co", "https://accounts.google.com"]],
+    [
+      "frame-src",
+      [
+        "'self'",
+        "blob:",
+        "data:",
+        SUPABASE,
+        "https://*.daily.co",
+        "https://accounts.google.com",
+        // Stripe's payment form, its 3D Secure checks and Checkout.
+        STRIPE_JS,
+        STRIPE_JS_FRAMES,
+        "https://hooks.stripe.com",
+        STRIPE_CHECKOUT,
+      ],
+    ],
     ["worker-src", ["'self'", "blob:"]],
     ["manifest-src", ["'self'"]],
     ["object-src", ["'none'"]],

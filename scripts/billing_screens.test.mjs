@@ -150,5 +150,154 @@ console.log("\nBack from Stripe, and a job closed while its editor was open\n");
   );
 }
 
+console.log("\nAfter paying: the confirmation, the plan button, Settings -> Billing (2026-11-01)\n");
+{
+  const fs = await import("node:fs");
+  const T = await import(path.join(ROOT, "src/lib/settingsTabs.ts"));
+  const PAID_AT = new Date(NOW - 60_000).toISOString();
+  const raw = {
+    billingEnabled: true,
+    exempt: false,
+    plan: "pay_per_job",
+    freeJobAvailable: false,
+    unlimited: null,
+    hasCustomer: true,
+    jobs: {
+      a: { kind: "paid", endsAt: "2026-12-10T12:00:00Z", timeLeft: true, refunded: false },
+      b: { kind: "free", endsAt: at(0.4), timeLeft: true, refunded: false },
+      c: { kind: "paid", endsAt: at(-3), timeLeft: false, refunded: false },
+    },
+    payments: [
+      { kind: "job", jobId: "a", title: "Chat agent", amountCents: 100, currency: "usd", paidAt: PAID_AT, startsAt: PAID_AT, endsAt: "2026-12-10T12:00:00Z", receiptUrl: "https://invoice.stripe.com/i/acct_1/test_1", refunded: false },
+      { kind: "unlimited", jobId: null, title: null, amountCents: 29900, currency: "usd", paidAt: at(-40), startsAt: at(-40), endsAt: at(-10), receiptUrl: "javascript:alert(1)", refunded: true },
+      { kind: "job", jobId: null, title: null, amountCents: 9900, currency: "usd", paidAt: at(-70), startsAt: at(-70), endsAt: at(-40), receiptUrl: "https://evil.example/r", refunded: false },
+      { kind: "bogus", paidAt: "x" },
+    ],
+  };
+  const state = B.readBillingState(raw);
+  check(
+    "the payment history is read defensively: a receipt is only Stripe's own https page (never javascript: or another site), a bad row is dropped",
+    state.payments.length === 3 && state.payments[0].receiptUrl === "https://invoice.stripe.com/i/acct_1/test_1" && state.payments[1].receiptUrl === null && state.payments[2].receiptUrl === null &&
+      B.stripeReceiptUrl("https://pay.stripe.com/receipts/x") && !B.stripeReceiptUrl("https://stripe.com.evil.example/x") && !B.stripeReceiptUrl("http://invoice.stripe.com/i/x"),
+    show(state.payments),
+  );
+  check("no payments in the answer (a teammate, or not readable) is null, never an empty history", B.readBillingState({ ...raw, payments: undefined }).payments === null);
+  check("what was charged, as charged: $1.00, $99.00, $299.00", B.formatMoney(100) === "$1.00" && B.formatMoney(9900, "usd") === "$99.00" && B.formatMoney(29900, "USD") === "$299.00" && B.formatMoney(null) === null && B.formatMoney(-1) === null);
+
+  // The Billing tab and the plan button: only while billing is on, never the exempt account.
+  const off = B.readBillingState({ billingEnabled: false, payments: [] });
+  const exempt = B.readBillingState({ ...raw, exempt: true });
+  check(
+    "billing off, unknown or the exempt account: no Billing tab, no plan button, no payment history",
+    [off, null, exempt].every((s) => !B.billingTabShown(s) && B.planSummary(s, [{ id: "a", title: "Chat agent" }], NOW) === null && B.paymentHistoryRows(s) === null) && B.billingTabShown(state),
+  );
+  const plan = B.planSummary(state, [{ id: "a", title: "Chat agent" }, { id: "b", title: "Email agent" }, { id: "z", title: "No pass" }], NOW);
+  check(
+    "the plan button: Pay per job, each live job with its days left out of 30 (soonest first), the soonest one's ring on the button; the price in its own line",
+    plan.name === "Pay per job" && plan.sub === "2 jobs live" && plan.jobs.length === 2 && plan.jobs[0].id === "b" && plan.jobs[0].line === "Free job, last day" &&
+      plan.jobs[1].line === "30 days left" && plan.jobs[1].daysLeft === 30 && plan.jobs[1].total === 30 && plan.ring?.left === 1 && plan.priceLine === "$99 a job, live for 30 days" && plan.freeLine === null,
+    show(plan),
+  );
+  check("the ring empties as the days pass", B.ringFraction(30, 30) === 1 && B.ringFraction(15, 30) === 0.5 && B.ringFraction(0, 30) === 0 && B.ringFraction(40, 30) === 1 && B.ringFraction(null, 30) === 0);
+  const one = B.planSummary(state, [{ id: "a", title: "Chat agent" }], NOW);
+  const none = B.planSummary({ ...state, freeJobAvailable: true }, [], NOW);
+  check("one job: its days on the button; none: the free job if it is still there", one.sub === "30 days left" && none.sub === "First job free" && none.ring === null && none.freeLine === "Your first job is free for 30 days.", show([one.sub, none]));
+  const unl = B.planSummary({ ...state, plan: "unlimited", unlimited: { status: "active", active: true, periodEnd: "2026-12-04T10:00:00Z", cancelAtPeriodEnd: false } }, [{ id: "a", title: "Chat agent" }], NOW);
+  const unlEnding = B.planSummary({ ...state, plan: "unlimited", unlimited: { status: "active", active: true, periodEnd: "2026-12-04T10:00:00Z", cancelAtPeriodEnd: true } }, [], NOW);
+  const unlFailed = B.planSummary({ ...state, plan: "unlimited", unlimited: { status: "past_due", active: true, periodEnd: "2026-12-04T10:00:00Z", cancelAtPeriodEnd: false } }, [], NOW);
+  check(
+    "Unlimited: no clock on its jobs, when it renews (or ends), and a failed payment said plainly",
+    unl.name === "Unlimited" && unl.sub === "Renews Dec 4" && unl.unlimitedLine === "Renews December 4, 2026." && unl.ring === null && unl.jobs[0].daysLeft === null && unl.priceLine === "$299 a month" &&
+      unlEnding.sub === "Ends Dec 4" && unlEnding.unlimitedLine === "Ends December 4, 2026. Your jobs close then." && unlFailed.sub === "Payment failed" && /didn't go through/.test(unlFailed.warning ?? ""),
+    show([unl, unlEnding.sub, unlFailed.sub]),
+  );
+  const rows = B.paymentHistoryRows(state);
+  check(
+    "Payment history: the date, what it paid for, the amount charged, the receipt, and a refund said",
+    rows.length === 3 && rows[0].what === "“Chat agent”, 30 days" && rows[0].amount === "$1.00" && rows[0].receiptUrl === "https://invoice.stripe.com/i/acct_1/test_1" && /to Dec 10, 2026$/.test(rows[0].period ?? "") &&
+      rows[1].what === "Unlimited, one month" && rows[1].amount === "$299.00" && rows[1].refunded === true && rows[2].what === "A job since deleted, 30 days" && B.paymentHistoryRows({ ...state, payments: null }) === null,
+    show(rows),
+  );
+
+  // The confirmation: what was paid (as charged), what it bought, the receipt.
+  const paid = B.paymentSince(state, "job", "a", NOW);
+  const jobWords = B.confirmationWords({ what: "job", jobTitle: "Chat agent", payment: paid, endsAt: "2026-12-01T12:00:00Z", live: true, state: "confirmed" });
+  check(
+    "after a $1 test payment: \"Payment confirmed\", Paid $1.00 and when, “Chat agent” is live until <date>. Unlimited applicants., a receipt by email",
+    jobWords.heading === "Payment confirmed" && jobWords.paid === "$1.00" && /^[A-Z][a-z]+ \d{1,2}, 2026$/.test(jobWords.paidOn ?? "") && jobWords.forWhat === "“Chat agent”, live for 30 days" &&
+      jobWords.got === "“Chat agent” is live until December 1, 2026. Unlimited applicants." && jobWords.receipt === "A receipt is on its way to your email.",
+    show(jobWords),
+  );
+  const unlWords = B.confirmationWords({ what: "unlimited", payment: { ...state.payments[1], paidAt: PAID_AT }, endsAt: "2026-12-01T12:00:00Z", live: null, state: "confirmed" });
+  check("Unlimited: \"Unlimited is on. Every job stays live while it lasts. Renews <date>.\" and $299.00", unlWords.got === "Unlimited is on. Every job stays live while it lasts. Renews December 1, 2026." && unlWords.paid === "$299.00", show(unlWords));
+  const waiting = B.confirmationWords({ what: "job", jobTitle: "Chat agent", payment: null, endsAt: null, live: false, state: "waiting" });
+  const slow = B.confirmationWords({ what: "unlimited", payment: null, endsAt: null, live: null, state: "slow" });
+  check(
+    "before the webhook has it: calm words, no amount, nothing claimed as done",
+    waiting.heading === "Confirming your payment" && waiting.lead === B.PAID_RETURN_WORDS.waiting && waiting.paid === null && waiting.got === null && slow.lead === B.SETTINGS_RETURN_WORDS.slow,
+    show([waiting, slow]),
+  );
+  const notLive = B.confirmationWords({ what: "job", jobTitle: "Chat agent", payment: paid, endsAt: "2026-12-01T12:00:00Z", live: false, state: "confirmed" });
+  check("paid but not live (a paused business, or the job not publishable): says so, never \"is live\"", /Press Publish/.test(notLive.got) && !/is live/.test(notLive.got), notLive.got);
+  check(
+    "the payment just made is the one shown: never an older one, never another job's; the record landing is the job's paid days or Unlimited on",
+    B.paymentSince(state, "job", "a", NOW)?.amountCents === 100 && B.paymentSince(state, "job", "a", NOW + 3 * 3_600_000) === null && B.paymentSince(state, "job", "b", NOW) === null &&
+      B.paymentConfirmed(state, "job", "a") && !B.paymentConfirmed(state, "job", "c") && !B.paymentConfirmed(state, "unlimited", null) && !B.paymentConfirmed(off, "job", "a"),
+  );
+  check("no time-of-day pitch, no \"AI\" in the new words", !/morning|night|tonight|\bAI\b/i.test(JSON.stringify([B.PLAN_WORDS, B.BILLING_TAB_WORDS, B.PAYMENT_CONFIRMATION_WORDS, B.CHECKOUT_DIALOG_WORDS.secure, B.CHECKOUT_DIALOG_WORDS.back])));
+  check(
+    "the page reads Checkout's client secret as the form to mount, and nothing else as one",
+    B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9" }).kind === "embedded" && B.billingCallOutcome(200, { clientSecret: "javascript:alert(1)" }).kind === "failed" &&
+      B.billingCallOutcome(200, { clientSecret: "cs_test_x-y" }).kind === "failed",
+  );
+
+  // Settings' tabs: General, Billing, Account, Notifications; a link opens Billing.
+  check(
+    "Settings opens the tab a link names (?tab=billing, #billing, the plan button's #payment-history, Stripe's way back ?billing=…), else General",
+    T.SETTINGS_TABS.map((t) => t.label).join(",") === "General,Billing,Account,Notifications" && T.settingsTabFrom("?tab=billing", "") === "billing" && T.settingsTabFrom("", "#billing") === "billing" &&
+      T.settingsTabFrom("?tab=billing", "#payment-history") === "billing" && T.settingsTabFrom("", "#payment-history") === "billing" && T.settingsTabFrom("?billing=unlimited", "") === "billing" &&
+      T.settingsTabFrom("?tab=notifications", "") === "notifications" && T.settingsTabFrom("?tab=<x>", "#nope") === "general" && T.settingsTabFrom("", "") === "general",
+  );
+  check(
+    "…and Billing only for an account that has it: while billing is still being read it waits; without it, General",
+    T.shownSettingsTab("billing", true, false) === "billing" && T.shownSettingsTab("billing", false, true) === "loading" && T.shownSettingsTab("billing", false, false) === "general" && T.shownSettingsTab("account", false, false) === "account",
+  );
+
+  // Where the pages are wired.
+  const read = (rel) => fs.readFileSync(path.join(ROOT, rel), "utf8");
+  const settings = read("src/pages/Settings.tsx");
+  check(
+    "Settings: four tabs; the Billing tab (BillingTab) only for the owner while billingTabShown; every existing card kept (careers page, tips, account, two-step, delete, notifications)",
+    /const billingTab = isEmployer && !isTeamMember && billingTabShown\(billing\);/.test(settings) && /\{billingTab \? \(\s*<BillingTab \/>/.test(settings) &&
+      ["general", "billing", "account", "notifications"].every((t) => settings.includes(`<TabsContent value="${t}"`)) &&
+      ["<CareersPageCard />", "<TipsSettingCard />", "<TwoStepSignIn />", 'id="email"', "{deleteAccountDialog}", '<DeviceNotifications audience="staff" />'].every((s) => settings.includes(s)),
+  );
+  const shell = read("src/cockpit/Shell.tsx");
+  const more = read("src/cockpit/pages/More.tsx");
+  const planButton = read("src/components/billing/PlanButton.tsx");
+  check(
+    "the plan button: in the sidebar right above the account switcher, on a phone at the top of More; the owner's only, from planSummary",
+    shell.indexOf("<PlanButton />") > 0 && shell.indexOf("<PlanButton />") < shell.indexOf('<AccountMenu align="start" side="top">') && /<PlanButton variant="card" \/>/.test(more) &&
+      /if \(!owner\) return null;/.test(planButton) && /return planSummary\(billing, live\);/.test(planButton),
+  );
+  const dialog = read("src/components/billing/PublishPaymentDialog.tsx");
+  check(
+    "the payment dialog: Stripe's form in place (embedded), then the confirmation in place; once paid, closing never says \"saved, goes live once it's paid for\"",
+    /if \(outcome\.kind === "embedded"\) \{/.test(dialog) && /<StripeCheckoutForm clientSecret=\{stage\.clientSecret\}/.test(dialog) && /<PaymentConfirmation\b/.test(dialog) &&
+      /if \(paid\) finish\("close"\);\s*else onOpenChange\(false\);/.test(dialog),
+  );
+  const note = read("src/cockpit/components/BillingReturnNote.tsx");
+  check("back from Stripe's hosted page (the fallback): the confirmation dialog, once (closing takes ?billing= off)", /<PaymentConfirmationDialog\b/.test(note) && /next\.delete\("billing"\);/.test(note));
+  const form = read("src/components/billing/StripeCheckoutForm.tsx");
+  const api = read("src/lib/billingApi.ts");
+  check(
+    "Stripe.js is loaded only when a form opens (the pure loader, never on page load), with the publishable key from VITE_STRIPE_PUBLISHABLE_KEY; without it, Stripe's hosted page",
+    /import\("@stripe\/stripe-js\/pure"\)/.test(form) && !/^import [^;]*from "@stripe\/stripe-js"/m.test(form) && /import\.meta\.env\.VITE_STRIPE_PUBLISHABLE_KEY/.test(api) &&
+      /\.\.\.\(embeddedCheckoutAvailable\(\) \? \{ ui: "embedded" \} : \{\}\)/.test(api),
+  );
+  const pkg = JSON.parse(read("package.json"));
+  check("the Stripe packages are pinned to exact versions", /^\d+\.\d+\.\d+$/.test(pkg.dependencies["@stripe/stripe-js"]) && /^\d+\.\d+\.\d+$/.test(pkg.dependencies["@stripe/react-stripe-js"]), show([pkg.dependencies["@stripe/stripe-js"], pkg.dependencies["@stripe/react-stripe-js"]]));
+}
+
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

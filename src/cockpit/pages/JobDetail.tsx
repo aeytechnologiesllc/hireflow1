@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
 import { ChevronLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -38,8 +38,21 @@ export default function CockpitJobDetail() {
   // paying when the job needs it. Nothing while billing is off.
   const { billing, refetch: refetchBilling } = useBilling();
   const [payOpen, setPayOpen] = useState(false);
+  const [params, setParams] = useSearchParams();
 
   const job = useMemo(() => jobs.find((j) => j.id === jobId) ?? null, [jobs, jobId]);
+
+  // ?share=1 (after paying in the job builder: "Share your job") opens the share
+  // kit once the job is live, then leaves the address.
+  const shareAsked = params.get("share") === "1";
+  const jobLive = job?.status === "live";
+  useEffect(() => {
+    if (!shareAsked || !jobLive) return;
+    setShareOpen(true);
+    const next = new URLSearchParams(params);
+    next.delete("share");
+    setParams(next, { replace: true });
+  }, [shareAsked, jobLive]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // "Posted 2 months ago · USD 15 to 18 an hour · Springfield, IL", worked out
   // the way the Jobs list works it out, so the two never disagree.
@@ -185,6 +198,9 @@ export default function CockpitJobDetail() {
       <BillingReturnNote
         billing={billing}
         live={live}
+        jobId={job.id}
+        jobTitle={job.title}
+        onShare={() => setShareOpen(true)}
         onRefresh={() => {
           void refetch();
           void refetchBilling();
@@ -201,6 +217,13 @@ export default function CockpitJobDetail() {
         onPublishInstead={() => {
           setPayOpen(false);
           navigate(`/jobs/edit/${job.id}`);
+        }}
+        onDone={(next) => {
+          setPayOpen(false);
+          void refetch();
+          void refetchBilling();
+          if (next === "share") setShareOpen(true);
+          if (next === "billing") navigate("/settings?tab=billing");
         }}
       />
 

@@ -105,6 +105,7 @@ const world = {
   sessions: {},
   expireRefused: false,
   sessionRefused: false,
+  uiModesRefused: [],
   problems: [],
   client(url, key, opts) {
     if (key === "anon-key") {
@@ -162,6 +163,10 @@ globalThis.fetch = async (url, init = {}) => {
   if (call.method === "GET" && read) return new Response(JSON.stringify({ id: read[1], status: world.sessions[read[1]] ?? "open" }), { status: 200 });
   if (call.method === "POST" && call.path === "/checkout/sessions") {
     if (world.sessionRefused) return new Response(JSON.stringify({ error: { message: "no" } }), { status: 400 });
+    const ui = call.body.get("ui_mode");
+    // The account's API version knows one name for the embedded form (2026-03-25 renamed it).
+    if (ui && world.uiModesRefused.includes(ui)) return new Response(JSON.stringify({ error: { type: "invalid_request_error", param: "ui_mode", message: `Invalid ui_mode: ${ui}` } }), { status: 400 });
+    if (ui) return new Response(JSON.stringify({ id: "cs_test_x", url: null, client_secret: "cs_test_x_secret_abc123" }), { status: 200 });
     return new Response(JSON.stringify({ id: "cs_test_x", url: "https://checkout.stripe.com/c/pay/cs_test_x" }), { status: 200 });
   }
   if (call.method === "POST" && call.path === "/billing_portal/sessions") return new Response(JSON.stringify({ id: "bps_1", url: "https://billing.stripe.com/p/session/test_1" }), { status: 200 });
@@ -264,6 +269,65 @@ console.log("\n3. A checkout for a job\n");
   await ask(checkout, { kind: "job", jobId: JOB }, { origin: "https://evil.example" });
   const again = world.stripe.find((c) => c.path === "/checkout/sessions")?.body;
   check("a customer already kept is reused (no new one), and another origin never becomes the way back", !world.stripe.some((c) => c.path === "/customers") && again?.get("customer") === "cus_kept" && again.get("success_url") === `https://hireflownow.com/jobs/${JOB}?billing=paid`, show(again && [...again]));
+}
+
+console.log("\n3b. Paying inside HireFlow (Stripe's embedded form), and an invoice for each $99 (2026-11-01)\n");
+{
+  world.checkAnswer = () => ({ ok: true, owner_id: OWNER, email: "owner@clinic.example", company: "Clinic One", job_title: "Chat agent\u0007 <b>", customer_id: "cus_kept" });
+  reset();
+  const made = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
+  const sessions = world.stripe.filter((c) => c.path === "/checkout/sessions");
+  const p = sessions[0]?.body;
+  check("with ui: \"embedded\" the answer is the session's client secret, never a page address", made.status === 200 && made.body?.clientSecret === "cs_test_x_secret_abc123" && !("url" in (made.body ?? {})), show(made));
+  check(
+    "the embedded session: ui_mode embedded_page, no redirect for a card, the way back only to the job on HireFlow's own host, and no success or cancel page",
+    p?.get("ui_mode") === "embedded_page" && p.get("redirect_on_completion") === "if_required" && p.get("return_url") === `https://staff.hireflownow.com/jobs/${JOB}?billing=paid` &&
+      !p.has("success_url") && !p.has("cancel_url"),
+    show(p && [...p]),
+  );
+  check(
+    "…and every rule of Checkout kept: cards only, the owner's customer, the claim's Idempotency-Key, the metadata, the page recorded on the claim",
+    p?.get("payment_method_types[0]") === "card" && !p.has("payment_method_types[1]") && p.get("customer") === "cus_kept" && p.get("mode") === "payment" &&
+      sessions[0].headers["Idempotency-Key"] === "hireflow-checkout-c1a1a1a1-0000-4000-8000-000000000001" && p.get("metadata[owner_id]") === OWNER && p.get("metadata[job_id]") === JOB &&
+      show(world.dbCalls.find((c) => c.fn === "billing_checkout_opened")?.args) === show({ p_claim: "c1a1a1a1-0000-4000-8000-000000000001", p_session: "cs_test_x" }),
+    show(p && [...p]),
+  );
+  check(
+    "each $99 payment makes an invoice saying which job it paid for (the title made plain), on the invoice and the payment",
+    p?.get("invoice_creation[enabled]") === "true" && p.get("invoice_creation[invoice_data][description]") === "HireFlow: “Chat agent b” live for 30 days, unlimited applicants" &&
+      p.get("payment_intent_data[description]") === p.get("invoice_creation[invoice_data][description]") && p.get("invoice_creation[invoice_data][metadata][job_id]") === JOB,
+    show([p?.get("invoice_creation[invoice_data][description]")]),
+  );
+  reset();
+  await ask(checkout, { kind: "job", jobId: JOB });
+  const hosted = world.stripe.find((c) => c.path === "/checkout/sessions")?.body;
+  check("without it, Stripe's hosted page as before (and its invoice too)", !hosted?.has("ui_mode") && hosted?.get("success_url") === `https://staff.hireflownow.com/jobs/${JOB}?billing=paid` && hosted.get("invoice_creation[enabled]") === "true", show(hosted && [...hosted]));
+
+  // An account on an API version before 2026-03-25 knows "embedded", not "embedded_page".
+  world.uiModesRefused = ["embedded_page"];
+  reset();
+  const older = await ask(checkout, { kind: "unlimited", ui: "embedded" }, { origin: "https://hireflownow.com" });
+  const tries = world.stripe.filter((c) => c.path === "/checkout/sessions");
+  check(
+    "Stripe refusing the ui_mode name: the other name, once, with the same Idempotency-Key (a refused request is not kept for it); Unlimited's way back is Settings",
+    older.status === 200 && older.body?.clientSecret === "cs_test_x_secret_abc123" && tries.length === 2 && tries[0].body.get("ui_mode") === "embedded_page" && tries[1].body.get("ui_mode") === "embedded" &&
+      tries[0].headers["Idempotency-Key"] === tries[1].headers["Idempotency-Key"] && tries[1].body.get("return_url") === "https://hireflownow.com/settings?billing=unlimited" &&
+      tries[1].body.get("mode") === "subscription" && !tries[1].body.has("invoice_creation[enabled]") && /Unlimited/.test(tries[1].body.get("subscription_data[description]") ?? ""),
+    show([older, tries.map((t) => [...t.body])]),
+  );
+  world.uiModesRefused = ["embedded_page", "embedded"];
+  reset();
+  const neither = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
+  const released = world.dbCalls.filter((c) => c.fn === "billing_checkout_opened" && c.args.p_session === null).length;
+  check("neither name taken: 502 and the claim let go, never a third try", neither.status === 502 && world.stripe.filter((c) => c.path === "/checkout/sessions").length === 2 && released === 1, show(neither));
+  world.uiModesRefused = [];
+  world.sessionRefused = true;
+  reset();
+  const otherRefusal = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
+  world.sessionRefused = false;
+  check("any other refusal is not retried", otherRefusal.status === 502 && world.stripe.filter((c) => c.path === "/checkout/sessions").length === 1, show(otherRefusal));
+  check("the answer is read by the page as the form to mount", (await import(path.join(ROOT, "src/lib/billing.ts"))).billingCallOutcome(200, { clientSecret: "cs_test_x_secret_abc123" }).kind === "embedded");
+  world.checkAnswer = () => ({ ok: true, owner_id: OWNER, email: "owner@clinic.example", company: "Clinic One", job_title: "Chat agent", customer_id: null });
 }
 
 console.log("\n4. Unlimited\n");

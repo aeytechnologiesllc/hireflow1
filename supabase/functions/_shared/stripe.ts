@@ -137,6 +137,34 @@ export function stripeErrorCode(reply: StripeReply): string | null {
   return typeof code === "string" ? code : null;
 }
 
+/** The parameter Stripe refused (error.param), or null. */
+export function stripeErrorParam(reply: StripeReply): string | null {
+  const param = (reply.body?.error as { param?: unknown } | undefined)?.param;
+  return typeof param === "string" ? param : null;
+}
+
+/**
+ * A receipt address worth keeping: Stripe's own page (a hosted invoice on
+ * invoice.stripe.com, a receipt on pay.stripe.com), https only. The database
+ * holds the same rule (public.billing_receipt_url, 20261101100000).
+ */
+export function stripeReceiptUrl(value: unknown): string | null {
+  return typeof value === "string" && value.length <= 2000 && /^https:\/\/([a-z0-9-]+\.)*stripe\.com\/[^\s"'<>]*$/.test(value) ? value : null;
+}
+
+/** The subscription an invoice bills, wherever this API version keeps it. */
+export function invoiceSubscription(invoice: Record<string, unknown>): string | null {
+  const parent = (invoice.parent ?? {}) as { subscription_details?: { subscription?: unknown } };
+  return idOf(invoice.subscription) ?? idOf(parent.subscription_details?.subscription);
+}
+
+/** The period a subscription invoice paid for (its first line's), as ISO strings. */
+export function invoicePeriod(invoice: Record<string, unknown>): { start: string | null; end: string | null } {
+  const lines = (invoice.lines as { data?: Array<Record<string, unknown>> } | undefined)?.data ?? [];
+  const period = (lines[0]?.period ?? {}) as { start?: unknown; end?: unknown };
+  return { start: isoFromUnix(period.start), end: isoFromUnix(period.end) };
+}
+
 /**
  * Every subscription Stripe holds for a customer (any status): { reached:
  * true, list } or { reached: false } when Stripe did not answer.

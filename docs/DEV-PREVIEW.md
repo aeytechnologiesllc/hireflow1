@@ -251,7 +251,13 @@ publish refused as `jobs_publish_needs_pass` refuses it (HINT
 `paid:<job id>` for the page Checkout comes back to (the job goes live four
 seconds later, as the webhook would put it) and `slow` to never go live (the
 calm message after 30 seconds). In the dialog, "Pay $99 and publish" and "Go
-Unlimited" go to that page, not to Stripe.
+Unlimited" go to that page, not to Stripe. Add `embedded` for paying inside
+HireFlow (2026-11-01): the page has a publishable key, billing-checkout
+answers a client secret, and a **stand-in** for Stripe's form
+(`src/dev-preview/PreviewCheckoutForm.tsx`, marked as one: Stripe.js cannot
+load offline) pays with no card; the payment lands three seconds later and the
+confirmation shows. `onedollar` makes what was charged $1.00 (the owner's live
+test). The states that are on carry a payment history (Settings → Billing).
 
 | Screen | URL |
 |---|---|
@@ -262,6 +268,11 @@ Unlimited" go to that page, not to Stripe.
 | Back from Checkout: goes live | `/jobs/20000000-0000-4000-8000-000000000003?__preview=1&__previewRole=employer&__previewBilling=paygo,paid:20000000-0000-4000-8000-000000000003&billing=paid` |
 | Settings → Billing (each state) | `/settings?__preview=1&__previewRole=employer&__previewBilling=paygo` (or `free`, `unlimited`, `ending`, `pastdue`, `canceled`, `exempt`) |
 | A teammate: days left, no Billing card | `/jobs?__preview=1&__previewRole=team_member&__previewBilling=paygo` |
+| Settings → Billing: plan, live jobs (rings), payment history | `/settings?tab=billing&__preview=1&__previewRole=employer&__previewBilling=paygo,embedded` (or `unlimited,embedded`) |
+| Pay inside HireFlow ($1): Post it again → Pay → stand-in form → confirmation | `/jobs/20000000-0000-4000-8000-000000000004?__preview=1&__previewRole=employer&__previewBilling=paygo,embedded,onedollar` |
+| Go Unlimited inside HireFlow (Settings → Billing → Go Unlimited) | `/settings?tab=billing&__preview=1&__previewRole=employer&__previewBilling=paygo,embedded` |
+| The plan button (sidebar) and its dropdown | `/jobs?__preview=1&__previewRole=employer&__previewBilling=paygo` |
+| Phone: the plan at the top of More | `/more?__preview=1&__previewRole=employer&__previewBilling=paygo` |
 
 ### Create job
 

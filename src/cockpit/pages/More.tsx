@@ -16,6 +16,7 @@ import { useCockpitAccount } from "../hooks/useCockpitData";
 import { useInterviewsLeftToday } from "../hooks/useInterviewsLeftToday";
 import { useAuth } from "@/hooks/useAuth";
 import { usePlatformAdminAccount } from "@/hooks/usePlatformAdmin";
+import { PlanButton } from "@/components/billing/PlanButton";
 
 type Item = { label: string; to: string; icon: typeof CalendarDays };
 
@@ -65,6 +66,10 @@ export default function CockpitMore() {
           <div className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>Owner workspace</div>
         </div>
       </div>
+
+      {/* The plan and each live job's remaining days (2026-11-01): on a phone the
+          sidebar's plan button lives here. The owner only, while billing is on. */}
+      <PlanButton variant="card" />
 
       {/* list */}
       <div className="ck-card overflow-hidden">
