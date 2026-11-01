@@ -204,25 +204,24 @@ function customerServiceFields(brief: GenerateFlowRequest["brief"]): { customerS
   return detectFamily(brief) === "customer_service" ? { customerService: { pack: packIdForBrief(brief), channel: channelForBrief(brief) } } : {};
 }
 
-async function callEdgeFunction(req: GenerateFlowRequest): Promise<JobFlow> {
+async function callEdgeFunction(req: GenerateFlowRequest, watch: GenerateWatch = {}): Promise<JobFlow> {
   if (!SB_URL || !SB_KEY) throw new Error("Supabase env not configured");
-  // Require a signed-in employer: send the user's access token so generate-flow
-  // (verify_jwt) rejects anonymous calls and can't be abused to drain the API key.
+  // A signed-in employer only: generate-flow (verify_jwt) refuses anonymous calls.
   const { data: { session } } = await supabase.auth.getSession();
   const accessToken = session?.access_token;
   if (!accessToken) throw new Error("Not signed in — sign in to generate with Ava");
-  // A dropped connection or an edge function that never responds must not hang this
-  // request forever — the "Building your hiring flow…" screen has nothing else timing
-  // it out. Bound it so a stall surfaces as an ordinary failure and falls through to
-  // the template flow below, same as any other generate-flow error.
+  // One time limit for the whole answer, its streamed parts included: past it the built-in plan stands in
+  // (generateJobFlow), and the page leaving (watch.signal) stops it too, which stops the model.
   const controller = new AbortController();
-  // 40 s: the writer often needs more than the old 18, and every stop here
-  // put the plain template post on a business's public job (the Phase 7
-  // product audit).
-  const timeout = window.setTimeout(() => controller.abort(), 40000);
-  let res: Response;
+  let timedOut = false;
+  const timeout = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, watch.timeLimitMs ?? WRITER_TIME_LIMIT_MS);
+  const leave = () => controller.abort();
+  watch.signal?.addEventListener("abort", leave);
   try {
-    res = await fetch(`${SB_URL}/functions/v1/generate-flow`, {
+    const res = await fetch(`${SB_URL}/functions/v1/generate-flow`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -234,27 +233,109 @@ async function callEdgeFunction(req: GenerateFlowRequest): Promise<JobFlow> {
         rigor: rigorToLegacy(req.rigor),
         rigorPlan: req.rigor,
         ...customerServiceFields(req.brief),
+        // Each part as it is written (generate-flow's header); an older function ignores it and answers in one piece.
+        progress: true,
       }),
       signal: controller.signal,
     });
+    if (res.ok && res.body && /ndjson/i.test(res.headers.get("content-type") ?? "")) {
+      return edgePayloadToFlow(req, await readPlanParts(res.body, watch, controller.signal));
+    }
+    const data = (await res.json()) as EdgeFlowPayload & { error?: string };
+    if (!res.ok || data.error) {
+      throw new Error(data.error ?? `generate-flow ${res.status}`);
+    }
+    return edgePayloadToFlow(req, data);
+  } catch (err) {
+    if (timedOut) throw new WriterTookTooLong();
+    throw err;
   } finally {
     window.clearTimeout(timeout);
+    watch.signal?.removeEventListener("abort", leave);
   }
-  const data = (await res.json()) as EdgeFlowPayload & { error?: string };
-  if (!res.ok || data.error) {
-    throw new Error(data.error ?? `generate-flow ${res.status}`);
-  }
-  return edgePayloadToFlow(req, data);
 }
 
-export async function generateJobFlow(req: GenerateFlowRequest): Promise<GenerateFlowResult> {
+/**
+ * How long the builder waits for Ava's writer, the streamed parts included,
+ * before the built-in plan stands in (40 s since the Phase 7 product audit:
+ * the writer often needs more than the old 18). The build screen says so.
+ */
+export const WRITER_TIME_LIMIT_MS = 40_000;
+
+/** What the build screen hears while the writer works (src/lib/buildProgress.ts). */
+export interface GenerateWatch {
+  /** The model has taken the request and is writing. */
+  onWriting?: () => void;
+  /** One part of the plan is written: generate-flow's key ("jobPost", "application", "voiceQuestions", ...). */
+  onPart?: (part: string) => void;
+  /** The page left: stop waiting (and the model). */
+  signal?: AbortSignal;
+  /** For tests: the time limit. */
+  timeLimitMs?: number;
+}
+
+class WriterTookTooLong extends Error {
+  constructor() {
+    super("generate-flow took longer than the time limit");
+    this.name = "WriterTookTooLong";
+  }
+}
+
+/** generate-flow's streamed answer: one JSON object a line (its header), the parts as they are written, then the plan. */
+async function readPlanParts(body: ReadableStream<Uint8Array>, watch: GenerateWatch, stop: AbortSignal): Promise<EdgeFlowPayload> {
+  const reader = body.getReader();
+  // The time limit or the page leaving ends the read too, whatever the connection does with the abort.
+  const cut = () => void reader.cancel().catch(() => {});
+  if (stop.aborted) cut();
+  stop.addEventListener("abort", cut);
   try {
-    const flow = await callEdgeFunction(req);
+    return await readLines(reader, watch);
+  } finally {
+    stop.removeEventListener("abort", cut);
+  }
+}
+
+async function readLines(reader: ReadableStreamDefaultReader<Uint8Array>, watch: GenerateWatch): Promise<EdgeFlowPayload> {
+  const decoder = new TextDecoder();
+  let buf = "";
+  let plan: EdgeFlowPayload | null = null;
+  const line = (raw: string) => {
+    const t = raw.trim();
+    if (!t) return;
+    let msg: { stage?: unknown; part?: unknown; result?: unknown; error?: unknown };
+    try {
+      msg = JSON.parse(t);
+    } catch {
+      return;
+    }
+    if (msg.error) throw new Error(String(msg.error));
+    if (msg.stage === "writing") watch.onWriting?.();
+    if (typeof msg.part === "string") watch.onPart?.(msg.part);
+    if (msg.result && typeof msg.result === "object") plan = msg.result as EdgeFlowPayload;
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let i: number;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      line(buf.slice(0, i));
+      buf = buf.slice(i + 1);
+    }
+  }
+  line(buf);
+  if (!plan) throw new Error("generate-flow ended without a plan");
+  return plan;
+}
+
+export async function generateJobFlow(req: GenerateFlowRequest, watch: GenerateWatch = {}): Promise<GenerateFlowResult> {
+  try {
+    const flow = await callEdgeFunction(req, watch);
     if (!flow.phases?.length) throw new Error("empty flow");
     return { flow, source: "openai" };
   } catch (err) {
     console.warn("[ava-engine] AI generation unavailable — using template fallback.", err);
-    return generateTemplateFlow(req);
+    return { ...generateTemplateFlow(req), fallback: err instanceof WriterTookTooLong ? "timeout" : "unavailable" };
   }
 }
 

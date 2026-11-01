@@ -65,6 +65,14 @@ code.
    server calls, so nothing reaches the live functions. Sample words, not the
    model's. Example:
    `/applications/30000000-0000-4000-8000-000000000005/chat-simulation/wf-chatsim?__preview=1&__previewRole=candidate&__previewJob=chat-agent&__previewAi=sample`.
+   For timing Ava's build screen (2026-11-01): `__previewAi=sample,writer:12`
+   answers generate-flow after 12 seconds with a sample plan's words, its parts
+   streamed as the live function streams them when the page asks
+   (`progress: true`); `sample,hang` never answers, so the page's own 40 s
+   limit and its first-draft note can be seen. The builder only reaches the
+   writer when `VITE_SUPABASE_URL` is set (run vite with the public values from
+   `src/integrations/supabase/client.ts`); the call is answered in the page
+   either way. Example: `/jobs/create?__preview=1&__previewRole=employer&__previewAi=sample,writer:12`.
 
 ## Running it
 

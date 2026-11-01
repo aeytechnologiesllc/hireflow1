@@ -173,4 +173,6 @@ export interface GenerateFlowRequest {
 export interface GenerateFlowResult {
   flow: JobFlow;
   source: "openai" | "template";
+  /** Why the built-in plan stood in for the writer: it took longer than the builder waits, or it was not there. */
+  fallback?: "timeout" | "unavailable";
 }

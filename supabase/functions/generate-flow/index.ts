@@ -2,9 +2,18 @@
  * Supabase Edge Function: generate-flow
  * Ava's flow generation brain — OpenAI server-side only.
  *
- * Input: { brief: JobBrief, rigor: easy|medium|hard, rigorPlan?: easy|standard|high }
+ * Input: { brief: JobBrief, rigor: easy|medium|hard, rigorPlan?: easy|standard|high, progress?: true }
  * Output: JobFlow content fields (jobPost, application, quiz, simulation, the
  * written interview (still keyed voiceQuestions/voiceDimensions), rationales)
+ *
+ * With `progress: true` (Ava's builder since 2026-11-01) the answer is
+ * streamed as lines of JSON (application/x-ndjson): {"stage":"writing"} once
+ * the model has taken the request, {"part":"<key>"} as each part of the plan
+ * is written (_shared/jsonParts.ts), then {"result":{...}} (the same body as
+ * without it) or {"error":...}. The builder shows each part as it lands
+ * instead of one frozen line, and closing the page stops the model
+ * (the stream's cancel aborts the call). Without it, one JSON body, as
+ * before, for any page still open on an older build.
  *
  * NOTE (pre-launch): deployed with verify_jwt=false for demo. Gate behind auth + rate-limit before launch.
  */
@@ -14,6 +23,7 @@ import { guardAuthenticatedAiCall, guardPublicAiCall } from "../_shared/rateLimi
 import { jobWritingBusiness } from "../_shared/signedIn.ts";
 import { scenarioPack } from "../_shared/scenarioPacks.ts";
 import { AGE_RULE, blankAgeAsks, textWithoutAgeAsks, withoutAgeAsks } from "../_shared/ageWording.ts";
+import { createJsonPartScanner, createSseContentReader } from "../_shared/jsonParts.ts";
 
 const CS_CHANNELS = { chat: "chat", phone: "phone calls", email: "email", mixed: "chat, phone and email" } as const;
 
@@ -96,6 +106,47 @@ const CONTENT_SCHEMA = {
     phaseRationales: { type: "array", items: { type: "string" } },
   },
 };
+
+/**
+ * The plan's parts as lines of JSON while the model writes them, then the plan
+ * (the same body as the one-piece answer) or the error. Cancelled (the page
+ * closed, or its own time limit), the model's call is aborted.
+ */
+// deno-lint-ignore no-explicit-any
+function partsResponse(upstreamBody: ReadableStream<Uint8Array>, upstream: AbortController, planFrom: (content: any) => unknown): Response {
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (line: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(line)}\n`));
+      let content = "";
+      const scanner = createJsonPartScanner((part) => send({ part }));
+      const sse = createSseContentReader((text) => {
+        content += text;
+        scanner.push(text);
+      });
+      try {
+        send({ stage: "writing" });
+        const reader = upstreamBody.getReader();
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          sse.push(decoder.decode(value, { stream: true }));
+        }
+        sse.end();
+        if (!content) send({ error: "empty_completion" });
+        else send({ result: planFrom(JSON.parse(content)) });
+      } catch (e) {
+        send({ error: "exception", detail: String(e).slice(0, 300) });
+      }
+      controller.close();
+    },
+    cancel() {
+      upstream.abort();
+    },
+  });
+  return new Response(stream, { status: 200, headers: { ...CORS, "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-store" } });
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -189,13 +240,24 @@ Deno.serve(async (req: Request) => {
       "For a customer service role: write for any country (no country-specific laws, apps or holidays), in plain English a second-language applicant reads easily; use the counterpart word you are given and never 'player' unless that is the word; for phone work, include interview questions about handling calls. " +
       AGE_RULE;
 
+    // A customer-service job's skills check and practice cases are its pack's, put in on the page whatever is written
+    // here (src/lib/avaEngine/customerService.ts applyCustomerServicePack), so they are not asked for: the writer
+    // spends its time on the post, the form and the interview, which are used (2026-11-01: the wait was the
+    // owner's complaint, and those two parts were written only to be thrown away).
+    const quizAsk = csPack
+      ? "quiz: an empty array (this job's skills check comes from its own scenario pack)"
+      : `${spec.quiz} scenario quiz items {scenario, good}`;
+    const simAsk = csPack
+      ? "simulation: an empty array (its practice cases come from the same pack)"
+      : `${spec.sim} simulation scenario(s) {title, prompt} (empty array if rigor is easy)`;
+
     const userMsg = `${ctx}
 
 Write EXACTLY:
 - jobPost: title, summary, responsibilities[], requirements[], niceToHaves[] (candidate-facing, no AI language)
 - ${spec.app} short application questions
-- ${spec.quiz} scenario quiz items {scenario, good}
-- ${spec.sim} simulation scenario(s) {title, prompt} (empty array if rigor is easy)
+- ${quizAsk}
+- ${simAsk}
 - voiceQuestions: ${spec.voice} written interview questions (the candidate types each answer; never ask them to speak or record)
 - voiceDimensions: 3-4 competency dimensions to score the written interview answers
 - shortlistWeights: 5 ranking factors, most important first
@@ -203,6 +265,9 @@ Write EXACTLY:
 
 Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
 
+    // The builder asks for the plan's parts as they are written (see the top of this file).
+    const wantsParts = body?.progress === true;
+    const upstream = new AbortController();
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -217,7 +282,9 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
           json_schema: { name: "ava_job_flow", strict: true, schema: CONTENT_SCHEMA },
         },
         max_completion_tokens: 12000,
+        ...(wantsParts ? { stream: true } : {}),
       }),
+      signal: upstream.signal,
     });
 
     if (!res.ok) {
@@ -225,41 +292,45 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
       return json({ error: "openai_error", status: res.status, detail: detail.slice(0, 800) }, 502);
     }
 
+    // deno-lint-ignore no-explicit-any
+    const planFrom = (content: any) => {
+      // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts).
+      const jobPost = content.jobPost && typeof content.jobPost === "object"
+        ? {
+            ...content.jobPost,
+            // A title that was only an age phrase ("Young Professionals Wanted") falls back to the role's own.
+            // Never the unfiltered title back (the fifth Phase 6 review).
+            title: textWithoutAgeAsks(content.jobPost.title) || brief.roleTitle || brief.title || "Customer Service Agent",
+            summary: textWithoutAgeAsks(content.jobPost.summary),
+            requirements: withoutAgeAsks(content.jobPost.requirements),
+            niceToHaves: withoutAgeAsks(content.jobPost.niceToHaves),
+            responsibilities: withoutAgeAsks(content.jobPost.responsibilities),
+          }
+        : content.jobPost;
+      return {
+        jobPost,
+        application: take<string>(withoutAgeAsks(content.application), spec.app),
+        quiz: take(withoutAgeAsks(content.quiz, (q: { scenario?: unknown; good?: unknown }) => `${q?.scenario ?? ""} ${q?.good ?? ""}`), spec.quiz),
+        // The practice's prompt becomes the applicant's brief on jobs outside customer service (the fifth review).
+        simulation: take(withoutAgeAsks(content.simulation, (s: { title?: unknown; prompt?: unknown }) => `${s?.title ?? ""}. ${s?.prompt ?? ""}`), spec.sim),
+        voiceQuestions: take<string>(withoutAgeAsks(content.voiceQuestions), spec.voice),
+        // Ranking factors and notes too: an age factor would rank applicants by age (the fourth Phase 6 review).
+        voiceDimensions: take<string>(withoutAgeAsks(content.voiceDimensions), 4),
+        shortlistWeights: take<string>(withoutAgeAsks(content.shortlistWeights), 5),
+        // Read by position (the note of the step at the same index): an age note
+        // is emptied in place, never dropped, or every later step shows the
+        // next one's note (the fifth review).
+        phaseRationales: take<string>(blankAgeAsks(content.phaseRationales) as string[], 8),
+        generatedBy: { provider: "openai", model, promptVersion: csPack ? "flowgen-cs@1" : "flowgen@1" },
+      };
+    };
+
+    if (wantsParts && res.body) return partsResponse(res.body, upstream, planFrom);
+
     const data = await res.json();
     const raw = data?.choices?.[0]?.message?.content;
     if (!raw) return json({ error: "empty_completion" }, 502);
-
-    const content = JSON.parse(raw);
-
-    // No age, birth date or marital status, whatever the model wrote (_shared/ageWording.ts).
-    const jobPost = content.jobPost && typeof content.jobPost === "object"
-      ? {
-          ...content.jobPost,
-          // A title that was only an age phrase ("Young Professionals Wanted") falls back to the role's own.
-          // Never the unfiltered title back (the fifth Phase 6 review).
-          title: textWithoutAgeAsks(content.jobPost.title) || brief.roleTitle || brief.title || "Customer Service Agent",
-          summary: textWithoutAgeAsks(content.jobPost.summary),
-          requirements: withoutAgeAsks(content.jobPost.requirements),
-          niceToHaves: withoutAgeAsks(content.jobPost.niceToHaves),
-          responsibilities: withoutAgeAsks(content.jobPost.responsibilities),
-        }
-      : content.jobPost;
-    return json({
-      jobPost,
-      application: take<string>(withoutAgeAsks(content.application), spec.app),
-      quiz: take(withoutAgeAsks(content.quiz, (q: { scenario?: unknown; good?: unknown }) => `${q?.scenario ?? ""} ${q?.good ?? ""}`), spec.quiz),
-      // The practice's prompt becomes the applicant's brief on jobs outside customer service (the fifth review).
-      simulation: take(withoutAgeAsks(content.simulation, (s: { title?: unknown; prompt?: unknown }) => `${s?.title ?? ""}. ${s?.prompt ?? ""}`), spec.sim),
-      voiceQuestions: take<string>(withoutAgeAsks(content.voiceQuestions), spec.voice),
-      // Ranking factors and notes too: an age factor would rank applicants by age (the fourth Phase 6 review).
-      voiceDimensions: take<string>(withoutAgeAsks(content.voiceDimensions), 4),
-      shortlistWeights: take<string>(withoutAgeAsks(content.shortlistWeights), 5),
-      // Read by position (the note of the step at the same index): an age note
-      // is emptied in place, never dropped, or every later step shows the
-      // next one's note (the fifth review).
-      phaseRationales: take<string>(blankAgeAsks(content.phaseRationales) as string[], 8),
-      generatedBy: { provider: "openai", model, promptVersion: csPack ? "flowgen-cs@1" : "flowgen@1" },
-    });
+    return json(planFrom(JSON.parse(raw)));
   } catch (e) {
     return json({ error: "exception", detail: String(e) }, 500);
   }

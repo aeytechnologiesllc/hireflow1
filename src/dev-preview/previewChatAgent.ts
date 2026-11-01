@@ -171,7 +171,94 @@ function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }
 
-export function installPreviewSampleAi(supabaseUrl: string, enabled: boolean): void {
+/**
+ * `?__previewAi=sample,writer:<seconds>` (2026-11-01, for timing Ava's build
+ * screen without the live writer): generate-flow answers after that many
+ * seconds with a sample plan's words (a customer-service job's post, form
+ * questions and interview; its skills check and practice come from the pack
+ * on the page, as live). Asked for its parts as they are written (the page's
+ * `progress: true`), it sends them as the live function does, one line each
+ * at the share of the time the writer takes to reach it, then the result.
+ * `sample,hang`: it never answers (the page's own time limit decides).
+ * Plain `sample` answers as before: down, so the built-in plan is used.
+ */
+export function previewWriterSpec(value: string | null): { mode: "down" } | { mode: "writer"; seconds: number } | { mode: "hang" } {
+  const flags = (value ?? "").split(",").map((w) => w.trim());
+  if (flags.includes("hang")) return { mode: "hang" };
+  const writer = flags.find((f) => /^writer:\d+(\.\d+)?$/.test(f));
+  return writer ? { mode: "writer", seconds: Number(writer.slice(7)) } : { mode: "down" };
+}
+
+const SAMPLE_PLAN = {
+  jobPost: {
+    title: "Chat Support Agent",
+    summary: "Answer our customers by chat, kindly and correctly, so every question is settled in one go.",
+    responsibilities: ["Answer customer chats on our website", "Follow our refund and booking rules", "Pass anything you cannot settle to the right person with a clear note"],
+    requirements: ["Clear, friendly written English", "A quiet place to work and a steady connection", "At least a year of chat or email support"],
+    niceToHaves: ["Experience with a help desk tool"],
+  },
+  application: ["Which hours can you work each week?", "Tell us about a customer you helped by chat.", "Why this job?"],
+  quiz: [],
+  simulation: [],
+  voiceQuestions: [
+    "Tell us about a time a customer was upset with you. What did you write first?",
+    "How do you keep three chats moving at once?",
+    "A customer asks for something our rules do not allow. How do you say no?",
+    "How do you check you understood a question before you answer it?",
+    "What do you do when you do not know the answer?",
+    "What makes a reply clear to someone reading it on a phone?",
+  ],
+  voiceDimensions: ["Clarity", "Judgment", "Care", "Follow-through"],
+  shortlistWeights: ["Skills check", "Chat practice", "Written interview", "Form answers", "Connection"],
+  phaseRationales: ["A quick filter for fit.", "", "Their own words, in writing."],
+  generatedBy: { provider: "openai", model: "preview-sample-writer", promptVersion: "flowgen-cs@1" },
+};
+
+/** The sample writer's answer: the plan's parts at the share of the time the live writer reaches each, then the result. */
+function sampleWriter(seconds: number, progress: boolean, signal: AbortSignal | null | undefined): Promise<Response> {
+  const total = Math.max(0, seconds) * 1000;
+  const wait = (ms: number) =>
+    new Promise<void>((resolve, reject) => {
+      const t = setTimeout(resolve, ms);
+      signal?.addEventListener("abort", () => {
+        clearTimeout(t);
+        reject(new DOMException("aborted", "AbortError"));
+      });
+    });
+  if (!progress) return wait(total).then(() => json(SAMPLE_PLAN));
+  const parts: Array<[string, number]> = [
+    ["jobPost", 0.45],
+    ["application", 0.55],
+    ["quiz", 0.56],
+    ["simulation", 0.57],
+    ["voiceQuestions", 0.85],
+    ["voiceDimensions", 0.88],
+    ["shortlistWeights", 0.93],
+    ["phaseRationales", 1],
+  ];
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const line = (o: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(o)}\n`));
+      try {
+        line({ stage: "writing" });
+        let at = 0;
+        for (const [part, share] of parts) {
+          await wait(total * share - at);
+          at = total * share;
+          line({ part });
+        }
+        line({ result: SAMPLE_PLAN });
+        controller.close();
+      } catch (e) {
+        controller.error(e);
+      }
+    },
+  });
+  return Promise.resolve(new Response(stream, { status: 200, headers: { "Content-Type": "application/x-ndjson" } }));
+}
+
+export function installPreviewSampleAi(supabaseUrl: string, enabled: boolean, writer: ReturnType<typeof previewWriterSpec> = { mode: "down" }): void {
   if (!enabled) return;
   const base = `${supabaseUrl}/functions/v1/`;
   const realFetch = window.fetch.bind(window);
@@ -187,6 +274,10 @@ export function installPreviewSampleAi(supabaseUrl: string, enabled: boolean): v
     }
     const replies = Array.isArray(body.messages) ? body.messages.filter((m) => (m as { role?: string })?.role === "user").length : 0;
     if (name === "generate-flow") {
+      if (writer.mode === "hang") {
+        return new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))));
+      }
+      if (writer.mode === "writer") return sampleWriter(writer.seconds, (body as { progress?: unknown }).progress === true, init?.signal);
       await new Promise((resolve) => setTimeout(resolve, 1200));
       return json({ error: "Sample preview: the built-in plan is used." }, 503);
     }

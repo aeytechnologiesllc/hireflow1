@@ -1057,6 +1057,55 @@ Mon–Fri, 9am–5pm Manila time"):
   as it is typed; the review's job post names them on either plan.
   `scripts/own_answers.test.mjs`.
 
+## Building the plan, as it happens (2026-11-01)
+
+The owner: "when it was creating the job, it felt like it almost got stuck
+because it was there for a very long time and the last process". Timed in the
+dev preview with the page's own code and a stand-in writer
+(`__previewAi=sample,writer:<s>`): the build screen walked six fixed lines in
+4.25 s and then held the last, "Building the scorecard", until the writer's
+whole plan came back; with a 12 s writer it was frozen from 4.7 s to 13.2 s.
+Its stuck notice ("That took longer than it should have") came at 25 s while
+the writer's limit was 40 s, and it stayed up even once the plan came (a 30 s
+writer never reached the review; the only ways on were "Try again", a second
+AI call, or Back). With the writer down, the plan was ready at 1.2 s and shown
+at 5.7 s. And for a customer-service job generate-flow asked the model for
+eight skills questions and a practice case that the page then replaced with
+the pack's: about half of what it wrote was thrown away.
+
+- **Shorter**: for a customer-service job generate-flow asks for an empty quiz
+  and an empty practice (the pack's are used, as before), so the writer
+  writes the post, the form, the interview and the scorecard only (about
+  half the text, by size; the model, its settings and the rest of the prompt
+  are unchanged; any other job is asked as before).
+- **Real progress**: asked with `progress: true`, generate-flow streams the
+  model's answer and names each part of the plan as it closes
+  (`_shared/jsonParts.ts`), then sends the same plan as before; without it,
+  one JSON body, as before, so a page still open on an older build works.
+  Closing the page aborts the model's call. The screen
+  (`src/lib/buildProgress.ts`, `BuildStep`) lists the plan's real parts: the
+  skills check, the practice and the computer check are the pack's and ready
+  at once ("5 questions from dental office situations", "6 patient chats to
+  pick from"), and the job post, the form questions, the written interview
+  and the scorecard turn ready as they are written, the first not yet written
+  saying "Writing…". From 6 s a line counts the seconds and says that past 40
+  the ready-made first draft is used.
+- **The time limit** (`WRITER_TIME_LIMIT_MS`, 40 s, the whole answer) falls
+  back to the built-in plan with a plain note on the screen and the review
+  ("Ava took more than 40 seconds, so the job post, form and interview are a
+  ready-made first draft…"); the writer down says so too. The stuck notice
+  waits until 15 s past the limit (only a broken chain reaches it), and a
+  plan that comes while it shows still opens. The build starts once on
+  arriving (never again because an answer's identity changed under it), only
+  the latest build's answer is used, and leaving the build stops it.
+- **After, same stand-ins**: writer down, the review at 4.1 s (was 5.7 s);
+  12 s writer, each part ticking as it lands, the review at 13.2 s; 30 s
+  writer, the review at 31.1 s (was never); a writer that never answers, the
+  first draft and its note at 40.2 s, the review at 42.9 s (was the stuck
+  notice for good). `scripts/generate_flow_parts.test.mjs` runs the real
+  function with its world stood in. **Deploy generate-flow** for the parts and
+  the shorter ask; the page works with either version.
+
 ## Unfinished work is kept (2026-11-01)
 
 The owner: "this job should be saved up, so if they ... exit this back out,

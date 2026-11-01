@@ -58,6 +58,7 @@ import {
   draftWorthOffering,
   withRemoteFollowUps,
   generateJobFlow,
+  WRITER_TIME_LIMIT_MS,
   generateTemplateFlow,
   CHAT_AGENT_KIND,
   CS_HOURS_CHIPS,
@@ -124,6 +125,7 @@ import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
 import { CS_INDUSTRY_CHIPS } from "@/lib/avaEngine/customerService";
 import { PACK_CHOICES, businessKindLine } from "@/lib/businessKind";
+import { buildPartStates, buildPartsFor, draftLine } from "@/lib/buildProgress";
 import { OWN_HOURS_CHIP, OWN_WORDS_MAX, SOMETHING_ELSE, givenWithOwnWords, ownBusinessPack, ownHoursIn, ownHoursLine, withOwnHoursInPost, withOwnWords, type OwnWords } from "@/lib/ownAnswers";
 import { claimSuggestedSlug } from "@/lib/jobSlugAvailability";
 
@@ -569,6 +571,10 @@ function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: Av
   const [reviewCards, setReviewCards] = useState<ReviewPhaseCard[]>(() => (saved?.flow ? restoreReviewCards(saved.flow, saved.reviewEdits) : []));
   const [generating, setGenerating] = useState(false);
   const [genSource, setGenSource] = useState<"openai" | "template" | null>(null);
+  // Why the built-in plan stood in, the writer's parts as they arrive, and when the build started (the build screen).
+  const [genFallback, setGenFallback] = useState<"timeout" | "unavailable" | null>(null);
+  const [buildArrived, setBuildArrived] = useState<ReadonlySet<string>>(() => new Set());
+  const [buildStartedAt, setBuildStartedAt] = useState<number | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishedCode, setPublishedCode] = useState<string | null>(null);
   const [publishedRoleId, setPublishedRoleId] = useState<string | null>(null);
@@ -602,9 +608,12 @@ function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: Av
     if (step !== 3) setBuildStuck(false);
   }, [step]);
 
+  // Only once the writer's own time limit has long passed (flowGenerator.ts always settles by then, the built-in plan
+  // standing in): it fired at 25 s while the limit was 40, and stayed up even once the plan came (the owner's run of
+  // 2026-11-01 waited on it). A plan that comes back while it shows still opens.
   useEffect(() => {
     if (step !== 3 || !generating) return;
-    const t = window.setTimeout(() => setBuildStuck(true), 25000);
+    const t = window.setTimeout(() => setBuildStuck(true), WRITER_TIME_LIMIT_MS + 15000);
     return () => window.clearTimeout(t);
   }, [step, generating]);
 
@@ -743,37 +752,83 @@ function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: Av
     );
   }, [briefFields, chipAnswers, rigor, rigorTouched, flow, step, fuIndex, reviewCards, publishedCode, ownWords, userId]);
 
+  // One build at a time: each run has a number, and only the latest one's answer is used; leaving the build (Back, or
+  // the page closing) stops the request, which stops the writer (generate-flow aborts the model's call).
+  const genRunRef = useRef(0);
+  const genStopRef = useRef<AbortController | null>(null);
   const runGeneration = useCallback(async () => {
+    const run = (genRunRef.current += 1);
+    genStopRef.current?.abort();
+    const stop = new AbortController();
+    genStopRef.current = stop;
     setGenerating(true);
     setGenSource(null);
+    setGenFallback(null);
+    setBuildArrived(new Set());
+    setBuildStartedAt(Date.now());
     const brief = briefFromForm({
       ...briefFields,
       followUps: briefAnswers(followUps),
     });
     try {
-      const result = await generateJobFlow({
-        brief,
-        rigor,
-        rigorRecommendation: { recommended: playbook.rigor.recommended, chosen: rigor, rationale: playbook.rigor.rationale },
-      });
+      const result = await generateJobFlow(
+        {
+          brief,
+          rigor,
+          rigorRecommendation: { recommended: playbook.rigor.recommended, chosen: rigor, rationale: playbook.rigor.rationale },
+        },
+        {
+          signal: stop.signal,
+          // Each part of the plan as the writer finishes it (src/lib/buildProgress.ts).
+          onPart: (part) => {
+            if (genRunRef.current === run) setBuildArrived((a) => new Set(a).add(part));
+          },
+        },
+      );
+      if (genRunRef.current !== run) return;
       // The business's own hours are in the post whichever plan wrote it (src/lib/ownAnswers.ts).
       const built = { ...result.flow, jobPost: withOwnHoursInPost(result.flow.jobPost, ownHoursIn(brief.followUps, CS_HOURS_CHIPS)) };
       setFlow(built);
       setReviewCards(flowToReviewCards(built));
       setGenSource(result.source);
+      setGenFallback(result.fallback ?? null);
     } catch {
-      toast.error("Could not build the plan. Try again.");
+      if (genRunRef.current === run) toast.error("Could not build the plan. Try again.");
     } finally {
-      setGenerating(false);
+      if (genRunRef.current === run) setGenerating(false);
     }
   }, [briefFields, followUps, playbook, rigor, briefAnswers]);
 
+  // The build starts on arriving at it, once (never again because an answer's identity changed under it), and leaving
+  // it stops it.
+  const runGenerationRef = useRef(runGeneration);
+  runGenerationRef.current = runGeneration;
   useEffect(() => {
     if (step === 3) {
       advanceBuildRef.current = false;
-      void runGeneration();
+      void runGenerationRef.current();
+    } else {
+      genRunRef.current += 1;
+      genStopRef.current?.abort();
     }
-  }, [step, runGeneration]);
+  }, [step]);
+  useEffect(() => () => genStopRef.current?.abort(), []);
+  // A plan that came back while the stuck notice showed opens all the same.
+  useEffect(() => {
+    if (step === 3 && buildStuck && flow && !generating && !advanceBuildRef.current) {
+      advanceBuildRef.current = true;
+      setStep(4);
+    }
+  }, [step, buildStuck, flow, generating]);
+
+  // The build screen's lines: the plan's real parts and where each is (src/lib/buildProgress.ts).
+  const buildParts = useMemo(() => {
+    if (step !== 3) return [];
+    const answered = briefAnswers(followUps);
+    return buildPartsFor(briefFromForm({ ...briefFields, followUps: answered }));
+  }, [step, briefFields, briefAnswers, followUps]);
+  const buildFinished: "openai" | "template" | null = step === 3 && !generating && flow && genSource ? genSource : null;
+  const buildStates = buildPartStates(buildParts, { arrived: buildArrived, finished: buildFinished });
 
   // Screening cards only — the job-post card is the listing, not a step. With none
   // left there is nothing for Ava to read, so the job must not go live like that.
@@ -1334,8 +1389,12 @@ function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: Av
                   <BuildStep
                     role={briefFields.role}
                     rigorLabel={rigorLabel}
-                    reasoning={playbook.reasoning}
-                    generating={generating}
+                    parts={buildParts}
+                    states={buildStates}
+                    startedAt={buildStartedAt}
+                    limitMs={WRITER_TIME_LIMIT_MS}
+                    draftNote={buildFinished === "template" ? draftLine(genFallback, WRITER_TIME_LIMIT_MS) : null}
+                    finished={buildFinished}
                     onDone={() => {
                       if (advanceBuildRef.current || !flow) return;
                       advanceBuildRef.current = true;
@@ -1362,8 +1421,8 @@ function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: Av
                         failed): say so, the post is a plain first draft (the
                         Phase 7 product audit: only the header's colour told). */}
                     {genSource === "template" && (
-                      <p className="mx-auto mt-3 max-w-md text-[13px]" style={{ color: "hsl(var(--ck-brass))" }}>
-                        The job post is a short first draft this time. After you publish, read it on the job page and edit the wording from Jobs.
+                      <p className="mx-auto mt-3 max-w-md text-[13px]" style={{ color: "hsl(var(--ck-brass))" }} data-review-first-draft>
+                        {genFallback === "timeout" ? `Ava took more than ${Math.round(WRITER_TIME_LIMIT_MS / 1000)} seconds, so the job post, form and interview are a ready-made first draft.` : "The job post is a short first draft this time."} After you publish, read it on the job page and edit the wording from Jobs.
                       </p>
                     )}
                   </div>

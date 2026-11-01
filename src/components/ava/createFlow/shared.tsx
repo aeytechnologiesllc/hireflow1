@@ -16,6 +16,7 @@ import {
 
 import { DISPLAY, STEPS, type Accent } from "./sharedAtoms";
 import { FROM_YOUR_ANSWERS } from "@/lib/builderHints";
+import { writerWaitLine } from "@/lib/buildProgress";
 
 import { GemRail } from "@/components/rail/GemRail";
 import {
@@ -342,88 +343,105 @@ export function PhaseRow({
   );
 }
 
+/**
+ * "Building your hiring plan…", as it really happens (src/lib/buildProgress.ts; the owner's live run of 2026-11-01:
+ * "it felt like it almost got stuck because it was there for a very long time and the last process"). Each line is a
+ * part of the plan: the pack's are ready at once, the writer's turn ready as generate-flow says each is written, and the
+ * first not yet written says "Writing…". Nothing is timed for show: the review opens a beat after the plan is back
+ * (longer when the built-in plan's first draft stood in, so its line can be read).
+ */
 export function BuildStep({
   role,
   rigorLabel,
-  reasoning,
-  generating,
+  parts,
+  states,
+  startedAt,
+  limitMs,
+  draftNote,
+  finished,
   onDone,
 }: {
   role: string;
   rigorLabel: string;
-  reasoning: string[];
-  generating: boolean;
+  parts: ReadonlyArray<{ id: string; label: string; detail: string }>;
+  states: Readonly<Record<string, "ready" | "writing" | "waiting" | "draft">>;
+  /** When the build started (Date.now()), for the seconds shown and the line under the parts. */
+  startedAt: number | null;
+  /** How long the writer is waited for (flowGenerator.ts WRITER_TIME_LIMIT_MS). */
+  limitMs: number;
+  /** The line when the built-in plan's first draft stood in. */
+  draftNote: string | null;
+  /** The plan is back: the writer's, or the built-in plan's. */
+  finished: "openai" | "template" | null;
   onDone: () => void;
 }) {
   const reduce = useReducedMotion();
-  const [revealed, setRevealed] = useState(0);
-  // The writer can take a while (flowGenerator.ts waits up to 40 s before the built-in plan stands in): after a few
-  // seconds of it, one calm line says so rather than leave the screen looking stuck (the run-through of 2026-10-31).
-  const [slow, setSlow] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!generating) {
-      setSlow(false);
-      return;
-    }
-    const t = setTimeout(() => setSlow(true), 8000);
+    if (finished || startedAt == null) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [finished, startedAt]);
+  const elapsedMs = startedAt == null ? 0 : Math.max(0, now - startedAt);
+  const waitLine = finished ? null : writerWaitLine(elapsedMs, limitMs);
+  useEffect(() => {
+    if (!finished) return;
+    const t = setTimeout(onDone, finished === "template" ? (reduce ? 1200 : 2400) : reduce ? 250 : 650);
     return () => clearTimeout(t);
-  }, [generating]);
+  }, [finished, onDone, reduce]);
 
-  useEffect(() => {
-    if (reduce) {
-      setRevealed(reasoning.length);
-      return;
-    }
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    let i = 0;
-    const tick = () => {
-      i += 1;
-      setRevealed(i);
-      if (i >= reasoning.length) return;
-      timers.push(setTimeout(tick, 750));
-    };
-    timers.push(setTimeout(tick, 500));
-    return () => timers.forEach(clearTimeout);
-  }, [reduce, reasoning.length]);
-
-  useEffect(() => {
-    if (revealed >= reasoning.length && !generating) {
-      const t = setTimeout(onDone, reduce ? 300 : 750);
-      return () => clearTimeout(t);
-    }
-  }, [revealed, generating, onDone, reduce, reasoning.length]);
-
+  const STATE_WORDS = { ready: null, writing: "Writing…", waiting: null, draft: "First draft" } as const;
   return (
-    <div className="flex flex-col items-center text-center">
-      <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>Building your hiring plan…</h2>
+    <div className="flex flex-col items-center text-center" data-build-step>
+      <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>
+        {finished ? "Your hiring plan is ready." : "Building your hiring plan…"}
+      </h2>
       <p className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
         {role} · <span style={{ color: "hsl(var(--ck-brass))" }}>{rigorLabel}</span>
-        {generating && <span className="ml-2 opacity-70">· writing the questions</span>}
+        {!finished && <span className="ml-2 tabular-nums opacity-70" data-build-elapsed>· {Math.max(0, Math.floor(elapsedMs / 1000))} s</span>}
       </p>
-      {slow && (
-        <p className="mt-1.5 text-[13px]" style={{ color: "hsl(var(--muted-foreground))" }} role="status" data-build-slow>
-          Still writing your tests. This can take up to half a minute.
-        </p>
-      )}
-      <div className="mt-7 w-full max-w-md space-y-1.5 text-left">
-        {reasoning.map((line, i) => {
-          const shown = i < revealed;
-          const newest = i === revealed - 1;
+      <ul className="mt-7 w-full max-w-md space-y-1.5 text-left" aria-live="polite">
+        {parts.map((part, i) => {
+          const state = states[part.id] ?? "waiting";
+          const writing = state === "writing";
+          const words = STATE_WORDS[state];
           return (
-            <motion.div
-              key={line}
-              initial={reduce ? false : { opacity: 0, x: -10 }}
-              animate={shown ? { opacity: 1, x: 0 } : { opacity: 0, x: -10 }}
-              transition={{ duration: 0.32, ease: [0.4, 0, 0.2, 1] }}
+            <motion.li
+              key={part.id}
+              initial={reduce ? false : { opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: reduce ? 0 : 0.28, delay: reduce ? 0 : i * 0.05, ease: [0.4, 0, 0.2, 1] }}
               className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 transition-colors duration-500"
-              style={{ background: newest ? "hsl(var(--primary) / 0.1)" : "transparent", border: newest ? "1px solid hsl(var(--primary) / 0.28)" : "1px solid transparent" }}
+              style={{ background: writing ? "hsl(var(--primary) / 0.1)" : "transparent", border: writing ? "1px solid hsl(var(--primary) / 0.28)" : "1px solid transparent" }}
+              data-build-part={part.id}
+              data-state={state}
             >
-              {i < revealed - 1 ? <Check className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--ck-action))" }} /> : newest ? <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ background: "hsl(var(--primary))", boxShadow: "0 0 0 4px hsl(var(--primary) / 0.18)" }} /> : <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ border: "1.5px solid hsl(var(--border))" }} />}
-              <span className="text-sm" style={{ color: newest ? "hsl(var(--foreground))" : shown ? "hsl(var(--foreground) / 0.7)" : "hsl(var(--muted-foreground))", fontWeight: newest ? 600 : 400 }}>{line}</span>
-            </motion.div>
+              {state === "ready" || state === "draft" ? (
+                <Check className="h-4 w-4 shrink-0" style={{ color: state === "ready" ? "hsl(var(--ck-action))" : "hsl(var(--muted-foreground))" }} aria-hidden />
+              ) : writing ? (
+                <span className={`h-3.5 w-3.5 shrink-0 rounded-full${reduce ? "" : " animate-pulse"}`} style={{ background: "hsl(var(--primary))", boxShadow: "0 0 0 4px hsl(var(--primary) / 0.18)" }} aria-hidden />
+              ) : (
+                <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ border: "1.5px solid hsl(var(--border))" }} aria-hidden />
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm" style={{ color: state === "waiting" ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))", fontWeight: writing ? 600 : 500 }}>{part.label}</span>
+                <span className="block text-[12px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }}>{part.detail}</span>
+              </span>
+              {words && (
+                <span className="shrink-0 text-[12px] font-medium" style={{ color: writing ? "hsl(var(--ck-action-bright))" : "hsl(var(--muted-foreground))" }}>
+                  {words}
+                </span>
+              )}
+            </motion.li>
           );
         })}
-      </div>
+      </ul>
+      {(draftNote || waitLine) && (
+        <p className="mt-4 max-w-md text-[13px] leading-snug" style={{ color: draftNote ? "hsl(var(--ck-brass))" : "hsl(var(--muted-foreground))" }} role="status" data-build-note>
+          {draftNote ?? waitLine}
+        </p>
+      )}
     </div>
   );
 }
