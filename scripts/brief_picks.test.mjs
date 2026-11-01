@@ -107,6 +107,45 @@ const built = (location, opts = {}) => brief(location, M.typeForPlace(location, 
   check("placeIsOnlyACountry: a country and nothing more", ["United States", "the Philippines", "PH", "U.S.", "Canada"].every((t) => M.placeIsOnlyACountry(t)) && !["Manila, Philippines", "Makati", "Remote", "", "Texas"].some((t) => M.placeIsOnlyACountry(t)));
 }
 
+// 2b. The Type as two sets of picks (the owner's live run of 2026-11-01: "Full-time · ReRemote" beside "Remote, United
+// States"). Nothing is typed; the employment is the business's, where follows the place until a pick.
+{
+  const brief2 = (fields, location = "Remote, United States", role = "Chat support agent") =>
+    M.briefFromForm({ role, location, pay: "$500 a month", start: "Within a few weeks", work: "Answer customer chats.", ...fields });
+  check("the picks: Full-time · Part-time · Contract, then Remote · Hybrid · On-site", M.EMPLOYMENT_PICKS.join(" · ") === "Full-time · Part-time · Contract" && M.SETUP_PICKS.join(" · ") === "Remote · Hybrid · On-site");
+  check("typeForPlace is Full-time and setupForPlace's where", M.typeForPlace("Makati") === M.joinType("Full-time", M.setupForPlace("Makati")) && M.setupForPlace("Remote, United States") === "Remote" && M.setupForPlace("Hybrid (Taguig)") === "Hybrid" && M.setupForPlace("Makati") === "On-site");
+  check("employmentOf reads as briefFromForm does", M.employmentOf("Part-time · Remote") === "Part-time" && M.employmentOf("Contract · On-site") === "Contract" && M.employmentOf("Full-time · ReRemote") === "Full-time" && M.employmentOf("") === "Full-time");
+  check("setupOf names only what the builder reads; \"ReRemote\" names none", M.setupOf("Full-time · Remote") === "Remote" && M.setupOf("Full-time · Hybrid") === "Hybrid" && M.setupOf("Full-time · On-site") === "On-site" && M.setupOf("Full-time · In person") === "On-site" && M.setupOf("Full-time · ReRemote") === null && M.setupOf("Full-time · Re") === null);
+
+  // The bug: a draft that kept "Full-time · ReRemote" (typed over the place word) beside a remote place.
+  const owner = { type: "Full-time · ReRemote", typeChosen: true };
+  const fixed = M.restoredType(owner, "Remote, United States");
+  check("the owner's \"Full-time · ReRemote\" beside \"Remote, United States\" opens as Full-time · Remote, following the place again", fixed.type === "Full-time · Remote" && fixed.typeChosen === false && !fixed.workMode, JSON.stringify(fixed));
+  check("…and a half-typed one at an office follows it too (\"Part-time · Re\" at Makati is Part-time · On-site)", JSON.stringify(M.restoredType({ type: "Part-time · Re", typeChosen: true }, "Makati")) === JSON.stringify({ type: "Part-time · On-site", typeChosen: false }));
+  check("a typed Type that names a where keeps it as the business's pick", JSON.stringify(M.restoredType({ type: "Contract · Hybrid", typeChosen: true }, "Makati")) === JSON.stringify({ type: "Contract · Hybrid", typeChosen: true, workMode: "Hybrid" }));
+  check("the default's own form with only the employment typed follows the place (the eighteenth Phase 4 review)", M.restoredType({ type: "Part-time · On-site", typeChosen: true }, "Remote, Philippines").type === "Part-time · Remote" && M.restoredType({ type: "Part-time · On-site", typeChosen: true }, "Remote, Philippines").typeChosen === false);
+  check("an untouched Type follows the place; an old draft with no record and the default does too", M.restoredType({ type: "Full-time · On-site", typeChosen: false }, "United States").type === "Full-time · Remote" && M.restoredType({ type: "Full-time · On-site" }, "Remote").type === "Full-time · Remote");
+
+  // Taps.
+  const start = { type: "Full-time · Remote", typeChosen: false };
+  const part = M.withEmployment(start, "Part-time");
+  check("an employment pick keeps where following the place", part.type === "Part-time · Remote" && part.typeChosen === false && !part.workMode);
+  const onsite = M.withSetup(part, "On-site");
+  check("a where pick is the business's own: Part-time · On-site, chosen", onsite.type === "Part-time · On-site" && onsite.typeChosen === true && onsite.workMode === "On-site");
+  check("…and an employment pick after it keeps that where", JSON.stringify(M.withEmployment(onsite, "Contract")) === JSON.stringify({ ...onsite, type: "Contract · On-site" }));
+  const back = M.followingPlace(onsite, "Remote, Philippines");
+  check("\"Follow where they'll work\" hands where back to the place", back.type === "Part-time · Remote" && back.typeChosen === false && back.workMode === undefined);
+
+  // What the plan is built as, and what the line under the picks says.
+  check("a picked On-site decides over a work-from-home title at an office (the business's own choice)", brief2(M.withSetup({ type: "Full-time · On-site", typeChosen: false }, "On-site"), "Makati", "Work From Home Chat Support Agent").workMode === "onsite");
+  check("…an untouched On-site at an office still lets the title decide", brief2({ type: "Full-time · On-site", typeChosen: false }, "Makati", "Work From Home Chat Support Agent").workMode === "remote");
+  check("a picked Remote or Hybrid at an office builds it so", brief2(M.withSetup(start, "Remote"), "Makati").workMode === "remote" && brief2(M.withSetup(start, "Hybrid"), "Makati").workMode === "hybrid");
+  check("employment reaches the brief", brief2(M.withSetup(M.withEmployment(start, "Part-time"), "Remote")).employmentType === "part_time" && brief2(M.withEmployment(start, "Contract")).employmentType === "contract");
+  const overruled = brief2(M.withSetup(start, "On-site"), "Remote, United States").workMode;
+  check("a remote place still decides over a picked On-site, and the line says so", overruled === "remote" && M.typeNote({ typeChosen: true, picked: "On-site", built: overruled }) === "Where they'll work says remote, and that decides. Change it there.");
+  check("the line while following, and for a pick that holds", /^Follows where they'll work until you pick one\.$/.test(M.typeNote({ typeChosen: false, built: "remote" })) && M.typeNote({ typeChosen: true, picked: "Hybrid", built: "hybrid" }) === "Your pick.");
+}
+
 // 3. The place read back: never "Couldn't pinpoint"; a country or a well-known city is placed without the geocoder.
 {
   const R = (loc, workMode, extra = {}) => M.readPlace(loc, { workMode, ...extra });
@@ -208,7 +247,8 @@ const built = (location, opts = {}) => brief(location, M.typeForPlace(location, 
   check("the read-backs are live regions", (page.match(/aria-live="polite"/g) ?? []).length >= 2 && /readPlace\(briefFields\.location, \{ workMode, atOffice, geo: geoPreview \}\)/.test(page) && /readPay\(briefFields\.pay, \{ remote: workMode === "remote"/.test(page));
   const pick = /function BriefPick[\s\S]*?\n}\n/.exec(page)?.[0] ?? "";
   check("a pick is a real button (type=\"button\", aria-pressed when it is a choice) in the jade, never brass", /<button\s+type="button"/.test(pick) && /aria-pressed=/.test(pick) && /var\(--action\)/.test(pick) && !/brass|hf-gold/.test(pick));
-  check("the Type follows the place while untouched, and the builder starts it remote", /type: REMOTE_JOB_TYPE,[\s\S]{0,200}typeChosen: false,/.test(page) && /typeForPlace\(briefFields\.location, \{ atOffice, role: briefFields\.role \}\)/.test(page));
+  check("the Type follows the place while untouched, and the builder starts it remote", /type: REMOTE_JOB_TYPE,[\s\S]{0,200}typeChosen: false,/.test(page) && /joinType\(employmentOf\(briefFields\.type\), setupForPlace\(briefFields\.location, \{ atOffice, role: briefFields\.role \}\)\)/.test(page) && /b\.typeChosen === false \? \{ \.\.\.b, type: next \} : b/.test(page));
+  check("the Type is picks, never a text box (the owner's \"Full-time · ReRemote\")", !/id="brief-type"/.test(page) && /EMPLOYMENT_PICKS\.map\(/.test(page) && /SETUP_PICKS\.map\(/.test(page) && /withEmployment\(b, pick\)/.test(page) && /withSetup\(b, pick\)/.test(page) && /restoredType\(saved\.briefFields/.test(page));
   check("the geocoder is asked only about a place the builder cannot place", /placeNamesNothing\(q\) \|\| !readPlace\(q, \{ workMode, atOffice, geo: null \}\)\?\.lookUp/.test(page));
   check("narrow windows: the builder centres safely (auto margins, never justify-center on its scroller) and its columns can shrink", !/flex min-h-0 flex-1 justify-center overflow-y-auto/.test(page) && /mx-auto my-auto w-full min-w-0 max-w-6xl/.test(page) && /hidden min-w-0 flex-1 sm:block"><StepRail/.test(page));
   const flow = readFileSync(path.join(ROOT, "src/lib/jobFromFlow.ts"), "utf8");

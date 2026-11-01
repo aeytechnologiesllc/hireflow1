@@ -68,14 +68,125 @@ export function placeForOfficePick(location: string): string {
  * which lets the title and What they do decide (briefFromForm).
  */
 export function typeForPlace(location: string, opts: { atOffice?: boolean; role?: string } = {}): string {
+  return joinType("Full-time", setupForPlace(location, opts));
+}
+
+/** The setup part of typeForPlace: Remote, Hybrid, or On-site (the builder's default's place, DEFAULT_JOB_TYPE). */
+export function setupForPlace(location: string, opts: { atOffice?: boolean; role?: string } = {}): JobSetup {
   const t = (location ?? "").trim();
-  if (placeSaysRemote(t) === "remote") return REMOTE_JOB_TYPE;
-  if (placeSaysHybrid(t)) return "Full-time · Hybrid";
-  if (opts.atOffice) return DEFAULT_JOB_TYPE;
-  if (!t) return REMOTE_JOB_TYPE;
+  if (placeSaysRemote(t) === "remote") return "Remote";
+  if (placeSaysHybrid(t)) return "Hybrid";
+  if (opts.atOffice) return "On-site";
+  if (!t) return "Remote";
   const role = opts.role ?? "";
-  if (placeIsOnlyACountry(t) && placeSaysRemote(role) !== "not_remote" && !placeSaysHybrid(role)) return REMOTE_JOB_TYPE;
-  return DEFAULT_JOB_TYPE;
+  if (placeIsOnlyACountry(t) && placeSaysRemote(role) !== "not_remote" && !placeSaysHybrid(role)) return "Remote";
+  return "On-site";
+}
+
+/* ── The Type as two sets of picks (the owner's live run of 2026-11-01) ──────
+ * The Type was one free-text box that two hands wrote: the business, and the
+ * place, which rewrote the whole box (its employment words too) on every
+ * keystroke in Where they'll work, until the first keystroke in the box
+ * stopped it for good. Whatever was typed there then stayed, right or not,
+ * beside a place that said otherwise: the owner's run ended on "Full-time ·
+ * ReRemote" beside "Remote, United States" ("Re" typed over the place word,
+ * then "Remote", as typing "Re" and taking the Mac's or the browser's
+ * completion does), and nothing could put it right but retyping. The Type is
+ * now two rows of picks: the employment (only ever the business's), and where
+ * (Remote, Hybrid, On-site), which follows Where they'll work until the
+ * business picks one. Nothing is typed, so nothing can be half a word. */
+
+const DEFAULT_SETUP_TAIL = /\s*·\s*on-site\s*$/i;
+
+export const EMPLOYMENT_PICKS = ["Full-time", "Part-time", "Contract"] as const;
+export type Employment = (typeof EMPLOYMENT_PICKS)[number];
+export const SETUP_PICKS = ["Remote", "Hybrid", "On-site"] as const;
+export type JobSetup = (typeof SETUP_PICKS)[number];
+
+/** "Full-time · Remote". */
+export function joinType(employment: Employment, setup: JobSetup): string {
+  return `${employment} · ${setup}`;
+}
+
+/** The employment a Type names, read as briefFromForm reads it (part, then contract, else full time). */
+export function employmentOf(type: string | null | undefined): Employment {
+  const t = (type ?? "").toLowerCase();
+  if (t.includes("part")) return "Part-time";
+  if (/contract|freelance|project[- ]based/.test(t)) return "Contract";
+  return "Full-time";
+}
+
+/** The setup a Type names in words briefFromForm reads, else null ("Full-time · ReRemote" names none). */
+export function setupOf(type: string | null | undefined): JobSetup | null {
+  const t = (type ?? "").trim();
+  if (!t) return null;
+  if (/\bhybrid\b/i.test(t) || placeSaysHybrid(t)) return "Hybrid";
+  const said = placeSaysRemote(t);
+  if (said === "remote") return "Remote";
+  if (said === "not_remote" || /\bin[-\s]?(person|store)\b/i.test(t)) return "On-site";
+  return null;
+}
+
+/** The Type fields of the brief (src/pages/AvaCreateJob.tsx briefFields, src/lib/avaEngine/draft.ts). */
+export interface TypeFields {
+  type: string;
+  /** The business picked where (Remote, Hybrid, On-site); false while it follows the place. */
+  typeChosen?: boolean;
+  /** The picked setup, passed to briefFromForm as the work mode the business chose; absent while it follows. */
+  workMode?: string;
+}
+
+/**
+ * The Type a brief opens with: a draft saved before the picks kept whatever
+ * was typed. Its employment is read as briefFromForm reads it; its setup is
+ * kept as the business's own only when it was typed (typeChosen, or no record
+ * and not the builder's default) and names one in words the builder reads;
+ * anything else ("Full-time · ReRemote", a typo, a half-typed word) follows
+ * the place again, as an untouched Type does.
+ */
+export function restoredType(fields: TypeFields, location: string, opts: { atOffice?: boolean; role?: string } = {}): Required<Pick<TypeFields, "type" | "typeChosen">> & Pick<TypeFields, "workMode"> {
+  const employment = employmentOf(fields.type);
+  const typed = (fields.type ?? "").replace(/\s+/g, " ").trim();
+  const chosen = fields.typeChosen ?? typed.toLowerCase() !== DEFAULT_JOB_TYPE.toLowerCase();
+  // The default's own form with only its employment changed ("Part-time · On-site") is still the default's place, as
+  // briefFromForm reads it (the eighteenth Phase 4 review): it follows the place.
+  const defaultTail = DEFAULT_SETUP_TAIL.test(typed) && placeSaysRemote(typed.replace(DEFAULT_SETUP_TAIL, "")) === null;
+  const own = setupOf(fields.workMode) ?? (chosen && !defaultTail ? setupOf(fields.type) : null);
+  if (own) return { type: joinType(employment, own), typeChosen: true, workMode: own };
+  return { type: joinType(employment, setupForPlace(location, opts)), typeChosen: false };
+}
+
+/** A tap on an employment pick: the setup stays as it is (followed or picked). */
+export function withEmployment(fields: TypeFields, employment: Employment): TypeFields {
+  return { ...fields, type: joinType(employment, setupOf(fields.workMode) ?? setupOf(fields.type) ?? "On-site") };
+}
+
+/** A tap on a where pick: the business's own from now on. */
+export function withSetup(fields: TypeFields, setup: JobSetup): TypeFields {
+  return { ...fields, type: joinType(employmentOf(fields.type), setup), typeChosen: true, workMode: setup };
+}
+
+/** "Follow where they'll work" again: the place decides, as before any pick. */
+export function followingPlace(fields: TypeFields, location: string, opts: { atOffice?: boolean; role?: string } = {}): TypeFields {
+  return { ...fields, workMode: undefined, type: joinType(employmentOf(fields.type), setupForPlace(location, opts)), typeChosen: false };
+}
+
+/** The pick that shows the job as it will be built: the brief's work mode (briefFromForm), whoever decided it. */
+export function setupForWorkMode(workMode: "remote" | "hybrid" | "onsite"): JobSetup {
+  return workMode === "remote" ? "Remote" : workMode === "hybrid" ? "Hybrid" : "On-site";
+}
+
+/**
+ * The line under the Type's picks. A pick the place overrules says so (a
+ * place that says remote decides, as briefFromForm reads it), so the picks
+ * never claim a job the plan will not build.
+ */
+export function typeNote(opts: { typeChosen: boolean; picked?: string | null; built: "remote" | "hybrid" | "onsite" }): string {
+  if (!opts.typeChosen) return "Follows where they'll work until you pick one.";
+  const picked = setupOf(opts.picked);
+  const built = setupForWorkMode(opts.built);
+  if (picked && picked !== built) return `Where they'll work says ${built.toLowerCase()}, and that decides. Change it there.`;
+  return "Your pick.";
 }
 
 /** "the Philippines", "the United States", "Canada". */

@@ -916,10 +916,24 @@ say, by Publish's own rules (`src/lib/briefPicks.ts`, pure;
   the geocoder is asked only about anything else, and what nobody can place
   reads "Your post will say “…”.".
 - **Type** starts on "Full-time · Remote" and follows the place until the
-  business types in it (`typeForPlace`): remote words, then hybrid, then the
-  office picked; a country and nothing more is remote unless the title says
-  on site; any other place goes back to `DEFAULT_JOB_TYPE`, where the title
-  and What they do still decide, as above.
+  business picks (`typeForPlace`, `setupForPlace`): remote words, then hybrid,
+  then the office picked; a country and nothing more is remote unless the
+  title says on site; any other place goes back to `DEFAULT_JOB_TYPE`, where
+  the title and What they do still decide, as above. **Since 2026-11-01 it is
+  two rows of picks, never a text box** (Full-time / Part-time / Contract, and
+  Remote / Hybrid / On-site): the owner's live run ended on "Full-time ·
+  ReRemote" beside "Remote, United States". The box was written by two hands:
+  the place rewrote all of it on every keystroke in Where they'll work, and
+  the first keystroke in it stopped that for good, so whatever was typed there
+  ("Re" over the place word, then "Remote", as the Mac's or the browser's word
+  completion does) stayed beside a place that said otherwise, with nothing to
+  put it right. Now the employment is the business's pick and keeps where
+  following; a where pick is the business's own (`withSetup`, read by
+  `briefFromForm` as its chosen work mode), "Follow where they'll work" hands
+  it back, and the picked where that shows is the job as it will be built,
+  with one line when a remote or hybrid place overrules it. A draft saved
+  before keeps its employment and only a where it names in words the builder
+  reads (`restoredType`: "Full-time · ReRemote" follows the place again).
 - **Pay** stays free text and required. Picks follow the place's country
   (Philippines: $500 a month, $3 an hour, ₱30,000 a month; United States:
   $18 an hour, $3,200 a month; else $500 a month, $4 an hour), and "On your

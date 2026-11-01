@@ -250,7 +250,9 @@ for (const [text, code] of [
   // (2026-10-31: the Type starts on "Full-time · Remote", as most chat and email agents work, and follows Where they'll
   // work while untouched (src/lib/briefPicks.ts typeForPlace): a city puts it back on DEFAULT_JOB_TYPE, the default's place,
   // which lets the title and the words decide as above. scripts/brief_picks.test.mjs holds the places.)
-  check("the builder starts untouched (on REMOTE_JOB_TYPE, typeForPlace's empty place), follows the place by typeForPlace, and marks a Type the business types", /type: REMOTE_JOB_TYPE,[\s\S]{0,400}typeChosen: false,/.test(builder) && /if \(briefFields\.typeChosen !== false\) return;\s*const next = typeForPlace\(/.test(builder) && /setBriefFields\(\(b\) => \(\{ \.\.\.b, type, typeChosen: true \}\)\)/.test(builder) && !/onBriefPatch|TalkToAva/.test(builder));
+  // (2026-11-01: the Type is picks, the employment and where; where follows the place by setupForPlace, typeForPlace's,
+  // until the business picks one, which briefFromForm then reads as its chosen work mode: src/lib/briefPicks.ts withSetup.)
+  check("the builder starts untouched (on REMOTE_JOB_TYPE, typeForPlace's empty place), follows the place by setupForPlace, and marks a where the business picks", /type: REMOTE_JOB_TYPE,[\s\S]{0,400}typeChosen: false,/.test(builder) && /if \(briefFields\.typeChosen !== false\) return;\s*const next = joinType\(employmentOf\(briefFields\.type\), setupForPlace\(/.test(builder) && /withSetup\(b, pick\)/.test(builder) && !/onBriefPatch|TalkToAva/.test(builder));
 }
 // A title that says on site is on site again whatever WFH it mentions (the sixteenth's placeSaysHybrid let them be remote),
 // with only on-site training, onboarding or orientation taken out first, the sixteenth's evidence.

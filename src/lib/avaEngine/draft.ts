@@ -11,8 +11,10 @@ export interface AvaCreateDraft {
     start: string;
     work: string;
     openings: number;
-    /** Whether the business typed the Type itself (briefFromForm); an older draft has none. */
+    /** Whether the business picked where (Remote, Hybrid, On-site) itself (briefFromForm); an older draft has none. */
     typeChosen?: boolean;
+    /** The where the business picked, read by briefFromForm as its chosen work mode (src/lib/briefPicks.ts withSetup). */
+    workMode?: string;
     /** "At our office" was picked under Where they'll work (src/lib/briefPicks.ts); an older draft has none. */
     atOffice?: boolean;
   };

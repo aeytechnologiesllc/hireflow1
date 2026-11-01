@@ -75,17 +75,27 @@ import { isPaymentRequiredError, PUBLISH_PAYMENT_WORDS } from "@/lib/billing";
 import { geocodePlace } from "@/lib/geocode";
 import { placeNamesNothing } from "@/lib/jobLocation";
 import {
+  EMPLOYMENT_PICKS,
   PAY_EXAMPLE,
   PLACE_PICKS,
   REMOTE_JOB_TYPE,
+  SETUP_PICKS,
   START_PICKS,
+  employmentOf,
   exampleWork,
+  followingPlace,
+  joinType,
   payPicks,
   pickedPlace,
   placeForOfficePick,
   readPay,
   readPlace,
-  typeForPlace,
+  restoredType,
+  setupForPlace,
+  setupForWorkMode,
+  typeNote as typeNoteFor,
+  withEmployment,
+  withSetup,
   type PlacePickId,
 } from "@/lib/briefPicks";
 import {
@@ -443,16 +453,21 @@ export default function AvaCreateJob() {
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
   const [rigorTouched, setRigorTouched] = useState(saved?.rigorTouched ?? false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [briefFields, setBriefFields] = useState(
-    saved?.briefFields ?? {
+  const [briefFields, setBriefFields] = useState(() =>
+    // A draft saved before the Type's picks kept whatever was typed there: its employment stays, and its setup only
+    // when it names one (src/lib/briefPicks.ts restoredType; "Full-time · ReRemote" follows the place again).
+    saved?.briefFields
+      ? { ...saved.briefFields, ...restoredType(saved.briefFields, saved.briefFields.location, { atOffice: !!saved.briefFields.atOffice, role: saved.briefFields.role }) }
+      : {
       role: "",
       location: "",
-      // The Type starts remote, as most chat and email agents work (2026-10-31), and follows Where they'll work
-      // (typeForPlace, below) until the business types in it: a place in a city puts it back on the builder's default,
-      // DEFAULT_JOB_TYPE, which the title and What they do may overrule; once the business types in it, its own on-site
-      // decides (briefFromForm; the seventeenth Phase 4 review).
+      // The Type starts remote, as most chat and email agents work (2026-10-31), and its where follows Where they'll
+      // work (setupForPlace, below; typeForPlace's) until the business picks one: a place in a city puts it back on the
+      // builder's default's place, On-site (DEFAULT_JOB_TYPE), which the title and What they do may overrule; once the
+      // business picks one, its own decides (workMode, read by briefFromForm; the seventeenth Phase 4 review).
       type: REMOTE_JOB_TYPE,
       typeChosen: false,
+      workMode: undefined as string | undefined,
       atOffice: false,
       pay: "",
       start: "Within a few weeks",
@@ -548,13 +563,17 @@ export default function AvaCreateJob() {
   const workInputRef = useRef<HTMLTextAreaElement>(null);
   const atOffice = !!briefFields.atOffice;
 
-  // The Type follows Where they'll work while the business has not typed in it (typeChosen false; an older draft
-  // with no record keeps what it has).
+  // Where (Remote, Hybrid, On-site) follows Where they'll work until the business picks one (typeChosen false); the
+  // employment is always the business's own pick. The update re-reads typeChosen, so a pick made in between is kept.
   useEffect(() => {
     if (briefFields.typeChosen !== false) return;
-    const next = typeForPlace(briefFields.location, { atOffice, role: briefFields.role });
-    if (next !== briefFields.type) setBriefFields((b) => ({ ...b, type: next }));
+    const next = joinType(employmentOf(briefFields.type), setupForPlace(briefFields.location, { atOffice, role: briefFields.role }));
+    if (next !== briefFields.type) setBriefFields((b) => (b.typeChosen === false ? { ...b, type: next } : b));
   }, [briefFields.typeChosen, briefFields.location, briefFields.role, briefFields.type, atOffice]);
+  // The where pick that shows is the job as it will be built (briefFromForm's work mode), and the line under the
+  // picks says when the place overrules a pick.
+  const workSetupShown = setupForWorkMode(workMode);
+  const typeNote = typeNoteFor({ typeChosen: briefFields.typeChosen === true, picked: briefFields.workMode ?? null, built: workMode });
 
   // What the post will say about the place and the pay, by Publish's own rules (src/lib/briefPicks.ts).
   const placeReading = useMemo(
@@ -993,12 +1012,32 @@ export default function AvaCreateJob() {
                         </div>
                       </div>
 
-                      <div className="min-w-0">
-                        <label htmlFor="brief-type" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Type</label>
-                        <input id="brief-type" value={briefFields.type} onChange={(e) => { const type = e.target.value; setBriefFields((b) => ({ ...b, type, typeChosen: true })); }} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="Full-time · Remote / Hybrid / On-site" />
-                        {briefFields.typeChosen === false && (
-                          <p className="mt-1.5 text-[12.5px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }}>Follows where they'll work until you edit it.</p>
-                        )}
+                      {/* The Type as picks (the owner's run of 2026-11-01 ended on "Full-time · ReRemote" beside "Remote,
+                          United States": a free-text box the place rewrote and the business typed in). The employment is
+                          the business's; where follows Where they'll work until a pick (src/lib/briefPicks.ts). */}
+                      <div className="min-w-0" role="group" aria-labelledby="brief-type-label" data-brief-type={briefFields.type}>
+                        <span id="brief-type-label" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Type</span>
+                        <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Full-time, part-time or contract">
+                          {EMPLOYMENT_PICKS.map((pick) => (
+                            <BriefPick key={pick} label={pick} on={employmentOf(briefFields.type) === pick} onPick={() => setBriefFields((b) => ({ ...b, ...withEmployment(b, pick) }))} />
+                          ))}
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5" role="group" aria-label="Remote, hybrid or on-site">
+                          {SETUP_PICKS.map((pick) => (
+                            <BriefPick key={pick} label={pick} on={workSetupShown === pick} onPick={() => setBriefFields((b) => ({ ...b, ...withSetup(b, pick) }))} />
+                          ))}
+                        </div>
+                        <p className="mt-1.5 text-[12.5px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }} data-brief-type-note>
+                          {typeNote}
+                          {briefFields.typeChosen === true && (
+                            <>
+                              {" "}
+                              <button type="button" className="font-medium underline underline-offset-2" style={{ color: "hsl(var(--foreground))" }} onClick={() => setBriefFields((b) => ({ ...b, ...followingPlace(b, b.location, { atOffice: !!b.atOffice, role: b.role }) }))}>
+                                Follow where they'll work
+                              </button>
+                            </>
+                          )}
+                        </p>
                       </div>
                       <div className="min-w-0">
                         <label htmlFor="brief-start" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><CalendarClock className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Start</label>
