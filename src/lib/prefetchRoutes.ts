@@ -106,6 +106,29 @@ function hasStoredSession(): boolean {
   return false;
 }
 
+/**
+ * A visit to sign-in, sign-up or a team invitation from a browser with no
+ * sign-in on it: the form is the whole page. Nothing of the staff side (its
+ * frame, AppLayout, or its screens) is fetched beside it (2026-11-01, the
+ * owner: "I clicked on posting a job. I got stuck right here"): on a phone
+ * every byte fetched beside the form is a byte the form waits behind.
+ */
+export function opensSignedOut(pathname: string, signedIn: boolean = hasStoredSession()): boolean {
+  return SIGNED_OUT_PAGES.test(pathname) && !signedIn;
+}
+
+/** Run a fetch once the page has loaded, a few seconds on, when the phone is
+ *  idle: the moment warmStaffPages fetches the rest of the staff pages. */
+export function afterFirstScreen(task: () => void) {
+  const schedule = () =>
+    window.setTimeout(() => {
+      if ("requestIdleCallback" in window) window.requestIdleCallback(task, { timeout: 4000 });
+      else task();
+    }, 3000);
+  if (document.readyState === "complete") schedule();
+  else window.addEventListener("load", schedule, { once: true });
+}
+
 export function warmStaffPages(pathname: string, signedIn: boolean = hasStoredSession()) {
   // A business opening the sign-up page for the first time has no use for
   // the staff screens yet: they were about 690 KB, fetched before the form

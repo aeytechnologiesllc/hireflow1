@@ -2,7 +2,8 @@
 /**
  * A business's careers address from its name, readably (2026-10-11): the
  * database (slugify_business, supabase/migrations/*_business_names_to_addresses.sql)
- * and the sign-up screen's preview (cleanAddress) make the same address.
+ * and the sign-up screen's preview (cleanAddress, src/lib/careersAddress.ts,
+ * which the Settings card shares) make the same address.
  * "Maria's Café" is "marias-cafe", not "maria-s-caf".
  */
 import { PGlite } from "@electric-sql/pglite";
@@ -35,7 +36,7 @@ const slug = async (name) => (await db.query("select public.slugify_business($1)
 const dir = mkdtempSync(path.join(tmpdir(), "address-names-"));
 const outfile = path.join(dir, "card.mjs");
 await build({
-  entryPoints: [path.join(ROOT, "src/components/business/CareersPageCard.tsx")],
+  entryPoints: [path.join(ROOT, "src/lib/careersAddress.ts")],
   bundle: true,
   format: "esm",
   platform: "node",
@@ -49,16 +50,24 @@ let cleanAddress = null;
 try {
   ({ cleanAddress } = await import(pathToFileURL(outfile).href));
 } catch {
-  // The card imports the app's client; read the function's own source instead.
+  // Read the function's own source instead.
 }
 rmSync(dir, { recursive: true, force: true });
 if (!cleanAddress) {
-  const src = await readFile(path.join(ROOT, "src/components/business/CareersPageCard.tsx"), "utf8");
-  // From the letter table it uses down to the next function.
-  const body = src.slice(src.indexOf("const ACCENTED"), src.indexOf("/** A refusal from the database"));
+  const src = await readFile(path.join(ROOT, "src/lib/careersAddress.ts"), "utf8");
+  // From the letter table it uses to the end of the file.
+  const body = src.slice(src.indexOf("const ACCENTED"));
   cleanAddress = new Function(`${body.replace("export function cleanAddress(raw: string): string", "return function cleanAddress(raw)")}`)();
 }
 const preview = (name) => cleanAddress(name).replace(/-+$/, "");
+// One function for both: the sign-up page takes it from the small module, not
+// from the Settings card (whose code it would otherwise download first).
+{
+  const card = await readFile(path.join(ROOT, "src/components/business/CareersPageCard.tsx"), "utf8");
+  const signUp = await readFile(path.join(ROOT, "src/pages/Auth.tsx"), "utf8");
+  check("the Settings card uses the shared cleanAddress", /import \{ cleanAddress \} from "@\/lib\/careersAddress";/.test(card) && !/function cleanAddress/.test(card));
+  check("the sign-up preview uses the shared cleanAddress, not the Settings card", /import \{ cleanAddress \} from "@\/lib\/careersAddress";/.test(signUp) && !/from "@\/components\/business\/CareersPageCard"/.test(signUp));
+}
 
 for (const [name, want] of [
   ["Zulu Support Team", "zulu-support-team"],

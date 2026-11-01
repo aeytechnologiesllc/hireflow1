@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin, type Rollup } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
@@ -70,6 +70,64 @@ const VENDOR_CHUNKS: Record<string, string[]> = {
     'vendor-charts': ['recharts'],
 };
 
+/*
+ * The sign-in / sign-up page starts downloading with the app, not after it
+ * (2026-11-01, the owner: "I clicked on posting a job. I got stuck right here
+ * ... it took a very long time"). Its code is a chunk of its own (App.tsx
+ * loads it lazily), and the app could ask for it only once its own first
+ * download had arrived and run: one more round trip on a phone, with the
+ * start screen up. index.html carries an empty
+ * <meta name="hf-auth-files" content="" /> and a small script that, on /auth
+ * only, asks for the files named there at once; this fills in the names: the
+ * page's chunk and every chunk it needs that the app's first download does
+ * not already bring, as bare file names in assets/ (never "/assets/index-…",
+ * which src/lib/newVersion.ts reads as the build's own entry). A build that
+ * cannot find the page or the tag fails here rather than quietly losing it.
+ */
+const SIGN_IN_PAGE = "/src/pages/Auth.tsx";
+const SIGN_IN_FILES_TAG = '<meta name="hf-auth-files" content="" />';
+
+function signInPageFiles(bundle: Rollup.OutputBundle): string[] {
+  const chunks = Object.values(bundle).filter((file): file is Rollup.OutputChunk => file.type === "chunk");
+  const byName = new Map(chunks.map((chunk) => [chunk.fileName, chunk]));
+  const withImports = (start: Rollup.OutputChunk) => {
+    const seen = new Set<string>();
+    const walk = (chunk: Rollup.OutputChunk) => {
+      if (seen.has(chunk.fileName)) return;
+      seen.add(chunk.fileName);
+      for (const name of chunk.imports) {
+        const next = byName.get(name);
+        if (next) walk(next);
+      }
+    };
+    walk(start);
+    return seen;
+  };
+  const entry = chunks.find((chunk) => chunk.isEntry);
+  const page = chunks.find((chunk) => chunk.facadeModuleId?.endsWith(SIGN_IN_PAGE));
+  if (!entry || !page) throw new Error(`preload-sign-in-page: the build has no ${entry ? `chunk for ${SIGN_IN_PAGE}` : "entry chunk"}`);
+  const withTheApp = withImports(entry);
+  return [...withImports(page)].filter((name) => !withTheApp.has(name));
+}
+
+const preloadSignInPage: Plugin = {
+  name: "preload-sign-in-page",
+  apply: "build",
+  transformIndexHtml: {
+    order: "post",
+    handler(html, ctx) {
+      if (!ctx.bundle) return html;
+      if (!html.includes(SIGN_IN_FILES_TAG)) throw new Error(`preload-sign-in-page: index.html has no ${SIGN_IN_FILES_TAG}`);
+      const names = signInPageFiles(ctx.bundle).map((fileName) => {
+        const name = fileName.replace(/^assets\//, "");
+        if (name === fileName || !/^[\w.-]+\.js$/.test(name)) throw new Error(`preload-sign-in-page: unexpected file ${fileName}`);
+        return name;
+      });
+      return html.replace(SIGN_IN_FILES_TAG, `<meta name="hf-auth-files" content="${names.join(" ")}" />`);
+    },
+  },
+};
+
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
@@ -84,7 +142,7 @@ export default defineConfig(({ mode }) => ({
   optimizeDeps: {
     entries: ["index.html"],
   },
-  plugins: [react()],
+  plugins: [react(), preloadSignInPage],
   build: {
     rollupOptions: {
       output: {

@@ -58,3 +58,23 @@ export const AUTH_DESK_CSS = `
     --tw-ring-offset-shadow:0 0 #0000;
   }
 `;
+
+/**
+ * The business sign-in page's entrances, as they were with framer-motion: the
+ * words and the card rise 16 px into place (0.42 s; the card 0.38 s, 0.06 s
+ * after), and a panel of the card (sign in, forgot password, new password)
+ * slides 8 px in from the left when it opens (0.18 s). Plain CSS since
+ * 2026-11-01: the animation library was the biggest download in front of the
+ * sign-up form (the owner: "I clicked on posting a job. I got stuck right
+ * here"). Played once each, never looped; "backwards" so nothing stays
+ * transformed once they end (a transform left on the card would make it the
+ * frame of anything fixed inside it). Reduced motion: no movement at all.
+ */
+export const AUTH_ENTER_CSS = `
+  @keyframes auth-enter-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  @keyframes auth-enter-slide{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+  .auth-enter-rise{animation:auth-enter-rise .42s cubic-bezier(.4,0,.2,1) backwards}
+  .auth-enter-card{animation:auth-enter-rise .38s cubic-bezier(.4,0,.2,1) .06s backwards}
+  .auth-enter-slide{animation:auth-enter-slide .18s cubic-bezier(.4,0,.2,1) backwards}
+  @media (prefers-reduced-motion:reduce){.auth-enter-rise,.auth-enter-card,.auth-enter-slide{animation:none}}
+`;

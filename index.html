@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5" />
     <!-- Capture password-recovery intent from the URL hash BEFORE the Supabase client (detectSessionInUrl) consumes and clears it, so /auth can show the reset form instead of bouncing to the dashboard. -->
     <script>try{window.__HF_PASSWORD_RECOVERY=/[#&]type=recovery/.test(window.location.hash);}catch(e){}</script>
+    <!-- Sign-in and sign-up (/auth) start downloading with the app, not after it
+         (2026-11-01: the front page's "Post a job" sat on the start screen for
+         one more round trip on a phone). The build names that page's own files
+         in this tag (vite.config.ts, preloadSignInPage); on /auth only, the
+         script asks for them at once. Before every stylesheet, so it runs as
+         soon as it arrives. -->
+    <meta name="hf-auth-files" content="" />
+    <script>try{var p=location.pathname,f=document.querySelector('meta[name="hf-auth-files"]');if((p==="/auth"||p==="/auth/")&&f&&f.content)f.content.split(" ").forEach(function(n){if(!/^[\w.-]+\.js$/.test(n))return;var l=document.createElement("link");l.rel="modulepreload";l.crossOrigin="";l.href="/assets/"+n;document.head.appendChild(l);});}catch(e){}</script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=9" />
     <link rel="alternate icon" href="/favicon.ico?v=9" sizes="any" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png?v=9" />

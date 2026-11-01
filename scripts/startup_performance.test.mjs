@@ -135,6 +135,31 @@ check("the activity feed asks no team question of an owner", /isTeamMember \|\| 
 const dash = code(await read("src/cockpit/pages/Dashboard.tsx"));
 check("the offer letter window downloads when opened, not with the dashboard", /const OfferLetterDialog = lazy\(/.test(dash));
 
+// The front page's "Post a job" (2026-11-01, the owner: "I clicked on posting
+// a job. I got stuck right here ... it took a very long time"): on a phone the
+// start screen stayed up while the sign-up page's own code arrived, one round
+// trip after the app's, about 120 KB of it (the animation library, zod, and
+// the whole Settings card for one small function), beside the staff frame the
+// form never uses. Measured locally on a production build: the form showed
+// after 4.3 s on Slow 4G with 4x CPU, 3.0 s after these.
+console.log("\nThe sign-up page");
+const signUpPage = code(await read("src/pages/Auth.tsx"));
+check("the sign-up page needs no animation library (its entrances are CSS)", !/from "framer-motion"/.test(signUpPage) && /<style>\{AUTH_ENTER_CSS\}<\/style>/.test(signUpPage) && /export const AUTH_ENTER_CSS = `[\s\S]*prefers-reduced-motion:reduce\)\{\.auth-enter-rise,\.auth-enter-card,\.auth-enter-slide\{animation:none\}\}/.test(await read("src/components/auth/authDesk.ts")));
+check("...no zod (plain checks, the same rules and words)", !/from "zod"/.test(signUpPage) && /const firstProblem = /.test(signUpPage));
+check("...and not the Settings card for its address preview", !/from "@\/components\/business\/CareersPageCard"/.test(signUpPage) && /import \{ cleanAddress \} from "@\/lib\/careersAddress";/.test(signUpPage));
+check("a first-time visitor's sign-in or sign-up does not fetch the staff frame beside the form (it comes once the form is up)",
+  /if \(opensSignedOut\(path\)\) afterFirstScreen\(\(\) => void appLayoutImporter\(\)\.catch\(\(\) => \{\}\)\);\s*else \{\s*if \(isStaffHost\(\)\) appLayoutImporter\(\)/.test(app) &&
+    /export function opensSignedOut\(pathname: string, signedIn: boolean = hasStoredSession\(\)\): boolean \{\s*return SIGNED_OUT_PAGES\.test\(pathname\) && !signedIn;/.test(prefetch));
+const shellHead = html.slice(0, html.indexOf("</head>"));
+const preloadScript = /<script>(try\{var p=location\.pathname,f=document\.querySelector\('meta\[name="hf-auth-files"\]'\);[^<]*)<\/script>/.exec(shellHead);
+check("the sign-up page's own files start downloading with the app's (on /auth only, before any stylesheet)",
+  shellHead.includes('<meta name="hf-auth-files" content="" />') && !!preloadScript &&
+    /if\(\(p==="\/auth"\|\|p==="\/auth\/"\)&&f&&f\.content\)/.test(preloadScript[1]) && /l\.rel="modulepreload";l\.crossOrigin="";l\.href="\/assets\/"\+n;/.test(preloadScript[1]) &&
+    html.indexOf(preloadScript[0]) < html.indexOf("<link rel=\"stylesheet\"") && shellHead.indexOf('<meta name="hf-auth-files"') < html.indexOf(preloadScript[0]));
+check("...and the build names them there (the page's chunk and what it needs beyond the app's first download, never /assets/index-…)",
+  /plugins: \[react\(\), preloadSignInPage\]/.test(vite) && /const SIGN_IN_PAGE = "\/src\/pages\/Auth\.tsx";/.test(vite) && /return \[\.\.\.withImports\(page\)\]\.filter\(\(name\) => !withTheApp\.has\(name\)\);/.test(vite) &&
+    /const name = fileName\.replace\(\/\^assets\\\/\/, ""\);/.test(vite));
+
 console.log("\nThe sign-in lock never waits forever");
 check("the client uses the time-limited lock", /lock: authLock,/.test(await read("src/integrations/supabase/client.ts")));
 

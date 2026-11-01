@@ -13,7 +13,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { OrbLoader } from "@/components/ava/OrbLoader";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
-import { applicantDetailsImporter, jobDetailImporter, routeImporters, warmStaffPages } from "@/lib/prefetchRoutes";
+import { afterFirstScreen, applicantDetailsImporter, jobDetailImporter, opensSignedOut, routeImporters, warmStaffPages } from "@/lib/prefetchRoutes";
 import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 
@@ -37,9 +37,17 @@ const CANDIDATE_APP_PATH = /^\/(applications|messages|my-documents|profile|setti
 if (typeof window !== "undefined") {
   const path = window.location.pathname;
   if (path === "/auth" || path.startsWith("/auth/")) authImporter().catch(() => {});
-  if (isStaffHost()) appLayoutImporter().catch(() => {});
-  else if (path === CAREERS_PATH) indexImporter().catch(() => {});
-  else if (CANDIDATE_APP_PATH.test(path)) appLayoutImporter().catch(() => {});
+  // Sign-in or sign-up with no sign-in on this browser (the front page's "Post
+  // a job"): the form is the whole page, so the staff frame is not fetched
+  // beside it, where it took the phone's bandwidth from the form (2026-11-01,
+  // the owner: "I got stuck right here"). It comes once the form is up, ready
+  // for the moment they are in.
+  if (opensSignedOut(path)) afterFirstScreen(() => void appLayoutImporter().catch(() => {}));
+  else {
+    if (isStaffHost()) appLayoutImporter().catch(() => {});
+    else if (path === CAREERS_PATH) indexImporter().catch(() => {});
+    else if (CANDIDATE_APP_PATH.test(path)) appLayoutImporter().catch(() => {});
+  }
 }
 
 /**

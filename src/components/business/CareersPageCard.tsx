@@ -11,6 +11,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { careersPathFor, useBusinessPageFor, useOwnBusiness } from "@/hooks/useBusinessPage";
 import { candidateOrigin } from "@/lib/hosts";
+import { cleanAddress } from "@/lib/careersAddress";
 
 /**
  * "Your careers page" in Settings (the 2026-10-11 mock-ups, #3): the
@@ -22,24 +23,8 @@ import { candidateOrigin } from "@/lib/hosts";
 
 export const ABOUT_MAX = 140;
 
-// The database's own letter table (slugify_business), so the sign-up preview
-// shows the address the business will really get ("Ørsted" is "orsted").
-const ACCENTED = "àáâãäåāăąçćčĉċďđèéêëēĕėęěĝğġģĥħìíîïĩīĭįıĵķĺļľŀłñńņňŉòóôõöøōŏőŕŗřśŝşšßţťŧùúûüũūŭůűųŵýÿŷźżž";
-const PLAIN = "aaaaaaaaacccccddeeeeeeeeegggghhiiiiiiiiijklllllnnnnnooooooooorrrssssstttuuuuuuuuuuwyyyzzz";
-
-/** What someone types, as an address: small letters, numbers, single dashes. */
-export function cleanAddress(raw: string): string {
-  let out = "";
-  for (const ch of raw.toLowerCase().replace(/['\u2019]/g, "")) {
-    const i = ACCENTED.indexOf(ch);
-    out += i >= 0 ? PLAIN[i] : ch;
-  }
-  return out
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+/, "")
-    .replace(/-{2,}/g, "-")
-    .slice(0, 50);
-}
+// cleanAddress (what someone types, as an address) lives in
+// src/lib/careersAddress.ts, so the sign-up page can use it without this card.
 
 /** A refusal from the database, in the words the person reads. */
 export function addressSaveProblem(error: { code?: string; message?: string } | null | undefined): string {

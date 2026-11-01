@@ -6,8 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Check, Circle, Eye, EyeOff } from "lucide-react";
-import { z } from "zod";
-import { motion, useReducedMotion } from "framer-motion";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
@@ -17,10 +15,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { GOOGLE_AUTH_ENABLED } from "@/lib/googleAuth";
 import { candidateOrigin, isStaffHost } from "@/lib/hosts";
 import { withVisitorTags } from "@/lib/hiringLink";
-import { cleanAddress } from "@/components/business/CareersPageCard";
+import { cleanAddress } from "@/lib/careersAddress";
 import { SecondStepForm } from "@/components/auth/SecondStepForm";
 import { needsSecondStep } from "@/lib/secondStep";
-import { AUTH_DESK_CSS } from "@/components/auth/authDesk";
+import { AUTH_DESK_CSS, AUTH_ENTER_CSS } from "@/components/auth/authDesk";
 
 // Google OAuth isn't enabled on the Supabase backend yet (authorize endpoint
 // returns 400) — keep the UI hidden until credentials exist. Flip
@@ -41,16 +39,29 @@ const isWebView = () => {
 // cannot create an account. This one held 33 entries and omitted, among many
 // others, .pk — while the product was live with a "Remote, Pakistan" posting,
 // meaning the exact candidates that job was written for were turned away at the
-// email field. Zod's .email() already rejects malformed addresses; catching a
-// mistyped TLD is not worth refusing real ones, and if we ever want that it
-// belongs in a "did you mean?" hint, never a hard block.
-const emailSchema = z.string().email("Please enter a valid email address");
+// email field. The address rule below (zod 4's own z.string().email()) already
+// rejects malformed addresses; catching a mistyped TLD is not worth refusing
+// real ones, and if we ever want that it belongs in a "did you mean?" hint,
+// never a hard block.
+//
+// What was typed is checked here with plain checks, not zod (2026-11-01): zod
+// was half of what this page downloaded beyond the app's own first download,
+// in front of the sign-up form. Same rules, same words; the server checks
+// again.
+const EMAIL_RULE = /^(?:[A-Za-z0-9_'+-]+\.)*[A-Za-z0-9_'+-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/;
+/** [passes, what to tell them when it does not] */
+type Check = readonly [boolean, string];
+/** Length in characters, as zod counts it (an emoji is one, not two). */
+const chars = (value: string) => Array.from(value).length;
+const emailCheck = (value: string): Check => [EMAIL_RULE.test(value), "Please enter a valid email address"];
 // New passwords: at least 8 characters (2026-10-25; docs/LAUNCH-PLAN.md,
 // Phase 1, task 7). Signing in only asks for one: an older account may still
 // have a shorter password, and the server is the judge of whether it is right.
-const passwordSchema = z.string().min(8, "Password must be at least 8 characters");
-const signInPasswordSchema = z.string().min(1, "Enter your password");
-const nameSchema = z.string().min(2, "Name must be at least 2 characters");
+const passwordCheck = (value: string): Check => [chars(value) >= 8, "Password must be at least 8 characters"];
+const signInPasswordCheck = (value: string): Check => [chars(value) >= 1, "Enter your password"];
+const nameCheck = (value: string): Check => [chars(value) >= 2, "Name must be at least 2 characters"];
+/** The first check that fails, in order: what to tell them, or null when all pass. */
+const firstProblem = (...checks: Check[]): string | null => checks.find(([passes]) => !passes)?.[1] ?? null;
 
 /** The careers address a business name would make (as slugify_business does),
  *  shown while they type (slugify_business makes the same). The real one
@@ -107,7 +118,6 @@ export default function Auth() {
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const inWebView = isWebView();
   const isMobile = useIsMobile();
-  const reduceMotion = useReducedMotion();
   const formRef = useRef<HTMLDivElement>(null);
   const redirectingRef = useRef(false);
 
@@ -294,18 +304,14 @@ export default function Auth() {
     e.preventDefault();
     setIsLoading(true);
 
-    try {
-      emailSchema.parse(signInEmail);
-      signInPasswordSchema.parse(signInPassword);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        toast({
-          variant: "warning",
-          description: err.issues[0].message,
-        });
-        setIsLoading(false);
-        return;
-      }
+    const signInProblem = firstProblem(emailCheck(signInEmail), signInPasswordCheck(signInPassword));
+    if (signInProblem) {
+      toast({
+        variant: "warning",
+        description: signInProblem,
+      });
+      setIsLoading(false);
+      return;
     }
 
     const { error } = await signIn(signInEmail, signInPassword);
@@ -355,16 +361,15 @@ export default function Auth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    try {
-      nameSchema.parse(signUpName.trim());
-      z.string().trim().min(2, "Add your business name").parse(signUpCompany);
-      emailSchema.parse(signUpEmail.trim());
-      passwordSchema.parse(signUpPassword);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        toast({ variant: "warning", description: err.issues[0].message });
-        return;
-      }
+    const signUpProblem = firstProblem(
+      nameCheck(signUpName.trim()),
+      [chars(signUpCompany.trim()) >= 2, "Add your business name"],
+      emailCheck(signUpEmail.trim()),
+      passwordCheck(signUpPassword),
+    );
+    if (signUpProblem) {
+      toast({ variant: "warning", description: signUpProblem });
+      return;
     }
     if (!signUpAgreed) {
       toast({ variant: "warning", description: "Please agree to the Terms first." });
@@ -404,17 +409,14 @@ export default function Auth() {
     e.preventDefault();
     setIsLoading(true);
 
-    try {
-      emailSchema.parse(forgotPasswordEmail);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        toast({
-          variant: "warning",
-          description: err.issues[0].message,
-        });
-        setIsLoading(false);
-        return;
-      }
+    const forgotProblem = firstProblem(emailCheck(forgotPasswordEmail));
+    if (forgotProblem) {
+      toast({
+        variant: "warning",
+        description: forgotProblem,
+      });
+      setIsLoading(false);
+      return;
     }
 
     const redirectUrl = `${window.location.origin}/auth?reset=true`;
@@ -461,17 +463,14 @@ export default function Auth() {
     setIsLoading(true);
 
     // Validate passwords
-    try {
-      passwordSchema.parse(newPassword);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        toast({
-          variant: "warning",
-          description: err.issues[0].message,
-        });
-        setIsLoading(false);
-        return;
-      }
+    const newPasswordProblem = firstProblem(passwordCheck(newPassword));
+    if (newPasswordProblem) {
+      toast({
+        variant: "warning",
+        description: newPasswordProblem,
+      });
+      setIsLoading(false);
+      return;
     }
 
     if (newPassword !== confirmPassword) {
@@ -537,6 +536,8 @@ export default function Auth() {
       {/* The front page's desk (src/components/auth/authDesk.ts): no network
           of dots and lines, no brass. */}
       <style>{AUTH_DESK_CSS}</style>
+      {/* The page's entrances (src/components/auth/authDesk.ts): plain CSS, not an animation library to download before the form. */}
+      <style>{AUTH_ENTER_CSS}</style>
       {/* The front page's own fonts at its exact address (public/landing.html), so a visitor from the front page has them already; only Besley is drawn here. */}
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Besley:ital,wght@0,500..800;1,500..600&family=Courier+Prime&family=Schibsted+Grotesk:wght@400..700&display=swap" />
 
@@ -571,12 +572,7 @@ export default function Auth() {
 
         <div className="flex-1 grid items-center gap-10 lg:grid-cols-2 lg:gap-16 max-w-6xl w-full mx-auto py-8 lg:py-0">
           {/* LEFT — Ava is the centerpiece */}
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.42, ease: [0.4, 0, 0.2, 1] }}
-            className="flex flex-col items-center lg:items-start"
-          >
+          <div className="auth-enter-rise flex flex-col items-center lg:items-start">
             {/* No hero graphic: the HireFlow wordmark and the line carry this
                 page, the same call as the dashboard (the Phase 7 growth audit:
                 the page showed Ava's seal and never the name). */}
@@ -591,15 +587,10 @@ export default function Auth() {
             <p className="auth-lede mt-3 max-w-md text-[15px] leading-relaxed text-center lg:text-left">
               Every applicant answers a customer chat written for your business, and the ones worth a call come to you.
             </p>
-          </motion.div>
+          </div>
 
           {/* RIGHT — auth card */}
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.38, delay: reduceMotion ? 0 : 0.06, ease: [0.4, 0, 0.2, 1] }}
-            className="w-full max-w-md mx-auto lg:mx-0"
-          >
+          <div className="auth-enter-card w-full max-w-md mx-auto lg:mx-0">
             {/* Auth Card */}
             <div
               ref={formRef}
@@ -679,12 +670,7 @@ export default function Auth() {
                 }}
               />
             ) : isResettingPassword ? (
-              <motion.div
-                key="reset-password"
-                initial={reduceMotion ? false : { opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-              >
+              <div key="reset-password" className="auth-enter-slide">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Set new password</h2>
                   <p className="text-muted-foreground text-sm mt-1">
@@ -764,14 +750,9 @@ export default function Auth() {
                     )}
                   </Button>
                 </form>
-              </motion.div>
+              </div>
             ) : showForgotPassword ? (
-              <motion.div
-                key="forgot"
-                initial={reduceMotion ? false : { opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-              >
+              <div key="forgot" className="auth-enter-slide">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Reset your password</h2>
                   <p className="text-muted-foreground text-sm mt-1">
@@ -841,14 +822,9 @@ export default function Auth() {
                     </Button>
                   </form>
                 )}
-              </motion.div>
+              </div>
             ) : (
-              <motion.div
-                key="signin"
-                initial={reduceMotion ? false : { opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }}
-              >
+              <div key="signin" className="auth-enter-slide">
                 <div role="tablist" aria-label="Sign in or create an account" className="mb-4 flex gap-[3px] rounded-[10px] bg-muted/50 p-[3px]" data-auth-tabs>
                   {(["signin", "signup"] as const).map((mode) => (
                     <button
@@ -1008,7 +984,7 @@ export default function Auth() {
                 </form>
                   </>
                 )}
-              </motion.div>
+              </div>
             )}
 
             {/* Footer: the one pointer for job seekers who landed here by
@@ -1032,7 +1008,7 @@ export default function Auth() {
               </p>
             </div>
             </div>
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>
