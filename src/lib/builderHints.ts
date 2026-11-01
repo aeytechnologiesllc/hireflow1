@@ -178,6 +178,30 @@ export function answersGiven(
     .filter((a) => a.answer);
 }
 
+/**
+ * The step rail's line under "Follow-ups". It counted taps, so question 5 read
+ * "1 of 8" and all eight answered read "4 of 8" (the walkthrough of
+ * 2026-11-01). On the questions it is the one showing ("5 of 8"); before or
+ * after them, how many were answered: every question reached counts (its chip
+ * as picked or as it started, the answer Ava builds from), and so does one
+ * tapped. `furthest` is the furthest question shown in this visit, null when
+ * none was: a draft opened past the questions had answered them all, since
+ * the only way past is through each one.
+ */
+export function followUpsReceipt(
+  followUps: ReadonlyArray<{ id: string }>,
+  picks: Readonly<Record<string, number>>,
+  where: { step: number; questionIndex: number; furthest: number | null },
+): string | null {
+  const total = followUps.length;
+  if (total === 0) return null;
+  if (where.step === 1) return `${Math.min(Math.max(where.questionIndex, 0), total - 1) + 1} of ${total}`;
+  if (where.step >= 2 && where.furthest === null) return `${total} of ${total}`;
+  const reached = where.furthest ?? -1;
+  const answered = followUps.filter((fu, i) => i <= reached || picks[fu.id] !== undefined).length;
+  return where.step < 1 && answered === 0 ? null : `${answered} of ${total}`;
+}
+
 /** The strip's tags: the title, the place, the pay, then each answer in the order asked. */
 export function knownSoFar(a: BuilderAnswers): string[] {
   const tags = [

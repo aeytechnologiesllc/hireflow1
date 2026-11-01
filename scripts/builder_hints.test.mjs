@@ -15,7 +15,9 @@
  * answers change nothing the built-in plan builds, while the writer is sent
  * every one of them); the "Ava is building from" tags; the review's "From
  * your answers:" names only what shaped that step, and the post's follow-up
- * answers only on a plan the writer wrote; and the page wires all of it.
+ * answers only on a plan the writer wrote; the step rail's "Follow-ups" count
+ * (the question showing, then the answers, never the taps); and the page
+ * wires all of it.
  *
  * Run with: node scripts/builder_hints.test.mjs
  */
@@ -170,6 +172,22 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   check("at most three on a line", ["quiz", "simulation", "equipment_check", "voice_interview", "job-post"].every((s) => from(s, remote, true).length <= 3));
 }
 
+// --- the rail's "Follow-ups" count -----------------------------------------------------------------
+// It counted taps: question 5 read "1 of 8", and all eight answered "4 of 8" (the walkthrough of 2026-11-01).
+{
+  const r = (where, picks = {}) => M.followUpsReceipt(asked, picks, where);
+  check("on question 5: \"5 of 8\", however few were tapped", r({ step: 1, questionIndex: 4, furthest: 4 }, { "cs-channel": 2 }) === "5 of 8");
+  check("on question 1: \"1 of 8\"", r({ step: 1, questionIndex: 0, furthest: null }) === "1 of 8");
+  check("past them after all eight shown, four tapped: \"8 of 8\"", r({ step: 2, questionIndex: 7, furthest: 7 }, { "cs-channel": 2, "cs-industry": 1, "cs-hours": 1, "cs-sensitive": 2 }) === "8 of 8");
+  check("…on the build and the review too", r({ step: 3, questionIndex: 7, furthest: 7 }) === "8 of 8" && r({ step: 4, questionIndex: 7, furthest: 7 }) === "8 of 8");
+  check("a draft opened past the questions answered them all", r({ step: 4, questionIndex: 0, furthest: null }) === "8 of 8");
+  check("fewer only for questions really not reached (shown up to 5, one tapped after)", r({ step: 2, questionIndex: 0, furthest: 4 }, { "remote-equipment": 1 }) === "6 of 8");
+  check("on the brief before any question: nothing", r({ step: 0, questionIndex: 0, furthest: null }) === null);
+  check("…back on the brief after three: \"3 of 8\"", r({ step: 0, questionIndex: 0, furthest: 2 }) === "3 of 8");
+  check("no questions, no line", M.followUpsReceipt([], {}, { step: 1, questionIndex: 0, furthest: null }) === null);
+  check("an index past the end reads the last", r({ step: 1, questionIndex: 12, furthest: 12 }) === "8 of 8");
+}
+
 // --- the page wires it ---------------------------------------------------------------------------
 {
   const page = read("src/pages/AvaCreateJob.tsx");
@@ -178,6 +196,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   check("each question shows its line", /questionShapes\(fu\.id, \{ channel: channelPicked \}\)/.test(page) && /data-question-shapes/.test(page));
   check("the strip is on the brief, the questions and How strict", (page.match(/<BuildingFrom tags=\{knownTags\}/g) ?? []).length === 3 && /answersGiven\(followUps, chipAnswers, \{ step, questionIndex: fuIndex \}\)/.test(page));
   check("the review passes what shaped each step, the writer's plan known by its stamp", /fromAnswers=\{fromYourAnswers\(/.test(page) && /writtenByAva: flow\?\.generatedBy\?\.provider === "openai"/.test(page));
+  check("the rail's Follow-ups count is the question showing, then the answers (never the taps)", /"Follow-ups": followUpsReceipt\(followUps, chipAnswers, \{ step, questionIndex: fuIndex, furthest: furthestQuestion \}\)/.test(page) && /if \(step === 1\) setFurthestQuestion\(\(f\) => Math\.max\(f \?\? -1, fuIndex\)\)/.test(page) && !/Object\.keys\(chipAnswers\)\.length\} of/.test(page));
   check("the card shows it as \"From your answers:\"", /fromAnswers && fromAnswers\.length > 0 &&/.test(shared) && /\{FROM_YOUR_ANSWERS\}/.test(shared) && M.FROM_YOUR_ANSWERS === "From your answers:");
   check("no new colour: the strip uses the fields' own surface and hairline", /background: "hsl\(var\(--ck-surface-2\)\)", border: "1px solid hsl\(var\(--border\)\)"/.test(page) && !/brass/i.test(page.slice(page.indexOf("function BuildingFrom"), page.indexOf("export default function AvaCreateJob"))));
 }

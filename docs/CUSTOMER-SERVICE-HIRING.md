@@ -973,10 +973,15 @@ quiet places, words only, no new colour (`src/lib/builderHints.ts`, pure;
   reads no follow-up answer, the post names the title, the place and the pay
   (the job's own fields) and the interview names nothing.
 
+The step rail's "Follow-ups" line counted taps, so question 5 read "1 of 8"
+and all eight answered "4 of 8". It is now the question showing while on
+them ("5 of 8"), and once past them how many were answered: every question
+reached counts, as picked or as it started (`followUpsReceipt`).
+
 The test proves each line on the built-in plan (changing an answer changes
 the step it names and nothing it does not), holds that every question asked
-has its line and every chip its short words, and that the writer is sent
-every answer.
+has its line and every chip its short words, that the writer is sent every
+answer, and the rail's count.
 
 ## Where the job is
 

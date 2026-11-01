@@ -88,6 +88,7 @@ import {
   BRIEF_USES_LINE,
   BUILDING_FROM_LABEL,
   answersGiven,
+  followUpsReceipt,
   fromYourAnswers,
   knownSoFar,
   questionShapes,
@@ -392,6 +393,7 @@ export default function AvaCreateJob() {
   // No talking to Ava (the owner, 2026-10-29): every business, the
   // platform's own account included, tells her about the role in writing.
   const [fuIndex, setFuIndex] = useState(0);
+  const [furthestQuestion, setFurthestQuestion] = useState<number | null>(null);
   const [chipAnswers, setChipAnswers] = useState<Record<string, number>>(saved?.chipAnswers ?? {});
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
   const [rigorTouched, setRigorTouched] = useState(saved?.rigorTouched ?? false);
@@ -729,7 +731,9 @@ export default function AvaCreateJob() {
   const stepReceipts = {
     // The job title is already the traveller chip; a long title here wraps the rail.
     "Brief": briefFields.role.trim() ? "Set" : null,
-    "Follow-ups": followUps.length ? `${Object.keys(chipAnswers).length} of ${followUps.length}` : null,
+    // The question showing while on them, then how many were answered (builderHints.ts followUpsReceipt): it counted
+    // taps, so question 5 read "1 of 8" and all eight answered "4 of 8" (the walkthrough of 2026-11-01).
+    "Follow-ups": followUpsReceipt(followUps, chipAnswers, { step, questionIndex: fuIndex, furthest: furthestQuestion }),
     "How strict": rigorTouched || step > 2 ? RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? null : null,
     // The applicant's steps only: the job post is the listing, not a step.
     "Ava builds": reviewCards.length ? `${screeningCardCount} ${screeningCardCount === 1 ? "step" : "steps"}` : null,
@@ -773,6 +777,11 @@ export default function AvaCreateJob() {
   useEffect(() => {
     if (step === 1) setFuIndex(0);
   }, [step]);
+
+  // The furthest question shown in this visit, for the rail's count of answers (null until one is shown).
+  useEffect(() => {
+    if (step === 1) setFurthestQuestion((f) => Math.max(f ?? -1, fuIndex));
+  }, [step, fuIndex]);
 
   const nextLabel = useMemo(() => {
     if (step === 0) return "Continue";
