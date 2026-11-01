@@ -1185,15 +1185,12 @@ function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: Av
                         </div>
                         <p className="mt-1.5 text-[12.5px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }} data-brief-type-note>
                           {typeNote}
-                          {briefFields.typeChosen === true && (
-                            <>
-                              {" "}
-                              <button type="button" className="font-medium underline underline-offset-2" style={{ color: "hsl(var(--foreground))" }} onClick={() => setBriefFields((b) => ({ ...b, ...followingPlace(b, b.location, { atOffice: !!b.atOffice, role: b.role }) }))}>
-                                Follow where they'll work
-                              </button>
-                            </>
-                          )}
                         </p>
+                        {briefFields.typeChosen === true && (
+                          <button type="button" className="mt-1 text-[12.5px] font-medium underline underline-offset-2" style={{ color: "hsl(var(--foreground))" }} onClick={() => setBriefFields((b) => ({ ...b, ...followingPlace(b, b.location, { atOffice: !!b.atOffice, role: b.role }) }))}>
+                            Follow where they'll work
+                          </button>
+                        )}
                       </div>
                       <div className="min-w-0">
                         <label htmlFor="brief-start" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><CalendarClock className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Start</label>
@@ -1286,12 +1283,13 @@ function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: Av
                           />
                           <div id="own-business-read" aria-live="polite">
                             {line ? (
-                              <ReadBack tone={line.tone}>
-                                {line.text}{" "}
-                                <button type="button" className="font-medium underline underline-offset-2" style={{ color: "hsl(var(--foreground))" }} aria-expanded={changingPack} onClick={() => setChangingPack((c) => !c)} data-own-business-change>
+                              <>
+                                <ReadBack tone={line.tone}>{line.text}</ReadBack>
+                                {/* Under the line, never inside it: a phone's 44 px tap target opened a gap in the sentence. */}
+                                <button type="button" className="mt-1 text-[12.5px] font-medium underline underline-offset-2" style={{ color: "hsl(var(--foreground))" }} aria-expanded={changingPack} onClick={() => setChangingPack((c) => !c)} data-own-business-change>
                                   Change
                                 </button>
-                              </ReadBack>
+                              </>
                             ) : (
                               <ReadBack tone="hint">Ava picks the closest situations for the skills check and the practice from your words.</ReadBack>
                             )}

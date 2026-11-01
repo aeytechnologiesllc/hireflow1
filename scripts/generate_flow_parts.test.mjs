@@ -286,7 +286,7 @@ console.warn = () => {}; // the fallbacks below are expected; their warnings are
   check("as parts land, each is ready and the next is being written", st1.post === "ready" && st1.form === "ready" && st1.interview === "writing" && st1.scorecard === "waiting");
   check("the interview waits for its questions and its dimensions", S(["jobPost", "application", "voiceQuestions"]).interview === "writing" && S(["jobPost", "application", "voiceQuestions", "voiceDimensions"]).interview === "ready");
   check("the plan back: all ready; the built-in plan: the writer's four are its first draft", Object.values(S([], "openai")).every((s) => s === "ready") && S(["jobPost"], "template").post === "draft" && S([], "template").skills === "ready");
-  check("the wait line comes after 6 s and names the limit; the draft line says why", F.writerWaitLine(5000, 40000) === null && /still writing \(12 s\)\. If it takes more than 40 seconds, I'll use a ready-made first draft/.test(F.writerWaitLine(12400, 40000)) && /took more than 40 seconds/.test(F.draftLine("timeout", 40000)) && /isn't available right now/.test(F.draftLine("unavailable", 40000)));
+  check("the wait line comes after 6 s and names the limit; the draft line says why", F.writerWaitLine(5000, 40000) === null && /^Ava is still writing\. If it takes more than 40 seconds, I'll use a ready-made first draft/.test(F.writerWaitLine(12400, 40000)) && F.secondsWords(12400) === "12 s" && /took more than 40 seconds/.test(F.draftLine("timeout", 40000)) && /isn't available right now/.test(F.draftLine("unavailable", 40000)));
 }
 
 console.warn = realWarn;

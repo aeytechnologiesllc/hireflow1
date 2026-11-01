@@ -106,7 +106,7 @@ export function secondsWords(ms: number): string {
 /** The line under the parts while the writer works: what it is doing, and what happens at the time limit. */
 export function writerWaitLine(elapsedMs: number, limitMs: number): string | null {
   if (elapsedMs < 6000) return null;
-  return `Ava is still writing (${secondsWords(elapsedMs)}). If it takes more than ${Math.round(limitMs / 1000)} seconds, I'll use a ready-made first draft for these, which you can edit.`;
+  return `Ava is still writing. If it takes more than ${Math.round(limitMs / 1000)} seconds, I'll use a ready-made first draft for these, which you can edit.`;
 }
 
 /** The line when the built-in plan stood in for the writer. */
