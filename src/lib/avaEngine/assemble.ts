@@ -29,8 +29,13 @@ const EQUIPMENT_BARS_BY_CHIP: ReadonlyArray<Omit<EquipmentCheckConfig, "kind">> 
 ];
 
 export function equipmentBarsForBrief(brief: Pick<JobBrief, "followUps">): EquipmentCheckConfig {
+  return equipmentBarsForAnswer(brief.followUps?.find((f) => f.questionId === "remote-internet")?.answer);
+}
+
+/** The check's three bars for one answer to the internet question (the default's for none or an unknown one): what
+ *  the builder's line under each answer states (src/lib/builderHints.ts internetAnswerLine). */
+export function equipmentBarsForAnswer(answer: string | null | undefined): EquipmentCheckConfig {
   const internet = REMOTE_FOLLOWUPS.find((f) => f.id === "remote-internet");
-  const answer = brief.followUps?.find((f) => f.questionId === "remote-internet")?.answer;
   const chip = internet && answer ? internet.chips.indexOf(answer) : -1;
   const bars = EQUIPMENT_BARS_BY_CHIP[chip === -1 ? (internet?.def ?? 1) : chip] ?? EQUIPMENT_BARS_BY_CHIP[1];
   return { kind: "equipment_check", ...bars };

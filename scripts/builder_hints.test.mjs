@@ -111,6 +111,18 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const wired = planFor({ ...base, "remote-internet": chipIndex("remote-internet", "Fast wired connection required") });
   check("the internet answer sets the computer check's bars", phase(basic, "equipment_check").config.minDownloadMbps < phase(wired, "equipment_check").config.minDownloadMbps);
   check("…as its line says", M.questionShapes("remote-internet") === "Shapes the computer check");
+  // Under each answer, what it gets them in practice (the owner, 2026-11-01: "say we will test their connection ... so
+  // they know what each answer will get them"): the very bars the built-in plan saves for that answer, nothing more.
+  for (const chip of M.REMOTE_FOLLOWUPS.find((f) => f.id === "remote-internet").chips) {
+    const cfg = phase(planFor({ ...base, "remote-internet": chipIndex("remote-internet", chip) }), "equipment_check").config;
+    const line = M.internetAnswerLine(chip);
+    const want = `At least ${cfg.minDownloadMbps} Mbps down and ${cfg.minUploadMbps} up, ping ${cfg.maxLatencyMs} ms or less.`;
+    check(`${JSON.stringify(chip)}'s line states the check's own bars: ${line}`, line.startsWith(want), `${line} / ${want}`);
+  }
+  check("the wired answer says the check measures speed, not the cable (it cannot see one)", /It measures speed, not the cable\.$/.test(M.internetAnswerLine("Fast wired connection required")) && !/cable/.test(M.internetAnswerLine("Basic broadband is fine")));
+  check("the line over them says what the check is, and that it declines nobody (docs/EQUIPMENT-CHECK.md rules 1-3)", /our own speed test on the computer they'll work from/.test(M.INTERNET_CHECK_LINE) && /never an automatic no/.test(M.INTERNET_CHECK_LINE));
+  const pageSrc = read("src/pages/AvaCreateJob.tsx");
+  check("the page shows both on the internet question", /fu\.id === "remote-internet" \? internetAnswerLine\(chip\) : null/.test(pageSrc) && /\{INTERNET_CHECK_LINE\}/.test(pageSrc));
 
   // The answers only the writer reads: the built-in plan builds exactly the same thing whatever they are.
   const writerOnly = ["cs-load", "cs-hours", "cs-sensitive", "cs-tools", "remote-equipment"];

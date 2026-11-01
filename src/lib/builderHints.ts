@@ -35,6 +35,7 @@
 import { payWords } from "@/lib/jobPost";
 import { salaryForJob } from "@/lib/salaryParse";
 import { placeNamesNothing, placeSaysHybrid, placeSaysRemote } from "@/lib/jobLocation";
+import { equipmentBarsForAnswer } from "@/lib/avaEngine/assemble";
 
 /** Under the brief card's heading. */
 export const BRIEF_USES_LINE = "Ava writes your job post and your tests from these answers.";
@@ -128,6 +129,25 @@ export function questionShapes(questionId: string, opts: { channel?: string | nu
       return null;
   }
 }
+
+/**
+ * What an answer to the internet question gets the business, in practice
+ * (the owner, 2026-11-01: "it'd be nice if it say we will test their
+ * connection or something like that, so they know what each answer will get
+ * them"). Read off the computer check's own bars for that answer
+ * (equipmentBarsForAnswer, the config the job is saved with), so the line
+ * can never promise a bar the check does not set. The check measures speed
+ * and delay on our server's clock, never the cable: a wired answer says so.
+ */
+export function internetAnswerLine(answer: string): string {
+  const bars = equipmentBarsForAnswer(answer);
+  const line = `At least ${bars.minDownloadMbps} Mbps down and ${bars.minUploadMbps} up, ping ${bars.maxLatencyMs} ms or less`;
+  return /\bwired\b/i.test(answer) ? `${line}. It measures speed, not the cable.` : `${line}.`;
+}
+
+/** Over the internet answers: what the computer check is, in one line (docs/EQUIPMENT-CHECK.md, rules 1 to 3). */
+export const INTERNET_CHECK_LINE =
+  "We run our own speed test on the computer they'll work from. Below your bar is flagged for you, never an automatic no.";
 
 /** The title as typed, in one line. */
 export function roleTag(role: string): string | null {

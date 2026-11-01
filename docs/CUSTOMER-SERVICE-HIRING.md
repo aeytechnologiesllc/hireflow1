@@ -987,6 +987,19 @@ quiet places, words only, no new colour (`src/lib/builderHints.ts`, pure;
   reads no follow-up answer, the post names the title, the place and the pay
   (the job's own fields) and the interview names nothing.
 
+**The internet question says what each answer gets** (the owner,
+2026-11-01: "say we will test their connection or something like that, so
+they know what each answer will get them ... cleanly"). Over the answers, one
+line: "We run our own speed test on the computer they'll work from. Below
+your bar is flagged for you, never an automatic no." (`INTERNET_CHECK_LINE`,
+docs/EQUIPMENT-CHECK.md rules 1 to 3). Under each answer, the bars the check
+is saved with for it (`internetAnswerLine`, read off
+`equipmentBarsForAnswer`, the same function `equipmentBarsForBrief` uses):
+"At least 5 Mbps down and 2 up, ping 300 ms or less." (basic), 10/3/200
+(reliable), 25/10/100 (fast wired, with "It measures speed, not the cable.",
+since the check cannot see one). The test proves each line against the
+built-in plan's saved bars.
+
 The step rail's "Follow-ups" line counted taps, so question 5 read "1 of 8"
 and all eight answered "4 of 8". It is now the question showing while on
 them ("5 of 8"), and once past them how many were answered: every question

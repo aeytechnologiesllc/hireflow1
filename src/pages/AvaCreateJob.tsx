@@ -102,6 +102,8 @@ import {
 import {
   BRIEF_USES_LINE,
   BUILDING_FROM_LABEL,
+  INTERNET_CHECK_LINE,
+  internetAnswerLine,
   answersGiven,
   applicantMinutes,
   applicantTimeLine,
@@ -1111,12 +1113,25 @@ export default function AvaCreateJob() {
                       <AvaSeal size={11} /> {playbook.label === "this role" ? "Tailored to this job" : `Tailored to ${/^[aeiou]/i.test(playbook.label) ? "an" : "a"} ${playbook.label} job`}
                     </span>
                     <h2 className="mt-4 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>{fu.question}</h2>
+                    {/* What the computer check is, then under each answer the bars it sets (the owner, 2026-11-01: "say we
+                        will test their connection ... so they know what each answer will get them"; builderHints.ts). */}
+                    {fu.id === "remote-internet" && (
+                      <p className="mt-3 max-w-lg text-[13px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }} data-internet-check>
+                        {INTERNET_CHECK_LINE}
+                      </p>
+                    )}
                     <div className="mt-7 flex flex-wrap justify-center gap-2.5">
                       {fu.chips.map((chip, ci) => {
                         const on = picked === ci;
+                        const sub = fu.id === "remote-internet" ? internetAnswerLine(chip) : null;
                         return (
-                          <button key={chip} type="button" onClick={() => { setChipAnswers((a) => ({ ...a, [fu.id]: ci })); focusOwnWords(fu.id, chip); }} className="inline-flex items-center rounded-full px-4 py-2.5 text-sm transition-all" style={on ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", border: "1px solid var(--action)", fontWeight: 600 } : { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}>
-                            {on && <Check className="mr-2 h-4 w-4" />}{chip}
+                          <button key={chip} type="button" aria-pressed={on} onClick={() => { setChipAnswers((a) => ({ ...a, [fu.id]: ci })); focusOwnWords(fu.id, chip); }} className={`inline-flex text-sm transition-all ${sub ? "w-full flex-col items-start rounded-2xl px-4 py-3 text-left sm:w-[13.5rem]" : "items-center rounded-full px-4 py-2.5"}`} style={on ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", border: "1px solid var(--action)", fontWeight: 600 } : { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}>
+                            <span className="inline-flex items-center">{on && <Check className="mr-2 h-4 w-4 shrink-0" />}{chip}</span>
+                            {sub && (
+                              <span className="mt-1 text-[12px] font-normal leading-snug" style={{ color: on ? "var(--action-soft-fg)" : "hsl(var(--muted-foreground))" }} data-internet-line>
+                                {sub}
+                              </span>
+                            )}
                           </button>
                         );
                       })}
