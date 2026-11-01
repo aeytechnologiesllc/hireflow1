@@ -1026,6 +1026,24 @@ Ava what your business does" ("e.g. a pet grooming salon"):
   No edge function changed: generate-flow already puts every answer in its
   prompt. `scripts/business_kind.test.mjs`.
 
+## Set your own hours (2026-11-01)
+
+The owner, on "When will they work?": "here you should also be able to pick
+or define your own timings ... easy, but also very customizable". The four
+picks stay (Daytime, Evenings or nights, Weekends too, Rotating shifts) and a
+fifth, **Set your own hours** (`CS_HOURS_CHIPS`), opens "Their hours" ("e.g.
+Mon–Fri, 9am–5pm Manila time"):
+
+- **The brief** carries the hours as written as the question's answer, so the
+  writer reads them (`withOwnWords`); left empty, the answer is left out (the
+  writer is never told "Set your own hours").
+- **The job post says them on either plan** (`withOwnHoursInPost`): "Hours:
+  Mon–Fri, 9am–5pm Manila time." after the post's summary, unless the post
+  already says them word for word, so the built-in plan (which reads no
+  follow-up answer) carries them too. The field's line shows that sentence
+  as it is typed; the review's job post names them on either plan.
+  `scripts/own_answers.test.mjs`.
+
 ## Where the job is
 
 `src/lib/jobLocation.ts` reads the place the business typed (and the Type

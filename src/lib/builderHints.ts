@@ -77,7 +77,7 @@ export const ANSWER_TAGS: Readonly<Record<string, Readonly<Record<string, string
     "Something else": "Any kind of business",
   },
   "cs-load": { "One at a time": "One at a time", "Two or three": "Two or three at once", "Four or more": "Four or more at once" },
-  "cs-hours": { Daytime: "Daytime", "Evenings or nights": "Evenings or nights", "Weekends too": "Weekends too", "Rotating shifts": "Rotating shifts" },
+  "cs-hours": { Daytime: "Daytime", "Evenings or nights": "Evenings or nights", "Weekends too": "Weekends too", "Rotating shifts": "Rotating shifts", "Set your own hours": "Own hours" },
   "cs-sensitive": { "Nothing sensitive": "No private details", "Payment details": "Payment details", "Health details": "Health details", "ID documents": "ID documents" },
   "cs-tools": { "Email and a chat box": "Email and a chat box", "A help desk tool": "Help desk tool", "We'll train them": "You'll train them" },
   "remote-internet": { "Basic broadband is fine": "Basic internet", "Reliable, video-call ready": "Reliable internet", "Fast wired connection required": "Fast wired internet" },
@@ -238,10 +238,15 @@ export function fromYourAnswers(step: string, a: BuilderAnswers, opts: { written
       return remote ? pick(placeTag(a.location, a.workMode), tagFor(a, "remote-internet")) : [];
     case "voice_interview":
       return opts.writtenByAva ? pick(tagFor(a, "cs-load"), tagFor(a, "cs-sensitive")) : [];
-    case "job-post":
+    case "job-post": {
+      // The business's own hours ("Set your own hours", src/lib/ownAnswers.ts) are put in the post on either plan
+      // (withOwnHoursInPost); the four picks only by the writer.
+      const hours = a.answers.find((x) => x.questionId === "cs-hours")?.answer ?? null;
+      const ownHours = hours && !Object.prototype.hasOwnProperty.call(ANSWER_TAGS["cs-hours"], hours) ? answerTag("cs-hours", hours) : null;
       return opts.writtenByAva
         ? pick(tagFor(a, "cs-industry"), tagFor(a, "cs-channel"), tagFor(a, "cs-hours"))
-        : pick(roleTag(a.role), placeTag(a.location, a.workMode), payTag(a.pay, { remote, countryCode: a.countryCode }));
+        : [...new Set([...pick(roleTag(a.role), placeTag(a.location, a.workMode), payTag(a.pay, { remote, countryCode: a.countryCode })), ...(ownHours ? [ownHours] : [])])];
+    }
     default:
       return [];
   }

@@ -115,10 +115,19 @@ function plain(text: string): string {
  * follow-up answer, so they would otherwise be missing from its post.
  */
 export function withOwnHoursInPost(post: JobPost, hours: string | null | undefined): JobPost {
-  const h = clean(hours).replace(/[.;,\s]+$/, "");
-  if (!h) return post;
+  const line = ownHoursLine(hours);
+  if (!line) return post;
   const all = plain([post.summary, ...(post.responsibilities ?? []), ...(post.requirements ?? []), ...(post.niceToHaves ?? [])].join(" "));
-  if (all.includes(plain(h))) return post;
-  const line = `Hours: ${h}.`;
+  if (all.includes(plain(ownHoursText(hours)))) return post;
   return { ...post, summary: post.summary?.trim() ? `${post.summary.trim()}\n\n${line}` : line };
+}
+
+function ownHoursText(hours: string | null | undefined): string {
+  return clean(hours).replace(/[.;,\s]+$/, "");
+}
+
+/** The post's line for the business's own hours ("Hours: Mon–Fri, 9am–5pm Manila time."), null while empty. */
+export function ownHoursLine(hours: string | null | undefined): string | null {
+  const h = ownHoursText(hours);
+  return h ? `Hours: ${h}.` : null;
 }

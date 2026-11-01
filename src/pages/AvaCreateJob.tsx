@@ -57,6 +57,7 @@ import {
   generateJobFlow,
   generateTemplateFlow,
   CHAT_AGENT_KIND,
+  CS_HOURS_CHIPS,
   JOB_KIND_ID,
   loadDraft,
   saveDraft,
@@ -117,7 +118,7 @@ import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
 import { CS_INDUSTRY_CHIPS } from "@/lib/avaEngine/customerService";
 import { PACK_CHOICES, businessKindLine } from "@/lib/businessKind";
-import { OWN_WORDS_MAX, SOMETHING_ELSE, givenWithOwnWords, ownBusinessPack, withOwnWords, type OwnWords } from "@/lib/ownAnswers";
+import { OWN_HOURS_CHIP, OWN_WORDS_MAX, SOMETHING_ELSE, givenWithOwnWords, ownBusinessPack, ownHoursIn, ownHoursLine, withOwnHoursInPost, withOwnWords, type OwnWords } from "@/lib/ownAnswers";
 import { claimSuggestedSlug } from "@/lib/jobSlugAvailability";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
@@ -459,7 +460,7 @@ export default function AvaCreateJob() {
   // A tap on the chip that opens the business's own words puts the cursor there (never on its own: coming back to the
   // question must not pop a phone's keyboard).
   const focusOwnWords = (questionId: string, chip: string) => {
-    const field = questionId === "cs-industry" && chip === SOMETHING_ELSE ? "own-business" : null;
+    const field = questionId === "cs-industry" && chip === SOMETHING_ELSE ? "own-business" : questionId === "cs-hours" && chip === OWN_HOURS_CHIP ? "own-hours" : null;
     if (field) window.requestAnimationFrame(() => document.getElementById(field)?.focus());
   };
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
@@ -683,8 +684,10 @@ export default function AvaCreateJob() {
         rigor,
         rigorRecommendation: { recommended: playbook.rigor.recommended, chosen: rigor, rationale: playbook.rigor.rationale },
       });
-      setFlow(result.flow);
-      setReviewCards(flowToReviewCards(result.flow));
+      // The business's own hours are in the post whichever plan wrote it (src/lib/ownAnswers.ts).
+      const built = { ...result.flow, jobPost: withOwnHoursInPost(result.flow.jobPost, ownHoursIn(brief.followUps, CS_HOURS_CHIPS)) };
+      setFlow(built);
+      setReviewCards(flowToReviewCards(built));
       setGenSource(result.source);
     } catch {
       toast.error("Could not build the plan. Try again.");
@@ -1158,6 +1161,30 @@ export default function AvaCreateJob() {
                         </div>
                       );
                     })()}
+                    {/* Set your own hours: any hours, as written, into the job post (the owner, 2026-11-01: "pick or
+                        define your own timings ... easy, but also very customizable"; src/lib/ownAnswers.ts). */}
+                    {fu.id === "cs-hours" && fu.chips[picked] === OWN_HOURS_CHIP && (
+                      <div className="mt-6 w-full max-w-md text-left" data-own-hours>
+                        <label htmlFor="own-hours" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}>Their hours</label>
+                        <input
+                          id="own-hours"
+                          maxLength={OWN_WORDS_MAX}
+                          value={ownWords.hours ?? ""}
+                          onChange={(e) => { const hours = e.target.value; setOwnWords((o) => ({ ...o, hours })); }}
+                          aria-describedby="own-hours-read"
+                          className={FIELD_INPUT}
+                          style={FIELD_STYLE}
+                          placeholder="e.g. Mon–Fri, 9am–5pm Manila time"
+                        />
+                        <div id="own-hours-read" aria-live="polite">
+                          {ownHoursLine(ownWords.hours) ? (
+                            <ReadBack tone="found">Your job post will say “{ownHoursLine(ownWords.hours)}”</ReadBack>
+                          ) : (
+                            <ReadBack tone="hint">Days, times and time zone, as you'd tell an applicant. Leave it empty and the post says nothing about hours.</ReadBack>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {/* What this answer shapes, quietly (builderHints.ts questionShapes: only what the plan reads). */}
                     {shapes && (
                       <p className="mt-5 inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: "hsl(var(--muted-foreground))" }} data-question-shapes>

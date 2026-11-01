@@ -1064,6 +1064,13 @@ export function jobKindFollowUp(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo"
 export const CHAT_AGENT_KIND: FollowUpDef = { id: JOB_KIND_ID, question: "What kind of job is it?", chips: [...JOB_KIND_CHIPS], def: 0 };
 
 /**
+ * "When will they work?": four picks and the business's own hours (the owner's live run of 2026-11-01: "pick or define
+ * your own timings ... easy, but also very customizable"). The last opens a field; its words are the answer the writer
+ * reads (src/lib/ownAnswers.ts withOwnWords) and the job post says them (withOwnHoursInPost).
+ */
+export const CS_HOURS_CHIPS = ["Daytime", "Evenings or nights", "Weekends too", "Rotating shifts", "Set your own hours"] as const;
+
+/**
  * For "Another kind of job", the next question: which is closest, starting on
  * her guess from the words (otherFamily). The answer decides the family, as
  * the job kind's answer decides customer service, so a wrong guess costs one
@@ -1131,7 +1138,7 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
           chips: ["One at a time", "Two or three", "Four or more"],
           def: 1,
         },
-        { id: "cs-hours", question: "When will they work?", chips: ["Daytime", "Evenings or nights", "Weekends too", "Rotating shifts"], def: 0 },
+        { id: "cs-hours", question: "When will they work?", chips: [...CS_HOURS_CHIPS], def: 0 },
         {
           id: "cs-sensitive",
           question: "What private details will they see?",
