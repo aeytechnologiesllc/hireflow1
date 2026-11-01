@@ -370,7 +370,8 @@ async function signedOutChecks(browser) {
     const staff = BASE.replace("127.0.0.1", "staff.localhost");
     for (const p of ["/no-such-page", `/${LIVE_SLUG}`]) {
       await page.goto(`${staff}${p}`);
-      const notFound = page.getByText("Oops! Page not found");
+      // The 404 page's heading (src/pages/NotFound.tsx; "Oops! Page not found" until 2026-11-01).
+      const notFound = page.getByRole("heading", { name: "Page not found" });
       await notFound.waitFor({ timeout: 15_000 }).catch(() => null);
       check(`staff host ${p} is NotFound`, await notFound.isVisible().catch(() => false), pathOf(page.url()));
     }

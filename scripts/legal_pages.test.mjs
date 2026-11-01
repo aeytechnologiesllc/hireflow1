@@ -3,8 +3,8 @@
  * docs/LEGAL-PAGES.md).
  *
  * Holds the owner's rule (the company named, Southern Digital Technologies LLC; no address, no email address, the
- * way to reach us is Messages) and the statements that must stay true of the
- * site. If one of these fails because the site changed, change the words in
+ * way to reach us is Contact us or Help in the account) and the statements that must stay true of the
+ * site, the prices and the way paying works among them (pricing v9, docs/BILLING.md). If one of these fails because the site changed, change the words in
  * legal.ts to match the site: never the other way round.
  */
 import { build } from "esbuild";
@@ -22,6 +22,10 @@ const { PRIVACY_POLICY, TERMS, LEGAL_UPDATED } = await import(pathToFileURL(outf
 const confirmFile = resolve(dir, "deleteAccount.mjs");
 await build({ entryPoints: [resolve(root, "src/content/deleteAccount.ts")], bundle: true, format: "esm", platform: "node", outfile: confirmFile, logLevel: "silent" });
 const deleteAccount = await import(pathToFileURL(confirmFile).href);
+// The prices the Terms read (pricing v9): src/lib/billing.ts, where they are written and nowhere else.
+const billingFile = resolve(dir, "billing.mjs");
+await build({ entryPoints: [resolve(root, "src/lib/billing.ts")], bundle: true, format: "esm", platform: "node", outfile: billingFile, logLevel: "silent" });
+const billing = await import(pathToFileURL(billingFile).href);
 rmSync(dir, { recursive: true, force: true });
 const read = (path) => readFileSync(resolve(root, path), "utf8");
 const show = (v) => JSON.stringify(v);
@@ -155,6 +159,7 @@ check("it tells people how to delete their account, by the button's own name", /
   check(
     "the policy and a business's Delete Account confirm say its payment records and its email's one-way fingerprint stay (one free job per address), as the database keeps them",
     /a record of each payment it made \(the amount, the date and the payment's reference\) is kept for our accounts after the account is deleted, without your name\. So is a one-way fingerprint of your sign-in email address, which cannot be turned back into the address: we keep it so that one email address gets one free job\./.test(privacy) &&
+      /We keep the payment records for as long as accounting and tax law requires\./.test(privacy) &&
       words.business.kept.length === 3 && /A record of each payment your business made/.test(words.business.kept[2]) && /one-way fingerprint of your email address, kept so that one address gets one free job/.test(words.business.kept[2]) &&
       words.applicant.kept.length === 2 && words.team.kept.length === 2 &&
       /owner_id uuid references auth\.users \(id\) on delete set null,\s*kind text not null check \(kind in \('free', 'paid', 'launch', 'unlimited'\)\)/.test(v9) &&
@@ -273,7 +278,27 @@ check("it says a profile photo sits at a public address", /A photo you add is st
 check("it names the companies that handle the information", ["Supabase", "Vercel", "OpenAI", "Resend", "Google Fonts"].every((name) => privacy.includes(name)));
 // Notifications go through the browser's own push service (20261021220000_web_push.sql); OneSignal keys were never set.
 check("notifications: the browser's push service, not OneSignal (never configured)", /Your browser's own push service/.test(privacy) && !/OneSignal/.test(privacy));
-check("it does not claim a provider the site does not use", !/Stripe|ElevenLabs|Google Analytics|Facebook|Meta Pixel|Mixpanel|Segment/.test(privacy));
+check("it does not claim a provider the site does not use", !/ElevenLabs|Google Analytics|Facebook|Meta Pixel|Mixpanel|Segment|Paddle|Braintree/.test(privacy));
+// Pricing v9 (docs/BILLING.md): businesses pay by card through Stripe
+// (supabase/functions/_shared/stripe.ts, Checkout with cards only). The policy
+// names Stripe as the payment provider, points to its own policy, says the
+// card number never reaches us, and says what payment information we keep.
+{
+  const stripe = read("supabase/functions/_shared/stripe.ts");
+  const checkout = read("supabase/functions/billing-checkout/index.ts");
+  check(
+    "it names Stripe as the payment provider, with its privacy policy, as the billing functions use it",
+    /Stripe, our payment provider: payments from businesses that pay for a job or for Unlimited, and their card details\. Stripe's own privacy policy, at stripe\.com\/privacy, says how it handles them\./.test(privacy) &&
+      /export const STRIPE_API = "https:\/\/api\.stripe\.com\/v1";/.test(stripe) && /payment_method_types/.test(checkout + stripe),
+  );
+  check(
+    "it says what payment information is kept (Stripe's customer and payment references, the amount, the date), never the card number",
+    /Payments are made by card through Stripe, our payment provider, which takes the card details\. We never see or store your full card number\. We keep your business's customer reference at Stripe and, for each payment, its reference, the amount, the date and what it paid for \(a job or Unlimited\)\./.test(privacy) &&
+      /When your business takes its free job, we also keep a one-way fingerprint of its sign-in email address, described under How long we keep it\./.test(privacy) &&
+      /To take payments from businesses that pay for the site, and to keep the records that accounting and tax law require\./.test(privacy) &&
+      !/card number[^.]*(is|are) (kept|stored)/i.test(privacy),
+  );
+}
 check("it says we do not sell information and show no advertising", /We do not sell your information\. We do not use it for advertising\./.test(privacy) && /no advertising cookies/.test(privacy));
 check(
   "it does not promise a retention period or a security guarantee the site cannot keep (the identity-paper timer, checked above, is the only one)",
@@ -285,7 +310,82 @@ check("applying promises nothing, and the hiring team decides", /Applying does n
 check("an applicant must do their own work", /Your answers must be your own/.test(terms) && /Do not use AI tools, scripts or copied answers/.test(terms));
 check("an offer is only an offer in writing", /An offer is only an offer when the hiring team sends it to you in writing\./.test(terms));
 check("a hiring team's decisions are its own, and AI is not to be relied on alone", /you must review each applicant and decide yourself/.test(terms) && /must not rely on them alone/.test(terms));
-check("no price is charged, and none without agreement", /free at the moment/.test(terms) && /nothing will be charged without your agreement/.test(terms) && !/\$\s?\d|USD\s?\d|per month|subscription/i.test(terms));
+// Pricing v9 (docs/BILLING.md; the owner's wording, 2026-11-01): the Terms
+// say what paying costs and how it works, in the pages' own plain voice. The
+// prices and a job's days come from src/lib/billing.ts (legal.ts imports
+// them; the guard billing-off-changes-nothing keeps them there) and are
+// pinned here, so a price change fails this test until the Terms and their
+// date change with it.
+{
+  const legalSource = read("src/content/legal.ts");
+  const v9 = read("supabase/migrations/20261031100000_billing_pricing_v9.sql");
+  const fn = read("supabase/functions/delete-account/index.ts");
+  const ids = TERMS.sections.map((s) => s.id);
+  const pay = TERMS.sections.find((s) => s.id === "payment");
+  const payText = pay ? textOf({ title: "", intro: [], sections: [pay] }) : "";
+  check(
+    "the prices the Terms read are billing.ts's own, pinned: $99 a job for 30 days, Unlimited $299 a month",
+    billing.PRICE_JOB === "$99" && billing.PRICE_UNLIMITED === "$299 a month" && billing.PASS_DAYS === 30,
+    show([billing.PRICE_JOB, billing.PRICE_UNLIMITED, billing.PASS_DAYS]),
+  );
+  check(
+    "…which legal.ts imports, never writes (the prices live in src/lib/billing.ts)",
+    /^import \{ PASS_DAYS, PRICE_JOB, PRICE_UNLIMITED \} from "\.\.\/lib\/billing";$/m.test(legalSource) && !/\$\s?(?:99|299)\b|\b(?:99|299)\s?(?:USD|dollars)\b/.test(legalSource),
+  );
+  check(
+    "the Terms have a \"Prices and payment\" section, right after \"If you are hiring\", and no longer say the site is free",
+    pay?.title === "Prices and payment" && ids.indexOf("payment") === ids.indexOf("hiring") + 1 &&
+      !/free at the moment|nothing will be charged without your agreement/.test(terms) &&
+      !TERMS.sections.find((s) => s.id === "hiring").body.some((b) => typeof b === "object" && "sub" in b && /^Price/.test(b.sub)),
+  );
+  check(
+    "what it costs: the first job free for 30 days, once per business and per address; then $99 (USD) a job for 30 days, or Unlimited at $299 a month (USD); taxes on top",
+    /Applying for a job here is free\. These prices are for businesses that hire\./.test(payText) &&
+      /A business's first published job is free for 30 days\. The free job comes once per business, and once per email address\./.test(payText) &&
+      /After that, \$99 \(USD\) keeps one job live for 30 days, with unlimited applicants\./.test(payText) &&
+      /Or choose Unlimited, at \$299 a month \(USD\)\. While it is active, every job you put live stays live, with unlimited applicants\./.test(payText) &&
+      /Prices do not include any taxes that apply\. The business pays those\./.test(payText) &&
+      // The free job once per owner and once per address, as the database takes it.
+      /create unique index if not exists job_passes_one_free_job/i.test(v9) && /create table if not exists public\.billing_free_job_emails/.test(v9),
+    payText.slice(0, 400),
+  );
+  check(
+    "by card through Stripe; we never see or store the full card number (Checkout takes cards only)",
+    /You pay by card, through Stripe, our payment provider\. Your card details go to Stripe\. We never see or store your full card number\./.test(payText) &&
+      /payment_method_types/.test(read("supabase/functions/billing-checkout/index.ts") + read("supabase/functions/_shared/stripe.ts")),
+  );
+  check(
+    "Unlimited renews monthly until cancelled, in Settings under Billing (the owner), to the end of the month paid, no refund for part of a month",
+    /Unlimited renews every month until you cancel it\. The account owner can cancel it at any time in Settings, under Billing\. It stays on until the end of the month you have already paid for\. We do not refund part of a month\./.test(payText) &&
+      /title: "Billing",/.test(read("src/lib/billing.ts")) && /\{isEmployer && !isTeamMember && <BillingCard \/>\}/.test(read("src/pages/Settings.tsx")),
+  );
+  check(
+    "a $99 job: not refunded once live, except where the law requires it or for our mistake (which we refund); it closes after its 30 days unless paid again or under Unlimited",
+    /A \$99 payment is for that job's 30 days\. Once the job has gone live, the payment is not refunded, except where the law requires it or where we made a mistake\. If we made a mistake, for example charging you twice or taking a payment for a job that could not go live, we refund it\./.test(payText) &&
+      /When the 30 days end, the job closes, unless you pay for it again or Unlimited covers it\. Its applicants stay with it\./.test(payText),
+  );
+  check(
+    "a failed renewal: Stripe tries again, Unlimited counts for up to 7 days (as the database counts past_due), then stops and its jobs close; the business is told in the site",
+    /If an Unlimited renewal fails, Stripe tries the payment again\. Unlimited keeps working for up to 7 days while it does\. After that it stops, and the jobs that only Unlimited kept live close\. We tell you in the site when this happens\./.test(payText) &&
+      /s\.status <> 'past_due' or s\.past_due_since > now\(\) - interval '7 days'/.test(v9),
+  );
+  check(
+    "price changes: 30 days' notice before a new Unlimited price; a paid job keeps its 30 days",
+    /We will tell you at least 30 days before a new Unlimited price applies to you\. A job you have already paid for keeps its 30 days\./.test(payText),
+  );
+  check(
+    "questions about a charge come to us first, calmly, from Help (never Messages)",
+    /If a charge looks wrong, or you have a question about one, please write to us first, from Help in your account\. We usually reply within a day, and we will look into it with you\./.test(payText) &&
+      !/chargeback|dispute|collections|legal action|suspend/i.test(payText),
+  );
+  check(
+    "deleting the account cancels Unlimited, and the payment records and the email's fingerprint stay without a name, as Delete Account's confirm says and delete-account does",
+    /Deleting your account cancels Unlimited straight away\. A record of each payment your business made \(the amount, the date and the payment's reference\) is kept for our accounts, and so is a one-way fingerprint of your email address, so that one address gets one free job\. Neither has your name\./.test(payText) &&
+      /^A record of each payment your business made \(the amount, the date and the payment's reference\), kept for our accounts, and a one-way fingerprint of your email address, kept so that one address gets one free job\. Neither has your name\.$/.test(deleteAccount.deleteAccountWords("business").kept[2]) &&
+      /cancelEverySubscription\(/.test(fn),
+  );
+  check("the payment terms add no arbitration, court or venue, and no contact email", !/arbitrat|jurisdiction|venue|courts? of|class action/i.test(payText) && !/@/.test(payText));
+}
 check("signing electronically is explained, and can be declined", /typing or drawing your name/.test(terms) && /You can decline to sign\./.test(terms));
 check("it takes away no right the law protects", /Nothing in these terms takes away a right the law gives you that cannot be taken away\./.test(terms));
 // The owner, 2026-10-31: the LLC is registered in Georgia, so Georgia law governs the terms.
@@ -386,7 +486,31 @@ check("Georgia law governs the terms, and no court, venue or arbitration is inve
 
 // --- the pages ---------------------------------------------------------------------------
 const page = read("src/components/LegalPage.tsx");
-check("each page is its words and nothing else: no logo, no brand name in the frame", !/HireFlow|Zulu|favicon|<img/.test(page.replace(/\/\*[\s\S]*?\*\//g, "")));
+// Since 2026-11-01 the pages wear the app's look (Sage paper by Day, warm ink
+// by Night) and carry the app's own green seal wordmark at the top; the
+// documents' words still name only the company (checked above), and the frame
+// has no other logo, picture or name.
+{
+  const frame = page.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "");
+  check(
+    "each page is its words in the app's frame: the green seal wordmark, and no other logo, picture or name",
+    /import \{ Wordmark \} from "@\/cockpit\/components\/Wordmark";/.test(page) && (frame.match(/<Wordmark\b/g) ?? []).length === 1 && !/HireFlow|Zulu|favicon|<img/.test(frame),
+  );
+  check(
+    "…in the theme's own colours, never a fixed one (Day is Sage paper, Night warm ink)",
+    ["--ground", "--surface", "--ink", "--ink-3", "--line", "--action"].every((token) => frame.includes(`var(${token})`)) && !/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsl\(/.test(frame),
+  );
+}
+// The 404 page wears the same look (2026-11-01): theme tokens, the seal, and
+// still the words the browser checks look for ("Page not found", "404").
+{
+  const notFound = read("src/pages/NotFound.tsx");
+  check(
+    "the 404 page follows the theme (no forced dark, no fixed colour), with the seal, \"404\" and \"Page not found\"",
+    ["--ground", "--ink", "--ink-3", "--action"].every((token) => notFound.includes(`var(${token})`)) && !/className="dark\b|bg-\[hsl\(|#[0-9a-fA-F]{3,8}\b/.test(notFound) &&
+      /<Wordmark\b/.test(notFound) && />404</.test(notFound) && />Page not found</.test(notFound),
+  );
+}
 check("the two pages show the two documents and link to each other", /PRIVACY_POLICY/.test(read("src/pages/Privacy.tsx")) && /to: "\/terms"/.test(read("src/pages/Privacy.tsx")) && /TERMS/.test(read("src/pages/Terms.tsx")) && /to: "\/privacy"/.test(read("src/pages/Terms.tsx")));
 check("docs/LEGAL-PAGES.md says where each statement was checked and what is still to add", /Where each statement was checked/.test(read("docs/LEGAL-PAGES.md")) && /Still to add/.test(read("docs/LEGAL-PAGES.md")));
 

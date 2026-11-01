@@ -12,7 +12,10 @@
  *   - legal-pages-name-entity-and-contact: both pages name the company that
  *     runs the site and end with how to reach it: Contact us (an applicant's
  *     own Help thread) or Help (a hiring team), never Messages to the
- *     hiring business.
+ *     hiring business. Since pricing v9 (2026-11-01) the Terms say what
+ *     paying costs, with the prices read from src/lib/billing.ts, and send a
+ *     question about a charge to Help; the Privacy Policy names Stripe as the
+ *     payment provider, with its own policy.
  *   - applicant-data-can-be-removed: a business can delete an applicant's
  *     information (the Terms ask it to act on such a request), only through
  *     the remove-applicant function, which names the actor from the sign-in
@@ -456,7 +459,9 @@ export default [
     why:
       `A privacy policy names who is responsible and how to reach them. Both pages name ${ENTITY} (the owner, ` +
       "2026-10-24) in their opening and end with how to reach us; the Terms say Georgia law applies (the owner, " +
-      "2026-10-31). The contact email is an owner input still to come (docs/LEGAL-PAGES.md).",
+      "2026-10-31). The contact email is an owner input still to come (docs/LEGAL-PAGES.md). Since pricing v9 " +
+      "(2026-11-01) the Terms' \"Prices and payment\" reads the prices from src/lib/billing.ts (never its own " +
+      "figures) and sends a question about a charge to Help; the Privacy Policy names Stripe and its policy.",
     run: async ({ read }) => {
       const detail = [];
       const legal = (await read("src/content/legal.ts")) ?? "";
@@ -474,6 +479,18 @@ export default [
       // The governing-law state the owner gave (2026-10-31): Georgia.
       const terms = legal.slice(legal.indexOf("export const TERMS: LegalDocument = {"));
       if (!/id: "law",\s*title: "Which law applies",[\s\S]{0,200}laws of the State of Georgia/.test(terms)) detail.push('legal.ts: the Terms no longer say the laws of the State of Georgia apply ("Which law applies")');
+      // Pricing v9 (2026-11-01): the payment terms, with billing.ts's prices,
+      // and a question about a charge comes to us (Help), not the business.
+      if (!/^import \{ PASS_DAYS, PRICE_JOB, PRICE_UNLIMITED \} from "\.\.\/lib\/billing";$/m.test(legal)) detail.push("legal.ts: the Terms must read the prices from src/lib/billing.ts (PRICE_JOB, PRICE_UNLIMITED, PASS_DAYS)");
+      const pay = /id: "payment",\s*title: "Prices and payment",([\s\S]*?)\n    \},\n/.exec(terms)?.[1] ?? "";
+      if (!pay) detail.push('legal.ts: the Terms no longer have "Prices and payment"');
+      else {
+        if (!/\$\{PRICE_JOB\}/.test(pay) || !/\$\{PRICE_UNLIMITED\}/.test(pay)) detail.push('legal.ts: "Prices and payment" no longer names both prices from billing.ts');
+        if (!/please write to us first, from Help in your account/.test(pay)) detail.push('legal.ts: "Prices and payment" no longer sends a question about a charge to Help');
+        if (/arbitrat|jurisdiction|venue/i.test(pay)) detail.push('legal.ts: "Prices and payment" adds an arbitration, court or venue clause the owner never gave');
+      }
+      const privacy = legal.slice(legal.indexOf("export const PRIVACY_POLICY: LegalDocument = {"), legal.indexOf("export const TERMS: LegalDocument = {"));
+      if (!/Stripe, our payment provider/.test(privacy) || !/stripe\.com\/privacy/.test(privacy) || !/We never see or store your full card number\./.test(privacy)) detail.push("legal.ts: the Privacy Policy must name Stripe as the payment provider, with stripe.com/privacy, and say the full card number never reaches us");
       const help = (await read("src/cockpit/pages/Help.tsx")) ?? "";
       const header = (await read("src/components/AppHeader.tsx")) ?? "";
       const layout = (await read("src/components/AppLayout.tsx")) ?? "";

@@ -11,7 +11,8 @@ nobody reads.
 
 - The words: `src/content/legal.ts` (`PRIVACY_POLICY`, `TERMS`).
 - The page: `src/components/LegalPage.tsx`, shown by `src/pages/Privacy.tsx`
-  (`/privacy`) and `src/pages/Terms.tsx` (`/terms`).
+  (`/privacy`) and `src/pages/Terms.tsx` (`/terms`). Since 2026-11-01 it wears
+  the app's look (below, "The look").
 - Proof: `scripts/legal_pages.test.mjs`.
 
 These were written by an AI from what the code does, not by a lawyer. They
@@ -58,7 +59,14 @@ On 2026-10-09, against the repo and the live project.
 | Only the business's "Delete their information" (or the applicant) removes an application, and it is recorded | `20261025550000` dropped the two browser delete policies a business had, and `20261025570000` keeps an application on its job (moving it to a throwaway job and deleting that was another way; the eighth security review); `remove_applicant` logs who and why (`private.applicant_removals`); deleting a whole job still deletes its applications, by design; 2026-10-25 |
 | What Delete Account removes, and what stays | `supabase/functions/delete-account`: not in its list are the quiz attempt ledger, the block list, the note that a team removed an application (`private.applicant_removals`, with its reason), the spoken-interview minutes (`voice_session_log`) and error reports (typing-test starts go with the applications, `ON DELETE CASCADE`; the tenth Phase 5 review); a withdrawal note (`private.application_withdrawals`) goes with the account. The record of each signature (`document_audit_logs`: name, email, time, IP address, browser, device, place) stays as proof: `prevent_audit_delete` refuses any delete, and delete-account no longer tries (it failed and logged an error for everyone who had signed). Settings' confirm says what goes and what stays by who is deleting (`src/content/deleteAccount.ts`): an applicant, a business (its jobs and their applications go too), a team member (their chats and sent documents go to the owner, `delete-account`'s handover). The twelfth Phase 5 review: the confirm said "All your data ... will be permanently deleted"; `scripts/delete_account.test.mjs` runs the real function. The fourteenth: the Danger Zone row above the button said "your account and all data" (applicants) and "all associated data" (the hiring team); it is the same function's `summary` now, which says what stays. The note of each business someone applied to and how it was in touch (`private.business_contacts`, kept so a report counts after the business deletes its messages or the application; `20261025670000`) goes with the account: both of its ids are foreign keys to `auth.users` ON DELETE CASCADE, and delete-account deletes the auth user last |
 | A hiring team turns its own email alerts off in Settings (applicants have no email switch: withdrawing stops a job's emails); an application can be withdrawn until the interview, the offer or a decline, and while nothing is signed; after that, Messages to the business or Contact us | `src/pages/Settings.tsx` (staff only), `src/pages/Applications.tsx` (`canWithdraw`: in_progress, pending, reviewing), the applicant's delete policy (`20261011197000`). The policy said only "withdraw that application" until the twelfth Phase 5 review, while Withdraw is gone from the interview stage on |
-| Free at the moment | billing was removed; no price is shown anywhere |
+| What paying costs: the first published job free for 30 days, once per business and once per email address; then $99 (USD) a job for 30 days with unlimited applicants, or Unlimited at $299 a month (USD); taxes not included | pricing v9, `docs/BILLING.md`: `src/lib/billing.ts` (`PRICE_JOB`, `PRICE_UNLIMITED`, `PASS_DAYS`, which legal.ts imports), `jobs_publish_needs_pass` (the free pass once per owner, unique index `job_passes_one_free_job`, and once per address, `billing_free_job_emails`), `20261031100000_billing_pricing_v9.sql`; 2026-11-01 |
+| By card through Stripe; we never see or store the full card number | `billing-checkout` (Stripe Checkout, `payment_method_types: card`), `supabase/functions/_shared/stripe.ts`; HireFlow keeps Stripe's ids only (`billing_customers`, `job_passes`); 2026-11-01 |
+| Unlimited renews monthly until cancelled, in Settings under Billing (the owner), on to the end of the month paid, no refund for part of a month | the Customer portal cancels at the period end (`billing-portal`; docs/BILLING.md, "Going live", step 3); `BillingCard` for the owner only (`src/pages/Settings.tsx`); 2026-11-01 |
+| A $99 job is not refunded once live, except where the law requires it or for our mistake, which we refund; it closes after its 30 days unless paid again or under Unlimited; its applicants stay | `billing-webhook` refunds a payment with nothing given (a deleted job, another business's job, a second Unlimited); the hourly `billing_close_ended_jobs` closes what nothing covers and keeps the applications; 2026-11-01 |
+| A failed renewal: Stripe tries again, Unlimited counts for up to 7 days, then stops and the jobs only it kept live close; the business is told in the site | `billing_unlimited_active` (`past_due_since > now() - interval '7 days'`), the owner's cards from `billing-webhook` (`invoice.payment_failed`) and the hourly close ("Your Unlimited payment didn't go through"); 2026-11-01 |
+| Price changes: 30 days' notice before a new Unlimited price; a paid job keeps its 30 days | a promise of ours (prices are found by lookup key, so a new Unlimited price is a new Stripe price the owner makes); a pass's `ends_at` is fixed when it is paid; 2026-11-01 |
+| Deleting the account cancels Unlimited; payment records and the email's fingerprint stay, without a name | `delete-account` (`cancelEverySubscription`, before anything is deleted), `job_passes.owner_id` ON DELETE SET NULL, `billing_free_job_emails`; the same words as Delete Account's confirm (`src/content/deleteAccount.ts`); 2026-11-01 |
+| The Privacy Policy: Stripe named as the payment provider (stripe.com/privacy); what payment information is kept (the customer and payment references at Stripe, amounts, dates, what was paid for; never the card number); payment records kept as long as accounting and tax law requires | `billing_customers`, `job_passes`, `billing_events`; nothing deletes them; 2026-11-01 |
 | Three people the business has been in touch with pause it by their reports; once a report has been looked at and closed, a new one from that person counts again only after the business is in touch with them again | `employer_reports_auto_pause` reads the record of contact (`private.business_contacts`, `20261025670000`) and leaves out someone an admin already heard (`report_already_heard`: a report of theirs closed by the reopen or by Close, with no contact since; the fifteenth Phase 5 review, `20261025680000`); a card the business writes into its applicant's bell counts as a message; since the sixteenth review ("by message, by an email other than turning them down") an email from the hiring team counts too, but a decline (send-notification-email records it, `business_contacts_remember_email`, `20261025690000`), a report someone adds to is worked out again, and a browser's new time, link or notes on an interview is contact; since the seventeenth ("by moving their application forward"), the hiring team's browser moving an application to an interview, an offer, a hire or another step is contact, never a move to rejected (`business_contacts_remember_move`, `20261025700000`), and a decline names the job and the business as they were when the person applied and goes once, for a real decline; since the eighteenth ("by an email its hiring team sends them other than turning them down"), the applicant's own two emails ("application received", "Email me the link"), which come from the business by name and are no contact, name the job and the business as they were when they applied, and so do their own pages; since the nineteenth a report can name the business once its job is gone ("or its business once the job is gone"; `report_employer`'s `p_employer`, `report_choices`), and since the twentieth the way to it is named where it always is ("Once the job is gone, use Report a business you were in touch with: it is on Contact us, and on Messages when you have no chat there"; `ReportBusinessNote` on Help and Messages). The nineteenth's "So it is when it changes what its job, its steps or its own name say to them where the public cannot read it" is gone with the two triggers that made it so (`20261025730000`; an ordinary edit let three throwaway drafts pause a real business); what is true instead: "Once anyone has applied to a job, its business can no longer change the job's application questions, quiz or steps, and an applicant's own pages name the job, its place and type and the business as they were when they applied" (`jobs_applicant_words_fixed`, `applied_location`, `applied_job_type`); docs/BUSINESS-TRUST.md, launch_locks_behaviour sections 22 to 29 |
 | What we collect names reports (the job, the reason, the note, when, and who) and a Contact us thread, read by us, kept until the account is deleted; the note of contact keeps when each kind first and last happened and decides when a report does not count | `employer_reports` (`reporter_id` ON DELETE CASCADE, `details` up to 1,000 characters, `20261011100000`), `help_messages` (an applicant's thread keyed to their account, ON DELETE CASCADE, `20261011180000`, `20261025200000`); `private.business_contacts.first_at` / `last_at` and `report_already_heard` (`20261025680000`), an email from the hiring team recorded as a message (`20261025690000`); the sixteenth Phase 5 review, finding 4; the hiring team moving an application forward recorded as a message (`20261025700000`), the seventeenth |
 
@@ -79,6 +87,52 @@ US dollars. The business agrees at sign-up (the ticked agreement linking the
 Terms and the Privacy Policy, guard `applicant-signup-shows-privacy-notice`).
 Not legal advice: a lawyer's read before billing goes live is still on the
 list.
+
+## Paying (pricing v9, 2026-11-01)
+
+Billing is about to be switched on (docs/BILLING.md, "Going live", step 6:
+the Terms and the Privacy Policy first). The owner asked for the payment
+terms in "a normal procedure style", plain and not scary. The Terms have a
+section of their own, **Prices and payment**, right after "If you are
+hiring" (the old line "Using the site is free at the moment" is gone): what
+it costs, how you pay, Unlimited, a paid job, a payment that does not go
+through, price changes, questions about a charge (to us first, from Help),
+and deleting the account. The Privacy Policy names Stripe among the
+companies that run parts of the site, says what payment information is kept
+and for how long, and keeps the email-fingerprint line.
+
+- **The prices are not written in legal.ts.** It imports `PRICE_JOB`,
+  `PRICE_UNLIMITED` and `PASS_DAYS` from `src/lib/billing.ts`, where they are
+  written and nowhere else (guard `billing-off-changes-nothing`). The legal
+  test pins the words they make ("$99 (USD)", "$299 a month (USD)", 30 days),
+  so a price change fails it until the Terms, and their date, change too.
+- **No arbitration, no court, no venue**, and no contact email: none was
+  given. A question about a charge goes to Help in the account.
+- **Between this change and the switch** the Terms describe prices that are
+  not yet charged: nothing is charged while billing is off (CLAUDE.md), and
+  the pages go live with the app push the owner makes before turning billing
+  on.
+
+Guards `legal-pages-name-entity-and-contact` (the section, billing.ts's
+prices, Help for a charge, Stripe in the policy) and
+`billing-off-changes-nothing`; `scripts/legal_pages.test.mjs`.
+
+## The look (2026-11-01)
+
+The two pages and the 404 page wear the app's look: the theme's own tokens
+(`--ground`, `--surface`, `--ink`, `--ink-2`, `--ink-3`, `--line`,
+`--action`), so Sage paper by Day and warm ink by Night, whichever the
+reader chose in the app (it opens in Day). The document sits on a sheet of
+the app's paper, headings in the display face (Fraunces), body text about 65
+characters wide, list markers and links in the jade, and the green seal
+wordmark at the top. Before, the legal pages had fixed cream colours of
+their own and no logo (the owner, 2026-10-09: no company name for now; the
+company has been named since 2026-10-24), and the 404 page was a fixed dark
+slate with "Oops!". The documents' words still name only Southern Digital
+Technologies LLC. The legal test holds the frame to the tokens (no fixed
+colour) and to one wordmark and no other logo or picture; the 404 page keeps
+"404" and "Page not found" (`scripts/short_job_links_back_check.mjs`,
+`scripts/computer_only_browser_check.mjs`).
 
 ## Still to add
 
@@ -115,5 +169,7 @@ list.
    2026-10-25: a business uses "Delete their information" (docs/APPLICANTS-LIST.md,
    section 11); an applicant deletes their own account in Settings.
 
-If the site changes (a new step, a new provider, a price), change
+If the site changes (a new step, a new provider, a price: the prices come
+from `src/lib/billing.ts`, and the legal test fails until the words are
+checked again), change
 `src/content/legal.ts` and its date in the same change.

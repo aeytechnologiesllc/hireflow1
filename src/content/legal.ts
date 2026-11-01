@@ -26,7 +26,17 @@
  *
  * Plain words on purpose: an applicant reads this on a phone, often in a
  * second language.
+ *
+ * 3. Paying (pricing v9, docs/BILLING.md; the Terms' "Prices and payment",
+ *    the Privacy Policy's Stripe lines, 2026-11-01). The prices and a job's
+ *    days are read from src/lib/billing.ts, where they are written and
+ *    nowhere else (guard billing-off-changes-nothing). The legal test pins
+ *    the words they make, so a price change there fails it until this file
+ *    and its date change too. Relative import: the test bundles this file
+ *    with no "@/" alias.
  */
+
+import { PASS_DAYS, PRICE_JOB, PRICE_UNLIMITED } from "../lib/billing";
 
 export type LegalBlock = string | { list: string[] } | { sub: string };
 
@@ -44,7 +54,7 @@ export interface LegalDocument {
   sections: LegalSection[];
 }
 
-export const LEGAL_UPDATED = "October 31, 2026";
+export const LEGAL_UPDATED = "November 1, 2026";
 
 export const PRIVACY_POLICY: LegalDocument = {
   title: "Privacy Policy",
@@ -117,6 +127,9 @@ export const PRIVACY_POLICY: LegalDocument = {
         },
         { sub: "If you are on a hiring team" },
         "Your name, email address and password; your company's name, logo and details as you enter them; the jobs you post; your notes, ratings and decisions about applicants; the documents you send and sign; and the name and email address of anyone you invite to your team.",
+        { sub: "If your business pays for the site" },
+        "Payments are made by card through Stripe, our payment provider, which takes the card details. We never see or store your full card number. We keep your business's customer reference at Stripe and, for each payment, its reference, the amount, the date and what it paid for (a job or Unlimited).",
+        "When your business takes its free job, we also keep a one-way fingerprint of its sign-in email address, described under How long we keep it.",
       ],
     },
     {
@@ -130,6 +143,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             "To contact you about your application, in the site and by email. On a hiring team, you can turn your own email alerts off in Settings.",
             "To keep the tests fair and the site secure.",
             "To keep a record of signed documents.",
+            "To take payments from businesses that pay for the site, and to keep the records that accounting and tax law require.",
             "To fix problems, and to understand in total numbers how the site is used.",
           ],
         },
@@ -161,6 +175,7 @@ export const PRIVACY_POLICY: LegalDocument = {
             "Vercel: hosting the site.",
             "OpenAI: the AI scoring (the review of work samples included), the chat practice, the written interview and, if a job has one, the spoken interview.",
             "Resend: sending email.",
+            "Stripe, our payment provider: payments from businesses that pay for a job or for Unlimited, and their card details. Stripe's own privacy policy, at stripe.com/privacy, says how it handles them.",
             "Your browser's own push service (Google, Apple, Mozilla or Microsoft, depending on your browser): phone and desktop notifications, if you turn them on. Notifications travel through it encrypted.",
             "Daily (daily.co), the video-call provider, if the hiring team uses the site's built-in call for your interview.",
           ],
@@ -186,7 +201,7 @@ export const PRIVACY_POLICY: LegalDocument = {
         "In that time the hiring team may download a copy. A copy they keep is theirs to look after, under their own duties to protect it.",
         "When you delete your account, your profile, your applications, your messages, your reports, your Contact us thread, your test records and your files are deleted with it. On a hiring team, your chats with applicants and the documents you sent them stay with the business, under its owner's name.",
         "A few records stay behind. The record of each document you signed (your name, email address, the time, your IP address, browser, device and approximate place) is kept as proof of the signature, even after you delete your account. So are a count of your test attempts, a block-list entry if the account was blocked, a note that a hiring team removed an application of yours (with the reason it gave), how many minutes a spoken interview used, and error reports. A note that you withdrew from a job, kept so that you can apply to the same job again only after a month, is deleted with your account. So is a note of each business you applied to and of how it was in touch with you (a message, an email, moving your application forward, a request for papers, a document or an interview), with when each kind first and last happened. It is kept so that a report you make about a business still counts if the business deletes them, and it decides when a report does not count: once we have looked at a report of yours, a new one about that business counts again only if it is in touch with you after that.",
-        "If you run a business on the site, a record of each payment it made (the amount, the date and the payment's reference) is kept for our accounts after the account is deleted, without your name. So is a one-way fingerprint of your sign-in email address, which cannot be turned back into the address: we keep it so that one email address gets one free job.",
+        "If you run a business on the site, a record of each payment it made (the amount, the date and the payment's reference) is kept for our accounts after the account is deleted, without your name. So is a one-way fingerprint of your sign-in email address, which cannot be turned back into the address: we keep it so that one email address gets one free job. We keep the payment records for as long as accounting and tax law requires.",
       ],
     },
     {
@@ -310,8 +325,37 @@ export const TERMS: LegalDocument = {
         },
         { sub: "Reports and pausing" },
         "Applicants can report a job, or its business once the job is gone. We read every report, and the business never learns who sent it. When three different people the business has been in touch with report it, it pauses by itself while we look. A business is in touch with someone by message, by an email its hiring team sends them other than turning them down, by moving their application forward, a document to sign, a request for papers, or an interview. Once anyone has applied to a job, its business can no longer change the job's application questions, quiz or steps, and an applicant's own pages name the job, its place and type and the business as they were when they applied. We may also pause a business ourselves. A paused business's jobs close until it is open again. Once we have looked at someone's report and closed it, a new report from them counts toward this again only if the business is in touch with them after that.",
-        { sub: "Price" },
-        "Using the site is free at the moment. If that changes we will tell you first, and nothing will be charged without your agreement.",
+      ],
+    },
+    {
+      id: "payment",
+      title: "Prices and payment",
+      body: [
+        "Applying for a job here is free. These prices are for businesses that hire.",
+        { sub: "What it costs" },
+        {
+          list: [
+            `A business's first published job is free for ${PASS_DAYS} days. The free job comes once per business, and once per email address.`,
+            `After that, ${PRICE_JOB} (USD) keeps one job live for ${PASS_DAYS} days, with unlimited applicants.`,
+            `Or choose Unlimited, at ${PRICE_UNLIMITED} (USD). While it is active, every job you put live stays live, with unlimited applicants.`,
+          ],
+        },
+        "Prices do not include any taxes that apply. The business pays those.",
+        { sub: "How you pay" },
+        "You pay by card, through Stripe, our payment provider. Your card details go to Stripe. We never see or store your full card number.",
+        { sub: "Unlimited" },
+        "Unlimited renews every month until you cancel it. The account owner can cancel it at any time in Settings, under Billing. It stays on until the end of the month you have already paid for. We do not refund part of a month.",
+        { sub: "A paid job" },
+        `A ${PRICE_JOB} payment is for that job's ${PASS_DAYS} days. Once the job has gone live, the payment is not refunded, except where the law requires it or where we made a mistake. If we made a mistake, for example charging you twice or taking a payment for a job that could not go live, we refund it.`,
+        `When the ${PASS_DAYS} days end, the job closes, unless you pay for it again or Unlimited covers it. Its applicants stay with it.`,
+        { sub: "If a payment does not go through" },
+        "If an Unlimited renewal fails, Stripe tries the payment again. Unlimited keeps working for up to 7 days while it does. After that it stops, and the jobs that only Unlimited kept live close. We tell you in the site when this happens.",
+        { sub: "If prices change" },
+        `We will tell you at least 30 days before a new Unlimited price applies to you. A job you have already paid for keeps its ${PASS_DAYS} days.`,
+        { sub: "Questions about a charge" },
+        "If a charge looks wrong, or you have a question about one, please write to us first, from Help in your account. We usually reply within a day, and we will look into it with you.",
+        { sub: "If you delete your account" },
+        "Deleting your account cancels Unlimited straight away. A record of each payment your business made (the amount, the date and the payment's reference) is kept for our accounts, and so is a one-way fingerprint of your email address, so that one address gets one free job. Neither has your name.",
       ],
     },
     {
