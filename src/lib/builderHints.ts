@@ -246,3 +246,64 @@ export function fromYourAnswers(step: string, a: BuilderAnswers, opts: { written
       return [];
   }
 }
+
+/* ── How long applicants spend (the run-through of 2026-10-31) ─────────────
+ * Each card on the plan had its own minutes and nobody added them up, while
+ * the total is what decides how many finish; and the How strict cards said
+ * only "Balanced screen for most jobs". Both read the plan's own time lines
+ * (the steps' durationLabel), so the words follow the plan Ava would build. */
+
+/** The minutes a step's time line names ("~8 min", "8 min"); null when it names none ("Public", "—"). */
+export function minutesIn(label: string | null | undefined): number | null {
+  const m = /(\d+(?:\.\d+)?)\s*min\b/i.exec(label ?? "");
+  return m ? Number(m[1]) : null;
+}
+
+/** About how long the applicant's steps take together; null when no step names its time. */
+export function applicantMinutes(labels: readonly (string | null | undefined)[]): number | null {
+  const each = labels.map(minutesIn).filter((n): n is number => n != null);
+  return each.length ? Math.max(1, Math.round(each.reduce((sum, n) => sum + n, 0))) : null;
+}
+
+/** The plan review's line over the steps: how many, and how long all together. */
+export function applicantTimeLine(steps: number, minutes: number | null): string | null {
+  if (steps <= 0) return null;
+  const count = `${steps} ${steps === 1 ? "step" : "steps"} for applicants`;
+  return minutes ? `${count}, about ${minutes} minutes in all.` : `${count}.`;
+}
+
+/** The part of a plan step the How strict cards read. */
+export interface PlanStepShape {
+  kind: string;
+  config?: unknown;
+  durationLabel?: string;
+}
+
+/**
+ * What one How strict choice builds, read off the plan it would make: the
+ * form's and the interview's questions (what the choice changes), the steps
+ * every choice keeps, and the applicant's minutes. "3 form questions and a
+ * 6-question written interview, with the skills check and the chat practice."
+ */
+export function rigorPlanWords(phases: readonly PlanStepShape[]): { line: string; minutes: number | null } {
+  const count = (kind: string, key: string) => {
+    const cfg = phases.find((p) => p.kind === kind)?.config as Record<string, unknown> | undefined;
+    const list = cfg?.[key];
+    return Array.isArray(list) ? list.length : 0;
+  };
+  const form = count("application", "questions");
+  const interview = count("voice_interview", "questions");
+  const practice = phases.find((p) => p.kind === "simulation");
+  const kept = [
+    phases.some((p) => p.kind === "quiz") ? "the skills check" : null,
+    practice ? `the ${(practice.config as { channel?: unknown } | undefined)?.channel === "email" ? "email" : "chat"} practice` : null,
+  ].filter((w): w is string => !!w);
+  const asks = [
+    form > 0 ? `${form} form ${form === 1 ? "question" : "questions"}` : null,
+    interview > 0 ? `${/^(8|11|18)$/.test(String(interview)) ? "an" : "a"} ${interview}-question written interview` : null,
+  ].filter((w): w is string => !!w);
+  const head = asks.join(" and ");
+  const tail = kept.length ? `${head ? ", with " : "With "}${kept.join(" and ")}` : "";
+  const line = `${head ? head.charAt(0).toUpperCase() + head.slice(1) : ""}${tail}.`;
+  return { line, minutes: applicantMinutes(phases.map((p) => p.durationLabel)) };
+}

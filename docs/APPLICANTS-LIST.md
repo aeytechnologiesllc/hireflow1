@@ -657,8 +657,9 @@ people will be and ask me to confirm and then that's it ... and then they
 would be notified. Otherwise ... they'd be waiting ... it's not good."
 
 The bulk Pass (section 8) works on rows picked by hand, a page at a time.
-"Pass by score", a button beside the search, reaches the same Pass from a
-score line instead (`src/cockpit/lib/passByScore.ts`,
+"Pass by score", a button beside the search (it reads "Pass below a score"
+since the run-through of 2026-10-31: "pass by score" read as passing a
+test), reaches the same Pass from a score line instead (`src/cockpit/lib/passByScore.ts`,
 `components/PassByScoreDialog.tsx`).
 
 **One screen, and it moves as the line moves**: the line itself (type it,

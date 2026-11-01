@@ -63,7 +63,9 @@ export function EmailCheckDialog({
     }
     if (outcome.kind === "sent") {
       setSentOnce(true);
-      setNote(W.sent(email));
+      // The address is in the line above; this one says only that it went and for how long (the run-through of
+      // 2026-10-31: "Code sent to ..." repeated it).
+      setNote(W.sent(null));
       setWaitUntil(Date.now() + 60_000);
       setNow(Date.now());
       window.setTimeout(() => codeRef.current?.focus(), 0);
@@ -76,6 +78,20 @@ export function EmailCheckDialog({
     }
     setProblem(outcome.message);
   };
+
+  // The code goes as the screen opens: Publish was pressed and this is the only way on (the run-through of 2026-10-31:
+  // "Send the code" was one more click and one more read). Once per opening; "Send a new code" stays for another.
+  const autoSent = useRef(false);
+  useEffect(() => {
+    if (!open) {
+      autoSent.current = false;
+      return;
+    }
+    if (autoSent.current) return;
+    autoSent.current = true;
+    void send();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per opening, not again when send's closure changes
+  }, [open]);
 
   const confirm = async () => {
     const six = cleanCode(code);

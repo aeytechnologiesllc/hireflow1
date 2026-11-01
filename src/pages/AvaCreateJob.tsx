@@ -2,7 +2,7 @@
  * AvaCreateJob — REAL create-job flow (Ava Engine MVP slice 1).
  * Route: /jobs/create (full-screen, auth required).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { QRCodeSVG } from "qrcode.react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AvaSeal } from "@/components/ava/AvaSeal";
 import { HeroBackground } from "@/components/ava/HeroBackground";
 import { CountUp } from "@/cockpit/components/CountUp";
@@ -55,6 +55,7 @@ import {
   clearDraft,
   withRemoteFollowUps,
   generateJobFlow,
+  generateTemplateFlow,
   CHAT_AGENT_KIND,
   JOB_KIND_ID,
   loadDraft,
@@ -65,6 +66,9 @@ import {
 import { candidateApplyUrl } from "@/lib/showcaseApply";
 import { createJobFromFlow, fetchEmployerCompanyName } from "@/lib/jobFromFlow";
 import { EmailCheckDialog } from "@/components/business/EmailCheckDialog";
+import { myBusinessEmailVerified } from "@/lib/emailCheckApi";
+import { useEmployerJobs } from "@/hooks/useJobs";
+import { mapJobRow } from "@/cockpit/lib/mappers";
 import { isEmailNotVerifiedError, OWNER_MUST_CONFIRM_EMAIL } from "@/lib/emailCheck";
 import { PublishPaymentDialog } from "@/components/billing/PublishPaymentDialog";
 import { isPaymentRequiredError, PUBLISH_PAYMENT_WORDS } from "@/lib/billing";
@@ -88,6 +92,9 @@ import {
   BRIEF_USES_LINE,
   BUILDING_FROM_LABEL,
   answersGiven,
+  applicantMinutes,
+  applicantTimeLine,
+  rigorPlanWords,
   followUpsReceipt,
   fromYourAnswers,
   knownSoFar,
@@ -271,6 +278,16 @@ const FIELD_LABEL = "block text-xs font-semibold uppercase tracking-[0.14em]";
 const FIELD_INPUT = "mt-1.5 w-full rounded-xl px-3.5 py-2.5 text-sm outline-none";
 const FIELD_STYLE = { background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))" } as const;
 
+/** The mark on the four fields the plan needs (the run-through of 2026-10-31: Continue asked for the pay, and nothing
+ *  said it was needed). The inputs carry aria-required; the card's last line says what the mark means. */
+function Needed() {
+  return (
+    <span aria-hidden className="ml-0.5" style={{ color: "hsl(var(--ck-action-bright))" }}>
+      *
+    </span>
+  );
+}
+
 /** A quick pick under a brief field: a real button, the follow-up chips' look
  *  (the jade when chosen, never brass), smaller. */
 function BriefPick({ label, on, icon, onPick }: { label: string; on?: boolean; icon?: ReactNode; onPick: () => void }) {
@@ -360,6 +377,34 @@ function BuildingFrom({ tags, align = "center", emptyNote }: { tags: string[]; a
         </ul>
       )}
     </div>
+  );
+}
+
+// The share window (QR code, ready-made post, flyer), fetched when it is opened.
+const ShareKitDialog = lazy(() => import("@/cockpit/components/ShareKitDialog").then((m) => ({ default: m.ShareKitDialog })));
+
+/**
+ * The done screen's first button opens the share window right here (the run-through of 2026-10-31: the guide's next
+ * step is sharing, and the best screen of the run was a page away, behind Jobs' "Share link"). It reads the new job
+ * as the Jobs list does, so the post and the flyer say the same.
+ */
+function ShareNowButton({ jobId, applyUrl }: { jobId: string; applyUrl: string }) {
+  const { data: jobs, isLoading } = useEmployerJobs();
+  const [open, setOpen] = useState(false);
+  const raw = jobs?.find((j) => j.id === jobId) ?? null;
+  const row = raw ? mapJobRow(raw, [], null) : null;
+  return (
+    <>
+      <button type="button" className="ck-btn ck-btn-primary w-full !text-[13px]" disabled={!row} onClick={() => setOpen(true)} data-done-share>
+        {isLoading && !row ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Share2 className="h-3.5 w-3.5" aria-hidden />}
+        Share it: post, QR code, flyer
+      </button>
+      {open && row && (
+        <Suspense fallback={null}>
+          <ShareKitDialog open job={row} applyUrl={applyUrl} onClose={() => setOpen(false)} />
+        </Suspense>
+      )}
+    </>
   );
 }
 
@@ -479,6 +524,24 @@ export default function AvaCreateJob() {
     [chipAnswers],
   );
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
+  // What each How strict choice builds and how long its applicants spend, read off the built-in plan for this brief
+  // (src/lib/builderHints.ts, rigorPlanWords; the run-through of 2026-10-31: "Balanced screen for most jobs" said
+  // neither). Only on that screen; nothing is sent anywhere.
+  const rigorWords = useMemo(() => {
+    if (step !== 2) return null;
+    const answered = briefAnswers(followUps);
+    const brief = briefFromForm({ ...briefFields, followUps: answered });
+    return new Map(RIGOR_OPTIONS.map((o) => [o.id, rigorPlanWords(generateTemplateFlow({ brief, rigor: o.id }).flow.phases)] as const));
+  }, [step, briefFields, briefAnswers, followUps]);
+  // Whether Publish will ask for the email code (src/lib/emailCheck.ts), so the review can say so before it is pressed
+  // (the run-through of 2026-10-31: the code was a surprise at the moment of commitment). An owner's only; nothing
+  // shows when it cannot be asked.
+  const { data: emailVerified } = useQuery({
+    queryKey: ["business-email-verified", user?.id ?? null],
+    queryFn: myBusinessEmailVerified,
+    enabled: !!user && step === 4 && !teamPermissions?.isTeamMember,
+    staleTime: 60_000,
+  });
 
   const setBrief = (k: string, v: string) => setBriefFields((b) => ({ ...b, [k]: v }));
   const placeInputRef = useRef<HTMLInputElement>(null);
@@ -602,6 +665,7 @@ export default function AvaCreateJob() {
   // Every count of steps the business reads is this one (the run-through of
   // 2026-10-31: "6 phases" and "6 screening steps" counted the job post).
   const screeningCardCount = reviewCards.filter((c) => c.id !== "job-post").length;
+  const reviewTimeLine = applicantTimeLine(screeningCardCount, applicantMinutes(reviewCards.filter((c) => c.id !== "job-post").map((c) => c.duration)));
   const NO_SCREENING_NOTE = "Keep at least one screening step — with none, Ava has nothing to read and no one to shortlist.";
 
   const handlePublish = async (companyNameOverride?: string) => {
@@ -715,16 +779,10 @@ export default function AvaCreateJob() {
     }
   };
 
-  // The chip that rides the rail is the job being built — initials of the job
-  // title the employer typed, the same way the applicant rail carries a candidate's.
-  // Empty until there is a role, so the chip never shows a placeholder.
-  const travelerInitials = briefFields.role
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
+  // The chip that rides the rail is the job being built: a small jade dot once there is a title. It carried the title's
+  // initials, and "Patient chat agent" rode the rail as "PC", read as the computer (the run-through of 2026-10-31).
+  // A fixed colour: the chip's disc is ivory in both themes (cockpit.css, .ck-rail-chip-core).
+  const traveler = briefFields.role.trim() ? <span aria-hidden className="block h-2.5 w-2.5 rounded-full" style={{ background: "#0F6B4F" }} /> : undefined;
 
   // What each gem has to show for itself so far. Only real state — an empty
   // receipt is honest, an invented one is not.
@@ -841,7 +899,7 @@ export default function AvaCreateJob() {
         <Link to="/jobs" className="inline-flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-100" style={{ color: "hsl(var(--muted-foreground))" }}>
           <ArrowLeft className="h-3.5 w-3.5" /> Jobs
         </Link>
-        <div className="hidden min-w-0 flex-1 sm:block"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>
+        <div className="hidden min-w-0 flex-1 sm:block"><StepRail step={step} traveler={traveler} receipts={stepReceipts} /></div>
         {/* Once published it is live: the header said "Draft" over "Your role is live". */}
         {genSource && (
           <span className="text-[10px] font-medium uppercase tracking-wider" style={{ color: publishedCode || genSource === "openai" ? "hsl(var(--ck-action-bright))" : "hsl(var(--muted-foreground))" }}>
@@ -850,7 +908,7 @@ export default function AvaCreateJob() {
         )}
       </header>
 
-      <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} traveler={travelerInitials} receipts={stepReceipts} /></div>
+      <div className="relative z-10 px-4 pb-2 sm:hidden"><StepRail step={step} traveler={traveler} receipts={stepReceipts} /></div>
 
       {/* The builder's own scroller holds the wheel at its ends, so reaching
           the end of the plan never moves anything behind it (the shell's main
@@ -881,18 +939,19 @@ export default function AvaCreateJob() {
                   <div className="mx-auto w-full min-w-0 max-w-2xl rounded-2xl p-5 sm:p-6 xl:max-w-none" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
                     <div className="grid gap-4 sm:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
                       <div className="min-w-0 sm:col-span-2">
-                        <label htmlFor="brief-role" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Job title</label>
-                        <input id="brief-role" value={briefFields.role} onChange={(e) => setBrief("role", e.target.value)} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="Chat support agent, Email support, Patient messaging…" />
+                        <label htmlFor="brief-role" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><Briefcase className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Job title<Needed /></label>
+                        <input id="brief-role" aria-required="true" value={briefFields.role} onChange={(e) => setBrief("role", e.target.value)} className={FIELD_INPUT} style={FIELD_STYLE} placeholder="Chat support agent, Email support, Patient messaging…" />
                       </div>
 
                       {/* Where they'll work, not where the business is (the owner, 2026-10-31: "location I'm hiring
                           from or location where they're going to be working in"). The picks fill what the post and
                           the job feeds need; the line under it says what the post will show (src/lib/briefPicks.ts). */}
                       <div className="min-w-0 sm:col-span-2">
-                        <label htmlFor="brief-place" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Where they'll work</label>
+                        <label htmlFor="brief-place" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><MapPin className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Where they'll work<Needed /></label>
                         <p id="brief-place-hint" className="mt-1 text-[12.5px]" style={{ color: "hsl(var(--muted-foreground))" }}>Most chat and email agents work from home.</p>
                         <input
                           id="brief-place"
+                          aria-required="true"
                           ref={placeInputRef}
                           value={briefFields.location}
                           onChange={(e) => { const location = e.target.value; setBriefFields((b) => ({ ...b, location })); setGeoPreview(null); }}
@@ -920,8 +979,10 @@ export default function AvaCreateJob() {
 
                       {/* Pay stays free text, made plain: picks for the place and a read-back by Publish's own rule. */}
                       <div className="min-w-0 sm:col-span-2">
-                        <label htmlFor="brief-pay" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><DollarSign className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Pay</label>
-                        <input id="brief-pay" value={briefFields.pay} onChange={(e) => setBrief("pay", e.target.value)} aria-describedby="brief-pay-read" className={FIELD_INPUT} style={FIELD_STYLE} placeholder={`The amount and how often, like ${PAY_EXAMPLE}`} />
+                        <label htmlFor="brief-pay" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><DollarSign className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> Pay<Needed /></label>
+                        {/* Why it is asked, as Where they'll work says why remote is first. */}
+                        <p id="brief-pay-hint" className="mt-1 text-[12.5px]" style={{ color: "hsl(var(--muted-foreground))" }}>Jobs that show the pay get more applicants.</p>
+                        <input id="brief-pay" aria-required="true" value={briefFields.pay} onChange={(e) => setBrief("pay", e.target.value)} aria-describedby="brief-pay-hint brief-pay-read" className={FIELD_INPUT} style={FIELD_STYLE} placeholder={`The amount and how often, like ${PAY_EXAMPLE}`} />
                         <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Quick picks for pay">
                           {payPicks(placeReading?.countryCode).map((pick) => (
                             <BriefPick key={pick} label={pick} on={briefFields.pay.trim() === pick} onPick={() => setBrief("pay", pick)} />
@@ -950,8 +1011,8 @@ export default function AvaCreateJob() {
                       </div>
 
                       <div className="min-w-0 sm:col-span-2">
-                        <label htmlFor="brief-work" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><FileText className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> What they'll do</label>
-                        <textarea id="brief-work" ref={workInputRef} value={briefFields.work} onChange={(e) => setBrief("work", e.target.value)} rows={3} className={`${FIELD_INPUT} min-h-[5rem] max-h-60 resize-none [field-sizing:content]`} style={FIELD_STYLE} placeholder="2–3 sentences in your own words: what your customers write in about, and what a great reply does for them." />
+                        <label htmlFor="brief-work" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}><FileText className="mr-1 inline h-3.5 w-3.5" style={{ color: "hsl(var(--ck-brass))" }} /> What they'll do<Needed /></label>
+                        <textarea id="brief-work" aria-required="true" ref={workInputRef} value={briefFields.work} onChange={(e) => setBrief("work", e.target.value)} rows={3} className={`${FIELD_INPUT} min-h-[5rem] max-h-60 resize-none [field-sizing:content]`} style={FIELD_STYLE} placeholder="2–3 sentences in your own words: what your customers write in about, and what a great reply does for them." />
                         {/* Nobody faces an empty box: two sentences from the title and the business, to edit (no AI call). */}
                         {!briefFields.work.trim() && (
                           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -967,6 +1028,9 @@ export default function AvaCreateJob() {
                         )}
                       </div>
                     </div>
+                    <p className="mt-4 text-[12px]" style={{ color: "hsl(var(--muted-foreground))" }} data-brief-needed>
+                      <Needed /> Needed to build your plan. Type and Start can stay as they are.
+                    </p>
                   </div>
                 </div>
               )}
@@ -1018,11 +1082,17 @@ export default function AvaCreateJob() {
                     {RIGOR_OPTIONS.map((opt) => {
                       const active = rigor === opt.id;
                       const isRec = opt.id === playbook.rigor.recommended;
+                      const words = rigorWords?.get(opt.id) ?? null;
                       return (
                         <button key={opt.id} type="button" onClick={() => { setRigor(opt.id); setRigorTouched(true); }} className="relative rounded-2xl p-5 text-left" style={{ background: active ? "hsl(var(--primary) / 0.1)" : "hsl(var(--card))", border: active ? "1px solid hsl(var(--primary) / 0.6)" : "1px solid hsl(var(--border))" }}>
                           {isRec && <span className="absolute right-3 top-3 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase" style={{ background: "hsl(var(--ck-action))", color: "hsl(var(--primary-foreground))" }}>Recommended</span>}
                           <span className="text-lg font-bold" style={{ fontFamily: DISPLAY, color: active ? "hsl(var(--ck-brass-bright))" : "hsl(var(--foreground))" }}>{opt.label}</span>
-                          <p className="mt-1.5 text-xs" style={{ color: "hsl(var(--muted-foreground))" }}>{opt.blurb}</p>
+                          <p className="mt-1.5 text-xs leading-snug" style={{ color: "hsl(var(--muted-foreground))" }} data-rigor-plan={opt.id}>{words?.line || opt.blurb}</p>
+                          {words?.minutes != null && (
+                            <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold" style={{ color: "hsl(var(--foreground))" }} data-rigor-minutes={opt.id}>
+                              <Timer className="h-3.5 w-3.5" aria-hidden /> About {words.minutes} min for applicants
+                            </p>
+                          )}
                         </button>
                       );
                     })}
@@ -1066,6 +1136,11 @@ export default function AvaCreateJob() {
                     </span>
                     <h2 className="mt-3 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Here's your hiring plan.</h2>
                     <p className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>Reorder, tweak, or remove anything — then publish.</p>
+                    {emailVerified === false && (
+                      <p className="mt-1.5 text-[13px]" style={{ color: "hsl(var(--muted-foreground))" }} data-review-email-code>
+                        Publishing asks for a 6-digit code we email you. You only do it once.
+                      </p>
+                    )}
                     {/* The template stood in for the writer (it took too long or
                         failed): say so, the post is a plain first draft (the
                         Phase 7 product audit: only the header's colour told). */}
@@ -1075,7 +1150,14 @@ export default function AvaCreateJob() {
                       </p>
                     )}
                   </div>
-                  <div className="mt-7">
+                  {/* The applicant's whole time, added up from the steps' own (the run-through of 2026-10-31: each card had its
+                      minutes, nobody added them up, and the total is what decides how many finish). */}
+                  {reviewTimeLine && (
+                    <p className="mt-5 flex items-center justify-center gap-1.5 text-[13px] font-medium" style={{ color: "hsl(var(--foreground))" }} data-review-time>
+                      <Timer className="h-3.5 w-3.5" style={{ color: "hsl(var(--ck-action-bright))" }} aria-hidden /> {reviewTimeLine}
+                    </p>
+                  )}
+                  <div className="mt-5">
                     {reviewCards.map((p, i) => (
                       <PhaseRow
                         key={p.id}
@@ -1088,7 +1170,17 @@ export default function AvaCreateJob() {
                         total={reviewCards.length}
                         editing={editingId === p.id}
                         onEdit={() => setEditingId(editingId === p.id ? null : p.id)}
-                        onRemove={() => setReviewCards((arr) => arr.filter((x) => x.id !== p.id))}
+                        onRemove={() => {
+                          // Gone at once, with a way back (the run-through of 2026-10-31: ✕ removed a step with no undo).
+                          setReviewCards((arr) => arr.filter((x) => x.id !== p.id));
+                          toast(`Removed “${p.title}”`, {
+                            action: {
+                              label: "Undo",
+                              onClick: () =>
+                                setReviewCards((arr) => (arr.some((x) => x.id === p.id) ? arr : [...arr.slice(0, i), p, ...arr.slice(i)])),
+                            },
+                          });
+                        }}
                         onMove={(dir) => setReviewCards((arr) => {
                           const idx = arr.findIndex((x) => x.id === p.id);
                           const j = idx + dir;
@@ -1142,6 +1234,7 @@ export default function AvaCreateJob() {
                     </div>
                   </div>
                   <div className="mt-4 flex w-full flex-col gap-2.5">
+                    {publishedRoleId && <ShareNowButton jobId={publishedRoleId} applyUrl={applyLink} />}
                     {publishedRoleId && (
                       <a
                         href={jobPageUrl({ id: publishedRoleId, slug: publishedSlug, business_slug: ownBusiness?.slug ?? null })}
@@ -1150,7 +1243,7 @@ export default function AvaCreateJob() {
                         // say it came from the staff site, which the page
                         // counts leave out (the third growth review).
                         rel="noopener"
-                        className="ck-btn ck-btn-primary w-full !text-[13px]"
+                        className="ck-btn ck-btn-outline w-full !text-[13px]"
                       >
                         See your job in action <ExternalLink className="h-3.5 w-3.5" />
                       </a>

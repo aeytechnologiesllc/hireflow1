@@ -971,7 +971,7 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
               it says itself when nobody finished has scored under the line. */}
           {canDecide && people.length > 0 && (
             <button type="button" className="ck-btn ck-btn-outline shrink-0 !py-2 !text-[12.5px] max-md:min-h-[36px]" onClick={() => setPassByScoreOpen(true)} data-pass-by-score-open>
-              Pass by score
+              Pass below a score
             </button>
           )}
           <SearchInput

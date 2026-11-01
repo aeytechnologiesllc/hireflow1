@@ -39,7 +39,7 @@
  *
  * cockpit.css is imported globally in main.tsx, so this works on any page.
  */
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { Check } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import AvaSeal from "@/components/ava/AvaSeal";
@@ -92,8 +92,8 @@ export interface GemRailProps {
   nodes: GemRailNode[];
   /** Index of the gem the traveller is really on. */
   current: number;
-  /** Short label riding the track — initials of whoever is making the journey. */
-  traveler?: string;
+  /** Short label riding the track — initials of whoever is making the journey (or a mark: the job builder's dot). */
+  traveler?: ReactNode;
   /** A line under the rail saying where things stand. */
   summary?: string;
   ariaLabel?: string;

@@ -1,7 +1,9 @@
-/* Guided tips (the 2026-10-11 "Guided start" mock-up): a dark ink card with
-   an ivory kicker, a Fraunces title, two short lines, "No more tips" and one
-   button. The same card in both themes: it is the guide's voice, set apart
-   from the page. It rises once; nothing loops. */
+/* Guided tips (the 2026-10-11 "Guided start" mock-up): a kicker, a Fraunces
+   title, two short lines, "No more tips" and one button. Since the run-through
+   of 2026-10-31 it is a paper card with a jade edge, in the app's own tokens
+   (Day and Night), like the dashboard's guide: the near-black card was the
+   2026-10-11 ink look on the green app locked on 2026-10-30. It rises once;
+   nothing loops. */
 
 .ck-tip {
   position: fixed;
@@ -9,10 +11,11 @@
   width: min(320px, calc(100vw - 24px));
   padding: 15px 16px 13px;
   border-radius: 14px;
-  background: #1B1813;
-  border: 1px solid rgba(244, 239, 227, 0.22);
-  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.32);
-  color: #efe8da;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  /* The jade edge, inside the border, so the arrow above or below stays plain paper. */
+  box-shadow: inset 3px 0 0 var(--action), 0 18px 48px rgba(22, 40, 31, 0.22);
+  color: var(--ink);
   font-family: "Inter", system-ui, sans-serif;
   text-align: left;
   animation: ck-tip-rise 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -22,9 +25,9 @@
   position: absolute;
   width: 12px;
   height: 12px;
-  background: #1B1813;
-  border-left: 1px solid rgba(244, 239, 227, 0.22);
-  border-top: 1px solid rgba(244, 239, 227, 0.22);
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
   left: calc(var(--tip-arrow-x, 26px) - 6px);
 }
 .ck-tip--below::before { top: -7px; transform: rotate(45deg); }
@@ -57,14 +60,14 @@
   line-height: 1;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #E3DAC6;
+  color: var(--action-soft-fg);
 }
 .ck-tip__kick i {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #E3DAC6;
-  box-shadow: 0 0 0 4px rgba(227, 218, 198, 0.16);
+  background: var(--action);
+  box-shadow: 0 0 0 4px var(--action-soft);
 }
 .ck-tip__title {
   margin: 8px 0 4px;
@@ -72,13 +75,13 @@
   font-size: 17px;
   font-weight: 500;
   line-height: 1.25;
-  color: #efe8da;
+  color: var(--ink);
 }
 .ck-tip__body {
   margin: 0;
   font-size: 13px;
   line-height: 1.5;
-  color: #c9c0ae;
+  color: var(--ink-2);
 }
 .ck-tip__row {
   display: flex;
@@ -93,25 +96,25 @@
   background: none;
   font: inherit;
   font-size: 12px;
-  color: #9a907e;
+  color: var(--ink-3);
   cursor: pointer;
 }
-.ck-tip__off:hover { color: #c9c0ae; text-decoration: underline; text-underline-offset: 2px; }
+.ck-tip__off:hover { color: var(--ink-2); text-decoration: underline; text-underline-offset: 2px; }
 .ck-tip__got {
   min-height: 32px;
   padding: 6px 14px;
   border: 0;
   border-radius: 8px;
-  background: #F4EFE3;
+  background: var(--action);
   font: inherit;
   font-size: 12.5px;
   font-weight: 600;
-  color: #14201B;
+  color: var(--btn-fg);
   cursor: pointer;
 }
-.ck-tip__got:hover { background: #FBF7EE; }
+.ck-tip__got:hover { background: var(--action-bright); }
 .ck-tip__off:focus-visible,
-.ck-tip__got:focus-visible { outline: 2px solid #efe8da; outline-offset: 2px; }
+.ck-tip__got:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
 
 /* What the tip explains, ringed while it shows. */
 .ck-tip-target {

@@ -202,7 +202,7 @@ const built = (location, opts = {}) => brief(location, M.typeForPlace(location, 
 // 7. The page uses all of it, with real buttons, the jade, and no "pinpoint".
 {
   const page = readFileSync(path.join(ROOT, "src/pages/AvaCreateJob.tsx"), "utf8");
-  check("the field is \"Where they'll work\" with its hint", page.includes("> Where they'll work</label>") && page.includes("Most chat and email agents work from home."));
+  check("the field is \"Where they'll work\" with its hint", /> Where they'll work(<Needed \/>)?<\/label>/.test(page) && page.includes("Most chat and email agents work from home."));
   check("no \"Couldn't pinpoint\" and no \"Location\" label left", !/pinpoint/i.test(page) && !/\/> Location<\/label>/.test(page));
   check("the picks are rendered: place, pay (by the place's country), start, and the example", /PLACE_PICKS\.map\(/.test(page) && /payPicks\(placeReading\?\.countryCode\)/.test(page) && /START_PICKS\.map\(/.test(page) && /exampleWork\(briefFields\.role, businessName\)/.test(page));
   check("the read-backs are live regions", (page.match(/aria-live="polite"/g) ?? []).length >= 2 && /readPlace\(briefFields\.location, \{ workMode, atOffice, geo: geoPreview \}\)/.test(page) && /readPay\(briefFields\.pay, \{ remote: workMode === "remote"/.test(page));

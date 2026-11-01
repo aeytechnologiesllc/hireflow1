@@ -126,7 +126,7 @@ export function PassByScoreDialog({
             <X className="h-4 w-4" />
           </button>
           <h2 id="ck-pass-by-score-title" className="pr-8 font-display text-[19px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-            Pass by score
+            Pass below a score
           </h2>
           <p className="mt-0.5 pr-8 text-[13px]" style={{ color: "var(--hf-text-soft)" }}>
             {jobLabel}

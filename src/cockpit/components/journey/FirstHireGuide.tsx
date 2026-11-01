@@ -42,6 +42,8 @@ export interface FirstHireGuideProps {
   onPostJob: () => void;
   /** Phone alerts (useGuideNotifications). Absent or "unsupported": no such step. */
   notifications?: GuideNotifications;
+  /** The business's name, for the first visit's welcome. */
+  welcomeName?: string | null;
 }
 
 const toGuideJob = (j: JobRow): GuideJob => ({ id: j.id, title: j.title, status: j.status });
@@ -96,9 +98,10 @@ interface CardProps {
   loading: boolean;
   onPostJob: () => void;
   notifications?: GuideNotifications;
+  welcomeName?: string | null;
 }
 
-function GuideCard({ stage, jobs, candidatesById, rowsById, loading, onPostJob, notifications }: CardProps) {
+function GuideCard({ stage, jobs, candidatesById, rowsById, loading, onPostJob, notifications, welcomeName }: CardProps) {
   const navigate = useNavigate();
   const ref = useRef<HTMLElement>(null);
   const room = useCardRoom(ref);
@@ -118,8 +121,9 @@ function GuideCard({ stage, jobs, candidatesById, rowsById, loading, onPostJob, 
       }
       if (s.key === "share") return { ...s, label: "Share your job", short: "Share it" };
       if (s.key === "best") return { ...s, label: "Meet your best three", short: "Best three" };
-      // The alerts step. On a phone it carries its own button; wide, the slim row under the words does.
-      const words = alerts && alerts.status !== "on" ? alertsWords(alerts.status, "apply") : null;
+      // The alerts step. On a phone it carries its own button; wide, the slim row under the words does. Neither asks
+      // before there is a job to be alerted about (the run-through of 2026-10-31: it asked at step 1).
+      const words = alerts && alerts.status !== "on" && stage.stage !== "post" ? alertsWords(alerts.status, "apply") : null;
       return {
         ...s,
         label: alerts?.status === "on" ? "Phone alerts are on" : "Know when they apply",
@@ -180,8 +184,14 @@ function GuideCard({ stage, jobs, candidatesById, rowsById, loading, onPostJob, 
     );
   })();
 
-  // Wide: the alerts offer sits under the words (stage 3 carries its own, in its footer).
-  const alertsUnder = wide && alerts && stage.stage !== "applying" && stage.stage !== "ready" ? <AlertsRow notifications={alerts} when="apply" /> : null;
+  // Wide: the alerts offer sits under the words once the job is live (stage 3 carries its own, in its footer). Not at
+  // step 1: there is nothing to be alerted about yet, and turning alerts on is the step after sharing anyway.
+  const alertsUnder = wide && alerts && stage.stage === "share" ? <AlertsRow notifications={alerts} when="apply" /> : null;
+  // "Step 4 of 4" read as if alerts were done while they were still open: with a step left open behind the current
+  // one, the count says how many are done instead (the run-through of 2026-10-31).
+  const openBehind = steps.some((s, i) => s.state === "open" && i < at);
+  const doneCount = steps.filter((s) => s.state === "done").length;
+  const where = openBehind ? `${doneCount} of ${steps.length} done` : `Step ${at + 1} of ${steps.length}`;
 
   return (
     <section
@@ -195,10 +205,19 @@ function GuideCard({ stage, jobs, candidatesById, rowsById, loading, onPostJob, 
         <p className="text-[11px] font-bold uppercase leading-none tracking-[0.12em]" style={{ color: "var(--brass)" }}>
           Your first hire
         </p>
-        <p className="text-[12px] leading-none" style={{ color: "var(--ink-3)" }}>
-          Step {at + 1} of {steps.length}
+        <p className="text-[12px] leading-none" style={{ color: "var(--ink-3)" }} data-guide-where>
+          {where}
         </p>
       </div>
+
+      {/* A brand-new business is welcomed once, by its name, before the four steps (the run-through of 2026-10-31:
+          nothing said what they were getting into). Gone with the first draft. */}
+      {stage.stage === "post" && !stage.draft && (
+        <p className="mb-3 text-[14px] leading-[1.5]" style={{ color: "var(--ink-2)" }} data-guide-welcome>
+          {welcomeName ? `Welcome, ${welcomeName}. ` : "Welcome. "}Here is how your first hire goes: post a job, share it, and Ava brings you the
+          ones worth a call.
+        </p>
+      )}
 
       {wide ? (
         <>
@@ -222,7 +241,7 @@ function GuideCard({ stage, jobs, candidatesById, rowsById, loading, onPostJob, 
 }
 
 /** Stages three and four read the Applicants list (dots, scores): only mounted when somebody has applied. */
-function GuideWithApplicants({ light, jobs, candidates, onPostJob, notifications }: FirstHireGuideProps) {
+function GuideWithApplicants({ light, jobs, candidates, onPostJob, notifications, welcomeName }: FirstHireGuideProps) {
   const list = useApplicantList();
   const guideJobs = useMemo(() => jobs.map(toGuideJob), [jobs]);
   const applicants = useMemo(() => list.rows.map(toGuideApplicant), [list.rows]);
@@ -247,6 +266,7 @@ function GuideWithApplicants({ light, jobs, candidates, onPostJob, notifications
       loading={waiting}
       onPostJob={onPostJob}
       notifications={notifications}
+      welcomeName={welcomeName}
     />
   );
 }
@@ -262,6 +282,7 @@ export function FirstHireGuide(props: FirstHireGuideProps) {
       loading={false}
       onPostJob={props.onPostJob}
       notifications={props.notifications}
+      welcomeName={props.welcomeName}
     />
   );
 }

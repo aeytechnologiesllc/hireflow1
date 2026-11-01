@@ -32,6 +32,18 @@ export const REMOTE_FOLLOWUPS: FollowUpDef[] = [
   },
 ];
 
+/**
+ * The business's own words name both chat and email ("chats and emails", "live chat and email support"), and rule
+ * neither out ("no emails", "chat only"). Only where to start the channel question; the plan reads the answer.
+ */
+export function wordsNameChatAndEmail(text: string): boolean {
+  const s = text.toLowerCase();
+  const chat = /\b(live )?chats?\b|\bmessag(e|es|ing)\b/.test(s);
+  const email = /\be-?mails?\b/.test(s);
+  const ruledOut = /\bno (e-?mails?|chats?)\b|\b(chats?|e-?mails?)[- ]only\b|\bonly (by )?(chats?|e-?mails?)\b/.test(s);
+  return chat && email && !ruledOut;
+}
+
 /** Append the remote-critical follow-ups (internet + equipment) for remote roles. */
 export function withRemoteFollowUps(defs: FollowUpDef[], workMode?: string): FollowUpDef[] {
   return workMode === "remote" ? [...defs, ...REMOTE_FOLLOWUPS] : defs;
@@ -1102,7 +1114,10 @@ export const PLAYBOOKS: Record<Family, Playbook> = {
       // Chat and messages only since 2026-10-29 (CHAT_AGENT_CHANNEL_CHIPS): the channel starts on Email when the
       // business's own words say email only ("Email Support Specialist"), else on Chat; words that say phone start on
       // Chat too, since phone is no longer offered.
-      const channelDefault = channelForBrief({ roleTitle: brief?.roleTitle ?? "", whatTheyDo: brief?.whatTheyDo ?? "", followUps: [] }) === "email" ? 1 : 0;
+      // Words that name both ("answer our patients' chats and emails") start on "Chat and email" (the run-through of
+      // 2026-10-31: it started on Chat); the plan reads that chip as chat, as it reads the words.
+      const channelRead = channelForBrief({ roleTitle: brief?.roleTitle ?? "", whatTheyDo: brief?.whatTheyDo ?? "", followUps: [] });
+      const channelDefault = channelRead === "email" ? 1 : channelRead === "chat" && wordsNameChatAndEmail(`${brief?.roleTitle ?? ""} ${brief?.whatTheyDo ?? ""}`) ? 2 : 0;
       // The role's own words first, then the business's name (industryForBusiness).
       const industryId = industryForBusiness(`${brief?.roleTitle ?? ""} ${brief?.whatTheyDo ?? ""}`, brief?.businessName);
       const industryDefault = Math.max(0, CS_INDUSTRY_CHIPS.findIndex(([, id]) => id === industryId));

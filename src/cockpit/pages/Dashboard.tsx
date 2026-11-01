@@ -866,7 +866,7 @@ export default function CockpitDashboard() {
 
       {guideStage ? (
         /* ── Your first hire: the next step, and nothing else asking. ── */
-        <FirstHireGuide light={guideStage} jobs={jobs} candidates={candidates} onPostJob={startRole} notifications={guideNotifications} />
+        <FirstHireGuide light={guideStage} jobs={jobs} candidates={candidates} onPostJob={startRole} notifications={guideNotifications} welcomeName={profile?.company_name?.trim() || null} />
       ) : (
         <>
           {/* ── The numbers, always. 2026-10-05: with a live role and nobody in

@@ -233,10 +233,10 @@ console.log("\n5. The wiring");
   check("it never touches the job it copies, its applicants or their answers", !/from\("(applications|job_quiz_keys|assessment_sessions)"\)/.test(hook));
 
   const page = code(await read("src/cockpit/pages/Jobs.tsx"));
-  check("the row offers it on every job but a draft, to whoever may create one", /\{!draft && onCopy && \(/.test(page) && /onCopy=\{canCopy \? \(\) => void copyToDrafts\(job, false\) : null\}/.test(page));
+  check("the row offers it on every job but a draft, to whoever may create one (in its ⋯ menu since the run-through of 2026-10-31)", /\.\.\.\(!draft && onCopy\s*\?/.test(page) && /onCopy=\{canCopy \? \(\) => void copyToDrafts\(job, false\) : null\}/.test(page));
   check("…never on the showcase data, nor to a team member who may not create jobs", /const canCopy = mode !== "showcase" && !\(teamPermissions\?\.isTeamMember && !teamPermissions\.canCreateJobs\)/.test(page));
   check("the row's buttons wrap on a phone (five of them are wider than the row; without it the first ran off the left edge)", /className="flex w-full shrink-0 flex-wrap justify-end gap-2 sm:w-auto"/.test(page));
-  check("the button says it is working, and cannot be pressed twice", /disabled=\{copying\}/.test(page) && /copying \? "Copying…" : COPY_TO_DRAFTS_LABEL/.test(page) && /if \(copyingId\) return;/.test(page));
+  check("the button says it is working, and cannot be pressed twice", /disabled: copying/.test(page) && /copying \? "Copying…" : COPY_TO_DRAFTS_LABEL/.test(page) && /if \(copyingId\) return;/.test(page));
   check("'+ New job' asks where to start only when there is a job to start from", /startOptions\.length > 0 \? setNewJobOpen\(true\) : startRole\(\)/.test(page));
   check("picking a draft opens that draft; any other job is copied, and the copy opens", /if \(option\.status === "draft"\) \{\s*setNewJobOpen\(false\);\s*navigate\(`\/jobs\/edit\/\$\{option\.id\}`\);\s*\} else \{\s*void copyToDrafts\(option, true\);/.test(page));
   check("Ava is still one click from there, exactly as before", /onAva=\{\(\) => \{\s*setNewJobOpen\(false\);\s*startRole\(\);/.test(page));

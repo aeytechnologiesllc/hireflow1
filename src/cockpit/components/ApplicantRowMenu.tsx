@@ -40,6 +40,8 @@ export interface ApplicantMenuItem {
   icon?: ReactNode;
   danger?: boolean;
   disabled?: boolean;
+  /** A longer word on what it does, shown on hover. */
+  hint?: string;
   onSelect: () => void;
 }
 
@@ -219,6 +221,7 @@ export function ActionsMenu({
                 key={item.key}
                 type="button"
                 role="menuitem"
+                title={item.hint}
                 disabled={item.disabled}
                 className="ck-btn ck-btn-ghost min-h-[40px] w-full !justify-start !gap-2.5 !px-3 !text-[13.5px]"
                 style={{ color: item.danger ? "var(--hf-danger)" : "var(--hf-text)" }}

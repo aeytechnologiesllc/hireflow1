@@ -1,5 +1,5 @@
 /** Shared UI atoms for Ava create-job flow (preview + real). */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -68,7 +68,7 @@ export function StepRail({
   receipts,
 }: {
   step: number;
-  traveler?: string;
+  traveler?: ReactNode;
   /** The line under each gem — only ever what's actually decided so far. */
   receipts?: Partial<Record<(typeof STEPS)[number], string | null>>;
 }) {
@@ -281,12 +281,13 @@ export function PhaseRow({
               )}
             </div>
             <div className="flex shrink-0 items-center gap-0.5">
-              <button type="button" aria-label="Move up" disabled={index === 0} onClick={() => onMove(-1)} className={ctrlBtn} style={ctrlStyle}><ArrowUp className="h-3.5 w-3.5" /></button>
-              <button type="button" aria-label="Move down" disabled={index === total - 1} onClick={() => onMove(1)} className={ctrlBtn} style={ctrlStyle}><ArrowDown className="h-3.5 w-3.5" /></button>
-              <button type="button" aria-label={editing ? "Done editing" : "Edit"} onClick={onEdit} className={ctrlBtn} style={editing ? { color: "var(--hf-action)", opacity: 1 } : ctrlStyle}>
+              {/* Each says what it does on hover (the run-through of 2026-10-31: four small marks, none named). */}
+              <button type="button" aria-label="Move up" title="Move up" disabled={index === 0} onClick={() => onMove(-1)} className={ctrlBtn} style={ctrlStyle}><ArrowUp className="h-3.5 w-3.5" /></button>
+              <button type="button" aria-label="Move down" title="Move down" disabled={index === total - 1} onClick={() => onMove(1)} className={ctrlBtn} style={ctrlStyle}><ArrowDown className="h-3.5 w-3.5" /></button>
+              <button type="button" aria-label={editing ? "Done editing" : "Edit"} title={editing ? "Done editing" : "Edit the title and the line applicants read"} onClick={onEdit} className={ctrlBtn} style={editing ? { color: "var(--hf-action)", opacity: 1 } : ctrlStyle}>
                 {editing ? <Check className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
               </button>
-              <button type="button" aria-label="Remove" onClick={onRemove} className={ctrlBtn} style={ctrlStyle}><X className="h-3.5 w-3.5" /></button>
+              <button type="button" aria-label="Remove" title="Remove this step (you can undo it)" onClick={onRemove} className={ctrlBtn} style={ctrlStyle}><X className="h-3.5 w-3.5" /></button>
             </div>
           </div>
 
@@ -296,7 +297,16 @@ export function PhaseRow({
               <textarea value={phase.candidate} onChange={(e) => onField("candidate", e.target.value)} rows={2} className="mt-3 w-full resize-none rounded-lg px-3 py-2 text-sm outline-none" style={{ background: "var(--hf-surface-strong)", color: "var(--hf-text)", border: "1px solid var(--hf-border-strong)" }} />
             )
           ) : (
-            phase.candidate && <p className="mt-2.5 text-[14px] leading-[1.55]" style={{ color: "var(--hf-text-soft)" }}>{phase.candidate}</p>
+            // The line is the applicant's, word for word (stored on the job), so it says so: the computer check's "the
+            // computer you'll work from" read as Ava speaking to the business (the run-through of 2026-10-31).
+            phase.candidate && (
+              <p className="mt-2.5 text-[14px] leading-[1.55]" style={{ color: "var(--hf-text-soft)" }}>
+                <span className="mr-1 text-[12px] font-semibold" style={{ color: "var(--hf-text-muted)" }} data-applicants-read>
+                  Applicants read:
+                </span>
+                {phase.candidate}
+              </p>
+            )
           )}
 
           {/* T3 — one plain metadata line. Two filled pills used to sit here
@@ -347,6 +357,17 @@ export function BuildStep({
 }) {
   const reduce = useReducedMotion();
   const [revealed, setRevealed] = useState(0);
+  // The writer can take a while (flowGenerator.ts waits up to 40 s before the built-in plan stands in): after a few
+  // seconds of it, one calm line says so rather than leave the screen looking stuck (the run-through of 2026-10-31).
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!generating) {
+      setSlow(false);
+      return;
+    }
+    const t = setTimeout(() => setSlow(true), 8000);
+    return () => clearTimeout(t);
+  }, [generating]);
 
   useEffect(() => {
     if (reduce) {
@@ -379,6 +400,11 @@ export function BuildStep({
         {role} · <span style={{ color: "hsl(var(--ck-brass))" }}>{rigorLabel}</span>
         {generating && <span className="ml-2 opacity-70">· writing the questions</span>}
       </p>
+      {slow && (
+        <p className="mt-1.5 text-[13px]" style={{ color: "hsl(var(--muted-foreground))" }} role="status" data-build-slow>
+          Still writing your tests. This can take up to half a minute.
+        </p>
+      )}
       <div className="mt-7 w-full max-w-md space-y-1.5 text-left">
         {reasoning.map((line, i) => {
           const shown = i < revealed;

@@ -152,7 +152,7 @@ console.log("\nThe wiring");
   const page = code(await read("src/cockpit/pages/Applicants.tsx"));
   check("the list gives it everyone for the job in view (not the tab, not the search, never the blocked)", /const people = view\.scoped\.filter\(\(r\) => r\.tab !== "blocked"\);/.test(page) && /<PassByScoreDialog\s+open=\{passByScoreOpen\}\s+rows=\{people\}/.test(page));
   // …to whoever may pass on people (a team member needs Manage pipeline).
-  check("the button is beside the search, once anyone has applied", /\{canDecide && people\.length > 0 && \(\s*<button[^>]*onClick=\{\(\) => setPassByScoreOpen\(true\)\}[^>]*>\s*Pass by score\s*<\/button>/.test(page) && /const canDecide = !isTeamMember \|\| !!teamPermissions\?\.canManagePipeline;/.test(page));
+  check("the button is beside the search, once anyone has applied", /\{canDecide && people\.length > 0 && \(\s*<button[^>]*onClick=\{\(\) => setPassByScoreOpen\(true\)\}[^>]*>\s*Pass below a score\s*<\/button>/.test(page) && /const canDecide = !isTeamMember \|\| !!teamPermissions\?\.canManagePipeline;/.test(page));
   const pass = code(await read("src/cockpit/hooks/useBulkPass.ts"));
   check("the bulk Pass still changes only an application that is still being decided on", /\.in\("status", \[\.\.\.PASSABLE_STATUSES\] as never\)/.test(pass));
   const doc = await read("docs/APPLICANTS-LIST.md");

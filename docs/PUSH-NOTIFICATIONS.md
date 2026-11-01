@@ -107,7 +107,9 @@ gets no push either.
    it says how to add it, with only "Got it". It waits: 6 seconds after the app
    opens, no dialog open, no guided tip showing, nobody typing, not on the
    dashboard's "Your first hire" guide (which has its own step), and not on
-   Messages, Settings, an applicant, or a job being written. After turning on:
+   Messages, Settings, an applicant, a list of applicants (Applicants, a job's
+   own page: it sat on the scores, the run-through of 2026-10-31), or a job
+   being written. After turning on:
    a toast "Notifications are on" and nothing else is sent.
 2. **Settings** (`DeviceNotifications`): "Notifications on this device" in the
    Notifications card (hiring side) and its own card for applicants, with the

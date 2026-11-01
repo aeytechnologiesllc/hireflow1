@@ -64,10 +64,15 @@ export function afterAnswered(memory: PromptMemory): PromptMemory {
  * Pages where a card in the corner (or across the bottom of a phone) would sit
  * on top of something being used: the message box, the decision bar, a job
  * being written. The row in Settings is the other way in, so not there either.
+ * Nor over a list of applicants (Applicants, a job's own page): the owner
+ * arrives there to read the scores, and the card sat on the score column, the
+ * third time alerts were offered (the run-through of 2026-10-31).
  */
 export function promptPageOk(pathname: string): boolean {
   const path = pathname.replace(/\/+$/, "") || "/";
   if (path === "/settings") return false;
+  if (path === "/applicants") return false;
+  if (/^\/jobs\/[^/]+$/.test(path) && path !== "/jobs/create") return false;
   if (path === "/messages" || path.startsWith("/messages/")) return false;
   if (path.startsWith("/applicants/")) return false;
   // A person opened from inside a job (/jobs/:jobId/applicants/:id) has the same decision bar.

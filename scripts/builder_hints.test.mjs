@@ -188,6 +188,21 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   check("an index past the end reads the last", r({ step: 1, questionIndex: 12, furthest: 12 }) === "8 of 8");
 }
 
+// --- how long applicants spend (the run-through of 2026-10-31) -----------------------------------------
+{
+  check("a step's minutes are read from its own time line", M.minutesIn("~8 min") === 8 && M.minutesIn("8 min") === 8 && M.minutesIn("Public") === null && M.minutesIn("—") === null && M.minutesIn(null) === null);
+  check("the total adds them up and skips a line with none", M.applicantMinutes(["~3 min", "8 min", "~1 min", "Public"]) === 12 && M.applicantMinutes(["—"]) === null);
+  check("the review's line: the steps and the minutes", M.applicantTimeLine(5, 26) === "5 steps for applicants, about 26 minutes in all." && M.applicantTimeLine(1, null) === "1 step for applicants." && M.applicantTimeLine(0, 9) === null);
+  const plans = Object.fromEntries(["easy", "standard", "high"].map((rigor) => [rigor, M.generateTemplateFlow({ brief: briefWith({}), rigor }).flow]));
+  const words = Object.fromEntries(Object.entries(plans).map(([k, f]) => [k, M.rigorPlanWords(f.phases)]));
+  const formQs = (f) => f.phases.find((p) => p.kind === "application").config.questions.length;
+  const interviewQs = (f) => f.phases.find((p) => p.kind === "voice_interview").config.questions.length;
+  check("each How strict card names the plan's own form and interview questions", Object.entries(plans).every(([k, f]) => words[k].line.startsWith(`${formQs(f)} form questions and a`) && words[k].line.includes(`${interviewQs(f)}-question written interview`)), JSON.stringify(words));
+  check("…the steps every choice keeps", Object.values(words).every((w) => / with the skills check and the chat practice\.$/.test(w.line)));
+  check("…and the minutes, the plan's own added up, more for a stricter screen", Object.entries(plans).every(([k, f]) => words[k].minutes === M.applicantMinutes(f.phases.map((p) => p.durationLabel))) && words.easy.minutes < words.standard.minutes && words.standard.minutes < words.high.minutes, JSON.stringify(words));
+  check("an email agent's plan says the email practice", / and the email practice\.$/.test(M.rigorPlanWords(M.generateTemplateFlow({ brief: briefWith({ "cs-channel": chipIndex("cs-channel", "Email") }), rigor: "standard" }).flow.phases).line));
+}
+
 // --- the page wires it ---------------------------------------------------------------------------
 {
   const page = read("src/pages/AvaCreateJob.tsx");
@@ -198,6 +213,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   check("the review passes what shaped each step, the writer's plan known by its stamp", /fromAnswers=\{fromYourAnswers\(/.test(page) && /writtenByAva: flow\?\.generatedBy\?\.provider === "openai"/.test(page));
   check("the rail's Follow-ups count is the question showing, then the answers (never the taps)", /"Follow-ups": followUpsReceipt\(followUps, chipAnswers, \{ step, questionIndex: fuIndex, furthest: furthestQuestion \}\)/.test(page) && /if \(step === 1\) setFurthestQuestion\(\(f\) => Math\.max\(f \?\? -1, fuIndex\)\)/.test(page) && !/Object\.keys\(chipAnswers\)\.length\} of/.test(page));
   check("the card shows it as \"From your answers:\"", /fromAnswers && fromAnswers\.length > 0 &&/.test(shared) && /\{FROM_YOUR_ANSWERS\}/.test(shared) && M.FROM_YOUR_ANSWERS === "From your answers:");
+  check("the How strict cards and the review read the plan's own time lines", /rigorPlanWords\(generateTemplateFlow\(\{ brief, rigor: o\.id \}\)\.flow\.phases\)/.test(page) && /applicantTimeLine\(screeningCardCount, applicantMinutes\(/.test(page) && /data-review-time/.test(page) && /data-rigor-minutes/.test(page));
   check("no new colour: the strip uses the fields' own surface and hairline", /background: "hsl\(var\(--ck-surface-2\)\)", border: "1px solid hsl\(var\(--border\)\)"/.test(page) && !/brass/i.test(page.slice(page.indexOf("function BuildingFrom"), page.indexOf("export default function AvaCreateJob"))));
 }
 

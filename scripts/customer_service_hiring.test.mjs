@@ -1418,6 +1418,11 @@ console.log("\n-- the follow-ups and what they pick --");
   check("…and no question mentions calls", play.followUps({ "cs-channel": 2 }, { roleTitle: "Phone CSR", whatTheyDo: "Inbound calls" }).every((f) => !/calls?\b|phone/i.test(`${f.question} ${f.chips.join(" ")}`)));
   const chatOnly = play.followUps({}, { roleTitle: "Support agent", whatTheyDo: "Chat only, no phone calls" });
   check("'chat only, no phone calls' starts on Chat", chatOnly[0].chips[chatOnly[0].def] === "Chat");
+  // The run-through of 2026-10-31: the brief said "chats and emails" and the question started on Chat.
+  const both = play.followUps({}, { roleTitle: "Patient chat agent", whatTheyDo: "Answer our patients' chats and emails about bookings and bills." });
+  check("words that name chats and emails start on 'Chat and email'", both[0].chips[both[0].def] === "Chat and email", both[0].chips[both[0].def]);
+  const chatNoEmail = play.followUps({}, { roleTitle: "Live chat agent", whatTheyDo: "Live chat only. No emails." });
+  check("…but not words that rule email out", chatNoEmail[0].chips[chatNoEmail[0].def] === "Chat", chatNoEmail[0].chips[chatNoEmail[0].def]);
   check("'team player' and 'bring your A game' are not a game company", M.industryFromText("We want a team player who brings their A game") === "general" && M.industryFromText("Player support for our mobile game") === "gaming");
   const phone = play.followUps({ "cs-channel": 1 }, { roleTitle: "CSR", whatTheyDo: "" });
   check("the tools question offers no phone system and starts on 'We'll train them'", !phone.find((f) => f.id === "cs-tools").chips.includes("A phone system") && phone.find((f) => f.id === "cs-tools").chips[phone.find((f) => f.id === "cs-tools").def] === "We'll train them");
@@ -2453,7 +2458,8 @@ let aiFlow;
       const fu = M.PLAYBOOKS.customer_service.followUps({}, b0);
       const b = { ...b0, followUps: [{ questionId: M.JOB_KIND_ID, question: "", answer: M.JOB_KIND_CHIPS[0] }, ...M.chipAnswersToBriefAnswers(fu, {})] };
       const note = M.generateTemplateFlow({ brief: b, rigor: "standard" }).flow.phases.find((p) => p.kind === "simulation").rationale;
-      check("a written-only hotline starts on chat, asks how many chats at once, and its plan never says the interview asks about calls (the nineteenth)", fu[0].def === 0 && !/calls/i.test(fu.find((f) => f.id === "cs-load").question) && !/handle calls/.test(note), `${fu[0].def} ${fu.find((f) => f.id === "cs-load").question} | ${note}`);
+      // (Since the run-through of 2026-10-31 words naming both start on "Chat and email", which the plan reads as chat.)
+      check("a written-only hotline starts on chat (chat and email), asks how many chats at once, and its plan never says the interview asks about calls (the nineteenth)", fu[0].chips[fu[0].def] === "Chat and email" && M.channelForBrief(b) === "chat" && !/calls/i.test(fu.find((f) => f.id === "cs-load").question) && !/handle calls/.test(note), `${fu[0].def} ${fu.find((f) => f.id === "cs-load").question} | ${note}`);
     }
     const noInterview = M.applyCustomerServicePack([{ id: "ph_app", kind: "application", order: 0, title: "App", candidateDescription: "", rationale: "", config: { kind: "application", questions: [] }, rubric: { criteria: [] }, weight: 0.1, scoringMode: "auto" }], formFor("Online store", "Phone", "Remote"));
     check("a plan with no written interview never says the interview asks about calls", !/written interview/i.test(noInterview.find((p) => p.kind === "simulation").rationale), noInterview.find((p) => p.kind === "simulation").rationale);

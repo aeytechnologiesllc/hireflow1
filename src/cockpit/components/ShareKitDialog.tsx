@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import { X, Copy, Check, Printer, ExternalLink } from "lucide-react";
 import { QRCodeCanvas } from "qrcode.react";
 import { toast } from "sonner";
@@ -262,7 +263,9 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
             <div
               ref={qrWrapRef}
               className="shrink-0 rounded-xl p-2.5"
-              style={{ background: "var(--hf-gold)" }}
+              // Paper with a hairline, as on the done screen: brass is Ava's seal and money, never a frame (the
+              // run-through of 2026-10-31).
+              style={{ background: "#F7F4EA", border: "1px solid var(--hf-border-strong)" }}
               aria-label="QR code for the apply link"
             >
               <QRCodeCanvas value={applyUrl} size={112} bgColor="#f7f4ea" fgColor="#17150F" level="M" />
@@ -355,7 +358,12 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
             )}
             {showingFull && (
               <p className="mt-2 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
-                Everything in the job, with the apply link at the end. Paste it as is: nothing to change.
+                Everything in the job, with the apply link at the end, ready to paste.{" "}
+                {/* The words are the job's own (a short first draft when the writer was down): changed in the editor,
+                    they change here (the run-through of 2026-10-31). */}
+                <Link to={`/jobs/edit/${job.id}`} onClick={onClose} className="font-medium underline underline-offset-2" style={{ color: "var(--action-soft-fg)" }} data-post-edit>
+                  Want other words? Edit the job
+                </Link>
               </p>
             )}
           </div>

@@ -76,7 +76,8 @@ export function PostStage({ draftTitle, onPostJob, wide }: { draftTitle: string 
   const drafting = draftTitle !== null;
   const sub = drafting
     ? `${draftTitle ? `\u201c${draftTitle}\u201d is saved. ` : ""}A few more minutes and people can apply.`
-    : "Tell Ava about the job. She writes the application questions, the skills check and the chat practice for you. About five minutes.";
+    : // Timed in the run-through of 2026-10-31: five minutes skimming the plan, about ten reading every test.
+      "Tell Ava about the job. She writes the application questions, the skills check and the chat practice for you. About five minutes, ten if you read every test.";
   return (
     <div className={wide ? "flex items-center justify-between gap-8" : "flex flex-col gap-4"}>
       {/* On a phone the step above already says "Post your first job". */}

@@ -1022,9 +1022,12 @@ export default function Auth() {
               style={{ borderColor: "var(--line)" }}
             >
               <p className="text-[13px] text-muted-foreground" data-job-seeker-link>
+                {/* Plain words, not "the candidate portal"; Open jobs has its own Sign in for someone who applied
+                    already (the run-through of 2026-10-31). On the staff host it moves to the main site by itself
+                    (OPEN_JOBS_PATH in src/lib/hosts.ts). */}
                 Looking for a job?{" "}
-                <Link to="/candidate" className="text-primary hover:underline">
-                  Go to the candidate portal
+                <Link to="/open-jobs" className="text-primary hover:underline">
+                  See open jobs
                 </Link>
               </p>
             </div>

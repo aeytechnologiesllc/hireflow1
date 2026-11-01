@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { differenceInDays, format, formatDistanceToNow } from "date-fns";
-import { Mic } from "lucide-react";
+import { Copy, Mic, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { clearDraft } from "@/lib/avaEngine/draft";
@@ -13,6 +13,7 @@ import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { usePlatformAdmin } from "@/hooks/usePlatformAdmin";
 import { SearchInput, FilterSelect } from "../components/controls";
 import { ActionDialog } from "../components/ActionDialog";
+import { ActionsMenu, type ApplicantMenuItem } from "../components/ApplicantRowMenu";
 import { ShareKitDialog } from "../components/ShareKitDialog";
 import { NewJobDialog } from "../components/NewJobDialog";
 import { JobStatusChip } from "../components/JobStatusChip";
@@ -172,12 +173,25 @@ function JobListRow({
 
   const go = draft ? onEdit : onOpen;
 
+  // The quiet ways out in one ⋯ menu, so the row shows only what a new owner needs next (the run-through of
+  // 2026-10-31: five buttons, a red Delete beside Share link). Built only while it is open.
+  const moreItems = (): ApplicantMenuItem[] => [
+    ...(live ? [{ key: "close", label: "Close job", hint: "Take it off your job page so nobody new can apply. You can post it again later.", icon: <XCircle className="h-4 w-4 shrink-0" aria-hidden />, onSelect: onCloseRole }] : []),
+    ...(!draft && onCopy
+      ? [{ key: "copy", label: copying ? "Copying…" : COPY_TO_DRAFTS_LABEL, hint: COPY_TO_DRAFTS_HINT, icon: <Copy className="h-4 w-4 shrink-0" aria-hidden />, disabled: copying, onSelect: onCopy }]
+      : []),
+    ...(onDelete ? [{ key: "delete", label: "Delete", hint: "Remove this job and every application to it", danger: true, icon: <Trash2 className="h-4 w-4 shrink-0" aria-hidden />, onSelect: onDelete }] : []),
+  ];
+  const hasMore = live || (!draft && !!onCopy) || !!onDelete;
+
   return (
     <div
       role="button"
       tabIndex={0}
       onClick={go}
       onKeyDown={(e) => {
+        // Only the row itself: Enter on a button inside it (or in its ⋯ menu) is that button's.
+        if (e.target !== e.currentTarget) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           go();
@@ -207,52 +221,10 @@ function JobListRow({
         {second && <JobStat label={second.label} value={second.value} tone="good" />}
       </div>
 
-      {/* the one next thing — with the quiet ways out first, so the primary stays loudest.
-          flex-wrap: on a phone a live role's five buttons are wider than the
-          row, and without it the first ones ran off the left edge. */}
+      {/* the one next thing: Share link and the primary, the quiet ways out (Close job, Copy to drafts, Delete) in
+          the ⋯ menu after them. flex-wrap: on a phone the buttons can be wider than the row, and without it the
+          first ones ran off the left edge. */}
       <div className="flex w-full shrink-0 flex-wrap justify-end gap-2 sm:w-auto">
-        {live && (
-          <button
-            type="button"
-            title="Take it off your job page so nobody new can apply — you can post it again later"
-            className="ck-btn ck-btn-ghost !px-3 !py-2 !text-[12.5px]"
-            onClick={(e) => {
-              e.stopPropagation();
-              onCloseRole();
-            }}
-          >
-            Close job
-          </button>
-        )}
-        {onDelete && (
-          <button
-            type="button"
-            title="Remove this job and every application to it"
-            className="ck-btn ck-btn-ghost !px-3 !py-2 !text-[12.5px]"
-            style={{ color: "var(--hf-danger)" }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-          >
-            Delete
-          </button>
-        )}
-        {!draft && onCopy && (
-          <button
-            type="button"
-            data-copy-to-drafts
-            title={COPY_TO_DRAFTS_HINT}
-            className="ck-btn ck-btn-ghost !px-3 !py-2 !text-[12.5px]"
-            disabled={copying}
-            onClick={(e) => {
-              e.stopPropagation();
-              onCopy();
-            }}
-          >
-            {copying ? "Copying…" : COPY_TO_DRAFTS_LABEL}
-          </button>
-        )}
         {live && (
           <button
             type="button"
@@ -305,6 +277,7 @@ function JobListRow({
             Post it again
           </button>
         )}
+        {hasMore && <ActionsMenu items={moreItems} label={`More actions for ${job.title}`} size={34} className="self-center" />}
       </div>
     </div>
   );
