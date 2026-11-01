@@ -14,6 +14,7 @@ import {
   ClipboardList,
   Code2,
   Copy,
+  CornerDownRight,
   DollarSign,
   ExternalLink,
   FileText,
@@ -83,6 +84,15 @@ import {
   typeForPlace,
   type PlacePickId,
 } from "@/lib/briefPicks";
+import {
+  BRIEF_USES_LINE,
+  BUILDING_FROM_LABEL,
+  answersGiven,
+  fromYourAnswers,
+  knownSoFar,
+  questionShapes,
+  type BuilderAnswers,
+} from "@/lib/builderHints";
 import type { LucideIcon } from "lucide-react";
 import { candidateOrigin } from "@/lib/hosts";
 import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
@@ -288,6 +298,70 @@ function ReadBack({ tone, children }: { tone: "found" | "plain" | "hint"; childr
   );
 }
 
+/**
+ * "Ava is building from": the answers so far as short tags (src/lib/builderHints.ts, knownSoFar), through the brief, the
+ * questions and How strict (the owner, 2026-11-01: "you can't tell if you're just typing it to be typing it"). Small and
+ * plain: the fields' own surface and hairline, a new tag fades in. On a phone one line that scrolls sideways inside
+ * itself; wider, it wraps. Empty on the brief, it says where the answers will gather.
+ */
+function BuildingFrom({ tags, align = "center", emptyNote }: { tags: string[]; align?: "center" | "start"; emptyNote?: string }) {
+  const reduce = useReducedMotion();
+  const listRef = useRef<HTMLUListElement>(null);
+  const last = tags[tags.length - 1] ?? "";
+  // A soft edge where more tags are out of sight (a phone's one line only; wider, it wraps and nothing is hidden).
+  const [edges, setEdges] = useState({ left: false, right: false });
+  const readEdges = useCallback(() => {
+    const el = listRef.current;
+    if (!el) return;
+    const more = el.scrollWidth - el.clientWidth;
+    const next = { left: more > 1 && el.scrollLeft > 1, right: more > 1 && el.scrollLeft < more - 1 };
+    setEdges((e) => (e.left === next.left && e.right === next.right ? e : next));
+  }, []);
+  // On a phone the line scrolls sideways: keep the newest answer in view.
+  useEffect(() => {
+    const el = listRef.current;
+    if (el && el.scrollWidth > el.clientWidth) el.scrollTo({ left: el.scrollWidth, behavior: reduce ? "auto" : "smooth" });
+    readEdges();
+  }, [tags.length, last, reduce, readEdges]);
+  const fade =
+    edges.left || edges.right
+      ? `linear-gradient(to right, ${edges.left ? "transparent, #000 20px" : "#000, #000"}, ${edges.right ? "#000 calc(100% - 20px), transparent" : "#000"})`
+      : undefined;
+  if (tags.length === 0 && !emptyNote) return null;
+  const start = align === "start";
+  return (
+    <div className={`flex w-full min-w-0 flex-col gap-1.5 ${start ? "max-w-md items-center xl:items-start" : "max-w-2xl items-center"}`} data-building-from>
+      <span className="text-[10.5px] font-semibold uppercase tracking-[0.14em]" style={{ color: "hsl(var(--muted-foreground))" }}>
+        {BUILDING_FROM_LABEL}
+      </span>
+      {tags.length === 0 ? (
+        <span className="text-[12.5px]" style={{ color: "hsl(var(--muted-foreground))" }}>{emptyNote}</span>
+      ) : (
+        <ul
+          ref={listRef}
+          onScroll={readEdges}
+          style={fade ? { maskImage: fade, WebkitMaskImage: fade } : undefined}
+          aria-label={BUILDING_FROM_LABEL}
+          className={`flex w-full max-w-full flex-nowrap gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] sm:w-auto sm:flex-wrap sm:overflow-visible ${start ? "sm:justify-center xl:justify-start" : "sm:justify-center"}`}
+        >
+          {tags.map((tag) => (
+            <motion.li
+              key={tag}
+              initial={reduce ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: reduce ? 0 : 0.3 }}
+              className="shrink-0 whitespace-nowrap rounded-full px-2.5 py-[3px] text-[12px] leading-tight"
+              style={{ background: "hsl(var(--ck-surface-2))", border: "1px solid hsl(var(--border))", color: "hsl(var(--foreground))" }}
+            >
+              {tag}
+            </motion.li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function AvaCreateJob() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -427,6 +501,18 @@ export default function AvaCreateJob() {
     [briefFields.pay, workMode, placeReading?.countryCode],
   );
   const placePicked = pickedPlace(briefFields.location, atOffice);
+
+  // What Ava knows so far, and what each answer shapes (src/lib/builderHints.ts): the strip through the brief, the
+  // questions and How strict, the line under each question, and "From your answers:" on the plan's steps.
+  const hintAnswers: BuilderAnswers = {
+    role: briefFields.role,
+    location: briefFields.location,
+    pay: briefFields.pay,
+    workMode,
+    countryCode: placeReading?.countryCode ?? null,
+    answers: answersGiven(followUps, chipAnswers, { step, questionIndex: fuIndex }),
+  };
+  const knownTags = knownSoFar(hintAnswers);
   const pickPlace = (id: PlacePickId, value: string) => {
     setGeoPreview(null);
     if (id === "office") {
@@ -774,6 +860,14 @@ export default function AvaCreateJob() {
                     <p className="mt-3 max-w-sm text-sm leading-relaxed" style={{ color: "hsl(var(--muted-foreground))" }}>
                       A few details about the job, then a few quick questions about your customers. I'll draft the job post and the tests that fit your business.
                     </p>
+                    {/* Every answer is used (the owner, 2026-11-01): said once here, then shown as it comes in. */}
+                    <p className="mt-3 max-w-md text-[13px] font-medium leading-snug [text-wrap:balance]" style={{ color: "hsl(var(--foreground))" }} data-brief-uses>
+                      <Check className="mr-1.5 inline h-3.5 w-3.5 -translate-y-px" style={{ color: "hsl(var(--ck-action-bright))" }} aria-hidden />
+                      {BRIEF_USES_LINE}
+                    </p>
+                    <div className="mt-5 flex w-full justify-center xl:justify-start">
+                      <BuildingFrom tags={knownTags} align="start" emptyNote="Your answers gather here as you fill this in." />
+                    </div>
                   </div>
                   <div className="mx-auto w-full min-w-0 max-w-2xl rounded-2xl p-5 sm:p-6 xl:max-w-none" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
                     <div className="grid gap-4 sm:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
@@ -872,6 +966,8 @@ export default function AvaCreateJob() {
                 const fu = followUps[Math.min(fuIndex, Math.max(0, followUps.length - 1))];
                 if (!fu) return null;
                 const picked = chipAnswers[fu.id] ?? fu.def;
+                const channelPicked = hintAnswers.answers.find((a) => a.questionId === "cs-channel")?.answer ?? null;
+                const shapes = questionShapes(fu.id, { channel: channelPicked });
                 return (
                   <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
                     <span className="mt-1 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: "hsl(var(--ck-brass))" }}>Ava · Question {fuIndex + 1} of {followUps.length}</span>
@@ -888,6 +984,15 @@ export default function AvaCreateJob() {
                           </button>
                         );
                       })}
+                    </div>
+                    {/* What this answer shapes, quietly (builderHints.ts questionShapes: only what the plan reads). */}
+                    {shapes && (
+                      <p className="mt-5 inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: "hsl(var(--muted-foreground))" }} data-question-shapes>
+                        <CornerDownRight className="h-3.5 w-3.5 shrink-0" aria-hidden /> {shapes}
+                      </p>
+                    )}
+                    <div className="mt-10 flex w-full justify-center">
+                      <BuildingFrom tags={knownTags} />
                     </div>
                   </div>
                 );
@@ -912,6 +1017,9 @@ export default function AvaCreateJob() {
                         </button>
                       );
                     })}
+                  </div>
+                  <div className="mt-9 flex w-full justify-center">
+                    <BuildingFrom tags={knownTags} />
                   </div>
                 </div>
               )}
@@ -963,6 +1071,10 @@ export default function AvaCreateJob() {
                       <PhaseRow
                         key={p.id}
                         phase={p}
+                        fromAnswers={fromYourAnswers(p.id === "job-post" ? "job-post" : (flow?.phases.find((x) => x.id === p.id)?.kind ?? ""), hintAnswers, {
+                          // The writer read every answer; the built-in plan (the writer down) none of them for the post or the interview.
+                          writtenByAva: flow?.generatedBy?.provider === "openai",
+                        })}
                         index={i}
                         total={reviewCards.length}
                         editing={editingId === p.id}

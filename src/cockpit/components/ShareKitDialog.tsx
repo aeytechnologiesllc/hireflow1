@@ -25,6 +25,13 @@ import { buildFullJobPost, type FullPostJob } from "@/lib/jobPost";
  * change anything"): the short one (title, place, pay, link) and the full job
  * post, the whole job from its own fields with the link at the end
  * (src/lib/jobPost.ts).
+ *
+ * Wide on a desktop (the owner, 2026-11-01: "When you can use a lot of
+ * horizontal space, so instead of making a guy scroll vertically ... turn this
+ * dialogue ... more horizontal"): from 900 px it is two columns, the QR code,
+ * the link and where to post it on the left, the ready-to-paste post on the
+ * right with the post's text in its own scroll area, so the window itself does
+ * not scroll at 1280x800. A phone keeps the one column it had.
  */
 /** The job site we hire our own agents on, and the one the kit names. */
 
@@ -232,8 +239,9 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
         role="dialog"
         aria-modal="true"
         aria-label={`Share ${job.title}`}
-        className="ck-card relative max-h-[calc(100dvh-2rem)] w-full max-w-[460px] overflow-y-auto p-5"
+        className="ck-card relative max-h-[calc(100dvh-2rem)] w-full max-w-[460px] overflow-y-auto p-5 min-[900px]:max-w-[880px] min-[900px]:p-6"
         style={{ animation: "ck-rise 0.22s cubic-bezier(0.4,0,0.2,1) both" }}
+        data-share-kit
       >
         <button onClick={onClose} className="absolute right-3 top-3" style={{ color: "var(--hf-text-muted)" }} aria-label="Close">
           <X className="h-4 w-4" />
@@ -246,137 +254,149 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
           {job.title}
         </p>
 
-        {/* ── Apply link ─────────────────────────────── */}
-        <div className="mt-5 flex items-start gap-4">
-          <div
-            ref={qrWrapRef}
-            className="shrink-0 rounded-xl p-2.5"
-            style={{ background: "var(--hf-gold)" }}
-            aria-label="QR code for the apply link"
-          >
-            <QRCodeCanvas value={applyUrl} size={112} bgColor="#f7f4ea" fgColor="#17150F" level="M" />
-          </div>
-          <div className="min-w-0 flex-1 self-center">
-            <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
-              Apply link
-            </div>
+        {/* One column on a phone, in this order; from 900 px two: the link, where to post it and the status on the
+            left, the post on the right across all three rows. */}
+        <div className="min-[900px]:mt-5 min-[900px]:grid min-[900px]:grid-cols-[minmax(0,1fr)_minmax(0,1.12fr)] min-[900px]:gap-x-7" data-share-kit-body>
+          {/* ── Apply link ─────────────────────────────── */}
+          <div className="mt-5 flex items-start gap-4 min-[900px]:col-start-1 min-[900px]:row-start-1 min-[900px]:mt-0">
             <div
-              className="mt-1.5 font-mono text-[12.5px] leading-relaxed"
-              style={{ color: "var(--hf-text)" }}
+              ref={qrWrapRef}
+              className="shrink-0 rounded-xl p-2.5"
+              style={{ background: "var(--hf-gold)" }}
+              aria-label="QR code for the apply link"
             >
-              <LinkText url={applyUrl.replace(/^https?:\/\//, "")} />
+              <QRCodeCanvas value={applyUrl} size={112} bgColor="#f7f4ea" fgColor="#17150F" level="M" />
             </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button className="ck-btn ck-btn-primary !px-3 !text-[12.5px]" onClick={() => void copy(applyUrl, "link")}>
-                {copiedLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} Copy link
-              </button>
-              <button
-                className="ck-btn ck-btn-outline !px-3 !text-[12.5px]"
-                onClick={() => printFlyer(job, applyUrl, getQrCanvas())}
+            <div className="min-w-0 flex-1 self-center">
+              <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
+                Apply link
+              </div>
+              <div
+                className="mt-1.5 font-mono text-[12.5px] leading-relaxed"
+                style={{ color: "var(--hf-text)" }}
               >
-                <Printer className="h-3.5 w-3.5" /> Print flyer
+                <LinkText url={applyUrl.replace(/^https?:\/\//, "")} />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button className="ck-btn ck-btn-primary !px-3 !text-[12.5px]" onClick={() => void copy(applyUrl, "link")}>
+                  {copiedLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} Copy link
+                </button>
+                <button
+                  className="ck-btn ck-btn-outline !px-3 !text-[12.5px]"
+                  onClick={() => printFlyer(job, applyUrl, getQrCanvas())}
+                >
+                  <Printer className="h-3.5 w-3.5" /> Print flyer
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Post text: short, or the whole job ─────── */}
+          <div
+            className="mt-5 border-t pt-4 min-[900px]:col-start-2 min-[900px]:row-span-3 min-[900px]:row-start-1 min-[900px]:mt-0 min-[900px]:flex min-[900px]:flex-col min-[900px]:border-l min-[900px]:border-t-0 min-[900px]:pl-7 min-[900px]:pt-0"
+            style={{ borderColor: "var(--hf-border-strong)" }}
+            data-share-post
+          >
+            <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
+              Ready-to-paste post
+            </div>
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="inline-flex rounded-[10px] border p-[3px]" style={{ borderColor: "var(--hf-border-strong)", background: "var(--hf-surface-raised)" }} role="group" aria-label="Which post">
+                {(["short", "full"] as const).map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    aria-pressed={postKind === kind}
+                    onClick={() => setPostKind(kind)}
+                    className="whitespace-nowrap rounded-[7px] px-2.5 py-1.5 text-[12.5px]"
+                    style={postKind === kind ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", fontWeight: 600 } : { color: "var(--hf-text-soft)" }}
+                    data-post-kind={kind}
+                  >
+                    {kind === "short" ? "Short post" : "Full job post"}
+                  </button>
+                ))}
+              </div>
+              <button
+                className={`ck-btn ${postKind === "full" ? "ck-btn-primary" : "ck-btn-outline"} !px-2.5 !py-1.5 !text-[12px]`}
+                onClick={() => void copy(shownText, "post")}
+                disabled={postKind === "full" && !fullText}
+                data-post-copy
+              >
+                {copiedPost ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {postKind === "full" ? "Copy full post" : "Copy"}
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* ── Post text: short, or the whole job ─────── */}
-        <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--hf-border-strong)" }}>
-          <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
-            Ready-to-paste post
-          </div>
-          <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="inline-flex rounded-[10px] border p-[3px]" style={{ borderColor: "var(--hf-border-strong)", background: "var(--hf-surface-raised)" }} role="group" aria-label="Which post">
-              {(["short", "full"] as const).map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  aria-pressed={postKind === kind}
-                  onClick={() => setPostKind(kind)}
-                  className="whitespace-nowrap rounded-[7px] px-2.5 py-1.5 text-[12.5px]"
-                  style={postKind === kind ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", fontWeight: 600 } : { color: "var(--hf-text-soft)" }}
-                  data-post-kind={kind}
+            {postKind === "full" && !fullText ? (
+              <p className="mt-2 rounded-xl px-3.5 py-3 text-[12.5px]" style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)" }} data-post-full-missing>
+                {fullLoading ? "Putting the full post together…" : "The full post isn't available for this job. The short post below still works."}
+              </p>
+            ) : null}
+            {(postKind === "short" || fullText || !fullLoading) && (
+              // Wide, the full post fills the column's height and scrolls inside itself (at least 220 px), so it never
+              // makes the window taller than the left column; the short post keeps its own height. On a phone, as it was.
+              <div className={showingFull ? "min-[900px]:relative min-[900px]:mt-2 min-[900px]:min-h-[220px] min-[900px]:flex-1" : undefined}>
+                <pre
+                  className={`mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl px-3.5 py-3 text-[12.5px] leading-relaxed ${showingFull ? "max-h-[260px] overflow-y-auto min-[900px]:absolute min-[900px]:inset-0 min-[900px]:mt-0 min-[900px]:max-h-none" : ""}`}
+                  style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)", fontFamily: "inherit" }}
+                  data-post-text={showingFull ? "full" : "short"}
                 >
-                  {kind === "short" ? "Short post" : "Full job post"}
-                </button>
-              ))}
+                  {/* The post as text, with its link drawn by LinkText so the job's
+                      name never splits across lines (the copy button copies the
+                      text itself, unchanged). */}
+                  {shownText.endsWith(applyUrl) ? (
+                    <>
+                      {shownText.slice(0, shownText.length - applyUrl.length)}
+                      <LinkText url={applyUrl} />
+                    </>
+                  ) : (
+                    shownText
+                  )}
+                </pre>
+              </div>
+            )}
+            {showingFull && (
+              <p className="mt-2 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
+                Everything in the job, with the apply link at the end. Paste it as is: nothing to change.
+              </p>
+            )}
+          </div>
+
+          {/* ── Where to post it: HireFlow posts to no board itself ─────── */}
+          <div className="mt-5 pt-4 min-[900px]:col-start-1 min-[900px]:row-start-2" style={{ borderTop: "1px solid var(--hf-border-strong)" }} data-where-to-post>
+            <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
+              Where to post it
             </div>
-            <button
-              className={`ck-btn ${postKind === "full" ? "ck-btn-primary" : "ck-btn-outline"} !px-2.5 !py-1.5 !text-[12px]`}
-              onClick={() => void copy(shownText, "post")}
-              disabled={postKind === "full" && !fullText}
-              data-post-copy
-            >
-              {copiedPost ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />} {postKind === "full" ? "Copy full post" : "Copy"}
-            </button>
-          </div>
-          {postKind === "full" && !fullText ? (
-            <p className="mt-2 rounded-xl px-3.5 py-3 text-[12.5px]" style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)" }} data-post-full-missing>
-              {fullLoading ? "Putting the full post together…" : "The full post isn't available for this job. The short post below still works."}
+            <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>
+              Post it where the people you want to hire are looking. Everyone who applies through the link lands here, read and
+              scored.
             </p>
-          ) : null}
-          {(postKind === "short" || fullText || !fullLoading) && (
-            <pre
-              className={`mt-2 overflow-x-auto whitespace-pre-wrap rounded-xl px-3.5 py-3 text-[12.5px] leading-relaxed ${showingFull ? "max-h-[260px] overflow-y-auto" : ""}`}
-              style={{ background: "var(--hf-surface-raised)", border: "1px solid var(--hf-border-strong)", color: "var(--hf-text-soft)", fontFamily: "inherit" }}
-              data-post-text={showingFull ? "full" : "short"}
-            >
-              {/* The post as text, with its link drawn by LinkText so the job's
-                  name never splits across lines (the copy button copies the
-                  text itself, unchanged). */}
-              {shownText.endsWith(applyUrl) ? (
-                <>
-                  {shownText.slice(0, shownText.length - applyUrl.length)}
-                  <LinkText url={applyUrl} />
-                </>
-              ) : (
-                shownText
-              )}
-            </pre>
-          )}
-          {showingFull && (
-            <p className="mt-2 text-[12px]" style={{ color: "var(--hf-text-muted)" }}>
-              Everything in the job, with the apply link at the end. Paste it as is: nothing to change.
-            </p>
-          )}
-        </div>
-
-        {/* ── Where to post it: HireFlow posts to no board itself ─────── */}
-        <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--hf-border-strong)" }} data-where-to-post>
-          <div className="text-[11px] uppercase" style={{ color: "var(--hf-text-muted)", letterSpacing: "0.12em" }}>
-            Where to post it
+            {/* src/lib/shareTargets.ts: HireFlow posts to no board itself. */}
+            <ul className="mt-2.5 space-y-2">
+              {shareTargets(applyUrl).map((t) => (
+                <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <a
+                    href={t.href}
+                    target="_blank"
+                    // noreferrer alone also cuts the opener (and this file must never say
+                    // the other word: Print flyer's window.open needs its opener).
+                    rel="noreferrer"
+                    className="ck-btn ck-btn-outline !px-3 !text-[12.5px]"
+                    data-share-target={t.id}
+                  >
+                    {t.label} <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                  <span className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
+                    {t.hint}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
-          <p className="mt-1.5 text-[13px] leading-relaxed" style={{ color: "var(--hf-text-soft)" }}>
-            Post it where the people you want to hire are looking. Everyone who applies through the link lands here, read and
-            scored.
-          </p>
-          {/* src/lib/shareTargets.ts: HireFlow posts to no board itself. */}
-          <ul className="mt-2.5 space-y-2">
-            {shareTargets(applyUrl).map((t) => (
-              <li key={t.id} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <a
-                  href={t.href}
-                  target="_blank"
-                  // noreferrer alone also cuts the opener (and this file must never say
-                  // the other word: Print flyer's window.open needs its opener).
-                  rel="noreferrer"
-                  className="ck-btn ck-btn-outline !px-3 !text-[12.5px]"
-                  data-share-target={t.id}
-                >
-                  {t.label} <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-                <span className="text-[12.5px]" style={{ color: "var(--hf-text-muted)" }}>
-                  {t.hint}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
 
-        {/* ── Status note ────────────────────────────── */}
-        <div className="mt-5 pt-4" style={{ borderTop: "1px solid var(--hf-border-strong)" }}>
-          <div className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--hf-text-soft)" }}>
-            <Check className="h-3.5 w-3.5" /> Your page is live: anyone with the link can open it.
+          {/* ── Status note ────────────────────────────── */}
+          <div className="mt-5 pt-4 min-[900px]:col-start-1 min-[900px]:row-start-3" style={{ borderTop: "1px solid var(--hf-border-strong)" }}>
+            <div className="flex items-center gap-1.5 text-[12px]" style={{ color: "var(--hf-text-soft)" }}>
+              <Check className="h-3.5 w-3.5" /> Your page is live: anyone with the link can open it.
+            </div>
           </div>
         </div>
       </div>

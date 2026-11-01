@@ -940,6 +940,44 @@ say, by Publish's own rules (`src/lib/briefPicks.ts`, pure;
 `TalkToAva`'s older "Location or remote" field is left as it was: it is
 mounted only on the founder's lab page (`/flow-lab`), never in the builder.
 
+## Showing what Ava uses (2026-11-01)
+
+The owner, after watching a walkthrough: "you can't tell if you're just
+typing it to be typing it, or it's actually going to take all this
+information when creating a job ... not too crazy ... hints that everything
+you're saying we're gonna take that when creating a job or skill test." Four
+quiet places, words only, no new colour (`src/lib/builderHints.ts`, pure;
+`scripts/builder_hints.test.mjs`):
+
+- **The brief** says "Ava writes your job post and your tests from these
+  answers." under its intro.
+- **Each follow-up** names what its answer shapes, under its chips. Only what
+  the plan reads: the kind of business picks the pack (the skills check and
+  the practice's cases); the channel makes it a chat or an email practice and
+  is told to the writer; the internet answer sets the computer check's bars;
+  the load, the hours, the private details, the tools and the computer are
+  read only by the writer (generate-flow's "Owner follow-up answers"), so
+  they say "the job post" and "the interview".
+- **"Ava is building from"**: the title, the place, the pay as the post will
+  show it, and each answer so far, as short tags, on the brief (the left
+  column from 1280 px), under each question (the one showing moves with a
+  tap) and on How strict. On a phone one line that scrolls sideways inside
+  itself and keeps the newest answer in view.
+- **The plan review** says "From your answers:" on the skills check (the
+  business), the chat or email practice (the business, the channel, and a
+  remote job's place, where typing is timed), the computer check (the place,
+  the internet answer), and on the job post and the interview only what
+  shaped them: on a plan the writer wrote (its `generatedBy.provider` is
+  "openai"), the business, the channel and the hours for the post and the
+  load and the private details for the interview; on the built-in plan, which
+  reads no follow-up answer, the post names the title, the place and the pay
+  (the job's own fields) and the interview names nothing.
+
+The test proves each line on the built-in plan (changing an answer changes
+the step it names and nothing it does not), holds that every question asked
+has its line and every chip its short words, and that the writer is sent
+every answer.
+
 ## Where the job is
 
 `src/lib/jobLocation.ts` reads the place the business typed (and the Type

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { DISPLAY, STEPS, type Accent } from "./sharedAtoms";
+import { FROM_YOUR_ANSWERS } from "@/lib/builderHints";
 
 import { GemRail } from "@/components/rail/GemRail";
 import {
@@ -190,6 +191,7 @@ export function PhaseRow({
   onRemove,
   onMove,
   onField,
+  fromAnswers,
 }: {
   phase: ReviewPhaseCard;
   index: number;
@@ -199,6 +201,8 @@ export function PhaseRow({
   onRemove: () => void;
   onMove: (dir: -1 | 1) => void;
   onField: (field: "title" | "candidate", value: string) => void;
+  /** The business's answers that shaped this step (src/lib/builderHints.ts, fromYourAnswers); none, no line. */
+  fromAnswers?: readonly string[] | null;
 }) {
   const reduce = useReducedMotion();
   const Icon = glyphForKind(phase.kind);
@@ -302,6 +306,14 @@ export function PhaseRow({
             <span style={{ margin: "0 0.5em", opacity: 0.55 }}>·</span>
             {phase.duration}
           </p>
+
+          {/* Which of the business's answers this step was built from (the owner, 2026-11-01: "you can't tell if
+              you're just typing it to be typing it"). Only what the plan really read (builderHints.ts). */}
+          {fromAnswers && fromAnswers.length > 0 && (
+            <p className="mt-1.5 text-[12px] leading-snug" style={{ color: "var(--hf-text-muted)" }} data-from-answers>
+              <span style={{ color: "var(--hf-text-soft)", fontWeight: 600 }}>{FROM_YOUR_ANSWERS}</span> {fromAnswers.join(" · ")}
+            </p>
+          )}
 
           {phase.details && <ReviewDetailsBlock details={phase.details} />}
 
