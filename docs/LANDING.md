@@ -62,8 +62,8 @@ sign-in, staff.hireflownow.com/auth) and **Post a job**, a small postage
 stamp (id `startFree`) to the sign-up tab (`/auth?mode=signup`). Over the
 hero's first screen it is the nav as drawn; once the page moves (`scrollY >
 4`, class `pinned`) it tightens to `--barh` and takes the desk's own sage
-with a blur and a hairline, no shadow. The story's words always start under
-it, on a phone and on a short screen.
+with a blur and a hairline, no shadow. A part reached by its link (How it
+works, below) starts under it (`scroll-padding-top`).
 
 ### The hero
 
@@ -84,48 +84,71 @@ seal stamps three slips (Carla Villanueva 89, Mika Lim 86, Maria Santos 92,
 aside". A slip turns over to show her reply; the stack fans out to show
 Ava's reason on a few; "Watch again" sweeps the desk and plays it once more.
 
-### The story: four chapters, scrubbed by scroll
+### How it works: four quiet parts (since 2026-11-01)
 
-Below the hero the same desk keeps going in `#story`: a pinned stage, one
-scroll unit is 0.7 of a screen, 5.68 units long. The desk follows the scroll
-with a critically damped follower (it eases in and out, never surges, and a
-long jump replays only its last stretch). The seals, stamps and rings are
-"beats": passing a point decides one happens, and it then plays in its own
-time, so a fast scroll never skips a press. The rail ("How it works": Post,
-Share, Ava reads, Call) jumps to each chapter.
+The owner, 2026-11-01, on the scroll-driven story that followed the hero
+from 2026-10-30: it "felt too much", it came "right after the hero, which is
+already a lot of animation", and the scroll held still and then went "too
+much too quickly". The hero is "just the right amount of animation saying
+the right story". So below the hero the page scrolls as any page does: with a
+wheel, a trackpad or a finger, nothing is pinned (no sticky stage), snapped or
+tied to the scroll position, and no script listens to the scroll but the
+bar's. The story is kept (static paper cards were turned down on 2026-10-30),
+told calmer.
 
-1. **Post the job. Ava writes the test.** An index card ("About your
-   business") is typed; Ava writes three jobs with their customer tests: an
-   online store's (Chat), a software company's (Email) and a dental office's
-   (Chat and email).
-2. **Share the link anywhere.** The link goes out to job boards, groups and
-   your own site, and letters come back. The ledger card "Our own job ·
-   October 2026" shows 153 applied in the first four days.
-3. **Ava reads every reply.** Maria's envelope turns over and opens: Rosa, a
-   patient charged twice, and Maria's reply ("I'm so sorry, Rosa ... I'll call
-   you by 3 pm today"). Ava marks "Uses her name", "Fixes it", "Gives a
-   time", rings 92, seals it and writes "Call first".
-4. **Three worth a call.** Carla and Mika come back beside Maria; others
-   leave the stack with Ava's reason ("Promised a wrong refund", "Missed the
-   real question"), and the band "150 set aside" goes round the rest. The
-   ledger adds 71 who finished the written interview and the ringed 3: "We
-   hired from those three."
+`#story` opens with a small index, **How it works** (typed, like an index
+card) and four links, Post, Share, Ava reads, Call, to `#post`, `#share`,
+`#reads` and `#call` (a smooth scroll to the anchor; a jump with less
+motion). Then four parts, each a short heading and two lines on one side and
+one small desk on the other, turn and turn about on a computer (words then
+desk on a tablet and a phone). Each desk has a few papers, never a pile:
+
+1. **Post the job. Ava writes the test.** The index card "About your
+   business" ("We're a dental office. Patients chat and email us about
+   bookings and bills.") beside the job Ava wrote from it: Patient chat
+   agent, Bright Smile Dental, Chat and email, with its customer test (Rosa,
+   a patient charged twice). The tabs of two more jobs show under it (Online
+   store, Software): any business. *Motion:* the job slides onto the desk.
+2. **Share the link anywhere.** Three link tags (Job boards, Groups, Your
+   site) and the ledger card "Our own job · October 2026": 153 applied in the
+   first four days. *Motion:* the tags fan out.
+3. **Ava reads every reply.** The chat test: Rosa's message, Maria's reply
+   ("I'm so sorry, Rosa ... I'll call you by 3 pm today"), Ava's notes "Uses
+   her name", "Fixes it", "Gives a time", her seal and verdict ("Owned the
+   double charge in her first line.") and 92. *Motion:* the three marks are
+   drawn across the reply and the ring goes round 92.
+4. **Three worth a call.** Carla Villanueva 89, Mika Lim 86 and Maria Santos
+   92 ("Call first"), each sealed, and the ledger filled in: 153 applied, 71
+   finished the written interview, the ringed 3 were worth a call, "We hired
+   from those three." (one strip of three columns, short words; a card with
+   the full words on a phone). *Motion:* Ava's seal presses onto Maria's slip.
+
+Each motion plays **once**, 0.4 to 0.7 s, when the part that moves reaches the
+upper two thirds of the screen: an IntersectionObserver adds `.play` to the
+desk and stops watching it; nothing loops and nothing follows the scroll. A
+desk still below the screen when the page opens waits in the pose its motion
+starts from (`.wait`), which shows everything too (the job a little off its
+place, the tags bunched, the marks not yet drawn, the seal and the stamp just
+above the paper): nothing is ever see-through or hidden waiting for the
+observer. Less motion, the light desk or a browser without
+IntersectionObserver get no `.wait` and no `.play`: every desk is simply at
+rest. The headings are a size under the hero's, so the hero stays the
+loudest thing on the page.
 
 ### The ending
 
-**Your first job is free.** Your own envelope lands ("From: your business";
-"Job: Customer service agent"; Medical and dental · Online stores ·
-Software · Home services · Gaming), the big stamp goes on it as its postage,
-and the postmark strikes. That stamp is the page's third sign-up link, **id
-`endStart`**: it is written in the page (in a hidden `.ysrc` holder) and the
-story script **moves that same element** into the envelope
-(`ylink = document.getElementById("endStart"); ydrop.appendChild(ylink);`).
-It is never cloned or rebuilt from a string, so whichever runs first,
-`carry-source.js` (which adds the visitor's campaign tags to every sign-up
-link once, when the page has been read) or the story, the one link keeps the
-visitor's tags. The test counts three sign-up links as written in the page
-and fails on one made by a script. A keyboard user who tabs to it is taken to
-the end, where it can be seen.
+**Your first job is free.** Centred under the four parts: your own envelope
+("From: your business"; "Job: Customer service agent"; Medical and dental ·
+Online stores · Software · Home services · Gaming) with the big stamp as its
+postage and the "No card." postmark beside it (on a phone, the stamp runs
+along the envelope's top and the sender sits at the bottom). *Motion:* the
+stamp is put down on the envelope. That stamp is the page's third sign-up
+link, **id `endStart`**, written in the envelope itself: no script moves,
+copies or builds it, so `carry-source.js` (which adds the visitor's campaign
+tags to every sign-up link once, when the page has been read) finds it like
+the other two. The test counts three sign-up links as written in the page and
+fails on one made or moved by a script. (Until 2026-11-01 the story script
+moved it into the envelope from a hidden holder.)
 
 So the page has one button, everywhere: **Post a job** in the bar, the big
 stamp **Post your first job, free** in the hero and again at the end (guard
@@ -134,9 +157,9 @@ stamp **Post your first job, free** in the hero and again at the end (guard
 
 ### Sizes
 
-The hero and the story were designed at a laptop (1280x760, 1440x900) and a phone (390x844, 375x667,
-360x640); those renders are the approved ones. Everything in between is an added size class that
-CSS and the scripts both read through the same `matchMedia` queries, so the approved sizes do not move:
+The hero was designed at a laptop (1280x760, 1440x900) and a phone (390x844, 375x667, 360x640);
+those renders are the approved ones. Everything in between is an added size class that CSS and the
+hero's script both read through the same `matchMedia` queries, so the approved sizes do not move:
 
 - **Narrow or short laptop** (the wide layout under 1280 wide, or under 680 tall): the desk shrinks to
   fit beside the words, starts clear of the "No card." postmark, and "Watch again" moves clear of
@@ -145,36 +168,41 @@ CSS and the scripts both read through the same `matchMedia` queries, so the appr
   order (headline, desk, button) with the desk as one column a desktop slip wide, scaled as a whole,
   never stretched to the screen's width.
 - **Sideways** (560 to 899 wide and wider than tall, or 900+ wide and under 580 tall): headline,
-  button and the desk's key moment share the first screen; the story's captions run down the left.
+  button and the desk's key moment share the first screen.
 
-The story re-lays out when the size class changes, even on a height-only change.
+The four parts below are laid out by CSS alone, in the page's own flow: words beside their desk from
+1000 wide, words over their desk under that (a desk at most 540 wide), and a phone's own desks under
+600 wide (the card over the job, the tags over the ledger, Ava's notes under the reply, the ledger as a
+card). The ending's envelope takes its phone shape under 700 wide.
 
 ### The light desk (older phones)
 
-Older or slower devices get a "light desk": the same story, words, colours and layout with about a
+Older or slower devices get a "light desk": the same hero, words, colours and layout with about a
 third of the letters, no shadow under paper in the air, flat turns instead of 3D, a plainer seal press
-and a plain sage bar instead of the frosted one. It is chosen before first paint for Save-Data or
+and a plain sage bar instead of the frosted one; the four parts below show each desk at rest, with no
+motion. It is chosen before first paint for Save-Data or
 prefers-reduced-data, `deviceMemory` of 2 or less, or (outside Apple's browsers) 2 cores or fewer;
-otherwise the hero's first second decides (fewer than about 40 frames switches to it). Chrome rounds
-memory to a power of two, so a 4 GB or 6 GB phone keeps the full desk unless it is actually slow.
-`?desk=light` or `?desk=full` forces either. Every device also got cheaper drawing that does not change
-the look (shadows in the air on their own layers, fewer elements written per frame, the story laid out
-before the hero's clock starts). On a 360-wide phone the slips and the button's postmark are a size
-smaller so Ava's line keeps to two lines and nothing runs off the edge.
+otherwise the hero's first second decides (fewer than about 40 frames switches to it; the parts below,
+still unseen, then drop their motion too). Chrome rounds memory to a power of two, so a 4 GB or 6 GB
+phone keeps the full desk unless it is actually slow. `?desk=light` or `?desk=full` forces either.
+Every device also got cheaper drawing that does not change the look (shadows in the air on their own
+layers, fewer elements written per frame). On a 360-wide phone the slips and the button's postmark are
+a size smaller so Ava's line keeps to two lines and nothing runs off the edge.
 
 ### Motion: plays and stops
 
 - **Animation runs only while something moves.** The hero's frame loop runs
   for the first play (and a replay, a fan or a slip moving), only while the
-  hero is on the screen (an IntersectionObserver), then stops. The story's
-  runs only while the desk is catching up with the scroll or a beat is
-  playing. Nothing loops: the typed card's caret blinks six times, then holds.
+  hero is on the screen (an IntersectionObserver), then stops. Below the
+  hero there is no frame loop at all: each part's one motion is a CSS
+  transition or animation, started once by a class. Nothing loops.
+- **The scroll is the browser's own.** Nothing is pinned, snapped or driven
+  by the scroll position; the only scroll listener is the bar's (`pinned`).
 - **No light or glow follows the mouse** (the owner); the page has no
   `pointermove` or `mousemove` listener.
 - **Reduced motion** (`prefers-reduced-motion: reduce`): the hero shows its
-  finished desk at once; the story shows each chapter's finished state,
-  crossed with a short fade and nothing moving, and the rail jumps without
-  smooth scrolling; transitions are off.
+  finished desk at once; the parts below show each desk at rest, and How it
+  works jumps to a part without smooth scrolling; transitions are off.
 - **The fonts.** The faces' stylesheet (`id="hfFontCss"`) loads with
   `media="print"` and switches to `all` when it arrives, so it never blocks
   the first paint (a `<noscript>` link covers no-script). The desk waits for
@@ -207,7 +235,8 @@ smaller so Ava's line keeps to two lines and nothing runs off the edge.
 - Structured data: the organisation (with its legal name, Southern Digital
   Technologies LLC) and the app. An About line and the legal links in the
   footer. Screen readers get the desk in words (`.sr` paragraphs for the
-  hero and the story); the moving desk itself is `aria-hidden`.
+  hero and the four parts); the desks themselves are `aria-hidden` (the
+  ending's envelope keeps its sign-up link).
 
 ## Editing it
 
@@ -215,4 +244,5 @@ Edit `public/landing.html` directly. Its inline scripts are hashed into the
 Content-Security-Policy, so after changing one run
 `node scripts/csp.mjs --write`, then `node scripts/landing_page.test.mjs`
 and `node scripts/guardrails.mjs`. Copy that the owner approved (the
-headline, the chapters, the ending) changes only with the owner's OK.
+headline, the four parts' headings and lines, the ending) changes only with
+the owner's OK; the four parts kept the chapters' words word for word.

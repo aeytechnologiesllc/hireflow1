@@ -80,12 +80,13 @@ check("its own share picture (HireFlow's), large", /<meta property="og:image" co
   check("the og:url note names the canonical where it is (above) and what it may still cost a shared card", note > page.indexOf('<link rel="canonical"') && /canonical above/.test(noteText) && !/canonical below/.test(noteText) && /Sharing Debugger/.test(noteText) && !/property="og:url"/.test(page));
 }
 // "The Desk" (the owner approved it 2026-10-30): hundreds apply, Ava's green
-// wax seal marks three, and four chapters tell the rest. Customer service,
-// chat and email, any business (docs/LAUNCH-PLAN.md, Phase 3, task 3).
+// wax seal marks three, and four parts tell the rest (four quiet rows since
+// 2026-11-01). Customer service, chat and email, any business
+// (docs/LAUNCH-PLAN.md, Phase 3, task 3).
 check("the headline: Hundreds apply. Three land on your desk.", /<h1 id="heroTitle"><span class="ln">Hundreds apply\.<\/span><span class="ln">Three land<\/span><span class="ln"><span class="em">on your desk\.<svg /.test(page));
 check("…and what it does: a real customer chat for any business, read by Ava, three worth a call", /<p class="sub d">Share your job link anywhere\. Ava gives every applicant a real customer chat written for your business, reads every reply, and puts <b>the three worth a call<\/b> in front of you, with her reasons\.<\/p>/.test(page) && /<p class="sub m">Share your job link anywhere\./.test(page));
 check(
-  "the story's four chapters, and its ending",
+  "the story's four parts, each linked from How it works, and its ending",
   [
     /<h2>Post the job\. <em>Ava writes the test\.<\/em><\/h2>/,
     /<h2>Share the link <em>anywhere\.<\/em><\/h2>/,
@@ -94,13 +95,22 @@ check(
     /<h2>Your first job <em>is free\.<\/em><\/h2>/,
   ].every((re) => re.test(page)) &&
     /<nav class="rail" aria-label="How it works">/.test(page) &&
-    ["Post", "Share", "Ava reads", "Call"].every((c, i) => page.includes(`<button type="button" data-c="${i}">${c}<svg`)),
+    [["post", "Post"], ["share", "Share"], ["reads", "Ava reads"], ["call", "Call"]].every(([id, c]) => page.includes(`<a href="#${id}">${c}<svg`) && new RegExp(`<div class="part(?: r)?" id="${id}">`).test(page)),
 );
-check("chat and email, for any business: the jobs Ava writes are a store's chat, software's email and a dental office's chat and email", /tab:"Online store", ch:"Chat"/.test(page) && /tab:"Software", ch:"Email"/.test(page) && /tab:"Dental", ch:"Chat and email"/.test(page) && /One hire or a whole team|one hire or a whole team/.test(page));
+check(
+  "chat and email, for any business: Ava's job for a dental office (chat and email), an online store's and a software company's under it",
+  /<div class="jback b0"><span class="jtab">Online store<\/span><\/div>/.test(page) && /<div class="jback b1"><span class="jtab">Software<\/span><\/div>/.test(page) &&
+    /<span class="jtab">Dental<\/span>/.test(page) && /<span class="chn">Chat and email<\/span>/.test(page) && /One hire or a whole team|one hire or a whole team/.test(page),
+);
 check("…built for any team that answers customers, gaming one of them", /<span class="b">Medical and dental · Online stores<\/span><span class="b">Software · Home services · Gaming<\/span>/.test(page));
 check("…and no sweepstakes, casino, payout or player wording anywhere on the page", !/sweepstake|casino|payout|withdrawal|\bplayers?\b/i.test(page.replace(/<li><b>Gaming<\/b> Players, payments and account checks\.<\/li>/, "")));
 check("no night, morning or time-of-day story (the owner, 2026-10-30)", !/\b(night|tonight|overnight|morning|sleep|asleep|evening|dawn)\b/i.test(page));
-check("the story's test is an everyday one: a patient charged twice, and a reply that owns it", /msg:"Hi, I was charged twice for Tuesday’s cleaning and nobody has called me back\. I need this fixed today\."/.test(page) && /const REPLY = \[\["I’m so sorry, "\],\["Rosa",0\]/.test(page) && /const NOTES = \["Uses her name","Fixes it","Gives a time"\];/.test(page));
+check(
+  "the story's test is an everyday one: a patient charged twice, and a reply that owns it",
+  /<p class="cm">Hi, I was charged twice for Tuesday’s cleaning and nobody has called me back\. I need this fixed today\.<\/p>/.test(page) &&
+    /<p class="rt">I’m so sorry, <mark>Rosa<\/mark>\. You’re right, both charges are there\. I’ve asked billing to <mark>refund the second one now<\/mark>, and I’ll <mark>call you by 3 pm today<\/mark> to confirm it’s done\.<\/p>/.test(page) &&
+    /<ul class="notes"><li>Uses her name<\/li><li>Fixes it<\/li><li>Gives a time<\/li><\/ul>/.test(page),
+);
 check("no light or glow follows the mouse", !/pointermove|mousemove/.test(page));
 // Every business's live jobs, not one business's careers page (2026-10-11).
 check("an applicant who lands here finds every open job, in the bar (on a phone too) and the footer", /<a class="plain" id="jobLink" href="\/open-jobs"><span class="long">Looking for a job\?<\/span><span class="short">Jobs<\/span><\/a>/.test(page) && /\.navr \.plain \.long\{display:none\}\s*\.navr \.plain \.short\{display:inline\}/.test(page) && /<a href="\/open-jobs">Open jobs<\/a>/.test(page));
@@ -135,18 +145,20 @@ check("/open-jobs is a page of the applicants' site", /<Route path="\/open-jobs"
 check("…and one already signed in here is offered their applications", /localStorage\.getItem\("sb-yqklrkpptnhubsnijqze-auth-token"\)/.test(page) && /jobLink\.querySelector\("\.long"\)\.textContent = "My applications";/.test(page) && /jobLink\.setAttribute\("href", "\/applications"\)/.test(page));
 check(
   "the three numbers are the real ones, from our own job",
-  /<div class="lh">Our own job · October 2026<\/div>/.test(page) &&
-    /<b>153<\/b><span><i class="t w">applied in the first four days\.<\/i>/.test(page) &&
-    /<b>71<\/b><span><i class="t w">finished the written interview, with none of us in the room\.<\/i>/.test(page) &&
-    /<i class="t w">were worth a call\. <\/i><strong class="t w">We hired from those three\.<\/strong>/.test(page) &&
-    /\{g0:4\.6, g1:4\.68, n0:4\.66, n1:4\.7, to:3, t0:4\.68, t1:4\.84\}/.test(page) &&
+  // the ledger card under Share (its first line), and filled in under the three
+  (page.match(/<div class="lh">Our own job · October 2026<\/div>/g) ?? []).length === 2 &&
+    /<b>153<\/b><span>applied in the first four days\.<\/span>/.test(page) &&
+    /<b>153<\/b><span><i class="w">applied in the first four days\.<\/i>/.test(page) &&
+    /<b>71<\/b><span><i class="w">finished the written interview, with none of us in the room\.<\/i>/.test(page) &&
+    /<i class="w">were worth a call\. <\/i><strong class="w">We hired from those three\.<\/strong>/.test(page) &&
+    /vector-effect="non-scaling-stroke"\/><\/svg>3<\/b>/.test(page) &&
     // Ava read the replies of the 71 who finished, never "all 153"; the band
     // round the rest says "set aside", never "read" (the 82 who never finished
-    // sent no reply to read). Five desks say so: the opening's on a computer, on a
-    // phone, and on a tablet or sideways; the story's on a computer and on a phone.
+    // sent no reply to read). The opening's three desks say so: on a computer, on
+    // a phone, and on a tablet or sideways.
     /I read all 71 replies\./.test(page) &&
     !/I read all 153|150 read|other 150 are set aside/.test(page) &&
-    (page.match(/o\.bandText = "150 set aside";/g) ?? []).length === 5 &&
+    (page.match(/o\.bandText = "150 set aside";/g) ?? []).length === 3 &&
     !/71 finished (?:the test|Ava’s chat test)|finished Ava’s chat test/.test(page),
 );
 check("…and the page says the names are examples", /The businesses, Maria, Carla, Mika, Rosa and the other names on the desk are examples, not real people\. The three numbers are real, from our own job\./.test(page));
@@ -167,9 +179,9 @@ check(
     /\.bar\.pinned::before\{opacity:1\}/.test(page) &&
     /background:rgba\(198,207,190,\.84\)/.test(page),
 );
-check("…and never covers the story: its words start under the bar on a phone, and on a short screen", /#story \.caps\{left:16px;right:16px;top:calc\(var\(--barh\) - 8px\)/.test(page) && /y0 = capsEl\.offsetTop \+ capH/.test(page) && /Math\.min\(barH\(\) \+ 16, H - colH - 10\)/.test(page) && /if \(wide && F\.oy \+ 40\*F\.k < barH\(\) \+ 6\)/.test(page));
+check("…and never covers the story: it lies in the page's own flow (nothing pinned under the bar), and a part reached by its link starts under the bar", /html\{scroll-padding-top:calc\(var\(--barh\) \+ 12px\)\}/.test(page) && !/position:\s*sticky/.test(page) && !/<div class="stage"|class="caps"/.test(page));
 check("…the opening's main button is the big stamp, Post your first job, free (No card.)", /<a class="stamp" href="https:\/\/staff\.hireflownow\.com\/auth\?mode=signup" id="heroStart">\s*<span class="face">[\s\S]*?<span class="lbl">Post your first job, free<\/span>/.test(page) && /<span class="t">No card\.<\/span>/.test(page));
-check("…and again at the end, as your envelope's postage (the page's own link, moved there)", /<a class="stamp" href="https:\/\/staff\.hireflownow\.com\/auth\?mode=signup" id="endStart">/.test(page) && /ylink = document\.getElementById\("endStart"\);/.test(page) && /ydrop\.appendChild\(ylink\);/.test(page) && !/Watch it again|Watch one night/.test(page));
+check("…and again at the end, as your envelope's postage: written in the envelope itself, never moved, copied or made by a script", /<div class="ydrop" data-at>\s*<a class="stamp" href="https:\/\/staff\.hireflownow\.com\/auth\?mode=signup" id="endStart">/.test(page) && !/getElementById\("endStart"\)|appendChild\(ylink\)|cloneNode/.test(page) && !/Watch it again|Watch one night/.test(page));
 check("no prices while billing is off", !/\$\d|per month|\/mo\b|pricing/i.test(page));
 check("the headline is there from the first paint (written in the page, never hidden to rise in)", !/translateY\(112%\)/.test(page) && !/h1[^{}]*\{[^}]*opacity:\s*0/.test(page) && !/\bh1 \.ln\{[^}]*opacity/.test(page));
 check("the fonts never block the first paint", /fonts\.googleapis\.com\/css2[^"]*" media="print" onload="this\.media='all'">/.test(page) && !/<link href="https:\/\/fonts\.googleapis\.com\/css2[^"]*" rel="stylesheet">/.test(page));
@@ -198,7 +210,7 @@ check("no early-access wording or buttons anywhere", !/early access|data-cta/i.t
 check("Privacy, Terms and Team sign in are linked", /<a href="\/privacy">Privacy<\/a>/.test(page) && /<a href="\/terms">Terms<\/a>/.test(page) && /href="https:\/\/staff\.hireflownow\.com\/auth">Team sign in<\/a>/.test(page));
 check("landmarks: the bar, the main story and the footer", /<header class="nav bar" id="bar">[\s\S]*?<nav class="navr" aria-label="Main">/.test(page) && /<main>\s*<section id="hero" aria-labelledby="heroTitle">/.test(page) && /<section id="story" aria-label="How HireFlow works">[\s\S]*<\/section>\s*<\/main>\s*<footer class="lp-foot"/.test(page) && /<nav class="foot" aria-label="Footer">/.test(page));
 check("…and a reader that cannot see the desk is told what is on it", /<p class="sr">153 people applied and 71 finished the written interview\./.test(page) && /<p class="sr">On the desk:/.test(page));
-check("nothing moves forever (docs: no endless animations); the caret blinks a few times, then holds", !/infinite/.test(page) && /#story\.idle \.typing \.tv::after\{animation:caretBlink 1\.06s steps\(1\) 6\}/.test(page));
+check("nothing moves forever (docs: no endless animations)", !/infinite/.test(page) && !/caretBlink|#story\.idle/.test(page));
 // The opening plays once and comes to rest; it draws nothing while nothing
 // moves, or while it is off the screen.
 check(
@@ -207,12 +219,59 @@ check(
     /if \(!reduce\.matches && now - t0 < END \+ 900\) return true;\s*return fan !== fanTarget \|\| moves\.some\(Boolean\);/.test(page) &&
     /new IntersectionObserver\(es => \{ heroSeen = es\[es\.length - 1\]\.isIntersecting; if \(heroSeen\) wake\(\); \}\)\.observe\(hero\);/.test(page),
 );
-check("…and the story's desk only while the scroll moves it", /if \(Tcur !== Ttar \|\| moving\) raf = requestAnimationFrame\(frame\);/.test(page) && /addEventListener\("scroll", onScroll, \{passive:true\}\);/.test(page));
+// The owner, 2026-11-01: the scroll-driven story right after the hero "felt too much", held the page still,
+// then scrolled "too much too quickly". Below the hero the page scrolls as any page does: four quiet parts,
+// each with one small desk that plays one short motion, once, as it comes into view, and is complete at rest.
+{
+  const css = page.slice(page.indexOf("<style>"), page.indexOf("</style>"));
+  const storyJs = (page.match(/<script>\s*\/\* Below the hero:[\s\S]*?<\/script>/) ?? [""])[0];
+  const storyCode = storyJs.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+  check(
+    "below the hero the page scrolls as any page does: nothing pinned or snapped, and nothing but the bar listens to the scroll",
+    !/position:\s*sticky|scroll-snap/.test(page) &&
+      (page.match(/addEventListener\("scroll"/g) ?? []).length === 1 && /window\.addEventListener\("scroll", pin, \{ passive: true \}\);/.test(page) &&
+      !/addEventListener\("(?:wheel|mousewheel|touchmove)"/.test(page) &&
+      storyCode.length > 0 && !/scroll|requestAnimationFrame|setTimeout|setInterval/.test(storyCode),
+  );
+  check(
+    "…each part's desk plays one short motion, once, as it comes into view (an IntersectionObserver adds .play and stops watching)",
+    (page.match(/<div class="vig v-\w+" data-play/g) ?? []).length === 5 &&
+      /new IntersectionObserver\(/.test(storyCode) && /io\.unobserve\(e\.target\);/.test(storyCode) && /d\.classList\.add\("play"\);/.test(storyCode),
+  );
+  // every motion lasts 0.4 to 0.7 s and starts within a quarter second
+  const times = (v) => [...v.replace(/cubic-bezier\([^)]*\)/g, "").matchAll(/(?<![\w.])(\d*\.?\d+)(ms|s)\b/g)].map((m) => Number(m[1]) / (m[2] === "ms" ? 1000 : 1));
+  const motions = [], delays = [];
+  for (const [, body] of css.matchAll(/#story \.play [^{]*\{([^}]*)\}/g)) {
+    for (const [, prop, value] of body.matchAll(/(transition|animation|transition-delay)\s*:\s*([^;]+)/g)) {
+      if (prop === "transition-delay") { delays.push(...times(value)); continue; }
+      for (const item of value.replace(/cubic-bezier\([^)]*\)/g, "cb").split(",")) {
+        const [d, delay = 0] = times(item);
+        if (d != null) { motions.push(d); delays.push(delay); }
+      }
+    }
+  }
+  check("…each motion 0.4 to 0.7 s long, started within a quarter second", motions.length >= 5 && motions.every((d) => d >= 0.4 && d <= 0.7) && delays.every((d) => d <= 0.25), JSON.stringify({ motions, delays }));
+  // complete at rest: nothing in the story waits unseen; .wait (the pose a motion starts from) only moves things
+  const storyRules = [...css.matchAll(/#story[^{}]*\{([^}]*)\}/g)].map((m) => m[0]);
+  const waitRules = storyRules.filter((r) => /\.wait\b/.test(r.slice(0, r.indexOf("{"))));
+  check(
+    "…every desk is complete without its motion: nothing in the story is see-through or hidden, and its start pose (.wait) only moves things",
+    storyRules.length > 50 && !storyRules.some((r) => /opacity:\s*0(?![.\d])|visibility:\s*hidden/.test(r)) &&
+      waitRules.length >= 5 && waitRules.every((r) => !/opacity|visibility|display|clip|content-visibility/.test(r)),
+    waitRules.filter((r) => /opacity|visibility|display|clip/.test(r)).join(" "),
+  );
+  check(
+    "…and less motion, the light desk or no IntersectionObserver leave every desk at rest (no .wait, no .play); a part's link jumps when less motion is asked",
+    /if \(!desks\.length \|\| reduce\.matches \|\| root\.getAttribute\("data-desk"\) === "light" \|\| !\("IntersectionObserver" in window\)\) return;/.test(storyCode) &&
+      /document\.addEventListener\("hf:light", rest\);/.test(storyCode) &&
+      /@media \(prefers-reduced-motion: reduce\)\{\s*#story \.play \*\{transition:none !important;animation:none !important\}/.test(css) &&
+      /@media \(prefers-reduced-motion: no-preference\)\{ html\{scroll-behavior:smooth\} \}/.test(css),
+  );
+}
 check(
-  "less motion, when asked: the opening shows its finished desk, the story each chapter's finished state",
+  "less motion, when asked: the opening shows its finished desk, and the parts below rest",
   (page.match(/matchMedia\("\(prefers-reduced-motion: reduce\)"\)/g) ?? []).length >= 2 &&
     /render\(SW \? END \+ 1 : reduce\.matches \? END \+ 1 : now - t0, now\);/.test(page) &&
-    /stage\.classList\.add\("rm"\);/.test(page) &&
     /\.slip \.in,\.stamp,\.stamp::before,\.navr \.post,\.slip \.face,\.replay svg,\.bar,\.bar::before\{transition:none\}/.test(page),
 );
 check("colour tokens are named for what they mean (guard no-jade-tokens-left)", /--action:#0F6B4F;/.test(page) && !/--jade\b/.test(page));
@@ -235,13 +294,14 @@ check("colour tokens are named for what they mean (guard no-jade-tokens-left)", 
     /if \(t >= 1250\)\{ const slow = probe\.n < 40;/.test(page) && /document\.dispatchEvent\(new Event\("hf:light"\)\)/.test(page) && /document\.addEventListener\("hf:light"/.test(page),
   );
   check(
-    "…the light desk keeps about a third of the letters (the three, the ones with Ava's reasons, every fourth of the rest), in the same stack",
-    /e\.inLight = e\.fin >= 0 \|\| e\.fan >= 0 \|\| \(K - 1 - e\.k\) % 4 === 0;/.test(page) && /e\.inLight = e\.fin >= 0 \|\| e\.as >= 0 \|\| \(NL - 7 - e\.k\) % 4 === 0;/.test(page),
+    "…the light desk keeps about a third of the opening's letters (the three, the ones with Ava's reasons, every fourth of the rest), in the same stack",
+    /e\.inLight = e\.fin >= 0 \|\| e\.fan >= 0 \|\| \(K - 1 - e\.k\) % 4 === 0;/.test(page),
   );
   check(
     "…turns flat instead of in 3D, with no blur behind the bar and no filter on a seal",
-    /const turnY = \(deg, per\) => LITE \? ` scaleX\(/.test(page) && /const turnX = \(deg, per\) => LITE \? `scaleY\(/.test(page) &&
+    /const turnY = \(deg, per\) => LITE \? ` scaleX\(/.test(page) &&
       /html\[data-desk="light"\] \.bar::before\{-webkit-backdrop-filter:none;backdrop-filter:none;background:var\(--desk\)\}/.test(page) &&
+      /html\[data-desk="light"\] \.env \.seal\{filter:none\}/.test(page) &&
       /html\[data-desk="light"\] \.slip \.in\{transform-style:flat;/.test(page),
   );
   check(

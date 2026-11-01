@@ -58,9 +58,10 @@
      docs/LANDING.md). Served at hireflownow.com/ by middleware.js; the app
      (careers, job pages, applying) is unchanged and lives at its own
      addresses. Letters land on a sage desk, Ava's green wax seal marks three,
-     and a scroll story tells the rest in four chapters. The faces load
-     without holding up the first paint; the desk waits for them (a second at
-     most). Every motion plays and stops. -->
+     and four quiet parts below tell the rest, each with one small desk that
+     plays one short motion as it comes into view (2026-11-01; the page scrolls
+     as any page does). The faces load without holding up the first paint; the
+     desk waits for them (a second at most). Every motion plays and stops. -->
 <style>
 :root{
   --desk:#C6CFBE;
@@ -85,10 +86,10 @@ a{color:inherit;text-decoration:none}
 html{-webkit-tap-highlight-color:transparent}
 .slip,.stackhit{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 .navr a{position:relative}
-.navr a::after,.replay::after,#story .rail button::after,.lp-foot nav a::after{content:"";position:absolute}
+.navr a::after,.replay::after,#story .rail a::after,.lp-foot nav a::after{content:"";position:absolute}
 .navr a::after{inset:-13px -8px}
 .replay::after{inset:-9px -6px}
-#story .rail button::after{inset:-10px -8px}
+#story .rail a::after{inset:-10px -8px}
 .lp-foot nav a{position:relative}
 .lp-foot nav a::after{inset:-5px -12px}
 
@@ -196,7 +197,7 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
 .env .ms::after{content:"";position:absolute;inset:22% 20%;border:1px solid rgba(255,255,255,.45);border-radius:50% 50% 2px 2px}
 .env .pm{position:absolute;right:13%;top:6%;width:34%;height:42%;overflow:visible}
 .env .nm{position:absolute;left:9%;top:13%;right:31%;font-family:var(--type);font-size:calc(var(--eh)*.135);line-height:1.2;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:clip}
-.env .nm.ov,#story .letter .nm.ov{-webkit-mask-image:linear-gradient(90deg,#000 76%,transparent);mask-image:linear-gradient(90deg,#000 76%,transparent)}
+.env .nm.ov{-webkit-mask-image:linear-gradient(90deg,#000 76%,transparent);mask-image:linear-gradient(90deg,#000 76%,transparent)}
 .env .ad{position:absolute;left:9%;top:31%;font-family:var(--type);font-size:calc(var(--eh)*.11);color:var(--ink-3);white-space:nowrap}
 .env .lines{position:absolute;left:30%;right:14%;top:58%;height:22%;background:repeating-linear-gradient(180deg,rgba(29,51,41,.16) 0 1px,transparent 1px 6px)}
 .env .why{position:absolute;left:8%;right:7%;top:11%;font-family:var(--sans);font-size:calc(var(--eh)*.135);line-height:1.22;color:var(--action-deep);opacity:0;font-weight:650}
@@ -336,273 +337,173 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
 /* someone already signed in here (an applicant) gets "Applications" in the bar; on a phone it takes
    the place of the hiring team's Sign in, which stays in the footer as Team sign in */
 @media (max-width: 440px){ .bar.signed-in .signin{display:none} }
-/* ================= below the hero: the same desk, told by scroll ================= */
+/* ================= below the hero: how it works, in four quiet parts =================
+   The owner, 2026-11-01: the scroll-driven story right after the hero "felt too much", and it held the page
+   still and then scrolled "too much too quickly". So nothing below the hero is pinned, snapped or tied to the
+   scroll position: the page scrolls as any page does. Each part is a heading and two lines beside one small
+   desk (under them on a tablet or a phone), and each desk plays one short motion, once, as it comes into view
+   (the script at the end adds .play), then rests. Every desk is complete without it: .wait, the pose a motion
+   starts from, shows everything too, and less motion, the light desk or a browser without
+   IntersectionObserver only ever see each desk at rest. The hero stays the loudest thing on the page. */
 #hero::after{content:"";position:absolute;left:0;right:0;bottom:0;height:170px;z-index:1;pointer-events:none;background:linear-gradient(rgba(198,207,190,0),var(--desk) 92%)}
 .navr .plain{color:var(--ink-2)}
 @media (hover:hover) and (pointer:fine){ .navr .plain:hover{color:var(--ink)} }
 .navr .plain .short{display:none}
 
-#story{position:relative;background:var(--desk)}
-/* the stage paints to the tallest the screen gets; the scene is laid out in what is always visible (the .svh probe) */
-#story .stage{position:sticky;top:0;height:100vh;height:100lvh;overflow:hidden;isolation:isolate}
-#story .svh{position:absolute;top:0;left:0;width:0;height:100vh;height:100svh;visibility:hidden;pointer-events:none}
-#story .s-desk{position:absolute;inset:0;z-index:0;background:linear-gradient(180deg,rgba(29,51,41,0) 30%,rgba(29,51,41,.06) 100%),var(--desk)}
-/* the same warm light from the window side as the hero; it fades in below the top edge so the two desks meet without a seam */
-#story .s-wash{position:absolute;inset:0;z-index:1;pointer-events:none;
-  background:linear-gradient(242deg,rgba(240,225,190,.6) 0%,rgba(240,225,190,.32) 34%,rgba(240,225,190,0) 64%);
-  -webkit-mask:linear-gradient(180deg,transparent 0,#000 26%);mask:linear-gradient(180deg,transparent 0,#000 26%)}
+/* the four parts and the ending sit on the same sage desk; everything is laid out as written, in the page's own flow */
+#story{position:relative;background:var(--desk);padding:0 0 112px}
+#story .wrap{max-width:1240px;margin:0 auto;padding:0 56px}
+/* the index's links (and the logo's, and About's) glide to their part; with less motion they jump */
+@media (prefers-reduced-motion: no-preference){ html{scroll-behavior:smooth} }
 
-/* ---------- the captions ---------- */
-#story .caps{position:absolute;z-index:10;left:56px;top:22%;width:min(38vw,520px)}
-#story .rail{display:flex;gap:24px;font-size:15px;font-weight:500;color:var(--ink-3)}
-#story .rail button{position:relative;padding:4px 0;color:inherit;transition:color .25s}
-@media (hover:hover) and (pointer:fine){ #story .rail button:hover{color:var(--ink)} }
-#story .rail button.on{color:var(--ink)}
-#story .rail svg{position:absolute;left:-6%;bottom:-5px;width:112%;height:7px;overflow:visible;pointer-events:none}
-#story .rail path{fill:none;stroke:var(--action);stroke-width:2.4;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100}
-#story .rail button:focus-visible{outline:2px solid var(--action);outline-offset:4px;border-radius:2px}
-#story .cap{position:absolute;left:0;right:0;top:74px;opacity:0;pointer-events:none}
-#story .cap h2,#story .cap p{will-change:transform,opacity}
-#story .cap.on{pointer-events:auto}
-#story .cap h2{font-family:var(--serif);font-weight:650;font-size:clamp(40px,3.6vw,56px);line-height:1.0;letter-spacing:-.026em;color:var(--ink);text-wrap:balance}
-#story .cap h2 em{font-style:normal;color:var(--action);display:block}
-#story .cap p{margin-top:22px;font-size:18px;line-height:1.55;color:var(--ink-2);max-width:26em}
-#story .cap p b{font-weight:600;color:var(--ink)}
+/* ---------- how it works: the four parts, as links to each ---------- */
+#story .rail{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 26px;padding-top:40px;font-size:15px;font-weight:500}
+#story .rail .rl{font-family:var(--type);font-size:13.5px;color:var(--ink-3);margin-right:2px}
+#story .rail a{position:relative;padding:4px 0;color:var(--ink-2);transition:color .2s}
+#story .rail svg{position:absolute;left:-6%;bottom:-4px;width:112%;height:7px;overflow:visible;pointer-events:none}
+#story .rail path{fill:none;stroke:var(--action);stroke-width:2.4;stroke-linecap:round;stroke-dasharray:100;stroke-dashoffset:100;transition:stroke-dashoffset .35s cubic-bezier(.4,0,.2,1)}
+@media (hover:hover) and (pointer:fine){ #story .rail a:hover{color:var(--ink)} #story .rail a:hover path{stroke-dashoffset:0} }
+#story .rail a:focus-visible path{stroke-dashoffset:0}
 
-/* ---------- the scene: one box of desk, scaled to fit ---------- */
-#story .box{position:absolute;left:0;top:0;width:700px;height:600px;transform-origin:0 0;z-index:5;pointer-events:none;--eh:80px;--ew:124px}
-#story .box.n{width:360px;--eh:62px;--ew:96px}
-#story .box > *,#story .stage > .ledger{position:absolute;left:0;top:0;opacity:0;will-change:transform,opacity}
-#story .lift{position:absolute;inset:5% 4%;border-radius:4px;box-shadow:-12px 26px 30px rgba(22,40,31,.34);opacity:0}
-#story .mlg{width:19px;height:19px;display:grid;place-items:center;flex:none}
+/* ---------- a part: its words on one side, its desk on the other, turn and turn about ---------- */
+#story .part{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);align-items:center;column-gap:clamp(48px,6vw,96px);padding:76px 0}
+#story .part.r{grid-template-columns:minmax(0,6fr) minmax(0,5fr)}
+#story .part.r .words{order:2}
+#story .rail + .part{padding-top:52px}
+#story h2{font-family:var(--serif);font-weight:650;font-size:clamp(34px,3.05vw,44px);line-height:1.04;letter-spacing:-.024em;color:var(--ink);text-wrap:balance}
+#story h2 em{display:block;font-style:normal;color:var(--action)}
+#story .words p{margin-top:18px;font-size:17.5px;line-height:1.58;color:var(--ink-2);max-width:25em}
+#story .vig{position:relative;width:100%;max-width:540px;justify-self:center}
+/* paper on the desk, lit from the top right as in the hero */
+#story .brief,#story .jp,#story .jback,#story .tag,#story .ledger,#story .tp,#story .pick,#story .yenv{
+  box-shadow:0 0 0 .5px rgba(29,51,41,.1),-.5px 1px 1.5px rgba(22,40,31,.22),-6px 12px 24px -8px rgba(22,40,31,.3)}
+#story .mlg{display:block;flex:none;width:19px;height:19px}
+#story .av{width:26px;height:26px;border-radius:50%;background:var(--ink-2);color:#F1ECDF;display:grid;place-items:center;font-weight:650;font-size:11px}
 
-/* ---------- 1. a job sheet Ava writes, with its business on a folder tab ---------- */
-#story .jsheet{width:340px;--jc:#F4EFE4}
-#story .jsheet.t0{--jc:#EEF1E6}
-#story .jsheet.t1{--jc:#F1EADA}
-#story .jp{position:relative;z-index:1;padding:22px 24px 24px;background:var(--jc);border-radius:0 2px 2px 2px;
-  background-image:linear-gradient(160deg,rgba(255,255,255,.4),rgba(255,255,255,0) 46%,rgba(29,51,41,.03));
-  box-shadow:0 0 0 .5px rgba(29,51,41,.10),-.5px 1px 1.5px rgba(22,40,31,.22),-6px 12px 24px -8px rgba(22,40,31,.30)}
-#story .jtab{position:absolute;z-index:2;top:-25px;height:27px;padding:6px 13px 0;border-radius:6px 6px 0 0;background:var(--jc);
-  font-size:12.5px;font-weight:650;color:var(--action-deep);white-space:nowrap;
+/* ---------- 1. what you tell Ava, and the job she writes from it (two more under it: any business) ---------- */
+#story .v-post{display:flex;align-items:flex-end;padding-top:34px}
+#story .brief{position:relative;z-index:2;flex:0 0 39%;margin:0 -3% 34px 0;padding:12px 16px;background:#F3EEE3;border-radius:1.5px;transform:rotate(-2.4deg);
+  background-image:linear-gradient(165deg,rgba(255,255,255,.4),rgba(255,255,255,0) 55%)}
+#story .brief .bh{font-family:var(--type);font-size:12.5px;color:var(--ink-3);padding-bottom:6px;border-bottom:1.2px solid rgba(176,105,75,.42)}
+#story .brief .bl{margin-top:2px;font-family:var(--type);font-size:14px;line-height:24px;color:var(--ink);background:repeating-linear-gradient(180deg,transparent 0 23px,rgba(29,51,41,.11) 23px 24px)}
+#story .jobs{position:relative;z-index:1;flex:1 1 auto;min-width:0}
+#story .jback,#story .jsheet{--jc:#F4EFE4}
+#story .jback{position:absolute;inset:0;border-radius:0 2px 2px 2px;background:var(--jc)}
+#story .jback.b0{--jc:#EEF1E6;transform:translate(-12px,-15px) rotate(-2.6deg)}
+#story .jback.b1{--jc:#F1EADA;transform:translate(10px,-3px) rotate(2.4deg)}
+#story .jsheet{position:relative;transform:rotate(-.8deg)}
+#story .jtab{position:absolute;top:-24px;height:26px;padding:5px 12px 0;border-radius:6px 6px 0 0;background:var(--jc);font-size:12.5px;font-weight:650;color:var(--action-deep);white-space:nowrap;
   box-shadow:0 0 0 .5px rgba(29,51,41,.12),-.5px -.5px 1.5px rgba(22,40,31,.12);clip-path:inset(-6px -6px 0 -6px)}
-#story .jsheet.t0 .jtab{left:5%}
-#story .jsheet.t1 .jtab{left:37%}
-#story .jsheet.t2 .jtab{left:69%}
+#story .b0 .jtab{left:3%}
+#story .b1 .jtab{left:37%}
+#story .jsheet .jtab{left:70%}
+#story .jp{position:relative;padding:20px 22px 22px;background:var(--jc);border-radius:0 2px 2px 2px;
+  background-image:linear-gradient(160deg,rgba(255,255,255,.4),rgba(255,255,255,0) 46%,rgba(29,51,41,.03))}
 #story .jp .hd{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12.5px;color:var(--ink-3);white-space:nowrap}
 #story .jp .by{display:flex;align-items:center;gap:7px}
 #story .jp .by b{font-weight:650;color:var(--ink-2)}
 #story .jp .chn{font-family:var(--type);font-size:12px;color:var(--action-deep);border:1px solid rgba(15,107,79,.4);padding:2px 6px 1px;border-radius:2px}
-#story .jp .ti{margin-top:16px;font-family:var(--serif);font-weight:650;font-size:26px;line-height:1.12;letter-spacing:-.016em;color:var(--ink)}
-#story .jp .bz{margin-top:5px;font-size:14px;font-weight:500;color:var(--ink-3)}
-#story .jp .ds{margin-top:14px;padding-top:12px;border-top:1px solid rgba(29,51,41,.13);font-size:14.5px;line-height:1.5;color:var(--ink-2)}
-#story .jp .tl{margin-top:16px;font-size:12.5px;font-weight:650;color:var(--action-deep)}
-#story .jp .cu{margin-top:8px;display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;padding:12px 13px 13px 11px;background:rgba(15,107,79,.075);border-radius:3px;border:1px solid rgba(15,107,79,.12)}
-#story .av{width:28px;height:28px;border-radius:50%;background:var(--ink-2);color:#F1ECDF;display:grid;place-items:center;font-weight:650;font-size:12px}
+#story .jp .ti{margin-top:14px;font-family:var(--serif);font-weight:650;font-size:24px;line-height:1.12;letter-spacing:-.016em;color:var(--ink)}
+#story .jp .bz{margin-top:4px;font-size:13.5px;font-weight:500;color:var(--ink-3)}
+#story .jp .ds{margin-top:12px;padding-top:11px;border-top:1px solid rgba(29,51,41,.13);font-size:14px;line-height:1.5;color:var(--ink-2)}
+#story .jp .tl{margin-top:14px;font-size:12.5px;font-weight:650;color:var(--action-deep)}
+#story .jp .cu{margin-top:7px;display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:11px 12px 12px 10px;background:rgba(15,107,79,.075);border-radius:3px;border:1px solid rgba(15,107,79,.12)}
 #story .jp .wh{font-size:12.5px;color:var(--ink-3);white-space:nowrap}
 #story .jp .wh b{color:var(--ink);font-weight:650;margin-right:5px}
-#story .jp .sj{margin-top:2px;font-size:12.5px;color:var(--ink-2)}
-#story .jp .sj b{font-weight:600}
-#story .jp .msg{margin-top:3px;font-size:15px;line-height:1.45;color:var(--ink);font-weight:500}
-/* typing: the rest of a line is there but unseen, so nothing reflows */
-#story .th{visibility:hidden}
-#story .typing .tv::after{content:"";display:inline-block;width:2px;height:1em;margin:0 -2px -.12em 0;background:var(--action);vertical-align:baseline;border-radius:1px}
-/* the caret blinks a few times while the reader has stopped, then holds still (every motion plays and stops) */
-@keyframes caretBlink{0%,55%{opacity:1}56%,100%{opacity:0}}
-#story.idle .typing .tv::after{animation:caretBlink 1.06s steps(1) 6}
+#story .jp .msg{margin-top:2px;font-size:14px;line-height:1.45;color:var(--ink);font-weight:500}
 
-/* ---------- 1. what you tell Ava: an index card ---------- */
-#story .brief{width:322px}
-#story .stage > .brief{position:absolute;left:0;top:0;opacity:0;will-change:transform,opacity}
-#story .bp{position:relative;padding:13px 18px 14px;background:#F3EEE3;border-radius:1.5px;
-  background-image:linear-gradient(165deg,rgba(255,255,255,.4),rgba(255,255,255,0) 55%);
-  box-shadow:0 0 0 .5px rgba(29,51,41,.1),-.5px 1px 1.5px rgba(22,40,31,.2),-5px 10px 18px -7px rgba(22,40,31,.28)}
-#story .bh{font-family:var(--type);font-size:13px;color:var(--ink-3);padding-bottom:7px;border-bottom:1.2px solid rgba(176,105,75,.42)}
-#story .bls{position:relative;margin-top:4px;height:78px;background:repeating-linear-gradient(180deg,transparent 0 25px,rgba(29,51,41,.11) 25px 26px)}
-#story .bl{position:absolute;left:0;right:0;top:0;font-family:var(--type);font-size:15.5px;line-height:26px;color:var(--ink)}
-#story .brief.narrow{width:340px}
-#story .brief.narrow .bp{padding:11px 15px 12px}
-#story .brief.narrow .bh{font-size:12.5px}
-#story .brief.narrow .bls{height:72px;background-image:repeating-linear-gradient(180deg,transparent 0 23px,rgba(29,51,41,.11) 23px 24px)}
-#story .brief.narrow .bl{font-size:14.5px;line-height:24px}
+/* ---------- 2. the link goes out to three places; our own job's first number comes back ---------- */
+#story .v-share{display:flex;align-items:center;gap:7%;padding:14px 0}
+#story .tags{position:relative;flex:0 0 40%;height:212px}
+#story .tag{position:absolute;left:0;display:flex;align-items:center;gap:10px;width:196px;height:54px;padding:0 18px 0 12px;background:#EDE6D3;border-radius:3px 12px 12px 3px;
+  font-family:var(--type);font-size:16px;color:var(--ink);white-space:nowrap}
+#story .tag::after{content:"";position:absolute;right:12px;top:50%;width:9px;height:9px;margin-top:-4.5px;border-radius:50%;background:var(--desk);box-shadow:inset .5px 1px 1.5px rgba(22,40,31,.35)}
+#story .tag i{width:28px;height:28px;border-radius:50%;background:var(--action);color:#F3EFE2;display:grid;place-items:center;flex:none}
+#story .tag svg{width:15px;height:15px}
+#story .tag.t0{top:0;transform:rotate(-4deg)}
+#story .tag.t1{top:78px;left:38px;transform:rotate(2.6deg)}
+#story .tag.t2{top:156px;left:12px;transform:rotate(-1.6deg)}
+#story .v-share .ledger{flex:1 1 auto;transform:rotate(-1.2deg)}
 
-/* ---------- 2. the link going out: three tags ---------- */
-#story .lcard{width:206px;height:58px}
-#story .lcard .lc{position:absolute;inset:0;display:flex;align-items:center;gap:11px;padding:0 18px 0 14px;background:#EDE6D3;border-radius:3px 12px 12px 3px;
-  font-family:var(--type);font-size:17px;color:var(--ink);white-space:nowrap;
-  box-shadow:0 0 0 .5px rgba(29,51,41,.12),-.5px 1px 1.5px rgba(22,40,31,.22),-8px 16px 22px -6px rgba(22,40,31,.3)}
-#story .lcard .lc::before{content:"";position:absolute;right:13px;top:50%;width:9px;height:9px;margin-top:-4.5px;border-radius:50%;background:var(--desk);box-shadow:inset .5px 1px 1.5px rgba(22,40,31,.35)}
-#story .lcard .lc i{width:30px;height:30px;border-radius:50%;background:var(--action);color:#F3EFE2;display:grid;place-items:center;flex:none}
-#story .box.n .lcard{width:156px;height:44px}
-#story .box.n .lcard .lc{font-size:14px;padding:0 14px 0 9px;gap:8px}
-#story .box.n .lcard .lc i{width:24px;height:24px}
-#story .box.n .lcard .lc::before{right:9px;width:7px;height:7px;margin-top:-3.5px}
+/* our own job's numbers on a ledger card (the owner's own role, October 2026) */
+#story .ledger{position:relative;padding:14px 20px 4px;background:#EFE9DA;border-radius:1.5px;background-image:linear-gradient(165deg,rgba(255,255,255,.35),rgba(255,255,255,0) 50%)}
+#story .ledger .lh{font-family:var(--type);font-size:13px;color:var(--ink-3);padding-bottom:6px}
+#story .ledger .lr{display:grid;grid-template-columns:68px minmax(0,1fr);gap:8px;align-items:center;padding:10px 0 11px;border-top:1px dashed rgba(29,51,41,.24)}
+#story .ledger b{position:relative;justify-self:start;font-family:var(--serif);font-weight:700;font-size:38px;line-height:.9;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:lining-nums tabular-nums}
+#story .ledger .lr span{font-size:14px;line-height:1.38;color:var(--ink-2)}
+#story .ledger .lr i{font-style:normal}
+#story .ledger .l3 b,#story .ledger strong{color:var(--action-deep)}
+#story .ledger strong{font-weight:650}
+#story .ledger .nn{display:none}
+#story .ledger .r3{position:absolute;left:-17px;top:-9px;width:56px;height:52px;overflow:visible}
+#story .ledger .r3 path{fill:none;stroke:var(--action);stroke-width:1.8;stroke-linecap:round;opacity:.85}
 
-/* ---------- the letters (the same as the hero's) ---------- */
-#story .letter{width:var(--ew);height:var(--eh)}
-#story .letter .pp{position:absolute;inset:0;border-radius:2px;overflow:hidden;background:var(--c);
-  box-shadow:0 0 0 .5px rgba(29,51,41,.10),-.5px 1px 1.5px rgba(22,40,31,.24),-3px 5px 12px -3px rgba(22,40,31,.22)}
-#story .letter .pp::after{content:"";position:absolute;inset:0;background:linear-gradient(155deg,rgba(255,255,255,.22),rgba(255,255,255,0) 42%,rgba(29,51,41,.035))}
-#story .letter .flap{position:absolute;inset:0;width:100%;height:100%}
-#story .letter .st{position:absolute;right:7%;top:9%;width:15%;height:30%;background:var(--sc);--r:1.4px;
-  -webkit-mask:radial-gradient(var(--r),#0000 97%,#000) round calc(-1.5*var(--r)) calc(-1.5*var(--r))/calc(3*var(--r)) calc(3*var(--r)),linear-gradient(#000 0 0) no-repeat 50%/calc(100% - 3*var(--r)) calc(100% - 3*var(--r));
-          mask:radial-gradient(var(--r),#0000 97%,#000) round calc(-1.5*var(--r)) calc(-1.5*var(--r))/calc(3*var(--r)) calc(3*var(--r)),linear-gradient(#000 0 0) no-repeat 50%/calc(100% - 3*var(--r)) calc(100% - 3*var(--r))}
-#story .letter .st::after{content:"";position:absolute;inset:22% 20%;border:1px solid rgba(255,255,255,.45);border-radius:50% 50% 2px 2px}
-#story .letter .pm{position:absolute;right:13%;top:6%;width:34%;height:42%;overflow:visible}
-#story .letter .nm{position:absolute;left:9%;top:13%;right:31%;font-family:var(--type);font-size:calc(var(--eh)*.135);line-height:1.2;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:clip}
-#story .letter .ad{position:absolute;left:9%;top:31%;font-family:var(--type);font-size:calc(var(--eh)*.11);color:var(--ink-3);white-space:nowrap}
-#story .letter .ln{position:absolute;left:30%;right:14%;top:58%;height:22%;background:repeating-linear-gradient(180deg,rgba(29,51,41,.16) 0 1px,transparent 1px 6px)}
-#story .letter .tk{position:absolute;right:6%;bottom:8%;width:calc(var(--eh)*.24);height:calc(var(--eh)*.24);opacity:0;overflow:visible}
-
-/* ---------- 3. Maria's envelope, opened from the back ---------- */
-#story .eback,#story .eflap,#story .epocket{width:var(--bw);height:var(--bh)}
-#story .eback .ein{position:absolute;inset:0;border-radius:3px;background:#DED5BF;background-image:linear-gradient(180deg,rgba(29,51,41,.2),rgba(29,51,41,0) 46%);
-  box-shadow:0 0 0 .5px rgba(29,51,41,.12),-1px 2px 3px rgba(22,40,31,.22),-12px 22px 36px -14px rgba(22,40,31,.38)}
-#story .eflap .efl{position:absolute;left:0;top:0;width:100%;height:58%;transform-origin:50% 0}
-#story .eflap svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
-#story .eflap .inn{display:none}
-#story .epocket svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible;filter:drop-shadow(0 -1px 2px rgba(22,40,31,.16))}
-/* the test inside, folded in three */
-#story .fold{width:var(--sw);height:var(--sh)}
-#story .fold .pn{position:absolute;left:0;width:100%;height:calc(var(--sh)/3)}
-#story .fold .p1{top:0;transform-origin:50% 100%;z-index:3}
-#story .fold .p2{top:calc(var(--sh)/3);z-index:1}
-#story .fold .p3{top:calc(var(--sh)*2/3);transform-origin:50% 0;z-index:2}
-#story .fold .fc{position:absolute;inset:0;overflow:hidden;background:#F4EFE4}
-#story .fold .bk{display:none;transform:rotateX(180deg);background:#EEE8DA;background-image:linear-gradient(170deg,rgba(255,255,255,.42),rgba(255,255,255,0) 60%)}
-#story .fold .cp{position:absolute;left:0;width:var(--sw)}
-#story .fold .p2 .cp{top:calc(var(--sh)/-3)}
-#story .fold .p3 .cp{top:calc(var(--sh)*-2/3)}
-#story .fold .cp .tp{box-shadow:none}
-#story .fold .cp .rt,#story .fold .cp .tcf,#story .fold .cp .ws,#story .fold .cp .fv,#story .fold .cp .score{visibility:hidden}
-#story .fold .shd{position:absolute;inset:0;background:#20362B;opacity:0;pointer-events:none}
-#story .fold .fsh{position:absolute;left:0;width:100%;background:#F4EFE4;
-  box-shadow:0 0 0 .5px rgba(29,51,41,.10),-.5px 1px 1.5px rgba(22,40,31,.22),-8px 16px 30px -10px rgba(22,40,31,.34)}
-#story .fold .lab{position:absolute;left:26px;top:50%;transform:translateY(-50%);display:flex;align-items:center;gap:10px;font-family:var(--type);font-size:14px;color:var(--ink-3);white-space:nowrap}
-#story .box.n .fold .lab{left:16px;font-size:13px}
-
-/* ---------- 3. the chat test, opened and marked by Ava ---------- */
-#story .tsheet{width:500px}
-#story .tcover{position:absolute;inset:0;border-radius:2px;opacity:0;pointer-events:none}
-#story .tp{position:relative;padding:20px 26px 18px;background:#F4EFE4;border-radius:2px;
-  background-image:linear-gradient(160deg,rgba(255,255,255,.42),rgba(255,255,255,0) 46%,rgba(29,51,41,.03));
-  box-shadow:0 0 0 .5px rgba(29,51,41,.10),-.5px 1px 1.5px rgba(22,40,31,.22),-8px 16px 30px -10px rgba(22,40,31,.34)}
-#story .tp .th2{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-bottom:11px;border-bottom:1px solid rgba(29,51,41,.13);font-family:var(--type);font-size:13px;color:var(--ink-3);white-space:nowrap}
-#story .tp .row{display:grid;grid-template-columns:30px minmax(0,1fr);gap:12px}
-#story .tp .cust{padding:14px 0 14px;border-bottom:1px solid rgba(29,51,41,.13)}
-#story .tp .av{width:30px;height:30px}
-#story .tp .who{font-size:13px;color:var(--ink-3);white-space:nowrap}
+/* ---------- 3. the chat test, marked by Ava ---------- */
+#story .v-reads{padding:6px 0}
+#story .tp{position:relative;padding:20px 24px 16px;background:#F4EFE4;border-radius:2px;transform:rotate(-.6deg);
+  background-image:linear-gradient(160deg,rgba(255,255,255,.42),rgba(255,255,255,0) 46%,rgba(29,51,41,.03))}
+#story .tp .th{display:flex;justify-content:space-between;gap:10px;padding-bottom:11px;border-bottom:1px solid rgba(29,51,41,.13);font-family:var(--type);font-size:13px;color:var(--ink-3);white-space:nowrap}
+#story .tp .ro{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px}
+#story .tp .av{width:28px;height:28px}
+#story .tp .me{background:#D6E8DC;color:var(--action-deep);font-size:10.5px}
+#story .tp .cust{padding:14px 0;border-bottom:1px solid rgba(29,51,41,.13)}
+#story .tp .rep{padding:14px 0 4px}
+#story .tp .who{font-size:13px;line-height:28px;color:var(--ink-3);white-space:nowrap}
 #story .tp .who b{color:var(--ink);font-weight:650;margin-right:6px}
-#story .tp .cm{margin-top:3px;font-size:16px;line-height:1.45;font-weight:500;color:var(--ink)}
-#story .tp .rep{position:relative;padding:14px 0 6px}
-#story .tp .rep .av{background:#D6E8DC;color:var(--action-deep);font-size:11px}
-#story .tp .rh{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-3);white-space:nowrap;min-height:30px}
-#story .tp .rh b{color:var(--ink);font-weight:650;margin-right:2px}
-#story .tp .tcf{margin-left:14px;font-family:var(--serif);font-weight:750;font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--action);
-  border:1.7px solid rgba(15,107,79,.8);padding:3px 8px 2px;border-radius:2px;white-space:nowrap;opacity:0}
-#story .tp .rb{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 128px;gap:16px;margin:2px 0 0 42px}
-#story .tp .rt{font-size:16px;line-height:1.62;color:var(--ink)}
-/* a marker stroke: a little uneven top and bottom, and a wet tip where the pen is */
-#story .tp .hl{--hy:0px;padding:0 1px;background-repeat:no-repeat;
-  background-image:radial-gradient(closest-side,rgba(63,206,151,.5),rgba(63,206,151,0)),
-    linear-gradient(180deg,transparent 0 46%,rgba(63,206,151,.34) 49%,rgba(63,206,151,.45) 66%,rgba(63,206,151,.4) 91%,transparent 95%);
-  background-size:0 50%,0% 100%;background-position:0 76%,0 var(--hy)}
-#story .tp .hl[data-n="1"]{--hy:1px}
-#story .tp .hl[data-n="2"]{--hy:-1px}
-#story .tp .notes{position:relative;border-left:1px solid rgba(29,51,41,.15)}
-#story .tp .note{position:absolute;left:12px;right:-4px;display:flex;align-items:center;gap:7px;font-family:var(--serif);font-style:italic;font-weight:500;font-size:16px;line-height:1.2;color:var(--action);opacity:0;white-space:nowrap}
-#story .tp .note .sw{flex:none;width:12px;height:9px;border-radius:1px;background:rgba(63,206,151,.5)}
+#story .tp .cm{font-size:15.5px;line-height:1.45;font-weight:500;color:var(--ink)}
+#story .tp .rb{display:grid;grid-template-columns:minmax(0,1fr) 126px;gap:14px}
+#story .tp .rt{font-size:15.5px;line-height:1.62;color:var(--ink)}
+/* a marker stroke, a little uneven top and bottom */
+#story .tp mark{color:inherit;padding:0 1px;background:linear-gradient(180deg,transparent 0 46%,rgba(63,206,151,.34) 49%,rgba(63,206,151,.45) 66%,rgba(63,206,151,.4) 91%,transparent 95%) no-repeat 0 0/100% 100%}
+#story .tp .notes{list-style:none;display:grid;align-content:start;gap:13px;padding:5px 0 2px 12px;border-left:1px solid rgba(29,51,41,.15)}
+#story .tp .notes li{display:flex;align-items:center;gap:7px;font-family:var(--serif);font-style:italic;font-weight:500;font-size:15px;line-height:1.2;color:var(--action);white-space:nowrap}
+#story .tp .notes li::before{content:"";flex:none;width:12px;height:9px;border-radius:1px;background:rgba(63,206,151,.5)}
 #story .tp .foot{display:flex;align-items:center;gap:12px;margin-top:10px;padding-top:10px;border-top:1px solid rgba(29,51,41,.13);font-size:14.5px;line-height:1.4;color:var(--ink-2)}
-#story .tp .foot .fv{opacity:0}
 #story .tp .foot b{color:var(--action-deep);font-weight:650}
-#story .tp .foot .ws{position:relative;width:36px;height:36px;flex:none}
-/* a seal is two layers: the wax, and its shadow on the paper */
-#story .tp .foot .wsi,#story .tp .foot .ws .ssh,#story .pick .sli,#story .pick .sl .ssh{position:absolute;inset:0;opacity:0;display:block}
-#story .tp .foot .wsi,#story .pick .sli{filter:drop-shadow(-.5px 2px 1.4px rgba(10,40,28,.45))}
-#story .ssh{border-radius:50%;background:radial-gradient(closest-side,rgba(10,40,28,.55),rgba(10,40,28,.25) 60%,rgba(10,40,28,0))}
-#story .tp .score{position:relative;margin-left:auto;flex:none;width:66px;height:46px;display:grid;place-items:center;font-family:var(--serif);font-weight:700;font-size:31px;color:var(--action);letter-spacing:-.03em}
-#story .tp .score span{opacity:0;display:block}
-#story .tp .score svg{position:absolute;left:-4%;top:-4%;width:108%;height:108%;overflow:visible}
-#story .tp .score path{fill:none;stroke:var(--action);stroke-width:2;stroke-linecap:round;stroke-dasharray:300;stroke-dashoffset:300;opacity:.9}
+#story .tp .ws{flex:none;width:34px;height:34px;filter:drop-shadow(-.5px 2px 1.4px rgba(10,40,28,.45))}
+#story .tp .score{position:relative;margin-left:auto;flex:none;width:64px;height:44px;display:grid;place-items:center;font-family:var(--serif);font-weight:700;font-size:30px;color:var(--action);letter-spacing:-.03em}
+#story .ring{position:absolute;left:-4%;top:-4%;width:108%;height:108%;overflow:visible}
+#story .ring path{fill:none;stroke:var(--action);stroke-width:2;stroke-linecap:round;stroke-dasharray:300;stroke-dashoffset:0;opacity:.9}
 
-/* ---------- the ledger: our own numbers, one line a chapter ---------- */
-#story .ledger{width:322px}
-#story .lg{position:relative;padding:15px 20px 4px;background:#EFE9DA;border-radius:1.5px;
-  background-image:linear-gradient(165deg,rgba(255,255,255,.35),rgba(255,255,255,0) 50%);
-  box-shadow:0 0 0 .5px rgba(29,51,41,.1),-.5px 1px 1.5px rgba(22,40,31,.2),-5px 10px 18px -7px rgba(22,40,31,.28)}
-#story .lg .lh{font-family:var(--type);font-size:13px;color:var(--ink-3);padding-bottom:6px}
-#story .lg .lr{clip-path:inset(0 -60px 0 -60px)}
-#story .lg .li{display:grid;grid-template-columns:72px minmax(0,1fr);gap:8px;align-items:center;padding:10px 0 11px;border-top:1px dashed rgba(29,51,41,.24)}
-#story .lg .lr b{position:relative;justify-self:start;font-family:var(--serif);font-weight:700;font-size:38px;line-height:.9;letter-spacing:-.03em;color:var(--ink);font-variant-numeric:lining-nums tabular-nums}
-#story .lg .lr span{font-size:14px;line-height:1.38;color:var(--ink-2)}
-#story .lg .lr.l3 b,#story .lg .lr span strong{color:var(--action-deep)}
-#story .lg .lr span strong{font-weight:650}
-#story .lg .lr i{font-style:normal}
-#story .lg .nn{display:none}
-#story .lg .r3{position:absolute;left:-17px;top:-9px;width:56px;height:52px;overflow:visible;pointer-events:none}
-#story .lg .r3 path{fill:none;stroke:var(--action);stroke-width:1.8;stroke-linecap:round;stroke-dasharray:300;stroke-dashoffset:300;opacity:.85}
-/* on a phone it is one strip of three columns */
-#story .ledger.narrow{width:350px}
-#story .ledger.narrow .lg{padding:9px 12px 10px}
-#story .ledger.narrow .lh{font-size:12.5px;padding-bottom:5px;border-bottom:1px dashed rgba(29,51,41,.24)}
-#story .ledger.narrow .rows{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.04fr) minmax(0,1.1fr)}
-#story .ledger.narrow .lr{clip-path:none}
-#story .ledger.narrow .li{display:block;padding:7px 8px 0;border-top:0;border-left:1px dashed rgba(29,51,41,.24)}
-#story .ledger.narrow .lr.l1 .li{padding-left:0;border-left:0}
-#story .ledger.narrow .lr b{display:inline-block;font-size:27px}
-#story .ledger.narrow .lr span{display:block;margin-top:4px;font-size:13px;line-height:1.28}
-#story .ledger.narrow .w{display:none}
-#story .ledger.narrow .nn{display:inline}
-#story .ledger.narrow .r3{left:-13px;top:-8px;width:42px;height:40px}
+/* ---------- 4. the three, sealed, and our own numbers filled in ---------- */
+#story .v-call{padding:18px 0 4px}
+#story .picks{width:80%;margin:0 2% 0 auto}
+#story .pick{position:relative;height:112px;padding:13px 16px 0 50px;border-radius:1.5px;background-color:var(--pc);
+  background-image:linear-gradient(180deg,rgba(255,255,255,0) 54%,rgba(29,51,41,.065) 54.3%,rgba(255,255,255,.55) 54.9%,rgba(29,51,41,.02) 55.4%,rgba(29,51,41,.02) 100%),
+    linear-gradient(162deg,rgba(255,255,255,.42),rgba(255,255,255,0) 46%)}
+#story .pick + .pick{margin-top:-30px}
+#story .pick.p1{--pc:#E7EDE1;transform:translateX(-12px) rotate(1.8deg)}
+#story .pick.p2{--pc:#EFE6D3;transform:translateX(10px) rotate(-1.5deg)}
+#story .pick.p0{--pc:#F3EEE2;transform:rotate(-.5deg)}
+#story .pick .sl{position:absolute;left:-13px;top:11px;width:46px;height:46px;filter:drop-shadow(-.5px 2px 1.4px rgba(10,40,28,.45))}
+#story .pick .pn{display:block;font-family:var(--serif);font-weight:650;font-size:19px;line-height:1.15;letter-spacing:-.012em;color:var(--ink);white-space:nowrap;padding-right:66px}
+#story .pick .pl{margin-top:4px;padding-right:68px;font-family:var(--serif);font-style:italic;font-weight:500;font-size:14px;line-height:1.36;color:var(--ink-2)}
+#story .pick .pl i{font-family:var(--sans);font-style:normal;font-weight:650;font-size:11.5px;color:var(--action);white-space:nowrap;margin-left:2px}
+#story .pick .psc{position:absolute;right:16px;top:9px;width:62px;text-align:center}
+#story .pick .psc b{display:block;font-family:var(--serif);font-weight:700;font-size:34px;line-height:1;letter-spacing:-.03em;color:var(--action)}
+#story .pick .psc small{display:block;margin-top:4px;font-size:10.5px;font-weight:500;color:var(--ink-3);white-space:nowrap}
+#story .pick .cf{position:absolute;left:50px;bottom:10px;font-family:var(--serif);font-weight:750;font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--action);
+  border:1.6px solid rgba(15,107,79,.78);padding:2px 6px 1px;border-radius:2px;white-space:nowrap;transform:rotate(-4deg);opacity:.88}
+#story .v-call .ledger{margin-top:30px;transform:rotate(-.8deg)}
+/* under the three, the ledger is one strip of three columns */
+#story .ledger.strip{padding:10px 16px 12px}
+#story .ledger.strip .lh{border-bottom:1px dashed rgba(29,51,41,.24)}
+#story .ledger.strip .rows{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.04fr) minmax(0,1.1fr)}
+#story .ledger.strip .lr{display:block;padding:9px 10px 0 12px;border-top:0;border-left:1px dashed rgba(29,51,41,.24)}
+#story .ledger.strip .lr:first-child{padding-left:0;border-left:0}
+#story .ledger.strip b{display:inline-block;font-size:30px}
+#story .ledger.strip .lr span{display:block;margin-top:6px;font-size:13.5px;line-height:1.32}
+#story .ledger.strip .w{display:none}
+#story .ledger.strip .nn{display:inline}
+#story .ledger.strip .r3{left:-13px;top:-8px;width:44px;height:42px}
 
-/* ---------- 4. the three, sealed ---------- */
-#story .pick{width:380px;height:136px;perspective:1000px;--pt:16px;--pr:20px;--pl:60px;--slx:-13px;--sly:12px;--sls:52px;--scw:76px;--fn:21px;--fl:15px;--fsc:44px}
-#story .box.n .pick{width:332px;height:116px;--pt:12px;--pr:13px;--pl:44px;--slx:-11px;--sly:10px;--sls:42px;--scw:62px;--fn:18px;--fl:14px;--fsc:34px}
-#story .pick .in{position:absolute;inset:0}
-#story .pick .pf{position:absolute;inset:0;border-radius:1.5px;background-color:var(--pc);padding:var(--pt) var(--pr) 0 var(--pl);
-  background-image:
-    linear-gradient(180deg,rgba(255,255,255,0) 54%,rgba(29,51,41,.065) 54.3%,rgba(255,255,255,.55) 54.9%,rgba(29,51,41,.02) 55.4%,rgba(29,51,41,.02) 100%),
-    linear-gradient(162deg,rgba(255,255,255,.42),rgba(255,255,255,0) 46%);
-  box-shadow:0 0 0 .5px rgba(29,51,41,.11),-.5px 1px 1.5px rgba(22,40,31,.22),-5px 9px 18px -6px rgba(22,40,31,.34)}
-#story .pick .sl{position:absolute;left:var(--slx);top:var(--sly);width:var(--sls);height:var(--sls)}
-/* Maria's slip printed onto the folding test: ink only, no paper of its own yet */
-#story .pick.ink .pf{background:none;box-shadow:none}
-#story .pick .pn{display:block;font-family:var(--serif);font-weight:650;font-size:var(--fn);line-height:1.15;letter-spacing:-.012em;color:var(--ink);white-space:nowrap;padding-right:calc(var(--scw) + 4px)}
-#story .pick .pl{margin-top:5px;padding-right:calc(var(--scw) + 6px);font-family:var(--serif);font-style:italic;font-weight:500;font-size:var(--fl);line-height:1.36;color:var(--ink-2)}
-#story .pick .pl i{font-family:var(--sans);font-style:normal;font-weight:650;font-size:12px;color:var(--action);white-space:nowrap;margin-left:2px}
-#story .pick .psc{position:absolute;right:var(--pr);top:calc(var(--pt) - 4px);width:var(--scw);text-align:center}
-#story .pick .psc b{position:relative;display:inline-block;padding:0 .14em;font-family:var(--serif);font-weight:700;font-size:var(--fsc);line-height:1;color:var(--action);letter-spacing:-.03em}
-#story .pick .psc small{display:block;font-size:10.5px;font-weight:500;color:var(--ink-3);margin-top:5px;white-space:nowrap}
-#story .pick .rg{position:absolute;left:-12%;top:-16%;width:124%;height:128%;overflow:visible}
-#story .pick .rg path{fill:none;stroke:var(--action);stroke-width:1.7;stroke-linecap:round;stroke-dasharray:300;stroke-dashoffset:300;opacity:.85}
-#story .pick .cf{position:absolute;left:var(--pl);bottom:12px;font-family:var(--serif);font-weight:750;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--action);
-  border:1.6px solid rgba(15,107,79,.78);padding:3px 7px 2px;border-radius:2px;white-space:nowrap;opacity:0}
-#story .box.n .pick .cf{font-size:10px;padding:2px 6px 1px;bottom:10px}
-
-/* ---------- 4. the rest, set aside, each with Ava's reason ---------- */
-#story .aside{width:300px;height:68px}
-#story .aside .ap{position:absolute;inset:0;padding:11px 16px 0 15px;background:var(--pc);border-radius:1.5px;
-  background-image:linear-gradient(162deg,rgba(255,255,255,.38),rgba(255,255,255,0) 50%);
-  box-shadow:0 0 0 .5px rgba(29,51,41,.11),-.5px 1px 1.5px rgba(22,40,31,.22),-5px 9px 16px -6px rgba(22,40,31,.3)}
-#story .aside .an{display:block;font-family:var(--type);font-size:13px;color:var(--ink-3);white-space:nowrap}
-#story .aside .aw{display:block;margin-top:6px;font-family:var(--serif);font-style:italic;font-weight:500;font-size:16px;line-height:1.2;color:#8A4F3B;white-space:nowrap}
-#story .aside .asc{position:absolute;right:17px;top:8px;font-family:var(--serif);font-weight:700;font-size:28px;line-height:1;letter-spacing:-.02em;color:#9C5C46}
-#story .aside .ast{position:absolute;right:60px;top:10px;padding:2px 6px 1px;border:1.5px solid rgba(156,92,70,.75);border-radius:2px;font-family:var(--serif);font-weight:700;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#9C5C46;white-space:nowrap;transform:rotate(-3deg)}
-#story .box.n .aside{width:226px;height:40px}
-#story .box.n .aside .ap{padding:0 10px 0 11px;display:flex;align-items:center;gap:9px}
-#story .box.n .aside .an,#story .box.n .aside .ast{display:none}
-#story .box.n .aside .asc{position:static;order:-1;font-size:20px}
-#story .box.n .aside .aw{margin:0;font-size:14px}
-
-#story .sband{height:20px;transform-origin:0 50%;background:#D7E5D9;border-top:1px solid rgba(15,107,79,.35);border-bottom:1px solid rgba(15,107,79,.35);
-  box-shadow:-.5px 1px 2px rgba(22,40,31,.22);display:flex;align-items:center;justify-content:center;font-size:10.5px;color:var(--action-deep);white-space:nowrap;font-weight:650;overflow:hidden}
-
-/* ---------- the ending: your own envelope, the stamp as its postage ---------- */
-#story .yenv{width:530px;height:332px}
-#story .yp{position:absolute;inset:0;background:#F0EBDE;border-radius:2px;
-  background-image:linear-gradient(155deg,rgba(255,255,255,.34),rgba(255,255,255,0) 42%,rgba(29,51,41,.03));
-  box-shadow:0 0 0 .5px rgba(29,51,41,.12),-1px 2px 3px rgba(22,40,31,.22),-14px 26px 40px -16px rgba(22,40,31,.4)}
-#story .yp::before{content:"";position:absolute;left:0;right:0;bottom:0;height:62%;pointer-events:none;
+/* ---------- the ending: your own envelope, with the page's sign-up stamp as its postage ---------- */
+#story .end{display:block;padding:84px 0 0;text-align:center}
+#story .end .words p{margin:16px auto 0;max-width:30em}
+#story .v-end{max-width:none;margin-top:46px;padding-right:104px}
+#story .yenv{position:relative;width:530px;height:332px;margin:0 auto;background:#F0EBDE;border-radius:2px;text-align:left;transform:rotate(-1.2deg);
+  background-image:linear-gradient(155deg,rgba(255,255,255,.34),rgba(255,255,255,0) 42%,rgba(29,51,41,.03))}
+#story .yenv::before{content:"";position:absolute;left:0;right:0;bottom:0;height:62%;pointer-events:none;
   background:linear-gradient(to top right,transparent calc(50% - .6px),rgba(29,51,41,.07) 50%,transparent calc(50% + .6px)) 0 0/50% 100% no-repeat,
              linear-gradient(to top left,transparent calc(50% - .6px),rgba(29,51,41,.07) 50%,transparent calc(50% + .6px)) 100% 0/50% 100% no-repeat}
 #story .yfrom{position:absolute;left:6%;top:9%;display:flex;align-items:flex-start;gap:9px;font-family:var(--type);font-size:13.5px;color:var(--ink-3);line-height:1.35}
@@ -612,27 +513,139 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
 #story .yto .a small{font-size:.64em;color:var(--ink-3);margin-right:.5em}
 #story .yto .b{display:block;font-size:15px;padding:4px 0 3px;border-bottom:1px solid rgba(29,51,41,.16);white-space:nowrap}
 #story .ypost{position:absolute;right:-20%;top:7%;display:flex;align-items:center}
+#story .ydrop{position:relative}
 #story .yenv .stamp .face{padding:17px 22px 17px 18px;gap:12px}
 #story .yenv .stamp .lbl{font-size:18px}
-#story .ydrop{position:relative;transform-origin:60% 50%;opacity:0}
-/* the stamp's shadow while it is still in the air */
-#story .ysh{position:absolute;left:0;top:0;width:0;height:0;border-radius:4px;background:rgba(20,38,30,.3);filter:blur(7px);opacity:0;pointer-events:none;will-change:transform,opacity}
-#story .yenv .stamp{pointer-events:none}
-#story .yenv.live .stamp{pointer-events:auto}
-#story .ypm{opacity:0}
-#story .box.n .yenv{width:344px;height:300px}
-#story .box.n .yfrom{left:6%;top:auto;bottom:8%;font-size:12.5px}
-#story .box.n .yto{left:7%;right:7%;top:36%}
-#story .box.n .yto .a{font-size:18px;margin-bottom:6px}
-#story .box.n .yto .b{font-size:13px}
-#story .box.n .ypost{right:auto;left:3%;top:7%}
-#story .box.n .yenv .stamp .face{padding:14px 13px 14px 11px;gap:8px}
-#story .box.n .yenv .stamp .lbl{font-size:15px}
-#story .box.n .yenv .stamp .mk{width:21px;height:21px}
-#story .box.n .ypm{margin-left:-22px;width:96px;height:66px}
-#story .box.n .ypm svg{transform:scale(.82);transform-origin:0 50%}
-#story .box.n .ypm .t{left:35px;top:24px;width:56px;font-size:11.5px}
+/* the postmark at the envelope's own size (the hero's shrinks on a phone) */
+#story .yenv .pmark{margin-left:-22px;width:126px;height:78px}
+#story .yenv .pmark svg{transform:none}
+#story .yenv .pmark .t{left:52px;top:29px;width:68px;font-size:13px}
 
+/* ---------- the one motion of each desk: it plays once (.play), from a pose that shows everything (.wait) ---------- */
+#story .wait .jsheet{translate:28px 42px;rotate:3.5deg}
+#story .play .jsheet{transition:translate .62s cubic-bezier(.2,.8,.2,1),rotate .62s cubic-bezier(.2,.8,.2,1)}
+#story .wait .tag.t0{translate:-16px 12px;rotate:-4deg}
+#story .wait .tag.t1{translate:-50px -14px;rotate:-6deg}
+#story .wait .tag.t2{translate:-26px -34px;rotate:5deg}
+#story .play .tag{transition:translate .5s cubic-bezier(.2,.8,.2,1),rotate .5s cubic-bezier(.2,.8,.2,1)}
+#story .play .tag.t1{transition-delay:.07s}
+#story .play .tag.t2{transition-delay:.14s}
+#story .wait .tp mark{background-size:0% 100%}
+#story .play .tp mark{transition:background-size .4s cubic-bezier(.4,0,.2,1)}
+#story .play .tp mark:nth-of-type(2){transition-delay:.1s}
+#story .play .tp mark:nth-of-type(3){transition-delay:.2s}
+#story .wait .tp .ring path{stroke-dashoffset:300}
+#story .play .tp .ring path{transition:stroke-dashoffset .45s cubic-bezier(.4,0,.2,1) .22s}
+#story .wait .p0 .sl{translate:-7px -16px;scale:1.55;rotate:-14deg}
+#story .play .p0 .sl{animation:hfPress .5s cubic-bezier(.5,0,.3,1) both}
+#story .wait .ydrop{translate:-18px -30px;rotate:-8deg;scale:1.12}
+#story .play .ydrop{animation:hfDrop .56s cubic-bezier(.5,0,.3,1) both}
+/* a seal pressed, a stamp put down: each comes down, gives a little, and rests */
+@keyframes hfPress{0%{translate:-7px -16px;scale:1.55;rotate:-14deg}62%{translate:0 0;scale:.95;rotate:0deg}100%{translate:0 0;scale:1;rotate:0deg}}
+@keyframes hfDrop{0%{translate:-18px -30px;rotate:-8deg;scale:1.12}68%{translate:0 0;rotate:0deg;scale:.98}100%{translate:0 0;rotate:0deg;scale:1}}
+@media (prefers-reduced-motion: reduce){
+  #story .play *{transition:none !important;animation:none !important}
+}
+
+/* ---------- a tablet, a short laptop, a phone on its side: the words over their desk ---------- */
+@media (max-width: 999px){
+  #story .wrap{padding:0 32px}
+  #story .part,#story .part.r{grid-template-columns:minmax(0,1fr);row-gap:30px;padding:56px 0}
+  #story .part.r .words{order:0}
+  #story .vig{justify-self:start}
+  #story .words p{max-width:32em}
+  #story .end{padding-top:72px}
+}
+/* the envelope as a phone has it: the stamp along its top, the sender at the bottom */
+@media (max-width: 699px){
+  #story .v-end{max-width:360px;margin:34px auto 0;padding-right:0}
+  #story .yenv{width:100%;height:300px}
+  #story .yfrom{left:6%;top:auto;bottom:8%;font-size:12.5px}
+  #story .yto{left:7%;right:7%;top:38%}
+  #story .yto .a{font-size:18px;margin-bottom:6px}
+  #story .yto .b{font-size:13px}
+  #story .ypost{right:auto;left:3%;top:7%}
+  #story .yenv .stamp .face{padding:14px 13px 14px 11px;gap:8px}
+  #story .yenv .stamp .lbl{font-size:15px}
+  #story .yenv .stamp .mk{width:21px;height:21px}
+  #story .yenv .pmark{margin-left:-22px;width:96px;height:66px}
+  #story .yenv .pmark svg{transform:scale(.82);transform-origin:0 50%}
+  #story .yenv .pmark .t{left:29px;top:24px;width:56px;font-size:10.5px}
+}
+@media (max-width: 599px){
+  #story{padding-bottom:76px}
+  #story .wrap{padding:0 16px}
+  #story .rail{gap:4px 20px;padding-top:30px;font-size:14.5px}
+  #story .rail .rl{flex-basis:100%;font-size:12.5px}
+  #story .part,#story .part.r{row-gap:24px;padding:46px 0}
+  #story .rail + .part{padding-top:34px}
+  #story h2{font-size:clamp(28px,8.2vw,34px)}
+  #story .words p{margin-top:12px;font-size:16px;line-height:1.52}
+  #story .end{padding-top:56px}
+  /* 1: the card, then the job under it */
+  #story .v-post{flex-direction:column;align-items:stretch;padding-top:0}
+  #story .brief{flex:none;width:86%;margin:0 0 42px 1%}
+  #story .jobs{width:95%;margin-left:4%}
+  #story .jback.b0{transform:translate(-7px,-13px) rotate(-2.2deg)}
+  #story .jp{padding:16px 16px 17px}
+  #story .jp .ti{margin-top:12px;font-size:21px}
+  #story .jp .ds,#story .jp .msg{font-size:13.5px}
+  /* 2: the three places, and the card under them */
+  #story .v-share{flex-direction:column;align-items:stretch;gap:8px;padding:0}
+  #story .tags{flex:none;height:162px;margin-left:6px}
+  #story .tag{width:156px;height:44px;gap:8px;padding:0 14px 0 9px;font-size:14px}
+  #story .tag i{width:24px;height:24px}
+  #story .tag svg{width:13px;height:13px}
+  #story .tag::after{right:9px;width:7px;height:7px;margin-top:-3.5px}
+  #story .tag.t1{top:60px;left:30px}
+  #story .tag.t2{top:118px;left:10px}
+  #story .wait .tag.t1{translate:-38px -10px}
+  #story .wait .tag.t2{translate:-18px -26px}
+  #story .v-share .ledger{width:92%;margin-left:auto}
+  #story .ledger{padding:12px 15px 3px}
+  #story .ledger .lh{font-size:12.5px}
+  #story .ledger .lr{grid-template-columns:58px minmax(0,1fr)}
+  #story .ledger b{font-size:33px}
+  #story .ledger .lr span{font-size:13.5px}
+  /* 3: Ava's notes under the reply */
+  #story .tp{padding:14px 15px 12px}
+  #story .tp .th{font-size:12px}
+  #story .tp .th .ex{display:none}
+  #story .tp .ro{grid-template-columns:26px minmax(0,1fr);gap:10px}
+  #story .tp .av{width:26px;height:26px}
+  #story .tp .cust{padding:10px 0}
+  #story .tp .rep{padding:10px 0 2px}
+  #story .tp .who{font-size:12px;line-height:26px}
+  #story .tp .cm,#story .tp .rt{font-size:14.5px;line-height:1.5}
+  #story .tp .rb{grid-template-columns:minmax(0,1fr);gap:6px}
+  #story .tp .notes{gap:3px;padding:7px 0 2px;border-left:0;border-top:1px dashed rgba(29,51,41,.18)}
+  #story .tp .notes li{font-size:15px}
+  #story .tp .foot{gap:9px;font-size:13px}
+  #story .tp .ws{width:30px;height:30px}
+  #story .tp .score{width:54px;height:40px;font-size:25px}
+  /* 4: the three, then the ledger as a card */
+  #story .picks{width:auto;margin:0 0 0 12px}
+  #story .pick{height:106px;padding:12px 12px 0 42px}
+  #story .pick + .pick{margin-top:-26px}
+  #story .pick.p1{transform:translateX(-4px) rotate(1.6deg)}
+  #story .pick.p2{transform:translateX(4px) rotate(-1.4deg)}
+  #story .pick .sl{left:-11px;top:10px;width:40px;height:40px}
+  #story .pick .pn{font-size:17.5px;padding-right:56px}
+  #story .pick .pl{font-size:13.5px;padding-right:56px}
+  #story .pick .psc{right:10px;width:54px}
+  #story .pick .psc b{font-size:30px}
+  #story .pick .cf{left:42px}
+  #story .v-call .ledger{margin-top:24px}
+  #story .ledger.strip{padding:12px 15px 3px}
+  #story .ledger.strip .lh{border-bottom:0}
+  #story .ledger.strip .rows{display:block}
+  #story .ledger.strip .lr,#story .ledger.strip .lr:first-child{display:grid;padding:10px 0 11px;border-left:0;border-top:1px dashed rgba(29,51,41,.24)}
+  #story .ledger.strip b{font-size:33px}
+  #story .ledger.strip .lr span{margin-top:0;font-size:13.5px}
+  #story .ledger.strip .w{display:inline}
+  #story .ledger.strip .nn{display:none}
+  #story .ledger.strip .r3{left:-15px;top:-9px;width:52px;height:48px}
+}
 /* ---------- footer: a darker band of the same sage ---------- */
 .lp-foot{position:relative;background:#B5C0AB;color:var(--ink)}
 .lp-foot .lp{max-width:1240px;margin:0 auto;padding:40px 56px 44px;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:24px 56px}
@@ -643,49 +656,10 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
 .lp-foot .fine{grid-column:1 / -1;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px 24px;padding-top:18px;border-top:1px solid rgba(29,51,41,.2);font-size:13px;color:var(--ink-2)}
 .lp-foot a:focus-visible,.navr a:focus-visible,.logo:focus-visible,#story a:focus-visible{outline:2px solid var(--action);outline-offset:3px;border-radius:2px}
 
-/* ---------- the desk objects at phone size ---------- */
-#story .box.n .jsheet{width:300px}
-#story .box.n .jp{padding:17px 18px 18px}
-#story .box.n .jtab{font-size:11.5px;padding:6px 10px 0;height:26px;top:-24px}
-#story .box.n .jp .hd{font-size:11.5px}
-#story .box.n .jp .chn{font-size:11px}
-#story .box.n .jp .ti{font-size:22px;margin-top:13px}
-#story .box.n .jp .bz{font-size:13px}
-#story .box.n .jp .ds{font-size:13.5px;margin-top:11px;padding-top:10px}
-#story .box.n .jp .tl{margin-top:12px;font-size:12px}
-#story .box.n .jp .msg{font-size:14px}
-#story .box.n .jp .cu{padding:10px 11px 11px 9px;gap:9px;grid-template-columns:26px minmax(0,1fr)}
-#story .box.n .jp .av{width:26px;height:26px;font-size:11px}
-#story .box.n .tsheet{width:344px}
-#story .box.n .tp{padding:14px 16px 12px}
-#story .box.n .tp .th2{font-size:11.5px;padding-bottom:9px}
-#story .box.n .tp .th2 .ex{display:none}
-#story .box.n .tp .row{grid-template-columns:26px minmax(0,1fr);gap:10px}
-#story .box.n .tp .av{width:26px;height:26px;font-size:10.5px}
-#story .box.n .tp .cust{padding:10px 0}
-#story .box.n .tp .who,#story .box.n .tp .rh{font-size:12px}
-#story .box.n .tp .cm{font-size:14px;line-height:1.42}
-#story .box.n .tp .rep{padding:10px 0 2px}
-#story .box.n .tp .rh{min-height:26px}
-#story .box.n .tp .tcf{font-size:10.5px;padding:2px 6px 1px}
-#story .box.n .tp .rb{grid-template-columns:minmax(0,1fr);margin-left:36px;gap:6px}
-#story .box.n .tp .rt{font-size:14.5px;line-height:1.55}
-#story .box.n .tp .notes{border-left:0;display:grid;gap:3px;padding:6px 0 2px;border-top:1px dashed rgba(29,51,41,.18)}
-#story .box.n .tp .note{position:relative;left:auto;right:auto;font-size:15px}
-#story .box.n .tp .foot{font-size:13px;margin-top:8px;padding-top:9px;gap:9px}
-#story .box.n .tp .foot .ws{width:30px;height:30px}
-#story .box.n .tp .score{width:54px;height:40px;font-size:25px}
-#story .box.n .sband{height:18px;font-size:10px}
-
 @media (max-width: 899px){
   .navr .plain.guides{display:none}
   .navr .plain .long{display:none}
   .navr .plain .short{display:inline}
-  #story .caps{left:16px;right:16px;top:calc(var(--barh) - 8px);width:auto;padding-top:18px}
-  #story .rail{gap:18px;font-size:13.5px}
-  #story .cap{top:52px}
-  #story .cap h2{font-size:clamp(28px,8vw,34px);line-height:1.02}
-  #story .cap p{margin-top:10px;font-size:15px;line-height:1.5}
   .lp-foot .lp{grid-template-columns:minmax(0,1fr);padding:36px 16px 40px}
   .lp-foot nav{justify-content:flex-start}
 }
@@ -715,9 +689,6 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
   .copy{padding:0 32px}
   h1{font-size:min(9vw,72px);margin-top:26px}
   .sub.m{font-size:17px;max-width:34em}
-  #story .caps{left:32px;right:32px}
-  #story .cap h2{font-size:clamp(34px,5.4vw,44px)}
-  #story .cap p{font-size:16.5px;max-width:32em}
   .lp-foot .lp{padding:40px 32px 44px}
 }
 /* a big tablet held upright (900-1099 wide, portrait): the same order, with the computer's bar and gutter */
@@ -729,10 +700,6 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
   .sub.d{display:none}
   .sub.m{display:block;margin:24px 0 56px;font-size:18px;max-width:34em}
   .cta-row{margin-top:0}
-  #story .caps{left:56px;right:56px;top:calc(var(--barh) - 8px);width:auto;padding-top:22px}
-  #story .cap{top:60px}
-  #story .cap h2{font-size:clamp(40px,4.6vw,50px)}
-  #story .cap p{margin-top:14px;font-size:18px;max-width:32em}
 }
 /* a tablet's desk never has smaller letters than the smallest phone's (the script's floor, .72): a short window's
    space is tall enough for its column, and the words under it follow */
@@ -758,17 +725,6 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
   .slip .reply{font-size:11.5px}
   .slip .first{font-size:10px;padding:2px 6px 1px}
   .replay{font-size:12.5px}
-  /* the story: its words down the left, the phone's desk beside them */
-  #story .caps{left:16px;right:auto;width:calc(max(50vw,388px) - 40px);padding-top:0}
-  #story .rail{gap:16px;font-size:13.5px}
-  #story .cap{top:42px}
-  #story .cap h2{font-size:clamp(24px,3.3vw,32px);line-height:1.02}
-  #story .cap p{margin-top:10px;font-size:15px;line-height:1.48}
-}
-/* a narrow or short laptop: the story's words a size smaller, so its column (rail, words, our numbers) fits under the bar */
-@media (min-width: 900px) and (max-width: 1279px) and (min-height: 580px) and (max-height: 700px) and (orientation: landscape){
-  #story .cap h2{font-size:34px}
-  #story .cap p{margin-top:16px;font-size:16.5px}
 }
 /* a short screen has no room for the lede beside the desk: it follows the button, as on a phone */
 @media (min-width: 560px) and (max-height: 409px) and (orientation: landscape){
@@ -779,21 +735,13 @@ h1 .em path{fill:none;stroke:var(--action);stroke-width:5;stroke-linecap:round;s
 @media (min-width: 900px) and (max-height: 579px) and (orientation: landscape){
   .copy{width:50vw;padding:0 0 0 56px}
   h1{font-size:min(calc((50vw - 80px)/8.4),13.5vh,60px)}
-  #story .caps{left:56px;width:calc(50vw - 96px)}
-}
-@media (prefers-reduced-motion: reduce){
-  #story .rail button{transition:none}
-  #story.idle .typing .tv::after{animation:none}
-  /* each chapter's finished state, crossed with a soft fade and no movement */
-  #story .stage.rm .box,#story .stage.rm .caps,#story .stage.rm > .ledger,#story .stage.rm > .brief{transition:opacity .22s linear}
-  #story .stage.rm.rmout .box,#story .stage.rm.rmout .caps,#story .stage.rm.rmout > .ledger,#story .stage.rm.rmout > .brief{opacity:0 !important;transition-duration:.16s}
 }
 /* ================= the light desk =================
    For an older or slower device (chosen in the head: few cores, little memory, Save-Data, or a first second of
    the desk under 40 frames a second; ?desk=light or ?desk=full to see either). The same story and composition:
    fewer letters, no shadow under paper in the air, flat turns instead of 3D ones, and a plainer seal press. */
 html[data-desk="light"] .bar::before{-webkit-backdrop-filter:none;backdrop-filter:none;background:var(--desk)}
-html[data-desk="light"] .env .seal,html[data-desk="light"] #story .tp .foot .wsi,html[data-desk="light"] #story .pick .sli{filter:none}
+html[data-desk="light"] .env .seal{filter:none}
 html[data-desk="light"] .slip{perspective:none}
 html[data-desk="light"] .slip .in{transform-style:flat;animation:deskTurnB .6s ease-in-out}
 html[data-desk="light"] .slip.flip .in{animation-name:deskTurnA}
@@ -808,11 +756,6 @@ html[data-desk="light"] .slip.live.hov.flip:active .in{transform:translateY(-5px
 /* a paper turned over flat: it narrows to its edge and opens again on its other face */
 @keyframes deskTurnA{0%,100%{scale:1 1}50%{scale:0 1}}
 @keyframes deskTurnB{0%,100%{scale:1 1}50%{scale:0 1}}
-html[data-desk="light"] #story .pick{perspective:none}
-html[data-desk="light"] #story .fold .bk{transform:scaleY(-1)}
-html[data-desk="light"] #story .fold .p1,html[data-desk="light"] #story .fold .p3,html[data-desk="light"] #story .eflap .efl{will-change:transform}
-html[data-desk="light"] #story .fold .fsh{top:0;height:100%;transform-origin:50% 0;will-change:transform}
-html[data-desk="light"] #story .eflap .fs,html[data-desk="light"] #story .ysh{display:none}
 @media (prefers-reduced-motion: reduce){
   html[data-desk="light"] .slip .in{animation:none}
   html[data-desk="light"] .slip .face{transition:none}
@@ -831,6 +774,13 @@ html[data-desk="light"] #story .eflap .fs,html[data-desk="light"] #story .ysh{di
       <circle cx="40" cy="18" r="13" fill="none" stroke="rgba(29,51,41,.38)" stroke-width="1.1"/>
       <path d="M0 13 q5 -3 10 0 t10 0 t10 0 M0 19 q5 -3 10 0 t10 0 t10 0 M0 25 q5 -3 10 0 t10 0 t10 0" fill="none" stroke="rgba(29,51,41,.32)" stroke-width="1.1"/>
     </symbol>
+    <!-- below the hero: Ava's green seal (the wax differs a little from seal to seal), her small mark, the link -->
+    <g id="sealFace"><circle cx="20" cy="20" r="12.6" fill="#11694C"/><circle cx="20.4" cy="20.6" r="12.6" fill="none" stroke="#3DB088" stroke-opacity=".55" stroke-width="1.1"/><circle cx="19.6" cy="19.5" r="12.6" fill="none" stroke="#06331F" stroke-opacity=".6" stroke-width="1.1"/><path d="M13.2 24.6 L16.6 16.4 L20.2 22 L26.4 14.6" transform="translate(.55 .7)" fill="none" stroke="#49C094" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M13.2 24.6 L16.6 16.4 L20.2 22 L26.4 14.6" fill="none" stroke="#063A27" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="13.5" cy="11" rx="4" ry="2" fill="#7FE0B8" opacity=".28" transform="rotate(-35 13.5 11)"/></g>
+    <symbol id="sealA" viewBox="0 0 40 40"><path d="M37.4 18.7Q39.0 23.0 37.9 25.9Q36.8 28.8 34.5 31.6Q32.2 34.5 27.7 36.4Q23.1 38.3 19.1 37.7Q15.1 37.2 11.5 36.2Q8.0 35.3 6.6 31.8Q5.3 28.4 3.8 25.4Q2.4 22.5 3.0 18.1Q3.7 13.7 5.1 10.4Q6.4 7.0 9.4 6.2Q12.4 5.5 16.6 4.2Q20.9 3.0 23.6 3.7Q26.2 4.4 30.4 5.7Q34.7 6.9 35.2 10.6Q35.8 14.3 37.4 18.7Z" fill="#0A4A35"/><path d="M37.1 18.3Q38.6 22.6 37.5 25.4Q36.4 28.2 34.2 31.0Q32.0 33.8 27.5 35.7Q23.0 37.6 19.1 37.0Q15.2 36.4 11.7 35.5Q8.2 34.6 6.9 31.2Q5.6 27.8 4.2 24.9Q2.8 22.0 3.4 17.7Q4.0 13.5 5.4 10.2Q6.7 6.9 9.6 6.1Q12.5 5.4 16.7 4.2Q20.9 3.0 23.5 3.7Q26.0 4.4 30.2 5.6Q34.4 6.8 34.9 10.4Q35.5 14.0 37.1 18.3Z" fill="url(#wax)"/><use href="#sealFace"/></symbol>
+    <symbol id="sealB" viewBox="0 0 40 40"><path d="M37.8 18.9Q38.6 21.9 36.8 25.5Q35.0 29.1 32.5 32.5Q30.0 35.9 26.5 36.7Q23.0 37.5 20.3 38.1Q17.5 38.7 13.6 37.1Q9.6 35.5 7.2 33.0Q4.8 30.5 3.9 26.2Q3.1 21.8 2.8 17.4Q2.5 13.1 4.9 10.1Q7.3 7.2 9.0 5.4Q10.8 3.6 14.8 2.2Q18.9 0.8 22.7 1.9Q26.5 2.9 29.3 5.4Q32.1 8.0 34.6 11.9Q37.0 15.9 37.8 18.9Z" fill="#0A4A35"/><path d="M37.4 18.5Q38.2 21.5 36.5 25.0Q34.7 28.5 32.2 31.8Q29.8 35.2 26.3 36.0Q22.9 36.8 20.3 37.4Q17.6 37.9 13.7 36.4Q9.8 34.8 7.5 32.4Q5.1 29.9 4.3 25.6Q3.4 21.4 3.2 17.1Q2.9 12.8 5.2 10.0Q7.6 7.1 9.3 5.3Q11.0 3.5 15.0 2.2Q18.9 0.8 22.6 1.8Q26.3 2.9 29.1 5.3Q31.9 7.8 34.3 11.7Q36.7 15.6 37.4 18.5Z" fill="url(#wax)"/><use href="#sealFace"/></symbol>
+    <symbol id="sealC" viewBox="0 0 40 40"><path d="M37.6 18.2Q39.3 22.7 37.9 26.4Q36.5 30.1 33.6 31.9Q30.7 33.7 27.4 35.9Q24.1 38.1 20.6 37.9Q17.0 37.7 13.9 36.1Q10.8 34.6 7.9 31.8Q5.0 29.0 3.7 25.2Q2.4 21.5 2.5 18.6Q2.6 15.8 3.9 11.6Q5.2 7.4 9.3 4.6Q13.3 1.9 17.2 1.3Q21.1 0.8 23.3 2.4Q25.5 4.1 29.3 5.7Q33.2 7.4 34.6 10.5Q36.0 13.7 37.6 18.2Z" fill="#0A4A35"/><path d="M37.3 17.8Q38.9 22.3 37.5 25.9Q36.1 29.5 33.3 31.3Q30.5 33.0 27.3 35.2Q24.0 37.3 20.5 37.1Q17.1 36.9 14.1 35.4Q11.0 33.9 8.2 31.2Q5.3 28.5 4.1 24.7Q2.8 21.0 2.9 18.3Q3.0 15.5 4.2 11.4Q5.5 7.3 9.5 4.6Q13.4 1.8 17.3 1.3Q21.1 0.8 23.2 2.4Q25.4 4.0 29.1 5.6Q32.9 7.2 34.3 10.3Q35.7 13.4 37.3 17.8Z" fill="url(#wax)"/><use href="#sealFace"/></symbol>
+    <symbol id="avaMark" viewBox="0 0 64 64"><path d="M32 3.2c4.6.3 7 2.5 11.4 3.6 4 1.1 7.8 1.4 10.4 4.6 2.8 3.3 2.5 7.1 4 11.2 1.4 3.9 3.8 6.7 3.3 11-.5 4.3-3.3 6.8-4.8 10.7-1.6 4-1.6 7.9-4.7 10.7-3.1 2.8-7.1 2.6-11.2 4-3.9 1.3-6.7 3.4-11 3-4.3-.5-6.7-3.1-10.6-4.8-3.9-1.6-7.8-1.9-10.4-5-2.6-3.1-2.3-7-3.7-10.9-1.4-3.9-3.7-6.8-3.1-11.2.6-4.2 3.6-6.5 5.3-10.2 1.7-3.9 2-7.8 5.3-10.4 3.3-2.6 7.1-2.2 11-3.4C25.6 5.1 27.6 3 32 3.2Z" fill="#0A4A35"/><circle cx="32" cy="32" r="26.5" fill="#13734F"/><circle cx="32" cy="32" r="20.5" fill="#11694C"/><path d="M18.4 41.9 L25.5 25 L32.7 36.4 L45.7 21.1" fill="none" stroke="#063A27" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="lnk" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
   </defs>
 </svg>
 
@@ -906,53 +856,133 @@ html[data-desk="light"] #story .eflap .fs,html[data-desk="light"] #story .ysh{di
 </section>
 
 <section id="story" aria-label="How HireFlow works">
-  <div class="stage">
-    <div class="s-desk" aria-hidden="true"></div>
-    <div class="s-wash" aria-hidden="true"></div>
-    <i class="svh" aria-hidden="true"></i>
+  <div class="wrap">
+    <nav class="rail" aria-label="How it works">
+      <span class="rl" aria-hidden="true">How it works</span>
+      <a href="#post">Post<svg viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M2 5 C 22 2.4, 48 2, 68 3.4 S 90 5.6, 98 2.2"/></svg></a>
+      <a href="#share">Share<svg viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M2 4.6 C 20 2, 50 2.6, 70 3.8 S 91 5, 98 2.6"/></svg></a>
+      <a href="#reads">Ava reads<svg viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M2 5 C 24 2.6, 46 2.2, 66 3.6 S 89 5.4, 98 2.4"/></svg></a>
+      <a href="#call">Call<svg viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M2 4.8 C 22 2.2, 48 2.4, 69 3.6 S 90 5.2, 98 2.3"/></svg></a>
+    </nav>
 
-    <div class="caps">
-      <nav class="rail" aria-label="How it works">
-        <button type="button" data-c="0">Post<svg viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M2 5 C 22 2.4, 48 2, 68 3.4 S 90 5.6, 98 2.2"/></svg></button>
-        <button type="button" data-c="1">Share<svg viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M2 4.6 C 20 2, 50 2.6, 70 3.8 S 91 5, 98 2.6"/></svg></button>
-        <button type="button" data-c="2">Ava reads<svg viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M2 5 C 24 2.6, 46 2.2, 66 3.6 S 89 5.4, 98 2.4"/></svg></button>
-        <button type="button" data-c="3">Call<svg viewBox="0 0 100 7" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M2 4.8 C 22 2.2, 48 2.4, 69 3.6 S 90 5.2, 98 2.3"/></svg></button>
-      </nav>
-
-      <div class="cap" data-c="0">
+    <div class="part" id="post">
+      <div class="words">
         <h2>Post the job. <em>Ava writes the test.</em></h2>
         <p>Tell her about your business. She writes the job and a real customer conversation that fits it, by chat or by email.</p>
       </div>
-      <div class="cap" data-c="1">
+      <div class="vig v-post" data-play aria-hidden="true">
+        <div class="brief">
+          <div class="bh">About your business</div>
+          <p class="bl">We’re a dental office. Patients chat and email us about bookings and bills.</p>
+        </div>
+        <div class="jobs">
+          <div class="jback b0"><span class="jtab">Online store</span></div>
+          <div class="jback b1"><span class="jtab">Software</span></div>
+          <div class="jsheet" data-at>
+            <span class="jtab">Dental</span>
+            <div class="jp">
+              <div class="hd"><span class="by"><svg class="mlg" viewBox="0 0 64 64"><use href="#avaMark"/></svg><b>Ava</b> wrote this job</span><span class="chn">Chat and email</span></div>
+              <div class="ti">Patient chat agent</div>
+              <div class="bz">Bright Smile Dental · dental office</div>
+              <p class="ds">Answer patients by chat and email: bookings, bills and reminders.</p>
+              <div class="tl">The customer test, by chat</div>
+              <div class="cu"><span class="av">R</span><div><div class="wh"><b>Rosa Reyes</b>patient</div><p class="msg">Hi, I was charged twice for Tuesday’s cleaning and nobody has called me back. I need this fixed today.</p></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="part r" id="share">
+      <div class="words">
         <h2>Share the link <em>anywhere.</em></h2>
         <p>Job boards, groups, your own site. Here is how it went on our own job.</p>
       </div>
-      <div class="cap" data-c="2">
+      <div class="vig v-share" data-play aria-hidden="true">
+        <div class="tags" data-at>
+          <span class="tag t0"><i><svg viewBox="0 0 24 24"><use href="#lnk"/></svg></i>Job boards</span>
+          <span class="tag t1"><i><svg viewBox="0 0 24 24"><use href="#lnk"/></svg></i>Groups</span>
+          <span class="tag t2"><i><svg viewBox="0 0 24 24"><use href="#lnk"/></svg></i>Your site</span>
+        </div>
+        <div class="ledger">
+          <div class="lh">Our own job · October 2026</div>
+          <div class="lr"><b>153</b><span>applied in the first four days.</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="part" id="reads">
+      <div class="words">
         <h2>Ava reads <em>every reply.</em></h2>
         <p>Each applicant answers the customer on their phone. Ava marks what was good, scores it, and says why.</p>
       </div>
-      <div class="cap" data-c="3">
+      <div class="vig v-reads" data-play aria-hidden="true">
+        <div class="tp">
+          <div class="th"><span>Chat test · Bright Smile Dental</span><span class="ex">answered on her phone</span></div>
+          <div class="ro cust"><span class="av">R</span><div><div class="who"><b>Rosa Reyes</b>patient</div><p class="cm">Hi, I was charged twice for Tuesday’s cleaning and nobody has called me back. I need this fixed today.</p></div></div>
+          <div class="ro rep" data-at><span class="av me">MS</span><div><div class="who"><b>Maria Santos</b>replied</div>
+            <div class="rb"><p class="rt">I’m so sorry, <mark>Rosa</mark>. You’re right, both charges are there. I’ve asked billing to <mark>refund the second one now</mark>, and I’ll <mark>call you by 3 pm today</mark> to confirm it’s done.</p>
+              <ul class="notes"><li>Uses her name</li><li>Fixes it</li><li>Gives a time</li></ul></div></div></div>
+          <div class="foot"><svg class="ws" viewBox="0 0 40 40"><use href="#sealA"/></svg><span><b>Ava:</b> Owned the double charge in her first line.</span><span class="score"><svg class="ring" viewBox="0 0 100 80" preserveAspectRatio="none"><path d="M71 9 C 92 15, 99 46, 80 66 C 62 84, 22 83, 8 62 C -4 43, 8 15, 36 8 C 55 3, 74 6, 86 17" vector-effect="non-scaling-stroke"/></svg>92</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="part r" id="call">
+      <div class="words">
         <h2>Three <em>worth a call.</em></h2>
         <p>The best three land on your desk with Ava’s reasons. Message, interview and hire them in HireFlow.</p>
       </div>
-      <div class="cap end" data-c="4">
-        <h2>Your first job <em>is free.</em></h2>
-        <p>Post it, share the link, and let Ava read every reply. Chat or email, one hire or a whole team.</p>
+      <div class="vig v-call" data-play aria-hidden="true">
+        <div class="picks">
+          <div class="pick p1"><svg class="sl" viewBox="0 0 40 40"><use href="#sealB"/></svg><span class="pn">Carla Villanueva</span><p class="pl">Found the late order and gave a day. <i>— Ava</i></p><span class="psc"><b>89</b><small>out of 100</small></span></div>
+          <div class="pick p2"><svg class="sl" viewBox="0 0 40 40"><use href="#sealC"/></svg><span class="pn">Mika Lim</span><p class="pl">Calm with an angry guest; fixed it on the spot. <i>— Ava</i></p><span class="psc"><b>86</b><small>out of 100</small></span></div>
+          <div class="pick p0" data-at><svg class="sl" viewBox="0 0 40 40"><use href="#sealA"/></svg><span class="pn">Maria Santos</span><p class="pl">Owned the double charge in her first line. <i>— Ava</i></p><span class="psc"><b>92</b><small>out of 100</small></span><span class="cf">Call first</span></div>
+        </div>
+        <div class="ledger strip">
+          <div class="lh">Our own job · October 2026</div>
+          <div class="rows">
+            <div class="lr"><b>153</b><span><i class="w">applied in the first four days.</i><i class="nn">applied in the first four days</i></span></div>
+            <div class="lr"><b>71</b><span><i class="w">finished the written interview, with none of us in the room.</i><i class="nn">finished the written interview</i></span></div>
+            <div class="lr l3"><b><svg class="r3" viewBox="0 0 100 80" preserveAspectRatio="none"><path d="M71 9 C 92 15, 99 46, 80 66 C 62 84, 22 83, 8 62 C -4 43, 8 15, 36 8 C 55 3, 74 6, 86 17" vector-effect="non-scaling-stroke"/></svg>3</b><span><i class="w">were worth a call. </i><strong class="w">We hired from those three.</strong><i class="nn">worth a call. </i><strong class="nn">We hired from them.</strong></span></div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="box" id="box"></div>
-    <div class="ysrc" hidden>
-      <a class="stamp" href="https://staff.hireflownow.com/auth?mode=signup" id="endStart">
-        <span class="face">
-          <span class="mk"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F3EFE2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 L9 7 L14 15 L20 6"/></svg></span>
-          <span class="lbl">Post your first job, free</span>
-          <svg class="arr" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F3EFE2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
-        </span>
-      </a>
+    <div class="end" id="free">
+      <div class="words">
+        <h2>Your first job <em>is free.</em></h2>
+        <p>Post it, share the link, and let Ava read every reply. Chat or email, one hire or a whole team.</p>
+      </div>
+      <div class="vig v-end" data-play>
+        <div class="yenv">
+          <div class="yfrom" aria-hidden="true"><svg class="mlg" viewBox="0 0 64 64"><use href="#avaMark"/></svg><span>From:<br>your business</span></div>
+          <div class="yto" aria-hidden="true"><span class="a"><small>Job:</small>Customer service agent</span><span class="b">Medical and dental · Online stores</span><span class="b">Software · Home services · Gaming</span></div>
+          <div class="ypost">
+            <div class="ydrop" data-at>
+              <a class="stamp" href="https://staff.hireflownow.com/auth?mode=signup" id="endStart">
+                <span class="face">
+                  <span class="mk"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#F3EFE2" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 18 L9 7 L14 15 L20 6"/></svg></span>
+                  <span class="lbl">Post your first job, free</span>
+                  <svg class="arr" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#F3EFE2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6"/></svg>
+                </span>
+              </a>
+            </div>
+            <div class="pmark" aria-hidden="true">
+              <svg viewBox="0 0 120 78">
+                <circle cx="86" cy="39" r="38" fill="none" stroke="rgba(29,51,41,.5)" stroke-width="1.4"/>
+                <circle cx="86" cy="39" r="33" fill="none" stroke="rgba(29,51,41,.28)" stroke-width="1"/>
+                <path d="M0 28 q6 -4 12 0 t12 0 t12 0 t9 0 M0 39 q6 -4 12 0 t12 0 t12 0 t9 0 M0 50 q6 -4 12 0 t12 0 t12 0 t9 0" fill="none" stroke="rgba(29,51,41,.42)" stroke-width="1.3"/>
+              </svg>
+              <span class="t">No card.</span>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <p class="sr">On the desk: Ava writes a job and a customer test for an online store, a software company and a dental office. The job link goes out to job boards, groups and your own site, and letters come back; on our own job 153 people applied in the first four days. Ava opens one reply: Rosa, a patient, was charged twice; Maria answered, “I’m so sorry, Rosa. You’re right, both charges are there. I’ve asked billing to refund the second one now, and I’ll call you by 3 pm today to confirm it’s done.” Ava marks that she uses her name, fixes it and gives a time, scores it 92 and says call her first. 71 people finished the written interview. Three were worth a call: Maria Santos 92, Carla Villanueva 89 and Mika Lim 86. The other 68 who finished are set aside, each with Ava’s reason, such as a wrong refund promised or the real question missed. We hired from those three.</p>
+    <p class="sr">On the desk: you tell Ava about your business, a dental office, and she writes the job, a patient chat agent, with its customer test; two more jobs lie under it, for an online store and a software company. The job link goes out to job boards, groups and your own site; on our own job 153 people applied in the first four days. Ava reads Maria’s reply to Rosa, a patient charged twice: “I’m so sorry, Rosa. You’re right, both charges are there. I’ve asked billing to refund the second one now, and I’ll call you by 3 pm today to confirm it’s done.” Ava marks that she uses her name, fixes it and gives a time, scores it 92, and says she owned the double charge in her first line. Three are worth a call: Carla Villanueva 89, Mika Lim 86 and Maria Santos 92, to call first. 71 people finished the written interview, 3 were worth a call, and we hired from those three.</p>
   </div>
 </section>
 </main>
@@ -1733,1066 +1763,33 @@ window.__hfFonts.then(ok => {
 </script>
 
 <script>
-/* Below the hero: the same desk keeps going, one chapter at a time, scrubbed by scroll. */
+/* Below the hero: each part's little desk plays one short motion, once, as it comes into view, then rests. Nothing
+   here listens to the scroll: the page scrolls as any page does. A desk still below the screen when the page opens
+   waits in the pose its motion starts from (.wait), which shows everything too; when the part that moves reaches
+   the upper two thirds of the screen it plays (.play) and is never watched again. Less motion, the light desk, or a
+   browser without IntersectionObserver: every desk simply rests as written. */
 (() => {
-"use strict";
-const story = document.getElementById("story");
-if (!story) return;
-const stage = story.querySelector(".stage");
-const capsEl = story.querySelector(".caps");
-const box = document.getElementById("box");
-const capEls = [...story.querySelectorAll(".cap")];
-const railEl = story.querySelector(".rail");
-const railBtns = [...railEl.querySelectorAll("button")];
-const railPaths = railBtns.map(b => b.querySelector("path"));
-const reduce = matchMedia("(prefers-reduced-motion: reduce)");
-let LITE = document.documentElement.getAttribute("data-desk") === "light";   // the light desk (see the head)
-
-/* ---------- helpers ---------- */
-function rng(seed){return function(){seed|=0;seed=seed+0x6D2B79F5|0;let t=Math.imul(seed^seed>>>15,1|seed);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
-const clamp=(v,a=0,b=1)=>Math.min(b,Math.max(a,v));
-const lerp=(a,b,u)=>a+(b-a)*u;
-const seg=(t,a,b)=>clamp((t-a)/(b-a));
-const eIn=u=>u*u;
-const eOut3=u=>1-Math.pow(1-u,3);
-const eIO=u=>u<.5?4*u*u*u:1-Math.pow(-2*u+2,3)/2;
-const eIOs=u=>-(Math.cos(Math.PI*u)-1)/2;
-const backOut=u=>{const c1=1.9,c3=c1+1;return 1+c3*Math.pow(u-1,3)+c1*Math.pow(u-1,2);};
-const bk=u=>1+2.2*Math.pow(u-1,3)+1.2*Math.pow(u-1,2);   // a turn that goes about 5% past and settles back
-const f2=n=>n.toFixed(2);
-
-/* ---------- the story, in scroll units (one unit is 0.7 of a screen) ---------- */
-const UNIT = .7;
-const CAP  = [-99, .98, 2.0, 3.72, 5.0];   // where each caption takes over
-const REST = [.9, 1.9, 3.62, 4.9, 5.6];  // each chapter's finished state, its words fully shown (reduced motion)
-const JUMP = [.3, 1.52, 2.62, 4.02];       // where the rail takes you: each chapter in motion
-const SPAN = 5.68;                         // units the stage stays pinned
-
-/* chapter 1: what you tell Ava, then what she writes */
-const BRIEF_IN = [-0.9, -0.6], BRIEF_OUT = [1.0, 1.18];
-const BRIEF_T = [[-0.62,-0.47,0.0,0.06],[0.06,0.21,0.4,0.46],[0.46,0.61,99,99]];
-const ENTER = [[-0.86,-0.42],[0.02,0.22],[0.42,0.62]];
-const TYPE  = [[-0.44,0.08],[0.22,0.44],[0.62,0.86]];
-/* chapter 3: the envelope */
-const M_LIFT = [2.15, 2.32], M_FLIP = [2.32, 2.4], M_FLAP = [2.4, 2.46], M_RISE = [2.45, 2.52],
-      M_DROP = [2.51, 2.59], M_MOVE = [2.53, 2.62], M_U1 = [2.58, 2.65], M_U3 = [2.63, 2.7], M_SWAP = 2.7;
-/* chapter 4 */
-const T_FOLD = [3.74, 3.86], P0_MOVE = [3.86, 4.06];
-const FLY = [0, 3.86, 3.93], FLYD = .32;     // Carla and Mika leave the stack
-const ASF = [4.14, 4.2, 4.26], ASD = .26;    // three more leave it with Ava's reason
-const SEAL = [0, 4.5, 4.57];
-const BAND = [4.42, 4.52];
-/* the ending */
-const OFF0 = 5.02, Y_IN = [5.1, 5.32], Y_STAMP = [5.28, 5.44], Y_PM = [5.42, 5.52];
-
-/* impacts: scrolling past a point decides that a seal, a stamp or a ring happens; it then plays in its own time,
-   so a fast scroll never skips the press and a stop never leaves one half-pressed. Scrolling back lifts it off, quicker. */
-const SEAL_F = .47;   // the share of a seal's beat that is its fall (230 of 490 ms, as in the hero)
-const BEATS = {
-  sring: {at:3.26, ms:520, exit:T_FOLD[0]},
-  tseal: {at:3.34, ms:490, exit:T_FOLD[0]},
-  tcf:   {at:3.42, ms:340, exit:T_FOLD[0]},
-  seal1: {at:SEAL[1], ms:490, exit:OFF0},
-  seal2: {at:SEAL[2], ms:490, exit:OFF0},
-  ring1: {at:SEAL[1] + .1, ms:520, exit:OFF0},
-  ring2: {at:SEAL[2] + .1, ms:520, exit:OFF0},
-  lring: {at:4.76, ms:520, exit:99},
-  ystamp:{at:Y_STAMP[0], ms:540, exit:99},
-  ypm:   {at:Y_PM[0], ms:340, exit:99, after:"ystamp"}
-};
-const BL = Object.values(BEATS);
-BL.forEach(b => { b.p = 0; });
-function beatsSnap(T){ for (const b of BL) b.p = T >= b.at ? 1 : 0; }
-function beatsStep(T, dt){
-  let moving = false;
-  for (const b of BL){
-    const on = T >= b.at && (!b.after || BEATS[b.after].p > .8), tg = on ? 1 : 0;
-    if (reduce.matches || T > b.exit || T < b.at - .3) b.p = tg;
-    else if (b.p !== tg) b.p = clamp(b.p + (on ? 1 : -1/.45)*dt/b.ms);
-    if (b.p !== tg) moving = true;
-  }
-  return moving;
-}
-function sealPose(p){
-  if (p <= 0) return {so:0, ss:1.85, h:1, rim:1};
-  if (p < SEAL_F){ const q = p/SEAL_F, h = 1 - eIn(q); return {so:clamp(q*12), ss:1 + .85*h, h, rim:1}; }
-  const q = (p - SEAL_F)/(1 - SEAL_F);
-  return {so:1, ss:1 - .05*Math.sin(Math.PI*clamp(q/.45)), h:0, rim:1 + .055*Math.sin(Math.PI*clamp(q*1.5))};
-}
-const pressOf = p => clamp((p - SEAL_F)/(1 - SEAL_F));
-
-/* ---------- art ---------- */
-function blob(seed, cx, cy, r){
-  const g = rng(seed), n = 15, p = [];
-  for (let k=0;k<n;k++){const a=k/n*Math.PI*2+g()*.2;const rr=r*(.88+g()*.17);p.push([cx+Math.cos(a)*rr,cy+Math.sin(a)*rr]);}
-  const mid=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2];
-  let m=mid(p[n-1],p[0]);let d=`M${m[0].toFixed(2)} ${m[1].toFixed(2)}`;
-  for(let k=0;k<n;k++){const q=p[k],m2=mid(p[k],p[(k+1)%n]);d+=` Q${q[0].toFixed(2)} ${q[1].toFixed(2)} ${m2[0].toFixed(2)} ${m2[1].toFixed(2)}`;}
-  return d+"Z";
-}
-function sealSVG(seed){
-  return `<svg viewBox="0 0 40 40" width="100%" height="100%" style="overflow:visible">
-    <g class="rim" style="transform-box:fill-box;transform-origin:center"><path d="${blob(seed,20,20.4,19)}" fill="#0A4A35"/>
-    <path d="${blob(seed,20,20,18.6)}" fill="url(#wax)"/></g>
-    <circle cx="20" cy="20" r="12.6" fill="#11694C"/>
-    <circle cx="20.4" cy="20.6" r="12.6" fill="none" stroke="#3DB088" stroke-opacity=".55" stroke-width="1.1"/>
-    <circle cx="19.6" cy="19.5" r="12.6" fill="none" stroke="#06331F" stroke-opacity=".6" stroke-width="1.1"/>
-    <path d="M13.2 24.6 L16.6 16.4 L20.2 22 L26.4 14.6" transform="translate(.55 .7)" fill="none" stroke="#49C094" stroke-opacity=".55" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="M13.2 24.6 L16.6 16.4 L20.2 22 L26.4 14.6" fill="none" stroke="#063A27" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-    <ellipse cx="13.5" cy="11" rx="4" ry="2" fill="#7FE0B8" opacity=".28" transform="rotate(-35 13.5 11)"/>
-  </svg>`;
-}
-const RING = "M71 9 C 92 15, 99 46, 80 66 C 62 84, 22 83, 8 62 C -4 43, 8 15, 36 8 C 55 3, 74 6, 86 17";
-/* Ava's mark on the story's papers: the logo's seal, small. */
-const LOGO = () => `<svg width="100%" height="100%" viewBox="0 0 64 64" aria-hidden="true"><path d="M32 3.2c4.6.3 7 2.5 11.4 3.6 4 1.1 7.8 1.4 10.4 4.6 2.8 3.3 2.5 7.1 4 11.2 1.4 3.9 3.8 6.7 3.3 11-.5 4.3-3.3 6.8-4.8 10.7-1.6 4-1.6 7.9-4.7 10.7-3.1 2.8-7.1 2.6-11.2 4-3.9 1.3-6.7 3.4-11 3-4.3-.5-6.7-3.1-10.6-4.8-3.9-1.6-7.8-1.9-10.4-5-2.6-3.1-2.3-7-3.7-10.9-1.4-3.9-3.7-6.8-3.1-11.2.6-4.2 3.6-6.5 5.3-10.2 1.7-3.9 2-7.8 5.3-10.4 3.3-2.6 7.1-2.2 11-3.4C25.6 5.1 27.6 3 32 3.2Z" fill="#0A4A35"/><circle cx="32" cy="32" r="26.5" fill="#13734F"/><circle cx="32" cy="32" r="20.5" fill="#11694C"/><path d="M18.4 41.9 L25.5 25 L32.7 36.4 L45.7 21.1" fill="none" stroke="#063A27" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-const LINK = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>`;
-const PMARK = `<div class="pmark ypm">
-    <svg viewBox="0 0 120 78" aria-hidden="true">
-      <circle cx="86" cy="39" r="38" fill="none" stroke="rgba(29,51,41,.5)" stroke-width="1.4"/>
-      <circle cx="86" cy="39" r="33" fill="none" stroke="rgba(29,51,41,.28)" stroke-width="1"/>
-      <path d="M0 28 q6 -4 12 0 t12 0 t12 0 t9 0 M0 39 q6 -4 12 0 t12 0 t12 0 t9 0 M0 50 q6 -4 12 0 t12 0 t12 0 t9 0" fill="none" stroke="rgba(29,51,41,.42)" stroke-width="1.3"/>
-    </svg>
-    <span class="t">No card.</span>
-  </div>`;
-
-/* ---------- typing: the unseen rest of a line keeps its place ---------- */
-function typer(node){
-  const text = node.textContent; node.textContent = "";
-  const v = document.createElement("span"); v.className = "tv";
-  const h = document.createElement("span"); h.className = "th"; h.textContent = text;
-  node.append(v, h);
-  // a hand, not a progress bar: each letter takes its own time, a space a little more, a pause after a comma and a longer one after a full stop
-  const g = rng(text.length*7919 + text.charCodeAt(0)), cum = [0];
-  for (let i = 0; i < text.length; i++){
-    const ch = text[i], pv = text[i-1];
-    let w = .75 + .5*g();
-    if (ch === " ") w *= 1.5;
-    if (pv === "," || pv === ";" || pv === ":") w += 3;
-    else if (pv === "." || pv === "?" || pv === "!") w += 5;
-    cum.push(cum[i] + w);
-  }
-  const kk = text.length/(cum[text.length] || 1);
-  for (let i = 0; i < cum.length; i++) cum[i] *= kk;   // the same total, so every timing on the page still holds
-  return {node, text, v, h, n:0, c:false, cum};
-}
-function setT(t, n, caret){
-  n = Math.max(0, Math.min(t.text.length, n));
-  let lo = 0, hi = t.text.length;
-  while (lo < hi){ const mid = (lo + hi + 1) >> 1; if (t.cum[mid] <= n + 1e-6) lo = mid; else hi = mid - 1; }
-  n = lo;
-  if (n !== t.n){ t.n = n; t.v.textContent = t.text.slice(0, n); t.h.textContent = t.text.slice(n); }
-  if (caret !== t.c){ t.c = caret; t.node.classList.toggle("typing", caret); }
-}
-function typeSeq(list, p){
-  const tot = list.reduce((a, t) => a + t.text.length, 0);
-  let n = p*tot, given = false;
-  for (const t of list){
-    const len = t.text.length;
-    const car = p > 0 && p < 1 && !given && n >= 0 && n < len;
-    if (car) given = true;
-    setT(t, clamp(n, 0, len), car);
-    n -= len;
-  }
-}
-
-/* ---------- objects ---------- */
-function make(cls, html, open){
-  const d = document.createElement("div"); d.className = cls; d.innerHTML = html;
-  if (!open) d.setAttribute("aria-hidden", "true");
-  box.appendChild(d);
-  const o = {el:d, lift:d.querySelector(":scope > .lift"), last:{}, w:0, h:0};
-  if (LITE) dropLift(o);   // the light desk: no shadow under paper in the air
-  return o;
-}
-function dropLift(o){ if (o.lift){ o.lift.remove(); o.lift = null; } }
-
-const JOBS = [
-  {tab:"Online store", ch:"Chat", title:"Order support agent", biz:"Fernwood Goods · online store", desc:"Answer shoppers by chat: orders, returns and late deliveries.",
-   by:"by chat", who:"Dan Cruz", role:"shopper", init:"D", msg:"My order was meant to be here Monday and the tracking hasn’t moved. Where is it?"},
-  {tab:"Software", ch:"Email", title:"Customer support agent", biz:"Pinecone Books · accounting software", desc:"Answer customers by email: logins, billing and how-tos.",
-   by:"by email", who:"Ben Ortiz", role:"customer", init:"B", subj:"Can’t log in", msg:"The reset link says it has expired every time I click it. I can’t get into my account."},
-  {tab:"Dental", ch:"Chat and email", title:"Patient chat agent", biz:"Bright Smile Dental · dental office", desc:"Answer patients by chat and email: bookings, bills and reminders.",
-   by:"by chat", who:"Rosa Reyes", role:"patient", init:"R", msg:"Hi, I was charged twice for Tuesday’s cleaning and nobody has called me back. I need this fixed today."}
-];
-
-const letters = [];
-const NL = 34, MARIA = NL-1, CARLA = NL-8, MIKA = NL-15;
-const CROWD = ["Joy Reyes","Mark Bautista","Angelica Dizon","Paolo Garcia","Rhea Mendoza","Jomar Dela Cruz","Liza Ramos","Kevin Aquino","Trisha Navarro","Ana Cruz","Jericho Santos","Bea Castillo","Ramon Villareal","Kristine Flores","Arnel Tolentino","Grace Manalo","Nico Pascual","Camille Ocampo","Rey Domingo","Ivy Salazar","Lorenzo Tan","Dan Mercado","Ella Robles","Carlo Sison"];
-const CITY = ["Cebu City","Davao City","Quezon City","Iloilo City","Bacolod","Pasig","Makati","Baguio","Cagayan de Oro","Taguig","Manila","Dumaguete","Angeles","Batangas","Tacloban"];
-const TONES = ["#F0EBDE","#F0EBDE","#E8E2D2","#DDE4D6","#E6DCC6","#D3C3A2","#E9E5DA","#DCDFD0"];
-const STAMPC = ["#1C7A5A","#B0694B","#2B7F7A","#5B6F52","#1C7A5A","#9C5C46"];
-const FIN = [
-  {name:"Maria Santos", score:92, line:"Owned the double charge in her first line.", tone:"#F3EEE2", first:true, city:"Quezon City"},
-  {name:"Carla Villanueva", score:89, line:"Found the late order and gave a day.", tone:"#E7EDE1", city:"Davao City"},
-  {name:"Mika Lim", score:86, line:"Calm with an angry guest; fixed it on the spot.", tone:"#EFE6D3", city:"Iloilo City"}
-];
-const ASIDE = [
-  {name:"Liza Ramos", score:44, why:"Promised a wrong refund.", tone:"#EEE7D7"},
-  {name:"Kevin Aquino", score:58, why:"Missed the real question.", tone:"#E5EADF"},
-  {name:"Bea Castillo", score:61, why:"Never gave a time.", tone:"#F1ECE0"}
-];
-const BRIEFS = [
-  "We sell home goods online. Shoppers chat with us about their orders.",
-  "We make accounting software. Customers email us when they get stuck.",
-  "We’re a dental office. Patients chat and email us about bookings and bills."
-];
-const REPLY = [["I’m so sorry, "],["Rosa",0],[". You’re right, both charges are there. I’ve asked billing to "],["refund the second one now",1],[", and I’ll "],["call you by 3 pm today",2],[" to confirm it’s done."]];
-const NOTES = ["Uses her name","Fixes it","Gives a time"];
-
-function testHTML(){
-  let rt = "";
-  REPLY.forEach(([t, n]) => { rt += n == null ? `<span class="sg">${t}</span>` : `<span class="hl" data-n="${n}"><span class="sg">${t}</span></span>`; });
-  return `<div class="tp">
-    <div class="th2"><span>Chat test · Bright Smile Dental</span><span class="ex">answered on her phone</span></div>
-    <div class="row cust"><span class="av">R</span><div><div class="who"><b>Rosa Reyes</b>patient</div><p class="cm">${JOBS[2].msg}</p></div></div>
-    <div class="rep">
-      <div class="row"><span class="av">MS</span><div class="rh"><b>Maria Santos</b>replied<span class="tcf">Call first</span></div></div>
-      <div class="rb"><p class="rt">${rt}</p><div class="notes">${NOTES.map((t,n) => `<span class="note" data-n="${n}"><i class="sw"></i>${t}</span>`).join("")}</div></div>
-    </div>
-    <div class="foot"><span class="ws"><i class="ssh"></i><span class="wsi">${sealSVG(5)}</span></span><span class="fv"><b>Ava:</b> Owned the double charge in her first line.</span><div class="score"><svg viewBox="0 0 100 80" preserveAspectRatio="none" aria-hidden="true"><path d="${RING}" vector-effect="non-scaling-stroke"/></svg><span>92</span></div></div>
-  </div>`;
-}
-
-let brief, briefTy, testCover, sheets, cards, ledger, lgRows, lgRing, test, testTy, hls, noteEls, scoreRing, scoreNum, testFoot, testSeal, testCF;
-let eback, eflap, eflapIn, eflapFaces, eflapShade, epocket, fold, fp1, fp3, fFaces1, fFaces3, fShd1, fShd3, fsh, foldNotes;
-let picks, asides, band, yenv, ydrop, ypm, ylink, ysh, testSsh, testRim;
-
-function build(){
-  sheets = JOBS.map((j, n) => {
-    const o = make("jsheet t"+n, `<div class="lift"></div><div class="jp">
-      <div class="hd"><span class="by"><i class="mlg">${LOGO(11)}</i><b>Ava</b> wrote this job</span><span class="chn">${j.ch}</span></div>
-      <div class="ti">${j.title}</div>
-      <div class="bz">${j.biz}</div>
-      <p class="ds">${j.desc}</p>
-      <div class="tl">The customer test, ${j.by}</div>
-      <div class="cu"><span class="av">${j.init}</span><div><div class="wh"><b>${j.who}</b>${j.role}</div>${j.subj ? `<div class="sj"><b>Subject:</b> ${j.subj}</div>` : ""}<p class="msg">${j.msg}</p></div></div>
-    </div><span class="jtab">${j.tab}</span>`);
-    o.ty = ["ti","bz","ds","msg"].map(c => typer(o.el.querySelector("."+c)));
-    return o;
-  });
-
-  brief = make("brief", `<div class="lift"></div><div class="bp">
-      <div class="bh">About your business</div>
-      <div class="bls">${BRIEFS.map(b => `<p class="bl">${b}</p>`).join("")}</div>
-    </div>`);
-  briefTy = [...brief.el.querySelectorAll(".bl")].map(typer);
-
-  cards = ["Job boards","Groups","Your site"].map(t => make("lcard", `<div class="lc"><i>${LINK}</i><span>${t}</span></div>`));
-
-  ledger = make("ledger", `<div class="lift"></div><div class="lg">
-    <div class="lh">Our own job · October 2026</div>
-    <div class="rows">
-    <div class="lr l1"><div class="li"><b>153</b><span><i class="t w">applied in the first four days.</i><i class="t nn">applied in the first four days</i></span></div></div>
-    <div class="lr l2"><div class="li"><b>71</b><span><i class="t w">finished the written interview, with none of us in the room.</i><i class="t nn">finished the written interview</i></span></div></div>
-    <div class="lr l3"><div class="li"><b><svg class="r3" viewBox="0 0 100 80" preserveAspectRatio="none" aria-hidden="true"><path d="${RING}" vector-effect="non-scaling-stroke"/></svg><em class="nv"></em></b><span><i class="t w">were worth a call. </i><strong class="t w">We hired from those three.</strong><i class="t nn">worth a call. </i><strong class="t nn">We hired from them.</strong></span></div></div>
-    </div>
-  </div>`);
-  lgRows = [...ledger.el.querySelectorAll(".lr")].map(r => ({el:r, num:r.querySelector("b"), ty:[...r.querySelectorAll(".t")].map(typer), last:{}, h:0}));
-  for (const g of lgRows){ g.tyW = g.ty.filter(t => t.node.classList.contains("w")); g.tyN = g.ty.filter(t => t.node.classList.contains("nn")); }
-  lgRows[2].num = lgRows[2].el.querySelector(".nv");
-  lgRows[2].el.querySelector("b").style.fontStyle = "normal";
-  lgRows[2].num.style.fontStyle = "normal";
-  lgRing = ledger.el.querySelector(".r3 path");
-
-  const R = rng(20261030);
-  let crowdI = 0;
-  for (let i=0;i<NL;i++){
-    const fin = i===MARIA ? 0 : i===CARLA ? 1 : i===MIKA ? 2 : -1;
-    const front = fin >= 0 || R() < .6;
-    const e = {i, fin, front};
-    e.tone = fin >= 0 ? "#F0EBDE" : TONES[Math.floor(R()*TONES.length)];
-    e.u = R(); e.v = R(); e.rot = (R()-.5)*52; e.skr = (R()-.5)*110;
-    e.angW = (-96 + R()*196)*Math.PI/180;            // from the top right round to below (never across the words)
-    e.angN = (-15 + R()*210)*Math.PI/180;            // phone: from the sides and below
-    e.srot = (R()-.5)*2.6; e.sjx = (R()-.5)*1.6;
-    e.tl = 1.5 + .4*Math.pow(i/(NL-1), .8);
-    if (front){
-      e.name = fin >= 0 ? FIN[fin].name : CROWD[crowdI++ % CROWD.length];
-      e.city = fin >= 0 ? FIN[fin].city : CITY[Math.floor(R()*CITY.length)];
-      e.sc = fin === 0 ? "#1C7A5A" : STAMPC[Math.floor(R()*STAMPC.length)];
+  "use strict";
+  const root = document.documentElement;
+  const desks = [...document.querySelectorAll("#story [data-play]")];
+  const reduce = matchMedia("(prefers-reduced-motion: reduce)");
+  if (!desks.length || reduce.matches || root.getAttribute("data-desk") === "light" || !("IntersectionObserver" in window)) return;
+  const mover = d => d.querySelector("[data-at]") || d;
+  const io = new IntersectionObserver(es => {
+    for (const e of es){
+      if (!e.isIntersecting) continue;
+      io.unobserve(e.target);
+      const d = e.target.closest("[data-play]");
+      d.classList.remove("wait");
+      d.classList.add("play");
     }
-    let inner = "";
-    if (front) inner = `<i class="st" style="--sc:${e.sc}"></i><svg class="pm" viewBox="0 0 60 40"><use href="#pmk"/></svg><span class="nm">${e.name}</span><span class="ad">${e.city}</span><span class="ln"></span>`;
-    else inner = `<svg class="flap" viewBox="0 0 100 66" preserveAspectRatio="none">
-        <path d="M0 66 L40 30 M100 66 L60 30" stroke="rgba(29,51,41,.13)" stroke-width=".6" fill="none" vector-effect="non-scaling-stroke"/>
-        <path d="M0 0 L50 40 L100 0 Z" fill="rgba(29,51,41,.045)" stroke="rgba(29,51,41,.2)" stroke-width=".8" vector-effect="non-scaling-stroke"/></svg>`;
-    inner += `<svg class="tk" viewBox="0 0 16 16"><path d="M2.5 8.8l3.4 3.4 7.6-8.4" fill="none" stroke="#0F6B4F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-    e.html = `<div class="lift"></div><div class="pp" style="--c:${e.tone}">${inner}</div>`;
-    letters.push(e);
-  }
-  // order in the squared stack: the crowd, then the three who leave with Ava's reason, then Mika and Carla on top
-  let kk = 0;
-  for (const e of letters) if (e.fin < 0) e.k = kk++;
-  letters[MIKA].k = kk++; letters[CARLA].k = kk++;
-  // the three set-aside notes come off the top of the crowd
-  letters.forEach(e => { e.as = -1; });
-  for (let j=0;j<3;j++){ const e = letters.find(x => x.fin < 0 && x.k === NL - 4 - j); e.as = j; }
-  // the light desk keeps about a third: the three, the three set aside, and every fourth of the crowd down from
-  // the band's letter; each keeps its place in the full stack, so the stack stands as tall
-  for (const e of letters) e.inLight = e.fin >= 0 || e.as >= 0 || (NL - 7 - e.k) % 4 === 0;
-  for (const e of letters){
-    if (LITE && !e.inLight){ e.skip = true; continue; }
-    const o = make(e.i === MARIA ? "letter fin" : "letter", e.html);
-    Object.assign(e, o);
-    e.tick = o.el.querySelector(".tk"); e.tlast = {};
-  }
-
-  /* Maria's envelope, seen from the back, and the test folded inside it */
-  eback = make("eback", `<div class="lift"></div><div class="ein"></div>`);
-  eflap = make("eflap", `<div class="efl">
-      <svg class="out" viewBox="0 0 100 100" preserveAspectRatio="none" style="filter:drop-shadow(0 1.5px 1.5px rgba(22,40,31,.2))"><path d="M0 0 L50 100 L100 0 Z" fill="#ECE6D7" stroke="rgba(29,51,41,.16)" stroke-width=".8" vector-effect="non-scaling-stroke"/><path class="fs" d="M0 0 L50 100 L100 0 Z" fill="#1D3329" opacity="0"/></svg>
-      <svg class="inn" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0 0 L50 100 L100 0 Z" fill="#D6CDB5" stroke="rgba(29,51,41,.14)" stroke-width=".8" vector-effect="non-scaling-stroke"/></svg>
-    </div>`);
-  eflapIn = eflap.el.querySelector(".efl");
-  eflapFaces = [eflap.el.querySelector(".out"), eflap.el.querySelector(".inn")];
-  eflapShade = eflap.el.querySelector(".fs");
-  epocket = make("epocket", `<svg viewBox="0 0 100 100" preserveAspectRatio="none">
-      <path d="M0 0 L50 54 L100 0 L100 100 L0 100 Z" fill="#EEE8DA"/>
-      <path d="M0 100 L50 62 L100 100" stroke="rgba(29,51,41,.12)" stroke-width="1" fill="none" vector-effect="non-scaling-stroke"/>
-      <path d="M0 0 L50 54 L100 0" stroke="rgba(29,51,41,.2)" stroke-width="1" fill="none" vector-effect="non-scaling-stroke"/>
-    </svg>`);
-  fold = make("fold", `<div class="fsh"></div>
-    <div class="pn p2"><div class="fc fr"><div class="cp">${testHTML()}</div></div></div>
-    <div class="pn p3"><div class="fc fr"><div class="cp">${testHTML()}</div><i class="shd"></i></div><div class="fc bk"><i class="shd"></i></div></div>
-    <div class="pn p1"><div class="fc fr"><div class="cp">${testHTML()}</div><i class="shd"></i></div><div class="fc bk"><span class="lab"><i class="mlg">${LOGO(11)}</i>Chat test · Maria Santos</span><i class="shd"></i></div></div>`);
-  fp1 = fold.el.querySelector(".p1"); fp3 = fold.el.querySelector(".p3");
-  fFaces1 = [fp1.querySelector(".fr"), fp1.querySelector(".bk")];
-  fFaces3 = [fp3.querySelector(".fr"), fp3.querySelector(".bk")];
-  fShd1 = [...fp1.querySelectorAll(".shd")]; fShd3 = [...fp3.querySelectorAll(".shd")];
-  fsh = fold.el.querySelector(".fsh");
-  foldNotes = [...fold.el.querySelectorAll(".notes")];
-
-  /* the test itself, live */
-  test = make("tsheet", `<div class="lift"></div>${testHTML()}<div class="tcover" style="background:${FIN[0].tone}"></div>`);
-  testTy = [...test.el.querySelectorAll(".sg")].map(typer);
-  hls = [...test.el.querySelectorAll(".hl")];
-  noteEls = [...test.el.querySelectorAll(".note")];
-  scoreRing = test.el.querySelector(".score path");
-  scoreNum = test.el.querySelector(".score span");
-  testFoot = test.el.querySelector(".foot .fv");
-  testSeal = test.el.querySelector(".foot .wsi"); testSsh = test.el.querySelector(".foot .ssh"); testRim = testSeal.querySelector(".rim");
-  testCF = test.el.querySelector(".tcf");
-  testCover = test.el.querySelector(".tcover");
-
-  picks = FIN.map((f, j) => {
-    const o = make("pick", `<div class="lift"></div><div class="in"><div class="pf" style="--pc:${f.tone}"><div class="pcw">
-      <span class="sl"><i class="ssh"></i><span class="sli">${sealSVG(j === 0 ? 5 : 11+j*7)}</span></span>
-      <span class="pn">${f.name}</span>
-      <p class="pl">${f.line} <i>— Ava</i></p>
-      <div class="psc"><b><svg class="rg" viewBox="0 0 100 80" preserveAspectRatio="none"><path d="${RING}" vector-effect="non-scaling-stroke"/></svg>${f.score}</b><small>out of 100</small></div>
-      ${f.first ? '<span class="cf">Call first</span>' : ""}
-    </div></div></div>`);
-    o.seal = o.el.querySelector(".sli"); o.ssh = o.el.querySelector(".sl .ssh"); o.rim = o.seal.querySelector(".rim"); o.ring = o.el.querySelector(".rg path"); o.cf = o.el.querySelector(".cf"); o.pcw = o.el.querySelector(".pcw");
-    return o;
-  });
-
-  asides = ASIDE.map(a => make("aside", `<div class="lift"></div><div class="ap" style="--pc:${a.tone}">
-      <span class="an">${a.name}</span><span class="aw">${a.why}</span><b class="asc">${a.score}</b><span class="ast">Set aside</span>
-    </div>`));
-
-  band = make("sband", "");
-
-  yenv = make("yenv", `<div class="lift"></div><div class="yp">
-      <div class="yfrom"><i class="mlg" aria-hidden="true">${LOGO(12)}</i><span>From:<br>your business</span></div>
-      <div class="yto"><span class="a"><small>Job:</small>Customer service agent</span><span class="b">Medical and dental · Online stores</span><span class="b">Software · Home services · Gaming</span></div>
-      <div class="ypost"><i class="ysh"></i><div class="ydrop"></div>${PMARK}</div>
-    </div>`, true);
-  ydrop = yenv.el.querySelector(".ydrop"); ysh = yenv.el.querySelector(".ysh"); ypm = yenv.el.querySelector(".ypm");
-  ylink = document.getElementById("endStart");   // the page's own sign-up link (id endStart), with the visitor's tags on it
-  ydrop.appendChild(ylink);
-}
-
-/* ---------- layout ---------- */
-let L = null, storyTop = 0;
-function measure(o){ o.w = o.el.offsetWidth; o.h = o.el.offsetHeight; }
-const svhEl = stage.querySelector(".svh");
-const visH = () => svhEl.offsetHeight || stage.clientHeight;
-const barH = () => parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--barh")) || 60;
-/* the sizes in between (the stylesheet's own two queries): a tablet held upright, and sideways */
-const mqTab = matchMedia("(min-width: 700px) and (max-width: 1099px) and (orientation: portrait)");
-const mqSide = matchMedia("(min-width: 560px) and (max-width: 899px) and (orientation: landscape), (min-width: 900px) and (max-height: 579px) and (orientation: landscape)");
-const modeNow = () => mqSide.matches ? "side" : mqTab.matches ? "tab" : stage.clientWidth >= 900 ? "wide" : "phone";
-function layout(){
-  const W = stage.clientWidth, H = visH();
-  const mode = modeNow(), side = mode === "side", tab = mode === "tab";
-  const wide = mode === "wide";
-  box.classList.toggle("n", !wide);
-  ledger.el.classList.toggle("narrow", !wide);
-  if (wide && ledger.el.parentNode !== stage) stage.insertBefore(ledger.el, capsEl);
-  if (!wide && ledger.el.parentNode !== box) box.appendChild(ledger.el);
-  brief.el.classList.toggle("narrow", !wide);
-  if (wide && brief.el.parentNode !== stage) stage.insertBefore(brief.el, capsEl);
-  if (!wide && brief.el.parentNode !== box) box.appendChild(brief.el);
-  const BW = wide ? 700 : 360, BH = 600;
-
-  for (const g of lgRows){ g.el.style.height = ""; g.last = {}; }
-  for (const o of [brief, ...sheets, ...cards, ledger, test, ...picks, ...asides, band, yenv]) measure(o);
-  for (const g of lgRows) g.h = g.el.offsetHeight;
-  for (const e of letters){ if (e.skip) continue; measure(e); const nm = e.el.querySelector(".nm"); if (nm) nm.classList.toggle("ov", nm.scrollWidth > nm.clientWidth + 1); }
-  // the folded copy is the same size as the live test
-  const notesMin = test.el.querySelector(".notes");
-  test.el.querySelector(".notes").style.minHeight = "";
-
-  const o = {wide, W, H, mode};
-  o.U = UNIT*H;
-  let x0, x1, y0, y1;
-  if (wide){
-    // words on the left; our own numbers lie on the desk under them
-    let capMax = 0;
-    capEls.forEach(c => { capMax = Math.max(capMax, c.offsetHeight); });
-    const gap = 34, colH = 74 + capMax + gap + ledger.h;
-    // centred, and clear of the bar when the screen has room for both
-    const top = Math.max(26, Math.round((H - colH)/2), Math.min(barH() + 16, H - colH - 10));
-    capsEl.style.top = top + "px";
-    const cr = capsEl.getBoundingClientRect();
-    o.ledger = {x: 56 + ledger.w/2, y: top + 74 + capMax + gap + ledger.h/2, r: -.8};
-    o.ledgerIn = {dx: -460, dy: 60, dr: -10};
-    o.brief = {x: 56 + brief.w/2, y: o.ledger.y - ledger.h/2 + brief.h/2, r: .6};
-    o.briefIn = {dx: -440, dy: 40, dr: -8}; o.briefOut = {dx: -60, dy: 520, dr: 6};
-    x0 = Math.max(cr.right + 28, W*.42); x1 = W - 30; y0 = 24; y1 = H - 18;
-  } else if (side){
-    // sideways: the words down the left, centred in the screen under the bar; the phone's desk beside them
-    let need = 0;
-    capEls.forEach(c => { need = Math.max(need, c.offsetTop + c.offsetHeight); });
-    const bh = barH(), top = Math.max(bh + 10, Math.round(bh + (H - bh - need)/2));
-    capsEl.style.top = top + "px";
-    const cr = capsEl.getBoundingClientRect();
-    x0 = cr.right + 20; x1 = W - 16; y0 = bh + 4; y1 = H - 6;
-  } else {
-    capsEl.style.top = "";
-    let need = 0;
-    capEls.forEach(c => { need = Math.max(need, c.offsetTop + c.offsetHeight); });
-    const capH = Math.ceil(need + 18 + 10);
-    capsEl.style.setProperty("--caph", capH + "px");
-    x0 = tab ? (W >= 900 ? 54 : 30) : 15; x1 = W - x0; y0 = capsEl.offsetTop + capH; y1 = H - 8;   // the words start under the bar
-  }
-  const fit = () => {
-    const k = Math.max(.5, Math.min((x1-x0)/BW, (y1-y0)/BH, wide ? 1.3 : tab ? (W >= 900 ? 1.6 : 1.4) : 1.12));
-    // a tablet's desk takes some of the room it does not need above it; a phone's starts right under the words
-    return {k, ox: x0 + ((x1-x0) - BW*k)/2, oy: wide || side ? y0 + ((y1-y0) - BH*k)/2 : y0 + 2 + (tab ? Math.max(0, (y1-y0) - BH*k)*.35 : 0)};
-  };
-  let F = fit();
-  // a short screen: the desk's top row (the notes set aside, 40 down the box) would sit under the bar, so the desk starts below it
-  if (wide && F.oy + 40*F.k < barH() + 6){ y0 = Math.max(y0, barH() - 14); F = fit(); }
-  const {k, ox, oy} = F;
-  box.style.transform = `translate(${f2(ox)}px,${f2(oy)}px) scale(${k.toFixed(4)})`;
-  o.k = k;
-
-  // the test and its folded copy
-  box.style.setProperty("--sw", test.w + "px");
-  if (wide){
-    let lastTop = -99;
-    hls.forEach((m, n) => { const top = Math.max(m.offsetTop + 2, lastTop + 24); noteEls[n].style.top = top + "px"; lastTop = top; });
-    notesMin.style.minHeight = (lastTop + 24) + "px";
-  } else { noteEls.forEach(n => { n.style.top = ""; }); notesMin.style.minHeight = ""; }
-  foldNotes.forEach(nb => { nb.style.minHeight = notesMin.style.minHeight; });
-  measure(test);
-  box.style.setProperty("--sh", test.h + "px");
-  measure(fold);
-  o.SW = test.w; o.SH = test.h; o.FH = test.h/3;
-  o.EW = o.SW + (wide ? 44 : 16); o.EH = Math.round(o.EW*(wide ? 80/124 : 62/96));
-  box.style.setProperty("--bw", o.EW + "px"); box.style.setProperty("--bh", o.EH + "px");
-  for (const x of [eback, eflap, epocket]) measure(x);
-  o.ew = letters[MARIA].w; o.Sbig = o.EW/o.ew;
-
-  const sh = sheets[2].h;
-  if (wide){
-    o.fan = [{x:262,y:330,r:-6},{x:340,y:318,r:3.2},{x:418,y:334,r:-1.4}];
-    o.enter = [{dx:110,dy:600,dr:12},{dx:160,dy:620,dr:-10},{dx:200,dy:640,dr:8}];
-    o.corner = {x:160,y:150,r:-4,s:.56};
-    o.out = [{dx:-60,dy:860,dr:-12},{dx:60,dy:880,dr:10}];
-    o.dOut = {dx:-60,dy:-760,dr:-8};
-    o.linkFrom = [{x:190,y:120},{x:196,y:150},{x:186,y:180}];
-    o.linkAt = [{x:438,y:92,r:-4},{x:482,y:166,r:2.5},{x:446,y:240,r:-1.6}];
-    o.linkTo = [{x:900,y:-160},{x:1060,y:180},{x:900,y:720}];
-    o.pile = {x:396,y:440,rx:236,ry:116};
-    o.E = {x:330,y:300};
-    o.eDrop = {dx:-30,dy:780,dr:-7};
-    o.stack = {x:612,y:540,s:.9};
-    o.G = {x:330,y:300,r:-.6};
-    o.slots = [{x:326,y:492,r:-.9},{x:222,y:268,r:2.2},{x:274,y:380,r:-2.0}];
-    o.asideAt = [{x:556,y:74,r:2.2},{x:548,y:148,r:-1.5},{x:560,y:220,r:1.1}];
-    o.Y = {x:300,y:300,r:-1.4};
-    o.yIn = {dx:120,dy:-620,dr:9};
-    o.off = {pick:{dx:-140,dy:760,dr:-10}, aside:{dx:420,dy:60,dr:12}, stack:{dx:240,dy:420,dr:8}};
-    o.toss = 720;
-    o.bandText = "150 set aside";
-  } else {
-    const LT = ledger.h + 12;              // the ledger strip lies along the top of the desk
-    o.LT = LT;
-    o.ledger = {x:180, y:2 + ledger.h/2, r:0};
-    o.ledgerIn = {dx:-430, dy:24, dr:-7};
-    // placed by their top edges, so each folder tab shows above the sheet in front of it
-    o.fan = [{x:172,y:24 + sheets[0].h/2,r:-3},{x:186,y:40 + sheets[1].h/2,r:2},{x:180,y:56 + sheets[2].h/2,r:-1}];
-    const fanBottom = 56 + sheets[2].h;
-    o.brief = {x:180, y:Math.min(598 - brief.h/2, fanBottom + 14 + brief.h/2), r:.5};
-    o.briefIn = {dx:-420, dy:30, dr:-8}; o.briefOut = {dx:-30, dy:520, dr:6};
-    o.enter = [{dx:50,dy:720,dr:10},{dx:70,dy:740,dr:-8},{dx:60,dy:760,dr:6}];
-    o.corner = {x:86, y:LT + 16 + sh*.46/2, r:-4, s:.46};
-    o.out = [{dx:-40,dy:860,dr:-12},{dx:50,dy:880,dr:10}];
-    // sideways the words lie to the left of the desk: the job sheet leaves upward, as on a computer, never across them
-    o.dOut = side ? {dx:40,dy:-760,dr:8} : {dx:-460,dy:-60,dr:-14};
-    o.linkFrom = [{x:110,y:LT + 60},{x:114,y:LT + 80},{x:108,y:LT + 100}];
-    o.linkAt = [{x:262,y:LT + 30,r:-4},{x:270,y:LT + 86,r:3},{x:256,y:LT + 142,r:-2}];
-    o.linkTo = [{x:600,y:LT - 40},{x:620,y:LT + 200},{x:520,y:900}];
-    o.pile = {x:180,y:LT + 296,rx:122,ry:100};
-    o.E = {x:180,y:LT + 250};
-    o.eDrop = {dx:-20,dy:760,dr:-6};
-    o.stack = {x:62,y:552,s:.78};
-    o.G = {x:180,y:Math.min(598 - test.h/2, LT + 4 + test.h/2),r:-.5};
-    o.slots = [{x:184,y:LT + 272,r:-.6},{x:182,y:LT + 60,r:1.6},{x:176,y:LT + 166,r:-1.5}];
-    o.asideAt = [{x:232,y:LT + 352,r:1.4},{x:226,y:LT + 398,r:-1},{x:234,y:LT + 444,r:.8}];
-    o.Y = {x:180,y:Math.round((LT + 598)/2),r:-1.2};
-    o.yIn = {dx:60,dy:-640,dr:8};
-    o.off = {pick:{dx:-120,dy:780,dr:-10}, aside:{dx:340,dy:120,dr:12}, stack:{dx:-260,dy:300,dr:-8}};
-    o.toss = 560;
-    o.bandText = "150 set aside";
-  }
-  // the pile: where each letter lands
-  o.P = letters.map(e => {
-    if (e.i === MARIA) return {x:o.pile.x + o.pile.rx*.04, y:o.pile.y - o.pile.ry*.18, r:-4};
-    const rr = Math.sqrt(.06 + .94*e.u), a = e.v*Math.PI*2;
-    return {x:o.pile.x + Math.cos(a)*rr*o.pile.rx, y:o.pile.y + Math.sin(a)*rr*o.pile.ry, r:e.rot};
-  });
-  o.dist = o.P.map(p => Math.hypot((p.x-o.pile.x)/o.pile.rx, (p.y-o.pile.y)/o.pile.ry));
-  band.el.textContent = o.bandText; band.el.style.width = ((wide ? 124 : 96)*o.stack.s + 6).toFixed(1) + "px"; measure(band);
-  L = o;
-
-  story.style.height = Math.round(stage.clientHeight + SPAN*o.U) + "px";
-  ysh.style.width = ydrop.offsetWidth + "px"; ysh.style.height = ydrop.offsetHeight + "px";
-  ysh.style.left = ydrop.offsetLeft + "px"; ysh.style.top = ydrop.offsetTop + "px";
-  storyTop = story.getBoundingClientRect().top + scrollY;
-  for (const x of [brief, ...sheets, ...cards, ledger, test, fold, eback, eflap, epocket, ...picks, ...asides, band, yenv, ...letters]) x.last = {};
-  for (const x of [...picks, ...lgRows, ...letters]) x.tlast = {};
-  yenv.el._c = {}; ydrop._c = {}; ypm._c = {};
-}
-
-/* ---------- drawing ---------- */
-/* a wax seal: it falls opaque, its shadow closes in under it, it presses and the wax squeezes out a little */
-function drawSeal(wax, sh, rim, cache, key, p, rot){
-  if (LITE){
-    // the light desk: a plainer press, the wax comes down and settles with its shadow already under it
-    const q = clamp(p/SEAL_F), so = clamp(q*3);
-    css(wax, cache, key+"o", "opacity", so.toFixed(2));
-    css(wax, cache, key+"t", "transform", `scale(${(1 + .3*(1 - eOut3(q))).toFixed(3)}) rotate(${f2(rot)}deg)`);
-    css(sh, cache, key+"ho", "opacity", (so*.55).toFixed(3));
-    css(sh, cache, key+"ht", "transform", "translate(0px,1px)");
-    return;
-  }
-  const S = sealPose(p);
-  css(wax, cache, key+"o", "opacity", S.so.toFixed(3));
-  css(wax, cache, key+"t", "transform", `scale(${S.ss.toFixed(3)}) rotate(${f2(rot + 3*S.h)}deg)`);
-  css(sh, cache, key+"ho", "opacity", (S.so*(.55 - .3*S.h)).toFixed(3));
-  css(sh, cache, key+"ht", "transform", `translate(${f2(-12*S.h)}px,${f2(1 + 18*S.h)}px) scale(${(1 + .3*S.h).toFixed(3)})`);
-  css(rim, cache, key+"r", "transform", `scale(${S.rim.toFixed(3)})`);
-}
-/* a turn: in 3D on a capable device, flat on the light desk (the paper narrows to its edge) */
-const turnY = (deg, per) => LITE ? ` scaleX(${Math.cos(deg*Math.PI/180).toFixed(4)})` : ` perspective(${per}px) rotateY(${f2(deg)}deg)`;
-const turnX = (deg, per) => LITE ? `scaleY(${Math.cos(deg*Math.PI/180).toFixed(4)})` : `perspective(${per}px) rotateX(${f2(deg)}deg)`;
-/* a shadow under paper in the air is its own layer only while it shows, so the paper is never drawn again for it */
-function liftOn(c, el, on){ if (c.lw !== on){ c.lw = on; el.style.willChange = on ? "transform,opacity" : ""; } }
-function put(o, st){
-  const c = o.last;
-  const op = st ? clamp(st.o == null ? 1 : st.o).toFixed(3) : "0.000";
-  if (c.o !== op){
-    c.o = op; o.el.style.opacity = op;
-    const vis = op === "0.000" && !o.keep ? "hidden" : "";
-    if (c.vis !== vis){ c.vis = vis; o.el.style.visibility = vis; }
-  }
-  if (op === "0.000"){ if (o.lift) liftOn(c, o.lift, false); return; }
-  let tf = `translate(${f2(st.x - o.w/2)}px,${f2(st.y - o.h/2)}px) rotate(${f2(st.r || 0)}deg) scale(${(st.s == null ? 1 : st.s).toFixed(4)})`;
-  if (st.sx != null) tf += ` scaleX(${st.sx.toFixed(4)})`;
-  if (st.sy != null) tf += ` scaleY(${st.sy.toFixed(4)})`;
-  if (st.ry) tf += turnY(st.ry, st.per || 900);
-  if (c.tf !== tf){ c.tf = tf; o.el.style.transform = tf; }
-  const z = st.z || 1;
-  if (c.z !== z){ c.z = z; o.el.style.zIndex = z; }
-  if (o.lift){
-    const lv = clamp(st.lift || 0), lo = (lv*.9).toFixed(3);
-    // (the end envelope stays drawn from the start: a layer for its shadow would leave it drawn again a little softer at rest)
-    if (c.lo !== lo){ c.lo = lo; liftOn(c, o.lift, lo !== "0.000" && !o.keep); o.lift.style.opacity = lo; o.lift.style.transform = `translate(${f2(-lv*18)}px,${f2(lv*30)}px)`; }
-  }
-}
-const css = (el, cache, key, prop, val) => { if (cache[key] !== val){ cache[key] = val; el.style[prop] = val; } };
-const show = (el, cache, key, on) => css(el, cache, key, "display", on ? "block" : "none");
-
-function stackPose(e){
-  const s = L.stack.s, step = L.wide ? 1 : .8;
-  return {x: L.stack.x - e.k*.32*step + e.sjx, y: L.stack.y - e.k*.66*step, r: e.srot, s};
-}
-/* a letter lifts off the stack, turns, and half way round becomes a slip or a note */
-function flyFrom(e, at, S, T, dur){
-  const u = seg(T, at, at + dur);
-  const B = stackPose(e), q = eIO(u);
-  return {u, x:lerp(B.x, S.x, q), y:lerp(B.y, S.y, q) - Math.sin(Math.PI*u)*34, r:lerp(B.r, S.r, q)};
-}
-const finFly = (j, T) => flyFrom(letters[j === 1 ? CARLA : MIKA], FLY[j], L.slots[j], T, FLYD);
-const asFly = (j, T) => flyFrom(letters.find(e => e.as === j), ASF[j], L.asideAt[j], T, ASD);
-/* the ending: what is on the desk slides off */
-function offset(kind, j, T){
-  const u = eIn(seg(T, OFF0 + j*.03, OFF0 + .17 + j*.03));
-  const D = L.off[kind];
-  return {u, dx: D.dx*u, dy: D.dy*u, dr: D.dr*u};
-}
-
-function letterState(e, T){
-  const P = L.P[e.i], ta = e.tl - .11;
-  if (T < ta) return null;
-  let x, y, r, s = 1, lift = 0, o = 1, ry = 0, z = 20 + e.i, sx = null, per = 0;
-  if (T < e.tl){
-    const p = (T - ta)/(e.tl - ta), q = eOut3(p), a = L.wide ? e.angW : e.angN, D = L.toss;
-    const bow = Math.sin(Math.PI*q)*D*.05*(e.skr > 0 ? 1 : -1);
-    x = lerp(P.x + Math.cos(a)*D, P.x, q) - Math.sin(a)*bow; y = lerp(P.y + Math.sin(a)*D, P.y, q) + Math.cos(a)*bow;
-    r = lerp(P.r + e.skr, P.r, eOut3(clamp(p*1.15))); lift = 1 - clamp(p/.7); s = 1 + .1*lift;
-  } else { x = P.x; y = P.y; r = P.r; }
-  if (e.i === MARIA){
-    // her letter lifts out of the pile, grows to the size of the open envelope, and turns over
-    const u = seg(T, M_LIFT[0], M_LIFT[1]), q = eIO(u);
-    if (u > 0){
-      x = lerp(x, L.E.x, q); y = lerp(y, L.E.y, q) - Math.sin(Math.PI*u)*24; r = lerp(r, 0, q);
-      s = lerp(1, L.Sbig, q); lift = Math.max(lift*(1 - q), .8*Math.sin(Math.PI*Math.min(u*.9, .5)))*clamp((1.5 - s)/.5);   // once she is big, her own shadow carries it
-      z = 150;
-    }
-    const f = seg(T, M_FLIP[0], M_FLIP[1]);
-    if (f >= .5) return null;
-    if (f > 0){ ry = 180*f; per = Math.round(e.w*2.6); s *= 1 + .05*Math.sin(Math.PI*f); y -= 10*Math.sin(Math.PI*f); lift = 0; }
-  } else {
-    const q = seg(T, 2.03 + e.k*.0025, 2.15 + e.k*.0025);
-    if (q > 0){
-      const B = stackPose(e), u = eIO(q);
-      x = lerp(x, B.x, u); y = lerp(y, B.y, u); r = lerp(r, B.r, u); s = lerp(1, B.s, u);
-      lift = Math.max(lift, .45*Math.sin(Math.PI*q));
-      z = 20 + e.k;
-    }
-    let F = null;
-    if (e.fin > 0) F = finFly(e.fin, T);
-    else if (e.as >= 0) F = asFly(e.as, T);
-    if (F && F.u > 0){
-      if (F.u >= .5) return null;
-      x = F.x; y = F.y; r = F.r; s = lerp(L.stack.s, 1.15, F.u*2);
-      ry = 90*seg(F.u, .24, .5); lift = .8*Math.sin(Math.PI*F.u); z = 140 + (e.fin > 0 ? e.fin : 3 + e.as);
-    }
-    if (T > OFF0){ const O = offset("stack", 0, T); x += O.dx; y += O.dy; r += O.dr; if (O.u >= 1) return null; }
-  }
-  return {x, y, r, s, lift, o, ry, z, sx, per};
-}
-
-function render(T){
-  /* captions: the headline leads, its paragraph follows; on the way out the headline goes first */
-  for (let c=0;c<5;c++){
-    const v = capV[c], cur = c === capCur;
-    const el = capEls[c], cc = el._c || (el._c = {});
-    const h = el._h || (el._h = el.querySelector("h2")), pp = el._p || (el._p = el.querySelector("p"));
-    let oh, op, yh, yp;
-    if (cur){ const a = eOut3(v), b = eOut3(clamp((v - .2)/.8)); oh = a; op = b; yh = (1 - a)*22; yp = (1 - b)*22; }
-    else { const w = 1 - v, a = clamp(w/.75); oh = 1 - a; op = v*v; yh = -eIn(a)*16; yp = -eIn(w)*16; }
-    css(el, cc, "o", "opacity", v > 0 ? "1" : "0");
-    css(h, cc, "ho", "opacity", oh.toFixed(3)); css(h, cc, "ht", "transform", `translate3d(0,${f2(yh)}px,0)`);
-    css(pp, cc, "po", "opacity", op.toFixed(3)); css(pp, cc, "pt", "transform", `translate3d(0,${f2(yp)}px,0)`);
-    const on = cur && v > .5;
-    if (cc.on !== on){ cc.on = on; el.classList.toggle("on", on); }
-  }
-  /* the rail: one pen line that travels on to the next word (and back, when you go back) */
-  const rc = Math.min(3, capCur);
-  for (let j=0;j<4;j++){
-    const v = railV[j], d = railDir[j];
-    const off = j === rc ? d*100*(1 - eIOs(v)) : -d*100*eIOs(1 - v);
-    const cc = railBtns[j]._c || (railBtns[j]._c = {});
-    css(railPaths[j], cc, "d", "strokeDashoffset", off.toFixed(1));
-    const on = j === capCur;
-    if (cc.on !== on){ cc.on = on; railBtns[j].classList.toggle("on", on); if (on) railBtns[j].setAttribute("aria-current", "step"); else railBtns[j].removeAttribute("aria-current"); }
-  }
-  {
-    const cc = railEl._c || (railEl._c = {});
-    const ro = eIOs(railO);
-    css(railEl, cc, "o", "opacity", ro.toFixed(3));
-    css(railEl, cc, "pe", "pointerEvents", ro > .2 ? "auto" : "none");
-  }
-
-  /* chapter 1: you tell Ava about your business... */
-  {
-    const a = seg(T, BRIEF_IN[0], BRIEF_IN[1]), b = seg(T, BRIEF_OUT[0], BRIEF_OUT[1]);
-    if (a <= 0 || b >= 1) put(brief, null);
-    else {
-      const B = L.brief, I = L.briefIn, O = L.briefOut, qa = eOut3(a), qb = eIn(b);
-      put(brief, {x:lerp(B.x + I.dx, B.x, qa) + O.dx*qb, y:lerp(B.y + I.dy, B.y, qa) + O.dy*qb, r:lerp(B.r + I.dr, B.r, bk(a)) + O.dr*qb,
-        lift:Math.max(1 - a, .7*Math.sin(Math.PI*Math.min(b*1.4, .5))), z:7});
-    }
-    BRIEF_T.forEach(([t0, t1, e0, e1], n) => {
-      const t = briefTy[n], p = seg(T, t0, t1), e = seg(T, e0, e1);
-      setT(t, t.text.length*p*(1 - e), (p > 0 && p < 1) || (e > 0 && e < 1));
-    });
-  }
-
-  /* ...and Ava writes a job, and a test, for each kind of business; chapter 2 clears the desk */
-  sheets.forEach((sh, n) => {
-    const F = L.fan[n], En = L.enter[n];
-    const u = seg(T, ENTER[n][0], ENTER[n][1]);
-    if (u <= 0){ put(sh, null); typeSeq(sh.ty, 0); return; }
-    const q = eOut3(u);
-    let x = lerp(F.x + En.dx, F.x, q), y = lerp(F.y + En.dy, F.y, q), r = lerp(F.r + En.dr, F.r, bk(u)), s = 1;
-    let lift = 1 - clamp(u/.8), z = 10 + n;
-    if (n < 2){
-      const v = eIO(seg(T, 1.0 + n*.05, 1.24 + n*.05)), O = L.out[n];
-      if (v >= 1){ put(sh, null); return; }
-      x += O.dx*v; y += O.dy*v; r += O.dr*v; lift = Math.max(lift, .7*Math.sin(Math.PI*Math.min(v*1.6, .5)));
-    } else {
-      const v = eIO(seg(T, 1.0, 1.26)), C = L.corner;
-      x = lerp(x, C.x, v); y = lerp(y, C.y, v); r = lerp(r, C.r, v); s = lerp(1, C.s, v);
-      lift = Math.max(lift, .55*Math.sin(Math.PI*v));
-      const w = eIO(seg(T, 2.0, 2.18)), D = L.dOut;
-      if (w >= 1){ put(sh, null); return; }
-      x += D.dx*w; y += D.dy*w; r += D.dr*w; lift = Math.max(lift, .6*Math.sin(Math.PI*Math.min(w*1.5, .5)));
-    }
-    put(sh, {x, y, r, s, lift, z});
-    typeSeq(sh.ty, seg(T, TYPE[n][0], TYPE[n][1]));
-  });
-
-  /* chapter 2: the link goes out to three places, and waits there a moment... */
-  cards.forEach((cd, j) => {
-    const a = seg(T, 1.12 + j*.03, 1.24 + j*.03), b = seg(T, 1.4 + j*.03, 1.52 + j*.03);
-    if (a <= 0 || b >= 1){ put(cd, null); return; }
-    const F = L.linkFrom[j], A = L.linkAt[j], B = L.linkTo[j], qa = eOut3(a), qb = eIn(b);
-    const x = lerp(lerp(F.x, A.x, qa), B.x, qb), y = lerp(lerp(F.y, A.y, qa), B.y, qb);
-    const r = lerp(lerp(-12, A.r, qa), A.r + (j - 1)*22, b);
-    put(cd, {x, y, r, s:lerp(.7, 1, qa), o:clamp(a*4), lift:.2 + .6*Math.max(1 - a, b), z:9});
-  });
-
-  /* ...the ledger keeps our own count... */
-  {
-    const u = seg(T, 1.06, 1.28);
-    if (u <= 0) put(ledger, null);
-    else {
-      const q = eOut3(u), G = L.ledger, I = L.ledgerIn;
-      put(ledger, {x:lerp(G.x + I.dx, G.x, q), y:lerp(G.y + I.dy, G.y, q), r:lerp(G.r + I.dr, G.r, bk(u)), lift:1 - u, z:8});
-    }
-    const rows = [
-      {g0:-9, g1:-8.9, n0:1.2, n1:1.88, to:153, t0:1.2, t1:1.36},
-      {g0:3.42, g1:3.5, n0:3.48, n1:3.58, to:71, t0:3.48, t1:3.6},
-      {g0:4.6, g1:4.68, n0:4.66, n1:4.7, to:3, t0:4.68, t1:4.84}
-    ];
-    rows.forEach((R, j) => {
-      const g = lgRows[j], c = g.last;
-      const gp = eIOs(seg(T, R.g0, R.g1));
-      if (L.wide){
-        if (j > 0) css(g.el, c, "hh", "height", (g.h*gp).toFixed(1) + "px");
-        css(g.el, c, "op", "opacity", "1"); css(g.el, c, "tf", "transform", "none");
-      } else {
-        css(g.el, c, "hh", "height", "");
-        css(g.el, c, "op", "opacity", gp.toFixed(3));
-        css(g.el, c, "tf", "transform", `translateY(${f2((1 - eOut3(gp))*10)}px)`);
-      }
-      const started = T >= R.n0;
-      const v = started ? String(Math.round(R.to*(j === 0 ? eIn(seg(T, R.n0 + .14, R.n1))*.35 + .65*eIOs(seg(T, R.n0 + .18, R.n1)) : eIOs(seg(T, R.n0, R.n1))))) : "";
-      if (c.v !== v){ c.v = v; g.num.textContent = v; }
-      typeSeq(L.wide ? g.tyW : g.tyN, seg(T, R.t0, R.t1));
-    });
-    const cr = ledger.last;
-    css(lgRing, cr, "ring", "strokeDashoffset", (300*(1 - eIOs(BEATS.lring.p))).toFixed(1));
-  }
-
-  /* ...and letters come back: one for every few people who applied */
-  for (const e of letters){
-    if (e.skip) continue;
-    const st = letterState(e, T);
-    put(e, st);
-    if (st){
-      const tp = e.i === MARIA ? 0 : seg(T, 2.02 + L.dist[e.i]*.08 + (e.i % 4)*.006, 2.06 + L.dist[e.i]*.08 + (e.i % 4)*.006);
-      if (LITE){ const to = tp >= .5 ? "1" : "0"; if (e.tlast.o !== to){ e.tlast.o = to; e.tick.style.opacity = to; } }   // simply there once read
-      else {
-        const to = tp.toFixed(3);
-        if (e.tlast.o !== to){ e.tlast.o = to; e.tick.style.opacity = to; e.tick.style.transform = `scale(${(.4 + .6*backOut(tp)).toFixed(3)})`; }
-      }
-    }
-  }
-
-  /* chapter 3: Maria's envelope turns over, opens, and the test comes out folded in three */
-  {
-    const f = seg(T, M_FLIP[0], M_FLIP[1]);
-    const th = 180*eIO(seg(T, M_FLAP[0], M_FLAP[1]));
-    const dr = seg(T, M_DROP[0], M_DROP[1]);
-    const E = L.E, ce = eflap.last;
-    if (f < .5 || dr >= 1){ put(eback, null); put(eflap, null); put(epocket, null); }
-    else {
-      const d = eIn(dr), D = L.eDrop;
-      const pose = {x:E.x + D.dx*d, y:E.y + D.dy*d - 10*Math.sin(Math.PI*f), r:D.dr*d, s:1 + .05*Math.sin(Math.PI*f), ry: f < 1 ? 180*f - 180 : 0, per:Math.round(L.EW*2.6)};
-      put(eback, {...pose, z:140});
-      put(eflap, {...pose, z: th > 90 ? 141 : 145});
-      put(epocket, {...pose, z:143});
-      css(eflapIn, ce, "t", "transform", turnX(th, Math.round(L.EW*1.6)));
-      show(eflapFaces[0], ce, "f0", th <= 90); show(eflapFaces[1], ce, "f1", th > 90);
-      css(eflapShade, ce, "s", "opacity", (Math.sin(th*Math.PI/180)*.16).toFixed(3));
-    }
-    const ri = eIO(seg(T, M_RISE[0], M_RISE[1])), mv = eIO(seg(T, M_MOVE[0], M_MOVE[1]));
-    const u1 = eIO(seg(T, M_U1[0], M_U1[1])), u3 = eIO(seg(T, M_U3[0], M_U3[1]));
-    if (T < M_FLAP[0] || T >= M_SWAP) put(fold, null);
-    else {
-      const inY = E.y + lerp(L.EH*.06, -L.EH*.4, ri);
-      put(fold, {x:lerp(E.x, L.G.x, mv), y:lerp(inY, L.G.y, mv), r:lerp(0, L.G.r, mv), z:142});
-      const cf = fold.last, P = Math.round(L.SW*2.6);
-      const t1 = -180*(1 - u1), t3 = 180*(1 - u3);
-      css(fp1, cf, "t1", "transform", turnX(t1, P));
-      css(fp3, cf, "t3", "transform", turnX(t3, P));
-      show(fFaces1[0], cf, "a0", t1 >= -90); show(fFaces1[1], cf, "a1", t1 < -90);
-      show(fFaces3[0], cf, "b0", t3 <= 90); show(fFaces3[1], cf, "b1", t3 > 90);
-      const top = L.FH*(1 - Math.max(0, Math.cos(t1*Math.PI/180))), bot = L.FH*2 + L.FH*Math.max(0, Math.cos(t3*Math.PI/180));
-      if (LITE){
-        // the light desk: the panels unfold unshaded, and the sheet's shadow stretches with them (never laid out again)
-        css(fsh, cf, "fx", "transform", `translateY(${f2(top)}px) scaleY(${((bot - top)/(3*L.FH)).toFixed(4)})`);
-      } else {
-        const s1 = (Math.abs(Math.sin(t1*Math.PI/180))*.24).toFixed(3), s3 = (Math.abs(Math.sin(t3*Math.PI/180))*.24).toFixed(3);
-        fShd1.forEach((x, n) => css(x, cf, "s1"+n, "opacity", s1)); fShd3.forEach((x, n) => css(x, cf, "s3"+n, "opacity", s3));
-        css(fsh, cf, "ft", "top", f2(top) + "px"); css(fsh, cf, "fh", "height", f2(bot - top) + "px");
-      }
-    }
-  }
-
-  /* chapter 3: the test, opened and marked; chapter 4 folds it into Maria's slip */
-  {
-    const c = test.last;
-    const G = L.G, v = eIO(seg(T, T_FOLD[0], T_FOLD[1]));
-    const sF = (L.wide ? 380 : 332)/test.w, hF = (L.wide ? 136 : 116)/sF/test.h;
-    const sb = BEATS.tseal.p, cq = BEATS.tcf.p;
-    // the words go under plain paper before anything is cut, and the paper closes round Maria's slip
-    const a = 50*(1 - hF)*eIO(seg(v, .3, 1));
-    if (T < M_SWAP || T >= T_FOLD[1]) put(test, null);
-    else {
-      // the sheet gives a little under each stamp
-      const jolt = T < T_FOLD[0] ? .012*Math.sin(Math.PI*clamp(pressOf(sb)/.6)) + .01*Math.sin(Math.PI*clamp((cq - .6)/.4)) : 0;
-      // the light desk: the plain paper narrows round the slip instead of being cut (no new drawing each frame)
-      put(test, {x:G.x, y:G.y, r:G.r, s:lerp(1, sF, v)*(1 - jolt), sy: LITE && a >= .05 ? 1 - a/50 : null, lift:.45*Math.sin(Math.PI*v), z:130});
-    }
-    css(testCover, c, "cv", "opacity", eIOs(seg(v, .08, .42)).toFixed(3));
-    const clip = a < .05 || LITE ? "none" : `polygon(-60px ${f2(a)}%, calc(100% + 60px) ${f2(a)}%, calc(100% + 60px) ${f2(100 - a)}%, -60px ${f2(100 - a)}%)`;
-    css(test.el, c, "clip", "clipPath", clip);
-    typeSeq(testTy, seg(T, 2.72, 2.96));
-    hls.forEach((m, n) => {
-      const p = 1 - Math.pow(1 - seg(T, 2.98 + n*.07, 3.05 + n*.07), 1.7);   // a quick press, a slower lift
-      css(m, c, "h"+n, "backgroundSize", `${p > 0 ? 10 : 0}px 50%,${(p*100).toFixed(1)}% 100%`);
-      css(m, c, "hp"+n, "backgroundPosition", `${(p*100).toFixed(1)}% 76%,0 var(--hy)`);
-      const q = seg(T, 3.01 + n*.07, 3.07 + n*.07);
-      css(noteEls[n], c, "n"+n, "opacity", q.toFixed(3));
-      css(noteEls[n], c, "nt"+n, "transform", `translateX(${f2((1 - eOut3(q))*-8)}px)`);
-    });
-    const fq = seg(T, 3.2, 3.26);
-    css(testFoot, c, "fo", "opacity", fq.toFixed(3)); css(testFoot, c, "ft", "transform", `translateY(${f2((1 - eOut3(fq))*5)}px)`);
-    css(scoreNum, c, "num", "opacity", seg(T, 3.24, 3.28).toFixed(3));
-    css(scoreRing, c, "ring", "strokeDashoffset", (300*(1 - eIOs(BEATS.sring.p))).toFixed(1));
-    // Ava's seal drops beside her verdict, then CALL FIRST is stamped
-    drawSeal(testSeal, testSsh, testRim, c, "s", sb, -14);
-    const csc = cq < .6 ? lerp(1.25, .98, eIn(cq/.6)) : lerp(.98, 1, eOut3((cq - .6)/.4));
-    css(testCF, c, "co", "opacity", (.9*clamp(cq*6)).toFixed(3));
-    css(testCF, c, "ct", "transform", `rotate(-5deg) scale(${csc.toFixed(3)})`);
-  }
-
-  /* chapter 4: three land on the desk, sealed */
-  picks.forEach((pk, j) => {
-    const S = L.slots[j];
-    let st = null;
-    let ink = false;
-    if (j === 0){
-      const u = seg(T, P0_MOVE[0], P0_MOVE[1]), G = L.G;
-      if (T >= T_FOLD[1]){
-        const q = eIO(u);
-        st = {x:lerp(G.x, S.x, q), y:lerp(G.y, S.y, q), r:lerp(G.r, S.r, q), s:1, lift:.7*Math.sin(Math.PI*u), z:160};
-      } else if (T > T_FOLD[0] && eIO(seg(T, T_FOLD[0], T_FOLD[1])) >= .34){
-        st = {x:G.x, y:G.y, r:G.r, s:1, z:131}; ink = true;   // printed on the folding test, at the slip's own size
-      }
-      if (pk.ink !== ink){ pk.ink = ink; pk.el.classList.toggle("ink", ink); }
-    } else {
-      const F = finFly(j, T);
-      if (F.u >= .5){
-        const w = seg(F.u, .5, 1);
-        st = {x:F.x, y:F.y, r:F.r, s:lerp(L.wide ? .42 : .38, 1, eOut3(w)), ry:-90*(1 - seg(F.u, .5, .74)), lift:.8*Math.sin(Math.PI*F.u), z:150 + j};
-      }
-    }
-    if (st){
-      if (j > 0){ const pr = pressOf(BEATS["seal"+j].p); if (pr > 0 && pr < .6) st.s *= 1 - .03*Math.sin(Math.PI*pr/.6); }
-      if (T > 4.3) st.z = j === 0 ? 163 : 160 + j;
-      if (T > OFF0){ const O = offset("pick", 2 - j, T); st.x += O.dx; st.y += O.dy; st.r += O.dr; if (O.u >= 1) st = null; }
-    }
-    put(pk, st);
-    const c = pk.last;
-    if (j === 0){
-      css(pk.pcw, c, "cw", "opacity", (ink ? eIOs(seg(eIO(seg(T, T_FOLD[0], T_FOLD[1])), .34, .72)) : 1).toFixed(3));
-      drawSeal(pk.seal, pk.ssh, pk.rim, c, "s", 1, -14);
-      css(pk.ring, c, "rg", "strokeDashoffset", "0");
-      css(pk.cf, c, "co", "opacity", ".88"); css(pk.cf, c, "ct", "transform", "rotate(-4deg)");
-    } else {
-      drawSeal(pk.seal, pk.ssh, pk.rim, c, "s", BEATS["seal"+j].p, j*23 - 12);
-      css(pk.ring, c, "rg", "strokeDashoffset", (300*(1 - eIOs(BEATS["ring"+j].p))).toFixed(1));
-    }
-  });
-
-  /* chapter 4: the rest, each with Ava's reason */
-  asides.forEach((as, j) => {
-    const F = asFly(j, T);
-    let st = null;
-    if (F.u >= .5){
-      const w = seg(F.u, .5, 1);
-      st = {x:F.x, y:F.y, r:F.r, s:lerp(.4, 1, eOut3(w)), ry:-90*(1 - seg(F.u, .5, .74)), lift:.7*Math.sin(Math.PI*F.u), z:120 + j};
-      if (T > OFF0){ const O = offset("aside", j, T); st.x += O.dx; st.y += O.dy; st.r += O.dr; if (O.u >= 1) st = null; }
-    }
-    put(as, st);
-  });
-
-  /* the band round the 150 Ava set aside */
-  {
-    const bp = seg(T, BAND[0], BAND[1]), c = band.last;
-    const O = offset("stack", 0, T);
-    if (bp <= 0 || O.u >= 1) css(band.el, c, "o", "opacity", "0");
-    else {
-      const top = letters.find(e => e.k === NL - 7), B = stackPose(top);
-      const eh = (L.wide ? 80 : 62)*L.stack.s;
-      css(band.el, c, "o", "opacity", "1");
-      const bq = eOut3(bp);
-      css(band.el, c, "tf", "transform", `translate(${f2(B.x + O.dx - band.w/2)}px,${f2(B.y + O.dy - band.h/2 + eh*.12)}px) rotate(${f2(B.r + O.dr)}deg) translateX(${f2(-6*(1 - bq))}px)`);
-      css(band.el, c, "cl", "clipPath", `inset(-4px calc(${(100*(1 - bq)).toFixed(2)}% - ${(4*bq).toFixed(2)}px) -4px -4px)`);
-      css(band.el, c, "z", "zIndex", "100");
-    }
-  }
-
-  /* the ending: your own envelope lands, the stamp goes on as its postage, and the postmark strikes */
-  {
-    const u = seg(T, Y_IN[0], Y_IN[1]), Y = L.Y, I = L.yIn, q = eOut3(u);
-    const d = BEATS.ystamp.p, pq = BEATS.ypm.p;
-    const press = clamp((d - .7)/.3), pmp = clamp(pq/.45);
-    const st = u <= 0 ? null : {x:lerp(Y.x + I.dx, Y.x, q), y:lerp(Y.y + I.dy, Y.y, q), r:lerp(Y.r + I.dr, Y.r, bk(u)),
-      s:(1 + .06*(1 - q))*(1 - .012*Math.sin(Math.PI*press))*(1 - .008*Math.sin(Math.PI*pmp)), lift:1 - clamp(u/.85), z:170};
-    yenv.keep = true;
-    put(yenv, st);
-    const sc = d < .7 ? lerp(1.26, .975, eIn(d/.7)) : lerp(.975, 1, eOut3((d - .7)/.3));
-    const hgt = 1 - eIn(Math.min(1, d/.7)), dx = (1 - eOut3(d))*-20, dy = (1 - eOut3(d))*-34, rr = lerp(-10, 0, eOut3(d));
-    const cd = ydrop._c;
-    css(ydrop, cd, "o", "opacity", clamp(d*10).toFixed(3));
-    css(ydrop, cd, "t", "transform", `translate(${f2(dx)}px,${f2(dy)}px) rotate(${f2(rr)}deg) scale(${sc.toFixed(4)})`);
-    css(ysh, cd, "so", "opacity", (.5*hgt*clamp(d*10)).toFixed(3));
-    css(ysh, cd, "st", "transform", `translate(${f2(dx - 16*hgt)}px,${f2(dy + 26*hgt)}px) rotate(${f2(rr)}deg) scale(${(1 + .06*hgt).toFixed(3)})`);
-    const cp = ypm._c;
-    css(ypm, cp, "o", "opacity", (.88*clamp(pq*5) + .12*eOut3(pq)).toFixed(3));
-    css(ypm, cp, "t", "transform", `scale(${(1.07 - .07*eOut3(pq)).toFixed(3)})`);
-    const live = u >= 1 && d > .7;
-    const cy = yenv.el._c;
-    if (cy.live !== live){ cy.live = live; yenv.el.classList.toggle("live", live); }
-  }
-}
-
-/* ---------- captions and rail change over in their own time ---------- */
-const capV = capEls.map((_, c) => c === 0 ? 1 : 0);
-const railV = [1, 0, 0, 0], railDir = [1, 1, 1, 1];
-let capCur = 0, railO = 1;
-function capAt(T){ let c = 0; for (let i = 1; i < 5; i++) if (T >= CAP[i]) c = i; return c; }
-function capsSnap(T){
-  capCur = capAt(T);
-  capV.forEach((_, c) => { capV[c] = c === capCur ? 1 : 0; });
-  railV.forEach((_, j) => { railV[j] = j === Math.min(3, capCur) ? 1 : 0; });
-  railO = capCur < 4 ? 1 : 0;
-}
-function capsStep(T, dt){
-  const cur = capAt(T);
-  if (cur !== capCur){ railDir.fill(cur > capCur ? 1 : -1); capCur = cur; }
-  if (reduce.matches){ capsSnap(T); return false; }
-  let moving = false;
-  const others = Math.max(...capV.map((v, c) => c === cur ? 0 : v));
-  capV.forEach((v, c) => {
-    const tg = c === cur ? 1 : 0;
-    if (v === tg) return;
-    moving = true;
-    if (tg && others > .2) return;   // the new words wait until the old ones have gone
-    capV[c] = clamp(v + (tg ? 1 : -1)*dt/(tg ? 280 : 170));
-  });
-  const rc = Math.min(3, cur);
-  railV.forEach((v, j) => {
-    const tg = j === rc ? 1 : 0;
-    if (v !== tg){ railV[j] = clamp(v + (tg ? 1 : -1)*dt/(tg ? 320 : 220)); moving = true; }
-  });
-  const ro = cur < 4 ? 1 : 0;
-  if (railO !== ro){ railO = clamp(railO + (ro ? 1 : -1)*dt/240); moving = true; }
-  return moving;
-}
-
-/* ---------- the scroll ---------- */
-let Tcur = null, Ttar = 0, raf = 0, lastNow = 0, Vcur = 0, idleT = 0, isIdle = false, rmFading = false, lastScroll = -1e9;
-const WN = matchMedia("(pointer: coarse)").matches ? 18 : 17;   // how briskly the desk follows the scroll
-function targetT(){
-  let t = (scrollY - storyTop)/L.U;
-  if (reduce.matches){
-    if (t < -.4) return -2;
-    for (let c=0;c<4;c++) if (t < CAP[c+1]) return REST[c];
-    return REST[4];
-  }
-  return t;
-}
-function snapAll(){ beatsSnap(Tcur); capsSnap(Tcur); }
-function frame(now){
-  raf = 0;
-  const dt = lastNow ? Math.min(64, now - lastNow) : 16; lastNow = now;
-  if (reduce.matches){
-    // reduced motion: each chapter's finished state, crossed with a short fade and nothing moving
-    stage.classList.add("rm");
-    if (Tcur === null){ Tcur = Ttar; snapAll(); render(Tcur); }
-    else if (Tcur !== Ttar && !rmFading){
-      rmFading = true; stage.classList.add("rmout");
-      setTimeout(() => { rmFading = false; Tcur = Ttar; snapAll(); render(Tcur); stage.classList.remove("rmout"); }, 170);
-    }
-    lastNow = 0; return;
-  }
-  if (stage.classList.contains("rm")) stage.classList.remove("rm", "rmout");
-  const prev = Tcur;
-  if (Tcur === null){ Tcur = Ttar; Vcur = 0; snapAll(); }
-  else {
-    // a critically damped follower: it eases into each scroll step and out of it, with no surge
-    let d = Ttar - Tcur;
-    if (Math.abs(d) > 1.2){ Tcur = Ttar - Math.sign(d)*1.2; d = Ttar - Tcur; }   // a long jump replays only its last stretch
-    const h = dt/1000, x = -d, e = Math.exp(-WN*h);
-    let nT = Ttar + (x + (Vcur + WN*x)*h)*e, nV = (Vcur - WN*(Vcur + WN*x)*h)*e;
-    // the envelope turning over and opening keeps a pace you can follow while a fling is still going;
-    // once the hand stops (no scroll for 110 ms) the desk catches up at its own rate, so it never trails
-    if (Tcur > 2.3 && Tcur < 2.72 && now - lastScroll < 110){ const pace = Tcur > 2.38 && Tcur < 2.48 ? 1 : 1.4, cap = pace*h; nT = Tcur + clamp(nT - Tcur, -cap, cap); nV = clamp(nV, -pace, pace); }
-    Tcur = nT; Vcur = nV;
-    if (Math.abs(Ttar - Tcur) < .0005 && Math.abs(Vcur) < .01){ Tcur = Ttar; Vcur = 0; }
-  }
-  const moving = beatsStep(Tcur, dt) | capsStep(Tcur, dt);
-  render(Tcur);
-  if (Tcur !== prev && isIdle){ isIdle = false; story.classList.remove("idle"); }
-  if (Tcur !== Ttar || moving) raf = requestAnimationFrame(frame);
-  else { lastNow = 0; clearTimeout(idleT); idleT = setTimeout(() => { if (!raf){ isIdle = true; story.classList.add("idle"); } }, 450); }
-}
-function onScroll(){ if (!L) return; lastScroll = performance.now(); Ttar = targetT(); if (!raf) raf = requestAnimationFrame(frame); }
-
-railBtns.forEach((b, j) => b.addEventListener("click", () => {
-  scrollTo({top: Math.round(storyTop + JUMP[j]*L.U), behavior: reduce.matches ? "auto" : "smooth"});
-}));
-
-let started = false;
-function start(){
-  if (started) return; started = true;
-  build(); layout();
-  Ttar = targetT(); Tcur = null;
-  raf = requestAnimationFrame(frame);
-  addEventListener("scroll", onScroll, {passive:true});
-  let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => {
-    if (L && stage.clientWidth === L.W && Math.abs(visH() - L.H) < 2) return;
-    if (L && stage.clientWidth === L.W && !L.wide && modeNow() === L.mode && Math.abs(visH() - L.H) < 120) return;   // a phone's address bar
-    layout(); Tcur = null; onScroll();
-  }, 90); });
-  // a keyboard user reaching the stamp is taken to the end, where it can be seen
-  ylink.addEventListener("focus", () => { if ((scrollY - storyTop)/L.U < REST[4] - .02) scrollTo({top: Math.round(storyTop + (REST[4] + .03)*L.U), behavior: "auto"}); });
-  reduce.addEventListener && reduce.addEventListener("change", () => { Tcur = null; onScroll(); });
-}
-/* the light desk, chosen by the hero's first second: the story has not been seen yet, so it changes now */
-document.addEventListener("hf:light", () => {
-  if (LITE) return;
-  LITE = true;
-  if (!started) return;   // build() makes the light desk itself
-  for (const e of letters) if (!e.inLight && e.el){ e.el.remove(); e.skip = true; }
-  for (const o of [brief, ...sheets, ...cards, ledger, test, eback, eflap, epocket, ...picks, ...asides, yenv, ...letters]) if (!o.skip) dropLift(o);
-  layout(); Tcur = null; onScroll();
-});
-(window.__hfFonts || Promise.resolve(true)).then(ok => {
-  start();
-  if (!ok && document.fonts){ let lt; document.fonts.addEventListener("loadingdone", () => { clearTimeout(lt); lt = setTimeout(() => { layout(); Tcur = null; onScroll(); }, 40); }); }
-});
+  }, {rootMargin: "0px 0px -34% 0px"});
+  const line = window.innerHeight*.66;
+  for (const d of desks){ if (mover(d).getBoundingClientRect().top > line){ d.classList.add("wait"); io.observe(mover(d)); } }
+  // the light desk chosen by the hero's first second, or less motion asked for now: every desk rests where it is
+  const rest = () => { io.disconnect(); for (const d of desks) d.classList.remove("wait", "play"); };
+  document.addEventListener("hf:light", rest);
+  if (reduce.addEventListener) reduce.addEventListener("change", () => { if (reduce.matches) rest(); });
 })();
 </script>
 </body>
