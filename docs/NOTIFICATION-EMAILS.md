@@ -298,6 +298,27 @@ anything but an explicit success as "not sent" (`src/utils/emailStatus.ts`).
 No page had to change: the rules read who is asking and who it is for, both
 of which every existing call already carries.
 
+## How the emails look (2026-11-01)
+
+Every email goes out in one layout, `supabase/functions/_shared/emailLayout.ts`
+(`emailShell`, `emailButton`, `emailNote`, and `EMAIL_ATTR` for a quiet line,
+the small print, a quoted message, a list, an alert, the 6-digit code and a
+link): the green seal at the top, a paper card on sage, the heading in Georgia
+and the words in the system's own fonts, one jade button (a table cell, so
+Outlook draws it), the no-reply note on an applicant's email, then the
+signature, always the last words. The colours are the app's Day tokens; a
+mail app in dark mode that asks for one (Apple Mail, iOS Mail, Outlook for
+Mac, Outlook.com) gets the Night tokens from the `<style>` block, whose rules
+sit inside an HTML comment with no `>` in them, so no reader ever prints them.
+The seal is hireflownow.com's own `icon-192.png?v=9`, a hosted PNG (mail apps
+drop SVG); a mail app that blocks images shows "HireFlow" in its place.
+
+Presentation only: the layout places what `index.ts` has already escaped and
+decided. A template keeps no colour of its own (`scripts/email_layout.test.mjs`
+holds that, the layout and the seal). Since the seal, an email carries one
+`<img>`, the layout's: notification_access's escaping check looks for the
+request's own markup (`<img src=x`, `<script`) and counts that one image.
+
 ## Adding a kind of email
 
 Give it a rule in `NOTIFICATION_RULES`

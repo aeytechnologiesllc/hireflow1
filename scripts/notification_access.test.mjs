@@ -1104,7 +1104,9 @@ void quiet;
   check("an application id that is not an id never reaches the link", r.status === 200 && mail.html.includes(`/candidate/auth?redirect=${encodeURIComponent("/applications")}"`) && !mail.html.includes("employer"), (/href="([^"]+)"/.exec(mail?.html ?? "") ?? [])[1]);
   check("…and with no length, join line or team name it is still a whole email", !/undefined|null/.test(textOf(mail)) && textOf(mail).includes("— The hiring team") && !textOf(mail).includes("Length:"));
   r = await hush(async () => (reset(), asFunction(confirmed({ job_title: '<img src=x onerror=alert(1)>', join_note: "<script>x</script>" }))));
-  check("words in it are escaped", r.status === 200 && !/<img|<script/i.test(world.sent[0].html));
+  // The request's markup never arrives as markup. (Since 2026-11-01 every email carries one <img> of its own, the
+  // brand's seal from hireflownow.com: _shared/emailLayout.ts. So the check looks for the request's own tags.)
+  check("words in it are escaped", r.status === 200 && !/<img src=x|onerror=alert\(1\)>|<script/i.test(world.sent[0].html) && /&lt;img src=x onerror=alert\(1\)&gt;/.test(world.sent[0].html) && (world.sent[0].html.match(/<img\b/gi) ?? []).length === 1);
   r = await hush(async () => (reset((w) => { w.profiles.find((p) => p.user_id === ANA).email_interview_reminders = false; }), asFunction(confirmed())));
   check("an applicant who turned interview emails off is not sent it", r.status === 200 && r.body?.success !== true && world.sent.length === 0, show(r));
 

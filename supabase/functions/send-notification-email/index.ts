@@ -6,6 +6,7 @@ import { Resend } from "https://esm.sh/resend@2.0.0";
 // function was already running on in production (what "@2" meant until then).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { declineNoteLines } from "../_shared/declineNote.ts";
+import { EMAIL_ATTR as A, emailButton, emailNote, emailShell } from "../_shared/emailLayout.ts";
 import { offerLetterWaiting, welcomeTodo, type OfferLetterFacts, type WelcomeTodo } from "../_shared/welcomeTodo.ts";
 import { CONTINUE_ON_COMPUTER_TYPE, continueOnComputerEmail, decideContinueLinkEmail } from "../_shared/continueOnComputerEmail.ts";
 import { BUSINESS_EMAIL_CODE_TYPE, businessEmailCodeEmail, readIssuedCode, waitWords } from "../_shared/businessEmailCode.ts";
@@ -218,7 +219,7 @@ const lengthAdjective = (length: unknown): string => {
  * address. A message in the app reaches the team, stays on the applicant's
  * record, and its answer is emailed back from the hiring address.
  */
-const QUESTIONS_LINE = `<p style="color: #666;">Questions before then? Open Messages in your account and write to the hiring team. That is the quickest way to reach them.</p>`;
+const QUESTIONS_LINE = `<p ${A.muted}>Questions before then? Open Messages in your account and write to the hiring team. That is the quickest way to reach them.</p>`;
 
 const esc = (s: unknown): string =>
   String(s ?? "")
@@ -255,29 +256,22 @@ const getEmailContent = (
   // opens Messages in their account (through sign-in when they are signed
   // out). The hiring team's own alerts do not carry it.
   const NO_REPLY_NOTE = isCandidateEmail(type, recipientRole)
-    ? `<p style="margin-top: 28px; padding: 12px 14px; background: #f6f2ea; border-radius: 8px; color: #444; font-size: 14px; line-height: 1.5;">
-        <strong>Have a question?</strong> Please do not reply to this email. Replies do not reach us.
-        <a href="${candidateLink("/messages")}" style="color: #14120E; font-weight: 600; text-decoration: underline;">Message us in your account</a> and we will answer you there.
-      </p>`
+    ? emailNote(`<strong>Have a question?</strong> Please do not reply to this email. Replies do not reach us.
+        <a href="${candidateLink("/messages")}" ${A.link}>Message us in your account</a> and we will answer you there.`)
     : "";
 
-  // Simple, clean template wrapper. `signature` lets a message that comes from
-  // the employer (a decision on an application) sign as the employer.
-  const wrapEmail = (title: string, content: string, buttonText?: string, buttonUrl?: string, signature = defaultSignature) => `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; color: #333;">
-      <h2 style="color: #111; margin-bottom: 20px;">${title}</h2>
-      ${content}
-      ${buttonText && buttonUrl ? `
-        <p style="margin-top: 24px;">
-          <a href="${buttonUrl}" style="display: inline-block; background: #14120E; color: #FAF7F1; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 500;">${buttonText}</a>
-        </p>
-      ` : ''}
-      ${NO_REPLY_NOTE}
-      <p style="color: #666; font-size: 13px; margin-top: 32px; border-top: 1px solid #eee; padding-top: 16px;">
-        ${signature}
-      </p>
-    </div>
-  `;
+  // The brand's email (_shared/emailLayout.ts, 2026-11-01): the seal, the
+  // heading, the words, one button, the no-reply note, then who signs it.
+  // Presentation only. `signature` lets a message that comes from the
+  // employer (a decision on an application) sign as the employer.
+  const wrapEmail = (title: string, content: string, buttonText?: string, buttonUrl?: string, signature = defaultSignature) =>
+    emailShell({
+      title,
+      content,
+      button: buttonText && buttonUrl ? emailButton(buttonText, buttonUrl) : undefined,
+      note: NO_REPLY_NOTE || undefined,
+      signature,
+    });
 
   const companyName = esc(data.company_name?.trim() || "");
   // "The Zulu Support Team", never "The Zulu Support Team team".
@@ -292,7 +286,7 @@ const getEmailContent = (
       html: wrapEmail(
         "New Application Received",
         `<p><strong>${esc(data.candidate_name)}</strong> has applied for the <strong>${esc(data.job_title)}</strong> position.</p>
-         <p style="color: #666;">Review their application in your dashboard.</p>`,
+         <p ${A.muted}>Review their application in your dashboard.</p>`,
         "View Application",
         `${staffBaseUrl}/applicants`
       ),
@@ -324,7 +318,7 @@ const getEmailContent = (
           html: wrapEmail(
             "Application Submitted",
             `<p>Your application${data.job_title?.trim() ? ` for <strong>${esc(data.job_title)}</strong>` : ""} has been successfully submitted.</p>
-             <p style="color: #666;">The hiring team will review your application and get back to you. You can track your application status in your dashboard.</p>`,
+             <p ${A.muted}>The hiring team will review your application and get back to you. You can track your application status in your dashboard.</p>`,
             "Track Application",
             candidateLink("/applications")
           ),
@@ -337,7 +331,7 @@ const getEmailContent = (
         "Application Update",
         `<p>Great news! Your application for <strong>${esc(data.job_title)}</strong> has been moved to the next phase.</p>
          <p><strong>Current Phase:</strong> ${esc(data.phase_name)}</p>
-         <p style="color: #666;">Log in to continue with the next steps.</p>`,
+         <p ${A.muted}>Log in to continue with the next steps.</p>`,
         "Continue Application",
         candidateLink("/applications")
       ),
@@ -352,7 +346,7 @@ const getEmailContent = (
           html: wrapEmail(
             "New Message",
             `<p>You have a new message from the hiring team${data.job_title ? ` regarding <strong>${esc(data.job_title)}</strong>` : ''}.</p>
-             ${data.message_preview ? `<p style="color: #666; font-style: italic; border-left: 3px solid #ddd; padding-left: 12px;">"${esc(data.message_preview)}..."</p>` : ''}`,
+             ${data.message_preview ? `<p ${A.quote}>"${esc(data.message_preview)}..."</p>` : ''}`,
             "View Message",
             candidateLink("/messages")
           ),
@@ -362,7 +356,7 @@ const getEmailContent = (
           html: wrapEmail(
             `New message from ${esc(data.sender_name || "a candidate")}`,
             `<p><strong>${esc(data.sender_name || "A candidate")}</strong> sent you a message${data.job_title ? ` about <strong>${esc(data.job_title)}</strong>` : ''}.</p>
-             ${data.message_preview ? `<p style="color: #666; font-style: italic; border-left: 3px solid #ddd; padding-left: 12px;">"${esc(data.message_preview)}..."</p>` : ''}`,
+             ${data.message_preview ? `<p ${A.quote}>"${esc(data.message_preview)}..."</p>` : ''}`,
             "Reply",
             data.sender_id
               ? `${staffBaseUrl}/messages?candidate=${encodeURIComponent(data.sender_id)}`
@@ -377,7 +371,7 @@ const getEmailContent = (
         "Interview Scheduled",
         `<p>Your interview for <strong>${esc(data.job_title)}</strong> has been scheduled.</p>
          <p><strong>Date:</strong> ${esc(data.interview_date)}<br><strong>Time:</strong> ${esc(data.interview_time)}</p>
-         <p style="color: #666;">Check your dashboard for meeting details.</p>`,
+         <p ${A.muted}>Check your dashboard for meeting details.</p>`,
         "View Interview Details",
         candidateLink("/applications")
       ),
@@ -397,7 +391,7 @@ const getEmailContent = (
          <p><strong>Date:</strong> ${esc(data.interview_date)}<br><strong>Time:</strong> ${esc(data.interview_time)}${data.interview_length ? `<br><strong>Length:</strong> ${esc(data.interview_length)}` : ""}</p>
          <p><strong>What to expect:</strong> this is the final step, ${data.interview_kind ? `a ${esc(data.interview_kind)}` : "an interview"} with the hiring team. It is a conversation, not another test.</p>
          ${data.join_note ? `<p>${esc(data.join_note)}</p>` : ""}
-         <p style="color: #666;">Can't make it after all? Open your application and choose "Can't make it?" so the team knows.</p>
+         <p ${A.muted}>Can't make it after all? Open your application and choose "Can't make it?" so the team knows.</p>
          ${QUESTIONS_LINE}`,
         "Open my application",
         candidateLink(
@@ -425,7 +419,7 @@ const getEmailContent = (
           title,
           `<p><strong>${esc(data.candidate_name)}</strong> ${did} for <strong>${esc(data.job_title)}</strong>.</p>
            <p><strong>When:</strong> ${esc(data.interview_when)}${data.interview_length ? `<br><strong>Length:</strong> ${esc(data.interview_length)}` : ""}</p>
-           <p style="color: #666;">It is on your Interviews page, with the interview guide.</p>`,
+           <p ${A.muted}>It is on your Interviews page, with the interview guide.</p>`,
           "Open Interviews",
           `${staffBaseUrl}/interviews`
         ),
@@ -439,8 +433,8 @@ const getEmailContent = (
     interview_pick_time: (() => {
       const times = data.proposed_times_list ?? [];
       const list = times.length > 0
-        ? `<ul style="color: #333; padding-left: 20px; margin: 16px 0;">
-             ${times.map((t) => `<li style="margin-bottom: 6px;">${esc(t)}</li>`).join("")}
+        ? `<ul ${A.list}>
+             ${times.map((t) => `<li ${A.item}>${esc(t)}</li>`).join("")}
            </ul>`
         : "";
       // What the interview is, said before the time: a finalist wrote in on
@@ -463,7 +457,7 @@ const getEmailContent = (
               : `The hiring team for <strong>${esc(data.job_title)}</strong> would like to interview you at this time:`}</p>
              ${list}
              <p>Open your application to book it.</p>
-             <p style="color: #666;">Can't make it? Tell them there which days you are free, and from what time to what time, and they will set another time.</p>
+             <p ${A.muted}>Can't make it? Tell them there which days you are free, and from what time to what time, and they will set another time.</p>
              ${QUESTIONS_LINE}`,
             "Book This Time",
             candidateLink("/applications")
@@ -477,7 +471,7 @@ const getEmailContent = (
           `${finalStep}
            <p>The hiring team for <strong>${esc(data.job_title)}</strong> has proposed ${esc(data.window_count) || "a few"} times for your interview. Pick whichever works best for you:</p>
            ${list}
-           <p style="color: #666;">Head to your application to choose a time — it only takes a second.</p>`,
+           <p ${A.muted}>Head to your application to choose a time — it only takes a second.</p>`,
           "Pick a Time",
           candidateLink("/applications")
         ),
@@ -490,8 +484,8 @@ const getEmailContent = (
       html: wrapEmail(
         "Interview Cancelled",
         `<p>Unfortunately, your interview for <strong>${esc(data.job_title)}</strong> has been cancelled.</p>
-         ${data.original_date ? `<p style="color: #666;">Original date: ${esc(data.original_date)}</p>` : ''}
-         <p style="color: #666;">Check your messages for updates from the hiring team.</p>`,
+         ${data.original_date ? `<p ${A.muted}>Original date: ${esc(data.original_date)}</p>` : ''}
+         <p ${A.muted}>Check your messages for updates from the hiring team.</p>`,
         "Check Messages",
         candidateLink("/messages")
       ),
@@ -504,7 +498,7 @@ const getEmailContent = (
         "Interview Rescheduled",
         `<p>Your interview for <strong>${esc(data.job_title)}</strong> has been rescheduled.</p>
          <p><strong>New Date:</strong> ${esc(data.new_date)}<br><strong>New Time:</strong> ${esc(data.new_time)}</p>
-         <p style="color: #666;">Please confirm your availability.</p>`,
+         <p ${A.muted}>Please confirm your availability.</p>`,
         "Confirm New Time",
         candidateLink("/applications")
       ),
@@ -527,7 +521,7 @@ const getEmailContent = (
           `<p>A reminder that your interview for <strong>${esc(data.job_title)}</strong> ${soon ? "starts in about an hour" : `is ${when}`}.</p>
            <p><strong>Date:</strong> ${esc(data.interview_date)}<br><strong>Time:</strong> ${esc(data.interview_time)}${data.interview_length ? `<br><strong>Length:</strong> ${esc(data.interview_length)}` : ""}</p>
            ${data.join_note ? `<p>${esc(data.join_note)}</p>` : ""}
-           <p style="color: #666;">Can't make it after all? Open your application and choose "Can't make it?" so the team knows.</p>`,
+           <p ${A.muted}>Can't make it after all? Open your application and choose "Can't make it?" so the team knows.</p>`,
           "Open my application",
           candidateLink(
             /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(data.application_id ?? "")
@@ -577,7 +571,7 @@ const getEmailContent = (
       html: wrapEmail(
         "Document Signed",
         `<p><strong>${esc(data.candidate_name)}</strong> has signed the document <strong>${esc(data.document_name)}</strong>.</p>
-         <p style="color: #666;">The document is now awaiting your countersignature.</p>`,
+         <p ${A.muted}>The document is now awaiting your countersignature.</p>`,
         "View Document",
         `${staffBaseUrl}/documents`
       ),
@@ -598,10 +592,10 @@ const getEmailContent = (
           "Please send your documents",
           `<p>Hi${data.first_name ? ` ${esc(data.first_name)}` : ""}, ${from} asked you to:</p>
            ${items.length > 0
-             ? `<ol style="padding-left: 20px;">${items.map((line) => `<li style="margin-bottom: 4px;">${esc(line)}</li>`).join("")}</ol>`
+             ? `<ol ${A.list}>${items.map((line) => `<li ${A.item}>${esc(line)}</li>`).join("")}</ol>`
              : `<p><strong>${esc(data.document_name || "Send a document")}</strong></p>`}
            ${todo?.dueInDays ? `<p>Please do this within ${todo.dueInDays} ${todo.dueInDays === 1 ? "day" : "days"}.</p>` : ""}
-           <p style="color: #666; font-size: 13px;">Only ${esc(companyName || "the hiring team")} can see what you send.${todo?.deletesIds ? ` ID papers are deleted 24 hours after ${esc(companyName || "the hiring team")} first opens them.` : ""}</p>`,
+           <p ${A.small}>Only ${esc(companyName || "the hiring team")} can see what you send.${todo?.deletesIds ? ` ID papers are deleted 24 hours after ${esc(companyName || "the hiring team")} first opens them.` : ""}</p>`,
           "Send them in HireFlow",
           candidateLink("/my-documents"),
           `— ${teamLabel}`
@@ -615,7 +609,7 @@ const getEmailContent = (
       html: wrapEmail(
         "Phase Completed",
         `<p><strong>${esc(data.candidate_name)}</strong> has completed the <strong>${esc(data.phase_name)}</strong> phase for <strong>${esc(data.job_title)}</strong>.</p>
-         <p style="color: #666;">Review their submission and decide on next steps.</p>`,
+         <p ${A.muted}>Review their submission and decide on next steps.</p>`,
         "Review Submission",
         `${staffBaseUrl}/applicants`
       ),
@@ -658,10 +652,10 @@ const getEmailContent = (
           `<p>Congratulations${data.first_name ? `, ${esc(data.first_name)}` : ""}. You're joining ${companyName || "the team"} as <strong>${esc(data.job_title)}</strong>.</p>
            ${items.length > 0
              ? `<p>Before your first day, please:</p>
-                <ol style="padding-left: 20px;">${items.map((line) => `<li style="margin-bottom: 4px;">${esc(line)}</li>`).join("")}</ol>
+                <ol ${A.list}>${items.map((line) => `<li ${A.item}>${esc(line)}</li>`).join("")}</ol>
                 ${todo?.dueInDays ? `<p>Please do this within ${todo.dueInDays} ${todo.dueInDays === 1 ? "day" : "days"}.</p>` : ""}
-                ${todo?.asksForDocuments ? `<p style="color: #666; font-size: 13px;">Only ${companyName || "the hiring team"} can see what you send.${todo.deletesIds ? ` ID papers are deleted 24 hours after ${companyName || "the hiring team"} first opens them.` : ""}</p>` : ""}`
-             : `<p style="color: #666;">We'll follow up with your start date and next steps. Your messages are in your account.</p>`}`,
+                ${todo?.asksForDocuments ? `<p ${A.small}>Only ${companyName || "the hiring team"} can see what you send.${todo.deletesIds ? ` ID papers are deleted 24 hours after ${companyName || "the hiring team"} first opens them.` : ""}</p>` : ""}`
+             : `<p ${A.muted}>We'll follow up with your start date and next steps. Your messages are in your account.</p>`}`,
           items.length > 0 ? "Open HireFlow" : "Open your application",
           candidateLink(items.length > 0 ? "/my-documents" : "/applications"),
           `— ${teamLabel}`
@@ -680,8 +674,8 @@ const getEmailContent = (
             "Can't Make the Interview Time",
             `<p><strong>${esc(data.candidate_name)}</strong> can't make ${data.cannot_make ? esc(data.cannot_make) : "the interview time"} for <strong>${esc(data.job_title)}</strong>.</p>
              <p><strong>When they are free:</strong> "${esc(data.availability)}"</p>
-             ${data.clock_gap ? `<p style="color: #666;">That is on their own clock, which is ${esc(data.clock_gap)}.</p>` : ""}
-             <p style="color: #666;">Open Interviews to set a new time. They are asked to book it, and you are told when they do.</p>`,
+             ${data.clock_gap ? `<p ${A.muted}>That is on their own clock, which is ${esc(data.clock_gap)}.</p>` : ""}
+             <p ${A.muted}>Open Interviews to set a new time. They are asked to book it, and you are told when they do.</p>`,
             "Set a New Time",
             `${staffBaseUrl}/interviews`
           ),
@@ -691,9 +685,9 @@ const getEmailContent = (
           html: wrapEmail(
             "Reschedule Requested",
             `<p><strong>${esc(data.candidate_name)}</strong> has requested to reschedule their interview for <strong>${esc(data.job_title)}</strong>.</p>
-             ${data.candidate_note ? `<p style="color: #666;"><strong>Candidate's note:</strong> "${esc(data.candidate_note)}"</p>` : ''}
+             ${data.candidate_note ? `<p ${A.muted}><strong>Candidate's note:</strong> "${esc(data.candidate_note)}"</p>` : ''}
              ${data.proposed_times ? `<p><strong>Proposed times:</strong> ${esc(data.proposed_times)}</p>` : ''}
-             <p style="color: #666;">Review the request and either approve a new time or decline.</p>`,
+             <p ${A.muted}>Review the request and either approve a new time or decline.</p>`,
             "Review Request",
             `${staffBaseUrl}/interviews`
           ),
@@ -705,8 +699,8 @@ const getEmailContent = (
       html: wrapEmail(
         "Voice Minutes Running Low",
         `<p>Your voice minutes are running low. You have <strong>${esc(data.minutes_remaining)} minutes</strong> remaining.</p>
-         ${parseInt(data.active_jobs_count || '0') > 0 ? `<p style="color: #666;">You have <strong>${esc(data.active_jobs_count)} active job${parseInt(data.active_jobs_count || '0') > 1 ? 's' : ''}</strong> that may be affected if you run out of minutes.</p>` : ''}
-         <p style="color: #666;">Purchase more voice minutes to ensure uninterrupted AI voice interviews for your candidates.</p>`,
+         ${parseInt(data.active_jobs_count || '0') > 0 ? `<p ${A.muted}>You have <strong>${esc(data.active_jobs_count)} active job${parseInt(data.active_jobs_count || '0') > 1 ? 's' : ''}</strong> that may be affected if you run out of minutes.</p>` : ''}
+         <p ${A.muted}>Purchase more voice minutes to ensure uninterrupted AI voice interviews for your candidates.</p>`,
         "Purchase Voice Minutes",
         `${staffBaseUrl}/settings?tab=subscription`
       ),
@@ -716,9 +710,9 @@ const getEmailContent = (
       subject: `Action Required: Voice Minutes Exhausted`,
       html: wrapEmail(
         "Voice Minutes Exhausted",
-        `<p style="color: #dc2626;"><strong>Your voice minutes have been depleted.</strong></p>
+        `<p ${A.alert}><strong>Your voice minutes have been depleted.</strong></p>
          ${parseInt(data.active_jobs_count || '0') > 0 ? `<p>Candidates applying to your <strong>${esc(data.active_jobs_count)} active job${parseInt(data.active_jobs_count || '0') > 1 ? 's' : ''}</strong> cannot complete AI voice interviews until you purchase more minutes.</p>` : '<p>Candidates cannot complete AI voice interviews until you purchase more minutes.</p>'}
-         <p style="color: #666;">Purchase more voice minutes immediately to restore AI voice interview functionality.</p>`,
+         <p ${A.muted}>Purchase more voice minutes immediately to restore AI voice interview functionality.</p>`,
         "Purchase Voice Minutes Now",
         `${staffBaseUrl}/settings?tab=subscription`
       ),
@@ -778,7 +772,7 @@ const getEmailContent = (
         html: wrapEmail(
           esc(words.title),
           `<p>${esc(words.lines[0])}</p>
-           <p style="font-size: 32px; font-weight: 700; letter-spacing: 6px; margin: 24px 0; color: #111;">${esc(data.code)}</p>
+           <p ${A.code}>${esc(data.code)}</p>
            ${words.lines.slice(1).map((line) => `<p>${esc(line)}</p>`).join("\n           ")}`
         ),
       };
@@ -790,7 +784,7 @@ const getEmailContent = (
       html: wrapEmail(
         "Candidate Ready for AIVA Interview",
         `<p><strong>${esc(data.candidate_name)}</strong> has passed all automated assessments for <strong>${esc(data.job_title)}</strong> with a score of <strong>${esc(data.score)}%</strong>.</p>
-         <p style="color: #666;">They are now ready for the AIVA voice interview. You'll need to manually move them to the interview phase and configure the interview settings.</p>`,
+         <p ${A.muted}>They are now ready for the AIVA voice interview. You'll need to manually move them to the interview phase and configure the interview settings.</p>`,
         "Review Candidate",
         `${staffBaseUrl}/applicants`
       ),
