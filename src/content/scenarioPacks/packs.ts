@@ -169,19 +169,19 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
     "label": "Dental office",
     "business": "a dental office",
     "counterpart": "patient",
-    "evaluatorNote": "A good dental front-desk agent never gives dental or medical advice: not which medicine to take or how much, not what a pain or a symptom might be, and not whether treatment can wait; they pass those questions to a dental nurse or the dentist with a real time frame. They confirm the patient's identity with the details the case names before sharing or changing any appointment, bill or reminder, and kindly share nothing, not even that someone is a patient, with a family member the file does not list. When someone describes face swelling, trouble breathing or swallowing, or bleeding that will not stop, the first reply plainly says to call the local emergency number now or have someone take them to the nearest emergency room; booking a visit in place of emergency care, asking questions to judge how serious it is, or agreeing it is probably nothing is a serious fail. A toothache without those signs gets the same-day slot the case offers and the nurse's call, never advice. On insurance, fees and refunds, they never promise cover, an amount, a waiver or a free visit, put right a mistake the office made with the real time frame, and say who decides and how soon.",
+    "evaluatorNote": "A good dental front-desk agent never gives dental or medical advice: not which medicine to take or how much, not what a pain or a symptom might be, not whether treatment can wait, and not what an insurance letter means for a bill; they pass those questions to the dentist, a dental assistant or the billing team with the time frame the case gives. They confirm the patient's identity with the details the case names before sharing or changing any appointment, bill or reminder. They kindly share nothing, not even that someone is a patient, with a family member the file does not list, a husband or wife included; explaining the office's rules is fine. They offer only the open times the case names. When someone describes trouble breathing or swallowing, swelling that reaches the eye or the neck, or bleeding that will not stop, the agent's next reply plainly says to call the local emergency number now or have someone take them to the nearest emergency room, not to drive themselves, and books no visit; asking whether those signs are there, or whether someone is with them, is good. Booking a visit instead, asking more questions to judge how serious it is, or agreeing it is probably nothing is a serious fail: an overall score of 30 or lower. A toothache or a lost crown without those signs is urgent, not an emergency: it gets the visit and the call the case offers, never advice. They never promise cover, an amount, a waiver, a discount or a free visit that the case does not allow, and they always say who decides and how soon. When the office made a mistake, they say sorry and put it right with the real time frame.",
     "skills": [
       {
         "id": "dn1",
         "type": "multiple_choice",
         "category": "emergency_rule",
         "time_limit_seconds": 90,
-        "question": "Sam writes in the dental office chat: \"Since this morning my face has swollen up near a bad tooth, and now it's hard to swallow. Can I see the dentist today?\" Our rule: the front desk never gives dental or medical advice. Face swelling with trouble swallowing or breathing always needs emergency care, never a booked visit. What do you do?",
+        "question": "Tom writes: \"My face has been swelling near a bad tooth since this morning, and now it's hard to swallow. Can I see the dentist today?\" Our rule: the front desk never gives dental or medical advice. These always need emergency care, never a booked visit: trouble breathing or swallowing, swelling that reaches the eye or the neck, or bleeding that will not stop. What do you do?",
         "options": [
-          "Book him the first open slot today and mark it as urgent, so the dentist sees him as soon as he walks in.",
-          "Ask him a few questions about the swelling first, so you can decide if it is a real emergency before you send him anywhere.",
+          "Book him the first open slot today, and tell him to go to the emergency room only if it gets hard to breathe.",
+          "Ask him a few questions about the swelling first, so you can decide if it is a real emergency.",
           "Tell him to call his local emergency number now, or have someone take him to the emergency room, and book no visit.",
-          "Tell him a dental nurse will call him back within one hour, and book him the first open slot for tomorrow morning."
+          "Tell him a dental assistant will call him back within one hour, and book him the first open slot for tomorrow morning."
         ],
         "correct_answer": "Tell him to call his local emergency number now, or have someone take him to the emergency room, and book no visit."
       },
@@ -202,76 +202,76 @@ export const SCENARIO_PACKS: Record<ScenarioPackId, ScenarioPack> = {
       {
         "id": "dn3",
         "type": "multiple_choice",
-        "category": "fee_math",
+        "category": "refund_math",
         "time_limit_seconds": 90,
-        "question": "A cleaning costs $90 and an X-ray costs $40. On Monday, Ana had one cleaning and one X-ray. Her card was charged three times for that visit: $90, $40 and $90. Our rule: anything charged twice by mistake is sent back in full. How much do we send back to Ana?",
+        "question": "A filling costs $150. Our rule: the patient pays only the part that insurance does not pay, and we send back anything extra. Ana paid $80 on the day of her filling. Now her insurance company has paid us $100 for it. How much do we send back to Ana?",
         "options": [
-          "$40",
-          "$130",
-          "$0",
-          "$90"
+          "$50",
+          "$100",
+          "$80",
+          "$30"
         ],
-        "correct_answer": "$90"
+        "correct_answer": "$30"
       },
       {
         "id": "dn4",
         "type": "multiple_choice",
-        "category": "insurance_limit",
+        "category": "upset_patient",
         "time_limit_seconds": 90,
-        "question": "Ravi writes: \"Will my insurance pay for the filling the dentist wants to do next week? Just tell me yes or no so I can book it.\" Our rule: the front desk cannot see what a patient's insurance pays and never promises an amount. The billing team can ask his insurer and reply within 2 working days. What is the best reply?",
+        "question": "Ravi writes: \"Your office said my insurance would pay for my filling. Now I have a $120 bill, and I won't pay it!\" His file shows we did say that. Our rule: the front desk cannot see what insurance pays, promise an amount or remove a bill. The billing team can check the bill with his insurance company within 2 working days. What is the best reply?",
         "options": [
-          "Yes, almost every insurance plan pays for fillings, so you should be fine. Shall I book the filling for you next week now?",
-          "I can't see what your insurance pays. Our billing team can ask your insurer and tell you within 2 working days.",
-          "I'm sorry, we don't talk about insurance in this chat. Please call your insurance company and ask them yourself instead.",
-          "No, insurance plans usually don't pay for fillings, so please plan to pay for it yourself. Shall I book it for you now?"
+          "I'm sorry, but the bill is correct, so it must be paid. Your insurance company can tell you why it did not pay.",
+          "I'm so sorry we told you that. Our billing team will check it with your insurance company within 2 working days.",
+          "I'm so sorry about this. Since we told you it was covered, I will remove the $120 from your bill today.",
+          "I'm so sorry. Your insurance company will surely pay it in the end, so please don't worry about this bill for now."
         ],
-        "correct_answer": "I can't see what your insurance pays. Our billing team can ask your insurer and tell you within 2 working days."
+        "correct_answer": "I'm so sorry we told you that. Our billing team will check it with your insurance company within 2 working days."
       },
       {
         "id": "dn5",
         "type": "multiple_choice",
         "category": "reminders",
         "time_limit_seconds": 90,
-        "question": "Our rule: every patient gets a reminder text 2 days before a visit. On Monday you see that no reminders went out for Wednesday's 9:00 AM to 12:00 PM visits, because of a system error. Six patients are booked then. What do you do?",
+        "question": "Our rule: every patient gets a reminder text 2 days before a visit. On Monday you see that, because of a system error, no reminders were sent for the six visits on Wednesday morning. What do you do?",
         "options": [
-          "Remind the six patients yourself today, tell the office manager about the error, and note on each file that you did.",
+          "Remind the six patients yourself today, tell the office manager about the error, and note it on each file.",
           "Do nothing for now, because most patients remember their visits, and the system will send the texts again by itself.",
-          "Cancel the six visits and book them again for next week, so that every patient gets a reminder text on time.",
+          "Remind the six patients yourself today, but don't tell the office manager, so that a small error troubles nobody.",
           "Wait until Wednesday morning, then call any patient who has not arrived ten minutes after their booked time."
         ],
-        "correct_answer": "Remind the six patients yourself today, tell the office manager about the error, and note on each file that you did."
+        "correct_answer": "Remind the six patients yourself today, tell the office manager about the error, and note it on each file."
       }
     ],
     "cases": [
       {
         "id": "dn-move-cleaning",
-        "customerName": "Ben",
-        "scenario": "Ben has a cleaning with Hana, the hygienist, tomorrow, Tuesday, at 10:00 AM. His work shift moved, so he cannot come. It is Monday, 2:00 PM, and he is writing on a short break. He wants the same time on Wednesday, and he wants his wife's cleaning on Thursday moved to Wednesday too, so they can come together. He also asks the agent to skip the change fee, since it is not his fault. An agent is now answering the chat.\n\nWhat the agent knows: before changing an appointment, the patient confirms his full name and the phone number on his file; Ben's details will match. His wife is a patient too, but her file does not list Ben as allowed, so only she can move her own visit. Moving or cancelling less than 24 hours before costs $20. The front desk cannot remove fees, but can send a fee request to the office manager, who replies within 2 working days. On Wednesday, Hana's open cleaning slots are 9:00 AM and 11:00 AM; 10:00 AM is taken. Nobody can add a patient to a full day."
+        "customerName": "Dan",
+        "scenario": "It is Monday, 2:00 PM. Dan has a teeth cleaning tomorrow, Tuesday, at 10:00 AM, but his work shift moved, so he cannot come. He wants 10:00 AM on Wednesday instead, and his wife's Thursday cleaning moved to Wednesday too, so they can come together. He asks the agent to skip the change fee, since the shift was not his choice. An agent is now answering the chat.\n\nWhat the agent knows: before changing an appointment, the patient confirms his full name and the phone number on his file; Dan's details will match. His wife's file does not list him as allowed: the agent cannot share or confirm anything about her visits, and only she can move them. Moving or cancelling less than 24 hours before costs $20, added to his bill. The front desk cannot remove fees, but can ask the office manager for a fee review; the manager replies within 2 working days. On Wednesday, the open cleaning times are 9:00 AM and 11:00 AM; 10:00 AM is taken. There are no open cleaning times on Thursday. Nobody can book two patients at one time."
       },
       {
         "id": "dn-double-charge",
         "customerName": "Lucy",
-        "scenario": "Lucy had a cleaning on Monday. Today her bank app shows two charges from the dental office on the same day, $90 and $90. She is annoyed, says this always happens with offices like ours, and wants the extra $90 back today and a free cleaning next time for the trouble. She also asks why her insurance did not pay for the cleaning. An agent is now answering the chat.\n\nWhat the agent knows: before sharing anything, the patient confirms her full name and the phone number on her file; Lucy's details will match. Her file shows one cleaning on Monday, and her card was charged twice by mistake. The agent can send back the second $90 now; it shows in her bank in 3 to 5 working days, and nobody can make it faster. Agents cannot give free visits or credit. Her file has no insurance details, so no claim was sent; if she sends a photo of her insurance card, the billing team sends the claim within 2 working days. Only her insurance company decides what it pays."
+        "scenario": "It is Wednesday. Lucy had a teeth cleaning on Monday, and her bank app shows two charges of $90 for it. She is annoyed, says this always happens with dental offices, and wants the extra $90 back today and a free cleaning next time because of the trouble. She also asks why her insurance did not pay. An agent is now answering the chat.\n\nWhat the agent knows: before sharing anything, the patient confirms her full name and the phone number on her file; Lucy's details will match. Her file shows one cleaning on Monday, and her card was charged twice by mistake. The agent can send back the second $90 now; it shows in her bank in 3 to 5 working days, and nobody can make it faster. Agents cannot give free visits or discounts. Her file has no insurance details, so her insurance company was never sent the bill. If she sends a photo of her insurance card, the billing team sends her insurance company the bill within 2 working days, then sends her back whatever it pays. Only her insurance company decides what it pays."
       },
       {
         "id": "dn-coverage-worry",
-        "customerName": "Mei",
-        "scenario": "It is Monday. Mei has a visit on Thursday for a crown, which costs $1,100 before insurance. A letter from her insurance company says \"major work, 50%\", and she does not understand it. She wants the agent to promise exactly how much she will pay. If nobody can tell her today, she will cancel. She also asks if the crown can simply wait a year. An agent is now answering the chat.\n\nWhat the agent knows: before sharing anything, the patient confirms her full name and the phone number on her file; Mei's details will match. The front desk cannot see what her insurance pays or confirm any amount. The billing team can ask her insurance company for an estimate; they reply within 2 working days, so before Thursday. She can also call her insurance company herself. Moving or cancelling the visit is free 24 hours or more before it. Only the dentist can say whether the crown can wait; a dental nurse can call her back within one working day."
+        "customerName": "Nora",
+        "scenario": "It is Monday. Nora has a visit on Friday at 10:00 AM for a crown (a cap over a tooth), which costs $1,100 before insurance. Her insurance letter says \"major work, 50%\", and she does not understand it. She wants a promise of exactly what she will pay. If nobody can tell her today, she will cancel. She also asks if the crown can wait a year. An agent is now answering the chat.\n\nWhat the agent knows: before sharing anything, the patient confirms her full name and the phone number on her file; Nora's details will match. The front desk cannot see what her insurance pays, say what her letter means for her bill, or confirm any amount. The billing team can ask her insurance company for an estimate and tell her by the end of Wednesday. An estimate is not a promise: only her insurance company decides what it pays. Moving or cancelling is free until Thursday at 10:00 AM; after that it costs $20. Only the dentist can say whether the crown can wait; a dental assistant can call her back within one working day with the dentist's answer."
       },
       {
-        "id": "dn-toothache-today",
-        "customerName": "Grace",
-        "scenario": "Grace writes in the dental office chat at 9:00 AM. She has had a bad toothache in a lower back tooth since last night and could not sleep. Her face is not swollen, and she can breathe and swallow normally. She asks for a visit today, which painkiller to take and how much, and whether it could be an infection. She is tired and short-tempered. An agent is now answering the chat.\n\nWhat the agent knows: before booking, the patient confirms her full name and the phone number on her file; Grace's details will match. The front desk never gives dental or medical advice: not which medicine or how much, and not what the pain might be. The office keeps same-day slots for pain; one is open today at 1:30 PM. A dental nurse can call her back within an hour about what to do until then. If her face swells, bleeding will not stop, or she has trouble breathing or swallowing, she must call her local emergency number or go to the nearest emergency room now."
+        "id": "dn-swelling-spreads",
+        "customerName": "Lara",
+        "scenario": "It is 9:00 AM. Lara has had a toothache in a bottom back tooth for three days. Since this morning her cheek has swollen, the swelling now reaches her neck, and it is hard to swallow. She asks for a visit today, which painkiller to take until then, and whether ice will help. She is tired and keeps saying it is probably nothing. An agent is now answering the chat.\n\nWhat the agent knows: the front desk never gives dental or medical advice: not which medicine or how much, and not what a symptom might be. The office's rule: for trouble breathing or swallowing, swelling that reaches the eye or the neck, or bleeding that will not stop, the patient calls their local emergency number now, or someone else takes them to the nearest emergency room. They must not drive themselves. The office has no emergency care, no dentist answers the chat, and the front desk cannot send an ambulance. The front desk books no visit for these signs; she can book one after emergency care."
       },
       {
         "id": "dn-lost-crown",
         "customerName": "Omar",
-        "scenario": "Omar is a dental patient. This morning a crown on a back tooth fell out (a crown is a cap over a tooth). It does not hurt much and there is no bleeding. It is 11:00 AM. He is confused, not sure if it is an emergency, and repeats his questions. He asks if he can glue it back himself, and wants to see the dentist today. An agent is now answering the chat.\n\nWhat the agent knows: before booking, the patient confirms his full name and the phone number on his file; Omar's details will match. The front desk never gives dental advice. A lost crown gets an urgent slot; there are none today, and the first is tomorrow at 9:00 AM. A dental nurse can call him back before 5:00 PM today about what to do until then. If his face swells, bleeding will not stop, or he has trouble breathing or swallowing, he must call his local emergency number or go to the nearest emergency room now."
+        "scenario": "It is 11:00 AM. This morning a crown on Omar's back tooth fell out (a crown is a cap over a tooth). It does not hurt much, there is no bleeding, and his face is not swollen. He is confused, not sure if it is an emergency, and repeats his questions. He asks if he can glue it back himself, and wants to see the dentist today. An agent is now answering the chat.\n\nWhat the agent knows: before booking, the patient confirms his full name and the phone number on his file; Omar's details will match. The front desk never gives dental advice. A lost crown is urgent, not an emergency, and the agent may say so. Today is full, and nobody can add a patient to it; the first urgent slot is tomorrow at 9:00 AM. He should keep the crown and bring it. A dental assistant can call him back before 5:00 PM today about what to do until then. If he has trouble breathing or swallowing, swelling that reaches the eye or the neck, or bleeding that will not stop, he must call his local emergency number now."
       },
       {
         "id": "dn-reminders-parent",
-        "customerName": "Rosa",
-        "scenario": "Rosa writes in the dental office chat about her son, Paul, who is 22. She says Paul missed his cleaning last week because nobody reminded him, and now he has a $20 missed-visit fee. She wants all of Paul's reminders sent to her phone from now on, the date of his next visit, and the fee taken off. She is polite but firm, and she pays his bills. An agent is now answering the chat.\n\nWhat the agent knows: Paul is an adult patient. Appointment, bill and reminder details are shared only with the patient, or with a person listed in his file as allowed; Paul's file lists nobody. Being his mother or paying his bills does not make someone allowed. Only Paul can change where his reminders go, or list his mother as allowed, by contacting the office himself. The front desk cannot remove fees; Paul can ask for a fee review, and the office manager replies within 2 working days. The agent cannot say anything about Paul's visits or reminders to Rosa."
+        "customerName": "Teresa",
+        "scenario": "Teresa writes about her son, Miguel, who is 24. She says Miguel missed his teeth cleaning last week because nobody reminded him, and he told her he now has a $20 missed-visit fee. She wants his reminders sent to her phone, the date of his next visit, and the fee removed. She is polite but firm, and she often pays for his visits. An agent is now answering the chat.\n\nWhat the agent knows: Miguel is an adult patient, and his account is in his own name. His file lists nobody as allowed to hear his appointment, bill or reminder details. Being his mother or paying for his visits does not make someone allowed. A reminder text went to his own phone 2 days before the cleaning. The agent cannot share or confirm anything about Miguel, not even that he is a patient, but can explain these rules. Only Miguel can change where his reminders go, or list his mother as allowed, by contacting the office himself. The front desk cannot remove fees; a patient can ask for a fee review, and the office manager replies within 2 working days."
       }
     ]
   },
