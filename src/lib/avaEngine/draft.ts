@@ -26,6 +26,8 @@ export interface AvaCreateDraft {
   step?: number;
   /** The review's renames, order and removals, card by card; an older draft has none. */
   reviewEdits?: { id: string; title: string; candidate: string }[];
+  /** The business's own words under Something else and Set your own hours (src/lib/ownAnswers.ts); an older draft has none. */
+  ownWords?: { business?: string; businessPack?: import("../../content/scenarioPacks/packs").ScenarioPackId | null; hours?: string };
 }
 
 export function loadDraft(): AvaCreateDraft | null {

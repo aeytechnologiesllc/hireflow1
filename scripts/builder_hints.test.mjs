@@ -127,7 +127,10 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   check("the writer is sent the whole brief, answers included", /body: JSON\.stringify\(\{\s*brief: req\.brief,/.test(fg));
   check("generate-flow puts every answer in its prompt", /brief\.followUps\.map\(\(f: \{ question: string; answer: string \}\) => `\$\{f\.question\}: \$\{f\.answer\}`\)/.test(gf) && /Owner follow-up answers:/.test(gf));
   check("…and writes the post, the application and the interview from them", /jobPost: title, summary/.test(gf) && /short application questions/.test(gf) && /written interview questions/.test(gf));
-  check("the page sends the answers it shows (the same follow-ups, with the kind of job)", /followUps: briefAnswers\(withRemoteFollowUps\(playbook\.followUps\(chipAnswers/.test(read("src/pages/AvaCreateJob.tsx")));
+  // (2026-11-01: the build reads the very follow-ups the questions show, the memo, with the business's own words in:
+  // src/lib/ownAnswers.ts withOwnWords, scripts/business_kind.test.mjs.)
+  const page = read("src/pages/AvaCreateJob.tsx");
+  check("the page sends the answers it shows (the same follow-ups, with the kind of job)", /const followUps = useMemo\(\(\) => \{\s*const ask = \(a: Record<string, number>\) => withRemoteFollowUps\(playbook\.followUps\(a,/.test(page) && /followUps: briefAnswers\(followUps\),/.test(page) && /withOwnWords\(chipAnswersToBriefAnswers\(\[CHAT_AGENT_KIND, \.\.\.defs\]/.test(page));
 }
 
 // --- "Ava is building from" -----------------------------------------------------------------

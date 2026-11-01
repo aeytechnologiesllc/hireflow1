@@ -997,6 +997,35 @@ the step it names and nothing it does not), holds that every question asked
 has its line and every chip its short words, that the writer is sent every
 answer, and the rail's count.
 
+## Something else, in the business's own words (2026-11-01)
+
+The owner, building a real job: "when you click on something else, you
+should be able to define what it is and Ava should be able to pick a category
+from that ... so they know that it's smart. Now something else doesn't do
+anything." Something else on "What kind of business is it?" now opens "Tell
+Ava what your business does" ("e.g. a pet grooming salon"):
+
+- **The words pick the closest pack** (`businessKindFromWords`,
+  `src/lib/businessKind.ts`, pure, no AI call): the business's own kind
+  before "for", "serving" or "that helps" first ("software for dental
+  clinics" is software), selling online a store whatever it sells, then a
+  dental office, a medical office, home services, a game company, software,
+  and a shop in plain words. Animals are never patients (a vet clinic, pet
+  dental care), a legal clinic is no medical office, and betting, casinos and
+  sweepstakes are never the game company. Nothing known is the general pack.
+- **The line says which, and from which words**: "Ava will use: Home services
+  situations, from “air conditioners”." or, for the general pack, "Nothing in
+  your words matched a kind she has situations for, so she keeps them
+  general." "Change" offers the seven packs; a pick wins until the words
+  change.
+- **The brief** (`withOwnWords`, `src/lib/ownAnswers.ts`) answers the industry
+  question with that pack's own chip, so both plan builders and generate-flow
+  use its skills check and cases (`packIdForBrief`), and adds "What does your
+  business do?: <the words>" for the writer. The later questions start where
+  that pack's chip would start them; the strip and the review show the words.
+  No edge function changed: generate-flow already puts every answer in its
+  prompt. `scripts/business_kind.test.mjs`.
+
 ## Where the job is
 
 `src/lib/jobLocation.ts` reads the place the business typed (and the Type

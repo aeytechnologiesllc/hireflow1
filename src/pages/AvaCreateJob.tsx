@@ -115,6 +115,9 @@ import type { LucideIcon } from "lucide-react";
 import { candidateOrigin } from "@/lib/hosts";
 import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
+import { CS_INDUSTRY_CHIPS } from "@/lib/avaEngine/customerService";
+import { PACK_CHOICES, businessKindLine } from "@/lib/businessKind";
+import { OWN_WORDS_MAX, SOMETHING_ELSE, givenWithOwnWords, ownBusinessPack, withOwnWords, type OwnWords } from "@/lib/ownAnswers";
 import { claimSuggestedSlug } from "@/lib/jobSlugAvailability";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
@@ -450,6 +453,15 @@ export default function AvaCreateJob() {
   const [fuIndex, setFuIndex] = useState(0);
   const [furthestQuestion, setFurthestQuestion] = useState<number | null>(null);
   const [chipAnswers, setChipAnswers] = useState<Record<string, number>>(saved?.chipAnswers ?? {});
+  // The business's own words under Something else and Set your own hours (src/lib/ownAnswers.ts).
+  const [ownWords, setOwnWords] = useState<OwnWords>(saved?.ownWords ?? {});
+  const [changingPack, setChangingPack] = useState(false);
+  // A tap on the chip that opens the business's own words puts the cursor there (never on its own: coming back to the
+  // question must not pop a phone's keyboard).
+  const focusOwnWords = (questionId: string, chip: string) => {
+    const field = questionId === "cs-industry" && chip === SOMETHING_ELSE ? "own-business" : null;
+    if (field) window.requestAnimationFrame(() => document.getElementById(field)?.focus());
+  };
   const [rigor, setRigor] = useState<Rigor>(saved?.rigor ?? "standard");
   const [rigorTouched, setRigorTouched] = useState(saved?.rigorTouched ?? false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -530,13 +542,21 @@ export default function AvaCreateJob() {
   // The brief lets a follow-up start on what the business's own words point to (a dental office starts on "Dental office"),
   // and its name when the role's words name no kind of business ("Bright Smile Dental").
   const businessName = profile?.company_name ?? null;
-  const followUps = useMemo(
-    () => withRemoteFollowUps(playbook.followUps(chipAnswers, { ...formBrief, businessName }), workMode),
-    [playbook, chipAnswers, workMode, formBrief, businessName],
-  );
+  const followUps = useMemo(() => {
+    const ask = (a: Record<string, number>) => withRemoteFollowUps(playbook.followUps(a, { ...formBrief, businessName }), workMode);
+    // Something else with the business's own words (src/lib/ownAnswers.ts): the later questions start where that pack's
+    // chip would start them (a dental practice's private details start on Health details), the chips as picked.
+    const defs = ask(chipAnswers);
+    const industry = defs.find((f) => f.id === "cs-industry");
+    const ownPack = ownBusinessPack(ownWords);
+    if (!industry || !ownPack || industry.chips[chipAnswers["cs-industry"] ?? industry.def] !== SOMETHING_ELSE) return defs;
+    return ask({ ...chipAnswers, "cs-industry": CS_INDUSTRY_CHIPS.findIndex(([, id]) => id === ownPack) });
+  }, [playbook, chipAnswers, workMode, formBrief, businessName, ownWords]);
+  // Every answer the plan builders and the writer read, with the business's own words in (Something else answered as
+  // its pack's chip and followed by the words; the business's own hours as written).
   const briefAnswers = useCallback(
-    (defs: typeof followUps) => chipAnswersToBriefAnswers([CHAT_AGENT_KIND, ...defs], { ...chipAnswers, [JOB_KIND_ID]: 0 }),
-    [chipAnswers],
+    (defs: typeof followUps) => withOwnWords(chipAnswersToBriefAnswers([CHAT_AGENT_KIND, ...defs], { ...chipAnswers, [JOB_KIND_ID]: 0 }), ownWords),
+    [chipAnswers, ownWords],
   );
   const rigorLabel = RIGOR_OPTIONS.find((o) => o.id === rigor)?.label ?? "Standard";
   // What each How strict choice builds and how long its applicants spend, read off the built-in plan for this brief
@@ -594,7 +614,7 @@ export default function AvaCreateJob() {
     pay: briefFields.pay,
     workMode,
     countryCode: placeReading?.countryCode ?? null,
-    answers: answersGiven(followUps, chipAnswers, { step, questionIndex: fuIndex }),
+    answers: givenWithOwnWords(answersGiven(followUps, chipAnswers, { step, questionIndex: fuIndex }), ownWords),
   };
   const knownTags = knownSoFar(hintAnswers);
   const pickPlace = (id: PlacePickId, value: string) => {
@@ -642,8 +662,9 @@ export default function AvaCreateJob() {
       flow,
       step,
       reviewEdits: reviewCards.map(({ id, title, candidate }) => ({ id, title, candidate })),
+      ownWords,
     });
-  }, [briefFields, chipAnswers, rigor, rigorTouched, flow, step, reviewCards, publishedCode]);
+  }, [briefFields, chipAnswers, rigor, rigorTouched, flow, step, reviewCards, publishedCode, ownWords]);
 
   useEffect(() => {
     if (!authLoading && !user) navigate("/auth?redirect=createJob", { replace: true });
@@ -654,7 +675,7 @@ export default function AvaCreateJob() {
     setGenSource(null);
     const brief = briefFromForm({
       ...briefFields,
-      followUps: briefAnswers(withRemoteFollowUps(playbook.followUps(chipAnswers, { ...formBrief, businessName }), formBrief.workMode)),
+      followUps: briefAnswers(followUps),
     });
     try {
       const result = await generateJobFlow({
@@ -670,7 +691,7 @@ export default function AvaCreateJob() {
     } finally {
       setGenerating(false);
     }
-  }, [briefFields, chipAnswers, playbook, rigor, formBrief, briefAnswers, businessName]);
+  }, [briefFields, followUps, playbook, rigor, briefAnswers]);
 
   useEffect(() => {
     if (step === 3) {
@@ -1091,12 +1112,52 @@ export default function AvaCreateJob() {
                       {fu.chips.map((chip, ci) => {
                         const on = picked === ci;
                         return (
-                          <button key={chip} type="button" onClick={() => setChipAnswers((a) => ({ ...a, [fu.id]: ci }))} className="inline-flex items-center rounded-full px-4 py-2.5 text-sm transition-all" style={on ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", border: "1px solid var(--action)", fontWeight: 600 } : { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}>
+                          <button key={chip} type="button" onClick={() => { setChipAnswers((a) => ({ ...a, [fu.id]: ci })); focusOwnWords(fu.id, chip); }} className="inline-flex items-center rounded-full px-4 py-2.5 text-sm transition-all" style={on ? { background: "var(--action-soft)", color: "var(--action-soft-fg)", border: "1px solid var(--action)", fontWeight: 600 } : { background: "hsl(var(--ck-surface-2))", color: "hsl(var(--foreground))", border: "1px solid hsl(var(--border))" }}>
                             {on && <Check className="mr-2 h-4 w-4" />}{chip}
                           </button>
                         );
                       })}
                     </div>
+                    {/* Something else is the business's own words, and Ava picks the closest situations from them
+                        (the owner, 2026-11-01: "Now something else doesn't do anything"; src/lib/businessKind.ts). */}
+                    {fu.id === "cs-industry" && fu.chips[picked] === SOMETHING_ELSE && (() => {
+                      const line = businessKindLine(ownWords.business, ownWords.businessPack);
+                      return (
+                        <div className="mt-6 w-full max-w-md text-left" data-own-business>
+                          <label htmlFor="own-business" className={FIELD_LABEL} style={{ color: "hsl(var(--muted-foreground))" }}>Tell Ava what your business does</label>
+                          <input
+                            id="own-business"
+                            maxLength={OWN_WORDS_MAX}
+                            value={ownWords.business ?? ""}
+                            // New words are read again: a pack picked by hand goes with the words it was picked for.
+                            onChange={(e) => { const business = e.target.value; setOwnWords((o) => ({ ...o, business, businessPack: null })); }}
+                            aria-describedby="own-business-read"
+                            className={FIELD_INPUT}
+                            style={FIELD_STYLE}
+                            placeholder="e.g. a pet grooming salon"
+                          />
+                          <div id="own-business-read" aria-live="polite">
+                            {line ? (
+                              <ReadBack tone={line.tone}>
+                                {line.text}{" "}
+                                <button type="button" className="font-medium underline underline-offset-2" style={{ color: "hsl(var(--foreground))" }} aria-expanded={changingPack} onClick={() => setChangingPack((c) => !c)} data-own-business-change>
+                                  Change
+                                </button>
+                              </ReadBack>
+                            ) : (
+                              <ReadBack tone="hint">Ava picks the closest situations for the skills check and the practice from your words.</ReadBack>
+                            )}
+                          </div>
+                          {changingPack && line && (
+                            <div className="mt-2 flex flex-wrap gap-1.5" role="group" aria-label="Which situations Ava uses">
+                              {PACK_CHOICES.map((c) => (
+                                <BriefPick key={c.pack} label={c.label} on={line.pack === c.pack} onPick={() => { setOwnWords((o) => ({ ...o, businessPack: c.pack })); setChangingPack(false); }} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {/* What this answer shapes, quietly (builderHints.ts questionShapes: only what the plan reads). */}
                     {shapes && (
                       <p className="mt-5 inline-flex items-center gap-1.5 text-[12.5px]" style={{ color: "hsl(var(--muted-foreground))" }} data-question-shapes>
