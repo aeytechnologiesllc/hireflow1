@@ -4,7 +4,6 @@ import { differenceInDays, format, formatDistanceToNow } from "date-fns";
 import { Copy, Mic, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
-import { clearDraft } from "@/lib/avaEngine/draft";
 import { useDeleteJob, useUpdateJob } from "@/hooks/useJobs";
 // A job kept to post again: "Copy to drafts", and "New job" starting from one.
 import { jobCopyFailureWords, useCopyJobToDrafts } from "@/hooks/useJobCopy";
@@ -394,8 +393,7 @@ export default function CockpitJobs() {
   }, []);
 
   const startRole = useCallback(() => {
-    clearDraft();
-    sessionStorage.removeItem("ava-create-active");
+    // The builder offers an unfinished job back (Continue or Start over): starting one never throws it away.
     navigate("/jobs/create");
   }, [navigate]);
 

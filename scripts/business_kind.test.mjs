@@ -185,7 +185,7 @@ const M = await import("data:text/javascript;base64," + Buffer.from(bundle.outpu
   check("Something else opens \"Tell Ava what your business does\" with the owner's example", /fu\.id === "cs-industry" && fu\.chips\[picked\] === SOMETHING_ELSE/.test(page) && page.includes("Tell Ava what your business does") && page.includes('placeholder="e.g. a pet grooming salon"'));
   check("the line under it is businessKindLine's, with Change and the seven packs", /businessKindLine\(ownWords\.business, ownWords\.businessPack\)/.test(page) && /PACK_CHOICES\.map\(/.test(page) && />\s*Change\s*</.test(page));
   check("new words are read again (a hand-picked pack goes with them)", /setOwnWords\(\(o\) => \(\{ \.\.\.o, business, businessPack: null \}\)\)/.test(page));
-  check("every brief the builder makes carries the words (briefAnswers), and the draft keeps them", /withOwnWords\(chipAnswersToBriefAnswers\(\[CHAT_AGENT_KIND, \.\.\.defs\]/.test(page) && /ownWords,\n\s*\}\);/.test(page));
+  check("every brief the builder makes carries the words (briefAnswers), and the draft keeps them", /withOwnWords\(chipAnswersToBriefAnswers\(\[CHAT_AGENT_KIND, \.\.\.defs\]/.test(page) && /ownWords,\s*\},\s*userId,/.test(page));
   check("no AI call for it: businessKind.ts is plain words", !/supabase|fetch\(|invoke\(/.test(readFileSync(path.join(ROOT, "src/lib/businessKind.ts"), "utf8")));
 }
 

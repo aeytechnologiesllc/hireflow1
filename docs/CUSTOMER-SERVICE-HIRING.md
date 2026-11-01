@@ -1057,6 +1057,31 @@ Mon–Fri, 9am–5pm Manila time"):
   as it is typed; the review's job post names them on either plan.
   `scripts/own_answers.test.mjs`.
 
+## Unfinished work is kept (2026-11-01)
+
+The owner: "this job should be saved up, so if they ... exit this back out,
+the job should be saved up one day so they can continue or restart." The
+builder kept its work only for the tab it was made in (a sessionStorage
+mark), and every "New job" button (Jobs, Dashboard, Analytics, Applicants)
+cleared it, so closing the tab or going back to Jobs lost it.
+
+- **Every change is saved** on this browser under the account, with its time
+  (`saveDraft(draft, userId)`, `src/lib/avaEngine/draft.ts`), for a week
+  (`DRAFT_KEEP_MS`; more than the day asked), never offered to another
+  account. A draft from before (one per browser, no time) is offered once as
+  "saved earlier".
+- **Opening the builder with unfinished work asks**: "Pick up where you left
+  off?", the job's title, "Saved 2 hours ago. It opens at question 3 of 8."
+  (`draftResumeWords`), "Continue where you left off" or "Start over" (which
+  clears it). It opens where it was left (`draftOpeningStep`): the job
+  details, the question it was on, How strict, or the plan; left while the
+  plan was building, on How strict (it never builds again by itself). The
+  dev preview's `?__previewStep=` skips the question.
+- **"New job" never clears it** any more; publishing clears it, and so does
+  the payment step, which first saves the job to Jobs as a draft ("Finish &
+  publish" on its row; the payment dialog's "Not now" goes to that job).
+  `scripts/builder_drafts.test.mjs`.
+
 ## Where the job is
 
 `src/lib/jobLocation.ts` reads the place the business typed (and the Type

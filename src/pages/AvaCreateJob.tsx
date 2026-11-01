@@ -53,6 +53,9 @@ import {
   briefFromForm,
   chipAnswersToBriefAnswers,
   clearDraft,
+  draftOpeningStep,
+  draftResumeWords,
+  draftWorthOffering,
   withRemoteFollowUps,
   generateJobFlow,
   generateTemplateFlow,
@@ -61,6 +64,7 @@ import {
   JOB_KIND_ID,
   loadDraft,
   saveDraft,
+  type AvaCreateDraft,
   type JobFlow,
   type Rigor,
 } from "@/lib/avaEngine";
@@ -261,16 +265,6 @@ function restoreReviewCards(flow: JobFlow, edits: ReviewEdit[] | undefined): Rev
   return restored.length ? restored : cards;
 }
 
-/** Where a saved draft picks up: the review when it has a plan, a question step as it was, else the brief.
- *  Never the build (it would build again) or the published screen. */
-function restoredStep(saved: { step?: number; flow: JobFlow | null } | null): number {
-  const at = saved?.step;
-  if (typeof at !== "number") return 0;
-  if (at >= 3 && saved?.flow) return 4;
-  if (at === 1 || at === 2) return at;
-  return 0;
-}
-
 function applyReviewEdits(flow: JobFlow, cards: ReviewPhaseCard[]): JobFlow {
   const post = cards.find((c) => c.id === "job-post");
   const jobPost = { ...flow.jobPost, title: post?.title ?? flow.jobPost.title, summary: post?.candidate ?? flow.jobPost.summary };
@@ -286,8 +280,6 @@ function applyReviewEdits(flow: JobFlow, cards: ReviewPhaseCard[]): JobFlow {
     });
   return { ...flow, jobPost, phases };
 }
-
-const DRAFT_SESSION_KEY = "ava-create-active";
 
 // The brief's fields: one look for every label and box.
 const FIELD_LABEL = "block text-xs font-semibold uppercase tracking-[0.14em]";
@@ -426,6 +418,85 @@ function ShareNowButton({ jobId, applyUrl }: { jobId: string; applyUrl: string }
 
 export default function AvaCreateJob() {
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    if (!authLoading && !user) navigate("/auth?redirect=createJob", { replace: true });
+  }, [authLoading, user, navigate]);
+  // This account's unfinished work on this browser, read once when the builder opens.
+  const offered = useMemo(() => (userId ? loadDraft(userId) : null), [userId]);
+  const [choice, setChoice] = useState<"continue" | "fresh" | null>(null);
+  // The dev preview's step seam (?__previewStep=) opens a screen directly, never a saved draft.
+  const previewStep = import.meta.env.DEV && typeof window !== "undefined" && new URLSearchParams(window.location.search).has("__previewStep");
+  if (authLoading || !userId) return <AuthLoadingScreen variant="employer" />;
+  const worth = !previewStep && draftWorthOffering(offered);
+  if (worth && choice === null) {
+    return (
+      <ResumeOffer
+        draft={offered}
+        onContinue={() => setChoice("continue")}
+        onStartOver={() => {
+          clearDraft(userId);
+          setChoice("fresh");
+        }}
+      />
+    );
+  }
+  return <JobBuilder key={`${userId}:${choice ?? "new"}`} userId={userId} initialDraft={worth && choice === "continue" ? offered : null} />;
+}
+
+/**
+ * "Continue where you left off" or "Start over" (the owner, 2026-11-01: "this job should be saved up, so if they ...
+ * exit this back out, the job should be saved up one day so they can continue or restart"). Unfinished work is kept on
+ * this browser for its account for a week (src/lib/avaEngine/draft.ts); a job saved as a draft at the payment step is
+ * in Jobs, "Finish & publish".
+ */
+function ResumeOffer({ draft, onContinue, onStartOver }: { draft: AvaCreateDraft; onContinue: () => void; onStartOver: () => void }) {
+  const opening = draftOpeningStep(draft);
+  const questions = useMemo(() => {
+    const brief = briefFromForm({ ...draft.briefFields, followUps: [] });
+    return withRemoteFollowUps(PLAYBOOKS.customer_service.followUps(draft.chipAnswers ?? {}, brief), brief.workMode).length;
+  }, [draft]);
+  const words = draftResumeWords(draft, { step: opening, questions });
+  return (
+    <div
+      className="ava-flow relative flex h-full min-h-0 flex-col overflow-hidden"
+      style={{ background: "radial-gradient(ellipse 90% 60% at 50% -10%, color-mix(in srgb, var(--hf-action-soft) 50%, transparent) 0%, transparent 60%), hsl(var(--background))", color: "hsl(var(--foreground))" }}
+      data-resume-offer
+    >
+      <HeroBackground />
+      <header className="relative z-10 flex items-center px-4 py-4 sm:px-6">
+        <Link to="/jobs" className="inline-flex items-center gap-1.5 text-xs font-medium" style={{ color: "hsl(var(--muted-foreground))" }}>
+          <ArrowLeft className="h-3.5 w-3.5" /> Jobs
+        </Link>
+      </header>
+      <main className="relative z-10 flex min-h-0 flex-1 overflow-y-auto px-4 py-6 sm:px-6 sm:py-10">
+        <div className="mx-auto my-auto w-full min-w-0 max-w-md rounded-2xl p-6 text-center sm:p-7" style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", boxShadow: "var(--shadow-lg)" }}>
+          <span className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ borderColor: "hsl(var(--primary) / 0.3)", color: "hsl(var(--ck-brass))" }}>
+            <AvaSeal size={12} /> Ava · Hiring assistant
+          </span>
+          <h1 className="mt-4 text-2xl leading-tight sm:text-[1.7rem]" style={{ fontFamily: DISPLAY, fontWeight: 500 }}>Pick up where you left off?</h1>
+          <p className="mt-4 text-[15px] font-semibold [overflow-wrap:anywhere]" data-resume-title>{words.title}</p>
+          <p className="mt-1 text-[13px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }} data-resume-detail>{words.detail}</p>
+          <div className="mt-6 flex flex-col gap-2.5">
+            <button type="button" autoFocus className="ck-btn ck-btn-primary w-full !text-[13.5px]" onClick={onContinue}>
+              Continue where you left off <ArrowRight className="h-4 w-4" />
+            </button>
+            <button type="button" className="ck-btn ck-btn-outline w-full !text-[13.5px]" onClick={onStartOver}>
+              Start over
+            </button>
+          </div>
+          <p className="mt-4 text-[12px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }}>
+            Start over clears this unfinished job. Jobs already saved are in Jobs.
+          </p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: AvaCreateDraft | null }) {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, loading: authLoading } = useAuth();
   const { data: profile } = useProfile();
@@ -436,8 +507,8 @@ export default function AvaCreateJob() {
   const wide = useWide();
   const reduceMotion = useReducedMotion();
 
-  const resumeDraft = typeof window !== "undefined" && sessionStorage.getItem(DRAFT_SESSION_KEY) === "1";
-  const saved = resumeDraft ? loadDraft() : null;
+  // The work the business chose to continue (AvaCreateJob's offer), or none.
+  const saved = initialDraft;
   // Dev-preview-only seam (src/dev-preview/): lets the /__preview picker land
   // directly on a given step instead of
   // requiring a click-through. `import.meta.env.DEV` is statically `false` in
@@ -449,11 +520,12 @@ export default function AvaCreateJob() {
   // plan again, losing every rename and removal on the review).
   const [step, setStep] = useState(() => {
     const raw = previewParams?.get("__previewStep");
-    return raw != null && !Number.isNaN(Number(raw)) ? Number(raw) : restoredStep(saved);
+    return raw != null && !Number.isNaN(Number(raw)) ? Number(raw) : draftOpeningStep(saved);
   });
   // No talking to Ava (the owner, 2026-10-29): every business, the
   // platform's own account included, tells her about the role in writing.
-  const [fuIndex, setFuIndex] = useState(0);
+  // A draft left on the questions opens on the question it was left on.
+  const [fuIndex, setFuIndex] = useState(() => (saved && draftOpeningStep(saved) === 1 ? Math.max(0, Math.floor(saved.questionIndex ?? 0)) : 0));
   const [furthestQuestion, setFurthestQuestion] = useState<number | null>(null);
   const [chipAnswers, setChipAnswers] = useState<Record<string, number>>(saved?.chipAnswers ?? {});
   // The business's own words under Something else and Set your own hours (src/lib/ownAnswers.ts).
@@ -650,28 +722,26 @@ export default function AvaCreateJob() {
     if (!rigorTouched) setRigor(playbook.rigor.recommended);
   }, [playbook.rigor.recommended, rigorTouched]);
 
+  // Every change is kept for this account on this browser (src/lib/avaEngine/draft.ts), so closing the tab, Jobs, or
+  // any other way out keeps the work. Published, or saved as a draft in Jobs (the payment step): cleared, and kept so.
+  const draftDoneRef = useRef(false);
   useEffect(() => {
-    sessionStorage.setItem(DRAFT_SESSION_KEY, "1");
-  }, []);
-
-  useEffect(() => {
-    // Published: the draft was cleared and stays cleared.
-    if (publishedCode) return;
-    saveDraft({
-      briefFields,
-      chipAnswers,
-      rigor,
-      rigorTouched,
-      flow,
-      step,
-      reviewEdits: reviewCards.map(({ id, title, candidate }) => ({ id, title, candidate })),
-      ownWords,
-    });
-  }, [briefFields, chipAnswers, rigor, rigorTouched, flow, step, reviewCards, publishedCode, ownWords]);
-
-  useEffect(() => {
-    if (!authLoading && !user) navigate("/auth?redirect=createJob", { replace: true });
-  }, [authLoading, user, navigate]);
+    if (publishedCode || draftDoneRef.current) return;
+    saveDraft(
+      {
+        briefFields,
+        chipAnswers,
+        rigor,
+        rigorTouched,
+        flow,
+        step,
+        questionIndex: fuIndex,
+        reviewEdits: reviewCards.map(({ id, title, candidate }) => ({ id, title, candidate })),
+        ownWords,
+      },
+      userId,
+    );
+  }, [briefFields, chipAnswers, rigor, rigorTouched, flow, step, fuIndex, reviewCards, publishedCode, ownWords, userId]);
 
   const runGeneration = useCallback(async () => {
     setGenerating(true);
@@ -755,8 +825,8 @@ export default function AvaCreateJob() {
     });
     try {
       const created = await createJobFromFlow(edited, brief, { status: "published", voiceInterview: hasVoiceInterviews });
-      clearDraft();
-      sessionStorage.removeItem(DRAFT_SESSION_KEY);
+      draftDoneRef.current = true;
+      clearDraft(userId);
       setPublishedCode(created.job_code);
       setPublishedRoleId(created.id);
       // The link to share is the short one (docs/SHORT-JOB-LINKS.md): name the
@@ -787,8 +857,9 @@ export default function AvaCreateJob() {
       if (isPaymentRequiredError(err)) {
         try {
           const draft = await createJobFromFlow(edited, brief, { status: "draft", voiceInterview: hasVoiceInterviews });
-          clearDraft();
-          sessionStorage.removeItem(DRAFT_SESSION_KEY);
+          // Saved in Jobs as a draft ("Finish & publish"), so the builder's own copy goes.
+          draftDoneRef.current = true;
+          clearDraft(userId);
           await queryClient.invalidateQueries({ queryKey: ["jobs"] });
           setPaymentJob({ id: draft.id, title: draft.title });
         } catch (saveErr) {
@@ -877,8 +948,12 @@ export default function AvaCreateJob() {
     }
   };
 
+  // Into the questions from the job details: the first question. Back from How strict keeps the last one shown, and a
+  // draft opens on the question it was left on.
+  const prevStepRef = useRef(step);
   useEffect(() => {
-    if (step === 1) setFuIndex(0);
+    if (step === 1 && prevStepRef.current === 0) setFuIndex(0);
+    prevStepRef.current = step;
   }, [step]);
 
   // The furthest question shown in this visit, for the rail's count of answers (null until one is shown).

@@ -2,7 +2,6 @@ import { useMemo, useState, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { differenceInCalendarDays, format, isValid, parse, parseISO } from "date-fns";
 import { ChevronRight } from "lucide-react";
-import { clearDraft } from "@/lib/avaEngine/draft";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useEmployerJobs } from "@/hooks/useJobs";
 import { useCareersTraffic, type CareersTrafficDay } from "@/hooks/useCareersTraffic";
@@ -209,8 +208,7 @@ export default function CockpitAnalytics() {
   const refetchAnalytics = () => void list.refetch();
 
   const startRole = () => {
-    clearDraft();
-    sessionStorage.removeItem("ava-create-active");
+    // The builder offers an unfinished job back (Continue or Start over): starting one never throws it away.
     navigate("/jobs/create");
   };
 

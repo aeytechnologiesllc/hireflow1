@@ -12,7 +12,6 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { clearDraft } from "@/lib/avaEngine/draft";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useInterviews } from "@/hooks/useInterviews";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
@@ -775,8 +774,7 @@ export default function CockpitDashboard() {
   };
 
   const startRole = () => {
-    clearDraft();
-    sessionStorage.removeItem("ava-create-active");
+    // The builder offers an unfinished job back (Continue or Start over): starting one never throws it away.
     navigate("/jobs/create");
   };
 

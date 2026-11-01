@@ -7,7 +7,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useTeamMemberPermissions } from "@/hooks/useTeamMemberPermissions";
 import { useIsMobile, useMinWidth } from "@/hooks/use-mobile";
 import { useEmployerJobs } from "@/hooks/useJobs";
-import { clearDraft } from "@/lib/avaEngine/draft";
 import { SearchInput } from "../components/controls";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { ShareJobCompact, applyLinkFor } from "../components/ShareJobCard";
@@ -751,8 +750,7 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
   if (view.scoped.length === 0) {
     const emptyJob = shareJob ?? jobRows.find((j) => j.status === "live") ?? null;
     const startRole = () => {
-      clearDraft();
-      sessionStorage.removeItem("ava-create-active");
+      // The builder offers an unfinished job back (Continue or Start over): starting one never throws it away.
       navigate("/jobs/create");
     };
     return (
