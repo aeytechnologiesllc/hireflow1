@@ -182,7 +182,15 @@ check(
 check("…and never covers the story: it lies in the page's own flow (nothing pinned under the bar), and a part reached by its link starts under the bar", /html\{scroll-padding-top:calc\(var\(--barh\) \+ 12px\)\}/.test(page) && !/position:\s*sticky/.test(page) && !/<div class="stage"|class="caps"/.test(page));
 check("…the opening's main button is the big stamp, Post your first job, free (No card.)", /<a class="stamp" href="https:\/\/staff\.hireflownow\.com\/auth\?mode=signup" id="heroStart">\s*<span class="face">[\s\S]*?<span class="lbl">Post your first job, free<\/span>/.test(page) && /<span class="t">No card\.<\/span>/.test(page));
 check("…and again at the end, as your envelope's postage: written in the envelope itself, never moved, copied or made by a script", /<div class="ydrop" data-at>\s*<a class="stamp" href="https:\/\/staff\.hireflownow\.com\/auth\?mode=signup" id="endStart">/.test(page) && !/getElementById\("endStart"\)|appendChild\(ylink\)|cloneNode/.test(page) && !/Watch it again|Watch one night/.test(page));
-check("no prices while billing is off", !/\$\d|per month|\/mo\b|pricing/i.test(page));
+// Billing is on since 2026-11-01: the prices are stated once, in the ending's
+// price line, and they are the app's own (src/lib/billing.ts); nowhere else.
+const billingTs = await read("src/lib/billing.ts");
+const priceJob = /export const PRICE_JOB = "([^"]+)"/.exec(billingTs)?.[1];
+const priceUnlimited = /export const PRICE_UNLIMITED = "([^"]+)"/.exec(billingTs)?.[1];
+const priceLine = /<p class="price">([^<]*)<\/p>/.exec(page)?.[1] ?? "";
+check("the prices are stated once, in the ending, and they are the app's own (src/lib/billing.ts)",
+  !!priceJob && !!priceUnlimited && priceLine.includes(`${priceJob} keeps a job live for 30 days`) && priceLine.includes(`Unlimited is ${priceUnlimited}`) &&
+    !/\$\d|per month|\/mo\b|pricing/i.test(page.replace(/<p class="price">[^<]*<\/p>/, "").replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/, "")));
 check("the headline is there from the first paint (written in the page, never hidden to rise in)", !/translateY\(112%\)/.test(page) && !/h1[^{}]*\{[^}]*opacity:\s*0/.test(page) && !/\bh1 \.ln\{[^}]*opacity/.test(page));
 check("the fonts never block the first paint", /fonts\.googleapis\.com\/css2[^"]*" media="print" onload="this\.media='all'">/.test(page) && !/<link href="https:\/\/fonts\.googleapis\.com\/css2[^"]*" rel="stylesheet">/.test(page));
 check("…and the desk waits for them (a second at most), the stylesheet first", /const l = document\.getElementById\("hfFontCss"\);\s*if \(!l \|\| l\.media === "all"\) return r\(\);/.test(page) && /new Promise\(r => setTimeout\(\(\) => r\(false\), 1000\)\)/.test(page) && /document\.fonts\.addEventListener\("loadingdone"/.test(page));

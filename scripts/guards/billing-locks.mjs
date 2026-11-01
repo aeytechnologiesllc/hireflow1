@@ -175,10 +175,25 @@ export default [
 
       // The app: prices only in src/lib/billing.ts.
       const shipped = [...(await walk("src", [".ts", ".tsx"])), ...(await walk("public", [".html", ".js"])), ...(await walk("api", [".mjs", ".js"])), "index.html"];
+      // The front page is static, so it cannot ask whether billing is on. Billing
+      // has been on since 2026-11-01 (the owner: "make that live"), and the front
+      // page states the prices in one line, exactly the app's own: a price changed
+      // in src/lib/billing.ts fails here until that line says the same. If billing
+      // is ever switched off again, the line goes (docs/BILLING.md).
+      const priceSource = code(await read("src/lib/billing.ts"));
+      const constant = (name) => new RegExp(`export const ${name} = "([^"]+)"`).exec(priceSource)?.[1];
+      const days = /export const PASS_DAYS = (\d+);/.exec(priceSource)?.[1];
       for (const rel of shipped) {
         if (rel === "src/lib/billing.ts" || rel.startsWith("src/dev-preview/")) continue;
-        const text = code(await read(rel));
-        if (PRICE.test(text)) detail.push(`${rel}: shows one of HireFlow's prices (they live in src/lib/billing.ts, shown only while billing is on)`);
+        let text = code(await read(rel));
+        if (rel === "public/landing.html") {
+          const line = /<p class="price">([^<]*)<\/p>/.exec(text)?.[1] ?? "";
+          const job = constant("PRICE_JOB"), unlimited = constant("PRICE_UNLIMITED");
+          if (!job || !unlimited || !line.includes(`${job} keeps a job live for ${days} days`) || !line.includes(`Unlimited is ${unlimited}`))
+            detail.push(`public/landing.html: the price line must state src/lib/billing.ts's own prices (${job ?? "?"} a job for ${days ?? "?"} days, Unlimited ${unlimited ?? "?"})`);
+          text = text.replace(/<p class="price">[^<]*<\/p>/, "").replace(/<script type="application\/ld\+json">[\s\S]*?<\/script>/, "");
+        }
+        if (PRICE.test(text)) detail.push(`${rel}: shows one of HireFlow's prices (they live in src/lib/billing.ts; the front page only in its one price line)`);
       }
       const words = code(await read("src/lib/billing.ts"));
       for (const fn of ["jobPassLine", "billingCard", "repostNeedsPayment"]) {
