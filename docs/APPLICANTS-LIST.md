@@ -73,6 +73,11 @@ active count, opening a bottom sheet with chip groups and "Show N applicants"):
 - **Country**: All, then the countries present, most common first, then Unknown.
 - **Applied**: Any time, Today, This week, This month.
 - **Job**: only when the employer has more than one job (`?roleId=` is the same filter).
+  With some jobs live and some not, the page opens on **Live jobs** (no
+  `?roleId=`); "All jobs" is `?roleId=all`. Each job in the menu has a line
+  under its name, live first, then drafts, then closed: "Live · Philippines ·
+  posted Nov 2, 2026" (`jobFilterChoices`; the owner, 2026-11-02, with two
+  jobs of the same name).
 - **Sort**: Score high to low (unscored last), Newest, Last active. Ties,
   and the whole unscored block, go by when they applied (newest first), then
   id: keys nothing a live applicant does can move. Only "Last active" reads
@@ -228,6 +233,15 @@ themes); the line to them is quieter, at 30%. The aria-label reads
 "Where they are: Tested"; the row's own line says the rest (under the rail
 on the list and the phone card, under the name in the first-hire guide). The full
 profile keeps its detailed per-step rail (section 4).
+
+**Each test as a small dot (2026-11-02).** The owner, a day into his second
+hiring run: "I liked it when it used to show you the little ones ... it used
+to show you each as they was completing it." The four milestones stay, and
+the line from Applied to Tested now carries one small dot per test
+(`MilestoneView.tests`, `TestDot` in ApplicantRow.tsx): filled jade when done
+(copper under its bar), a ring while they are on it, dashed when skipped,
+hollow ahead, each with its name and state on hover. The aria-label adds
+"2 of 4 tests done".
 
 ### Dot states: decided by the RECORD, never by position
 

@@ -10,6 +10,7 @@ import { CockpitErrorCard } from "../components/ErrorCard";
 import { ShareJobCompact } from "../components/ShareJobCard";
 import { Reveal, RollingNumber } from "../components/analytics/AnalyticsMotion";
 import { useApplicantList } from "../hooks/useApplicantList";
+import { jobFilterChoices } from "../lib/applicantList";
 import { useCockpitJobsData } from "../hooks/useCockpitData";
 import { buildAnalyticsView, hourWords, reasonsLine, spanParts, type AnalyticsView } from "../lib/analyticsView";
 import "../analytics.css";
@@ -171,15 +172,21 @@ export default function CockpitAnalytics() {
   const [picked, setPicked] = useState<string | null>(null);
   const liveJob = jobs.find((j) => j.status === "live") ?? null;
 
-  // The jobs people have applied to, the busiest first. The page is about
-  // one job at a time: each has its own steps.
+  // The jobs people have applied to, live ones first, then the busiest. The
+  // page is about one job at a time: each has its own steps. Each says which
+  // it is ("Live · Philippines"): a copied job keeps its name, and the page
+  // used to open on October's closed job, the busiest (2026-11-02).
   const counted = useMemo(() => {
     const by = new Map<string, number>();
     for (const row of list.rows) if (row.jobId) by.set(row.jobId, (by.get(row.jobId) ?? 0) + 1);
     return [...by.entries()]
-      .map(([id, count]) => ({ id, count, title: list.rows.find((r) => r.jobId === id)?.jobTitle ?? "Job" }))
-      .sort((a, b) => b.count - a.count);
-  }, [list.rows]);
+      .map(([id, count]) => {
+        const known = jobs.find((j) => j.id === id);
+        const which = known ? jobFilterChoices([known])[0].hint.split(" · ").slice(0, 2).join(" · ") : "";
+        return { id, count, live: known?.status === "live", title: list.rows.find((r) => r.jobId === id)?.jobTitle ?? "Job", which };
+      })
+      .sort((a, b) => Number(b.live) - Number(a.live) || b.count - a.count);
+  }, [list.rows, jobs]);
   const jobId = (picked && counted.some((j) => j.id === picked) ? picked : counted[0]?.id) ?? null;
   const job = useMemo(() => (fullJobs ?? []).find((j) => j.id === jobId) ?? null, [fullJobs, jobId]);
   const shownJob = jobs.find((j) => j.id === jobId) ?? null;
@@ -324,7 +331,7 @@ export default function CockpitAnalytics() {
           <select className="an-pick" aria-label="Which job" value={jobId ?? ""} onChange={(e) => setPicked(e.target.value)} data-analytics-job>
             {counted.map((j) => (
               <option key={j.id} value={j.id}>
-                {j.title} · {j.count}
+                {j.title}{j.which ? ` · ${j.which}` : ""} · {j.count} applied
               </option>
             ))}
           </select>

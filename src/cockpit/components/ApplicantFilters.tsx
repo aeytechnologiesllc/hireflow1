@@ -27,6 +27,8 @@ export interface FilterChoice {
   label: string;
   /** Shown beside the label in the sheet ("70 and up 22"). */
   count?: number;
+  /** A quieter line under the label ("Live · Philippines · posted Nov 2, 2026"). */
+  hint?: string;
 }
 
 export type FilterKey = "where" | "score" | "flags" | "below" | "country" | "applied" | "job";
@@ -213,7 +215,16 @@ export function Dropdown({ options, value, onPick, children, ariaLabel, triggerC
                   className="flex w-full items-center gap-2.5 rounded-[8px] text-left outline-none transition-colors hover:bg-[var(--ground-2)] focus-visible:bg-[var(--ground-2)]"
                   style={{ fontSize: 13, padding: "8px 10px", minHeight: 36, whiteSpace: "nowrap", color: chosen ? "var(--ink)" : "var(--ink-2)", fontWeight: chosen ? 600 : 400 }}
                 >
-                  <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                  {o.hint ? (
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{o.label}</span>
+                      <span className="block truncate text-[11.5px] font-normal" style={{ color: "var(--ink-3)" }}>
+                        {o.hint}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="min-w-0 flex-1 truncate">{o.label}</span>
+                  )}
                   {o.count != null && (
                     <span className="tnum text-[12px]" style={{ color: "var(--ink-3)" }}>
                       {o.count}
@@ -538,6 +549,11 @@ export function ApplicantFilterSheet({
                       style={{ ...CHIP_BASE, ...(on ? CHIP_ON : null) }}
                     >
                       {o.label}
+                      {o.hint && (
+                        <span className="ml-1 text-[12px]" style={{ color: on ? "var(--action-soft-fg)" : "var(--ink-3)" }}>
+                          {o.hint}
+                        </span>
+                      )}
                       {g.counts && o.count != null && o.value !== g.anyValue && (
                         <span className="tnum ml-1 text-[12px]" style={{ color: on ? "var(--action-soft-fg)" : "var(--ink-3)" }}>
                           {o.count}

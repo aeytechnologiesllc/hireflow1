@@ -880,8 +880,10 @@ export default function CockpitDashboard() {
               note="last 7 days"
               onClick={() => navigate("/analytics")}
             />
-            <StatTile index={2} label="Applicants" value={candidates.length} note="all time" onClick={() => navigate("/applicants")} />
-            <StatTile index={3} label="In progress" value={inProgress} note="moving through steps" onClick={() => navigate("/applicants")} />
+            {/* Both count every job, so both open Applicants on every job
+                (?roleId=all): it opens on the live ones otherwise. */}
+            <StatTile index={2} label="Applicants" value={candidates.length} note="all time" onClick={() => navigate("/applicants?roleId=all")} />
+            <StatTile index={3} label="In progress" value={inProgress} note="moving through steps" onClick={() => navigate("/applicants?roleId=all")} />
             <StatTile index={4} label="Interviews" value={upcomingInterviews} note="coming up" onClick={() => navigate("/interviews")} />
             <StatTile index={5} label="Hired" value={hired} note="through HireFlow" onClick={() => navigate("/analytics")} />
           </section>

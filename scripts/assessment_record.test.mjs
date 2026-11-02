@@ -1402,7 +1402,34 @@ check(
   // Inside a job the job is in the path, so ?roleId= is left out of the URL.
   /setSearchParams\(\s*\(current\) => \{\s*const next = serializeListState\(\{ \.\.\.parseListState\(current\), shown: PAGE_SIZE, \.\.\.patch \}, current\);\s*if \(jobId\) next\.delete\("roleId"\);\s*return next;\s*\},\s*\{ replace: true \},?\s*\)/.test(applicantsPage),
 );
-check("the job filter IS ?roleId=", /set\("roleId", state\.job, ""\)/.test(listLib) && /job: str\(p\.get\("roleId"\)\)/.test(listLib) && /update\(\{ job: value \|\| null \}\)/.test(applicantsPage));
+check("the job filter IS ?roleId=", /set\("roleId", state\.job, ""\)/.test(listLib) && /job: str\(p\.get\("roleId"\)\)/.test(listLib) && /update\(\{ job: value === JOB_LIVE \? null : value \|\| null \}\)/.test(applicantsPage));
+// The owner, 2026-11-02: "as soon as you land here ... only the active jobs ...
+// if they want to see all, they can see all", and three same-named jobs in the
+// menu told him nothing. With some jobs live and some not, the page opens on
+// the live ones (no ?roleId=), ?roleId=all is every job, and each job in the
+// menu says Live/Draft/Closed, where, and when.
+check(
+  "Applicants opens on the live jobs, ?roleId=all is every job",
+  /const liveFirst = !jobId && liveJobIds\.size > 0 && jobRows\.some\(\(j\) => j\.status !== "live"\);/.test(applicantsPage) &&
+    /parsedState\.job === JOB_ALL \? null : parsedState\.job \?\? \(liveFirst \? JOB_LIVE : null\)/.test(applicantsPage) &&
+    /jobScope === JOB_LIVE \? taggedRows\.filter\(\(r\) => r\.jobId != null && liveJobIds\.has\(r\.jobId\)\) : taggedRows/.test(applicantsPage),
+);
+{
+  const { jobFilterChoices } = AL;
+  const choices = jobFilterChoices([
+    { id: "c", title: "Chat Support Team Leader", status: "closed", location: "Remote (worldwide)", dateLabel: "Posted", date: "Oct 4, 2026" },
+    { id: "d", title: "Chat Support Agent", status: "draft", location: "Remote (Pakistan)", dateLabel: "Last edited", date: "Nov 2, 2026" },
+    { id: "l", title: "Chat Support Agent", status: "live", location: "Remote (Philippines)", dateLabel: "Posted", date: "Nov 2, 2026" },
+  ]);
+  check(
+    "the Job filter: live first, then drafts, then closed, each saying which it is and where",
+    choices.map((c) => c.value).join(",") === "l,d,c" &&
+      choices[0].hint === "Live · Philippines · posted Nov 2, 2026" &&
+      choices[1].hint === "Draft · Pakistan · last edited Nov 2, 2026" &&
+      choices[2].hint === "Closed · worldwide · posted Oct 4, 2026",
+    JSON.stringify(choices),
+  );
+}
 check("the profile's pager gets the order on screen; Back restores the scroll", /writeApplicantOrder\(ids\)/.test(applicantsPage) && /navigationType !== "POP"/.test(applicantsPage) && /readScroll\(location\.search\)/.test(applicantsPage));
 check("an old ?applicationId= link opens that person's profile", /const redirect = profileRedirectFor\(searchParams\);\s*if \(redirect\) return <Navigate to=\{redirect\} replace \/>/.test(applicantsPage));
 const dashboardPage = await src("src/cockpit/pages/Dashboard.tsx");

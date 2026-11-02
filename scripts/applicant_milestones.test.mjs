@@ -73,5 +73,19 @@ for (const status of ["pending", "reviewing", "in_progress", "interview", "offer
 check("every state × form × finished × steps lands on a milestone with words", true);
 check("no green, player or Zulu wording in the words", !/jade|player|zulu/i.test(JSON.stringify([form, testing, review, interview, offer, hired, declinedAfter, noTests])));
 
+// Each test as a small dot on the line to Tested (the owner, 2026-11-02: "it
+// used to show you each as they was completing it"), named and in order.
+{
+  const v = at({ testStates: ["done", "below", "now", "todo"], testTitles: ["Skills check", "Computer and connection", "Chat practice", "Written interview"] });
+  check(
+    "each test rides along with its name and state, in order",
+    v.tests.length === 4 && v.tests[0].title === "Skills check" && v.tests[1].state === "below" && v.tests[2].state === "now" && v.tests[3].state === "todo",
+    show(v.tests),
+  );
+  check("no names given: the tests are still there, numbered", at({ testStates: ["done", "todo"] }).tests.map((t) => t.title).join(",") === "Test 1,Test 2");
+}
+const rowSrc = await (await import("node:fs/promises")).readFile(path.join(ROOT, "src/cockpit/components/ApplicantRow.tsx"), "utf8");
+check("the rail draws a dot for each test on the line to Tested", /i === 1 && tests\.map\(\(test, t\) => <TestDot /.test(rowSrc));
+
 console.log(`\n${failed === 0 ? "All" : `${failed} of`} ${passed + failed} checks ${failed === 0 ? "passed" : "failed"}.`);
 process.exit(failed === 0 ? 0 : 1);

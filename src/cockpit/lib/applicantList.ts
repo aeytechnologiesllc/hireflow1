@@ -874,6 +874,7 @@ export function listRowFor(
     onForm,
     finished,
     testStates: stepDots.filter((d) => d.stepType !== "application").map((d) => d.state),
+    testTitles: stepDots.filter((d) => d.stepType !== "application").map((d) => d.title),
     liveState,
   });
 
@@ -1349,6 +1350,38 @@ export function matchesApplied(row: ApplicantListRow, applied: AppliedFilter, no
   if (applied === "today") return at >= startOfDay(now);
   if (applied === "week") return at >= now - 7 * DAY;
   return at >= now - 30 * DAY;
+}
+
+/** ?roleId=all: every job, when the page opens on the live ones. */
+export const JOB_ALL = "all";
+/** The live jobs: where Applicants opens when some jobs are live and some are not. Never in the URL. */
+export const JOB_LIVE = "live";
+
+const JOB_STATUS_ORDER: Record<string, number> = { live: 0, draft: 1, closed: 2 };
+const JOB_STATUS_WORD: Record<string, string> = { live: "Live", draft: "Draft", closed: "Closed" };
+
+/**
+ * The jobs in the Job filter: live first, then drafts, then closed, each with
+ * a line under its name saying which it is, where, and when ("Live ·
+ * Philippines · posted Nov 2, 2026"). A copied job keeps its name, and three
+ * "Chat Support Agent (Zulu Royal & Zulu R…" in a row told the owner nothing
+ * (2026-11-02).
+ */
+export function jobFilterChoices(
+  jobs: ReadonlyArray<{ id: string; title: string; status: string; location?: string | null; dateLabel?: string; date?: string }>,
+): { value: string; label: string; hint: string }[] {
+  return jobs
+    .map((job, i) => ({ job, i }))
+    .sort((a, b) => (JOB_STATUS_ORDER[a.job.status] ?? 3) - (JOB_STATUS_ORDER[b.job.status] ?? 3) || a.i - b.i)
+    .map(({ job }) => {
+      const place = (job.location ?? "").replace(/^Remote\s*\((.+)\)$/i, "$1").trim();
+      const when = job.date ? `${(job.dateLabel ?? "Posted").toLowerCase()} ${job.date}` : "";
+      return {
+        value: job.id,
+        label: job.title,
+        hint: [JOB_STATUS_WORD[job.status] ?? job.status, place && place !== "Location TBD" ? place : "", when].filter(Boolean).join(" · "),
+      };
+    });
 }
 
 export function matchesJob(row: ApplicantListRow, job: string | null): boolean {

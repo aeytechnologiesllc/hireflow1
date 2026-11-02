@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Bookmark, Check, ChevronRight, ShieldAlert, StickyNote, X } from "lucide-react";
 import { noteTitle } from "../lib/applicantNotes";
 import { TONE_VAR, type ApplicantDot, type ApplicantListRow, type DotState, type LineSegment } from "../lib/applicantList";
-import { MILESTONE_LABELS, type MilestoneView } from "../lib/milestones";
+import { MILESTONE_LABELS, type MilestoneTest, type MilestoneView } from "../lib/milestones";
 import { samePhoneWords } from "../lib/blockedApplicants";
 import { applicantPath, useJobScope } from "../lib/jobScope";
 import { initialsTint } from "../lib/initialsTint";
@@ -51,8 +51,13 @@ const UNLIT_LINE = "color-mix(in srgb, var(--ink-3) 30%, transparent)";
 export function MilestoneRail({ view, labels = true, size = 9 }: { view: MilestoneView; labels?: boolean; size?: number }) {
   const big = size + 6;
   const stopped = view.tone === "stopped";
+  const tests = view.tests ?? [];
+  const testsDone = tests.filter((t) => t.state === "done" || t.state === "below" || t.state === "skipped").length;
   return (
-    <div aria-label={`Where they are: ${stopped ? "Declined" : view.at === 3 && view.tone !== "won" ? "Offer" : MILESTONE_LABELS[view.at]}`} role="img">
+    <div
+      aria-label={`Where they are: ${stopped ? "Declined" : view.at === 3 && view.tone !== "won" ? "Offer" : MILESTONE_LABELS[view.at]}${tests.length > 0 ? `, ${testsDone} of ${tests.length} tests done` : ""}`}
+      role="img"
+    >
       <div className="flex items-center" style={{ height: big + 6 }}>
         {MILESTONE_LABELS.map((label, i) => {
           const lit = i < view.lit;
@@ -74,9 +79,12 @@ export function MilestoneRail({ view, labels = true, size = 9 }: { view: Milesto
             <span key={label} className={`flex items-center ${i === 0 ? "" : "min-w-0 flex-1"}`}>
               {i > 0 && (
                 <span
-                  className="h-[2px] min-w-[8px] flex-1 rounded-full"
+                  className="relative flex h-[2px] min-w-[8px] flex-1 items-center justify-evenly rounded-full"
                   style={{ background: i < view.lit || (here && !stopped) ? `linear-gradient(90deg, ${gemPosition(i - 1, MILESTONE_LABELS.length).color}, ${color})` : UNLIT_LINE }}
-                />
+                >
+                  {/* Each test, on the line from Applied to Tested. */}
+                  {i === 1 && tests.map((test, t) => <TestDot key={t} test={test} size={Math.max(5, size - 3)} />)}
+                </span>
               )}
               <span className="grid shrink-0 place-items-center rounded-full" style={{ width: d, height: d, ...dot }}>
                 {here && stopped ? (
@@ -108,6 +116,26 @@ export function MilestoneRail({ view, labels = true, size = 9 }: { view: Milesto
       )}
     </div>
   );
+}
+
+const TEST_WORDS: Record<MilestoneTest["state"], string> = { done: "done", below: "done, under the bar", now: "on it now", skipped: "skipped", todo: "not yet" };
+
+/** One test on the line to Tested: filled when done (copper under its bar),
+ *  a ring while they are on it, dashed when skipped, hollow ahead. Its name
+ *  and state on hover. */
+function TestDot({ test, size }: { test: MilestoneTest; size: number }) {
+  // A filled dot wears a thin card-coloured ring, so it stands off the lit line.
+  const look: CSSProperties =
+    test.state === "done"
+      ? { background: "var(--good)", boxShadow: "0 0 0 1.5px var(--hf-surface)" }
+      : test.state === "below"
+        ? { background: "var(--under)", boxShadow: "0 0 0 1.5px var(--hf-surface)" }
+        : test.state === "now"
+          ? { background: "var(--hf-surface)", boxShadow: "inset 0 0 0 2px var(--gem-3)" }
+          : test.state === "skipped"
+            ? { background: "var(--hf-surface)", border: `1px dashed ${UNLIT}` }
+            : { background: "var(--hf-surface)", boxShadow: `inset 0 0 0 1.5px ${UNLIT}` };
+  return <span title={`${test.title}: ${TEST_WORDS[test.state]}`} className="block shrink-0 rounded-full" style={{ width: size, height: size, ...look }} />;
 }
 
 /** Under the table: where the rest is. (The five dot states it used to name

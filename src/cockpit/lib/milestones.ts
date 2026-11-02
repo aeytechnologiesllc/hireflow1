@@ -12,6 +12,10 @@
  * phone shows it without a hover. `detail` is that state in short words, for
  * tests and any caller with no line of its own.
  *
+ * Each test also gets a small dot of its own on the line from Applied to
+ * Tested, filling in as it is done (2026-11-02), so a row shows how far into
+ * the tests someone is at a glance; the four milestones stay the rail.
+ *
  * Every application state lands on a milestone (docs/APPLICANTS-LIST.md has
  * the table): filling in the form → Applied; taking the tests (or waiting
  * for a computer, or gone part-way) → Tested, not lit yet; every test done
@@ -36,6 +40,14 @@ export interface MilestoneInput {
   testStates: ReadonlyArray<"done" | "below" | "now" | "skipped" | "todo">;
   /** The record's live state on the step they are on, when there is one. */
   liveState?: string | null;
+  /** Each test's name, in the same order as testStates (for the small test dots). */
+  testTitles?: ReadonlyArray<string>;
+}
+
+/** One test as a small dot between Applied and Tested. */
+export interface MilestoneTest {
+  title: string;
+  state: "done" | "below" | "now" | "skipped" | "todo";
 }
 
 export interface MilestoneView {
@@ -47,14 +59,23 @@ export interface MilestoneView {
   detail: string;
   /** "won": hired (the one brass moment); "stopped": declined; else "moving". */
   tone: "moving" | "stopped" | "won";
+  /** Every test, as it stands: drawn as small dots on the line from Applied to
+   *  Tested, filling in one by one (the owner, 2026-11-02: "it used to show you
+   *  each as they was completing it"). */
+  tests: MilestoneTest[];
 }
 
 function testsDone(states: MilestoneInput["testStates"]): number {
   return states.filter((s) => s === "done" || s === "below" || s === "skipped").length;
 }
 
-/** Where an applicant is, as one of the four milestones. Never blank. */
+/** Where an applicant is, as one of the four milestones, with each test. Never blank. */
 export function milestonesFor(input: MilestoneInput): MilestoneView {
+  const tests = input.testStates.map((state, i) => ({ title: input.testTitles?.[i] ?? `Test ${i + 1}`, state }));
+  return { ...milestoneOf(input), tests };
+}
+
+function milestoneOf(input: MilestoneInput): Omit<MilestoneView, "tests"> {
   const total = input.testStates.length;
   const done = testsDone(input.testStates);
   const tested = input.finished || (total > 0 && done >= total);

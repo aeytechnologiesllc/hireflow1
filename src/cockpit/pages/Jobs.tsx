@@ -153,9 +153,12 @@ function JobListRow({
   const draft = job.status === "draft";
   const filled = job.status === "closed" && job.stats.hired > 0;
 
-  // Ava's line only where she actually has something to say (an unfinished draft).
+  // Ava's line only where she actually has something to say (an unfinished
+  // draft). A draft says its pay and place too: a copy keeps its job's name,
+  // and the owner could not tell his Pakistan draft from his live Philippines
+  // job (2026-11-02).
   const meta = draft
-    ? `${extras.when} · finish it and I'll put it live`
+    ? [extras.when, job.pay, job.location !== "Location TBD" ? job.location : null, "finish it and I'll put it live"].filter(Boolean).join(" · ")
     : filled && extras.hiredName
       ? `Hired ${extras.hiredName} · ${extras.when.toLowerCase()}`
       : [extras.passLine, extras.when, job.pay, job.location].filter(Boolean).join(" · ");
@@ -289,7 +292,6 @@ function shortName(full: string) {
   return `${parts[0]} ${parts[parts.length - 1][0]}.`;
 }
 
-const SHOW_CLOSED_KEY = "hf-jobs-show-closed";
 
 /** The one sentence that has to land before a delete: the applications go too.
  *  A role with a short link also loses it: every link, QR code and flyer
@@ -369,28 +371,6 @@ export default function CockpitJobs() {
       toast.error("Couldn't delete this job. Please try again.");
     }
   };
-
-  // Closed roles are done — they stay out of the way by default. Whoever wants
-  // them back can ask, and we remember the ask.
-  const [showClosed, setShowClosed] = useState(() => {
-    try {
-      return localStorage.getItem(SHOW_CLOSED_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-
-  const toggleShowClosed = useCallback(() => {
-    setShowClosed((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(SHOW_CLOSED_KEY, next ? "1" : "0");
-      } catch {
-        // localStorage unavailable — the toggle still works for this visit.
-      }
-      return next;
-    });
-  }, []);
 
   const startRole = useCallback(() => {
     // The builder offers an unfinished job back (Continue or Start over): starting one never throws it away.
@@ -561,16 +541,18 @@ export default function CockpitJobs() {
     [sort],
   );
 
-  // Closed roles are done, so the default view leaves them out. Explicitly
-  // choosing the "Closed" pill still shows them; otherwise the quiet toggle
-  // below the list appends them in their own muted section.
+  // Closed roles come last, in their own muted section under "All"; the
+  // "Closed" pill shows them alone.
   // No search, status or place set: an empty list then means every role is
   // closed, never "nothing matches" (the walkthrough of 2026-10-31: after
   // closing the only live role the page said "No open roles match that" and
   // offered a Clear filters that did nothing, with the role tucked away).
   const filtersSet = query.trim() !== "" || status !== "all" || place !== "all";
   const onlyClosed = !filtersSet && jobs.length > 0 && jobs.every((j) => j.status === "closed");
-  const closedShown = showClosed || onlyClosed;
+  // "All · 3" shows all three (the owner, 2026-11-02: "If I click on all 3, I
+  // should be able to see all 3"): the closed ones under their own heading,
+  // after the open ones. "Live" and "Draft" are the ways to leave them out.
+  const closedShown = status === "all";
   const visible = useMemo(() => {
     const filtered = jobs.filter((j) => (status === "all" || j.status === status) && matchesSearch(j));
     if (status === "closed") return { active: sortRows(filtered), closed: [] as JobRow[] };
@@ -773,21 +755,9 @@ export default function CockpitJobs() {
           {/* ── Closed roles, tucked away by default ─────────── */}
           {status === "all" && hiddenClosedCount > 0 && (
             <div className="flex flex-col gap-2">
-              {/* With nothing but closed roles they are simply shown: there is nothing to hide them behind. */}
-              {onlyClosed ? (
-                <span className="self-start text-[12px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--ink-3)" }}>
-                  Closed ({hiddenClosedCount})
-                </span>
-              ) : (
-                <button
-                  type="button"
-                  onClick={toggleShowClosed}
-                  className="self-start text-[12px] font-semibold uppercase tracking-[0.06em] transition-opacity hover:opacity-75"
-                  style={{ color: "var(--ink-3)" }}
-                >
-                  {showClosed ? "Hide closed" : `Show closed (${hiddenClosedCount})`}
-                </button>
-              )}
+              <span className="self-start text-[12px] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--ink-3)" }}>
+                Closed ({hiddenClosedCount})
+              </span>
               {/* Full colour: the Closed chip and the muted title say it is closed;
                   its buttons still work, so they keep their contrast (they were
                   faded to 0.6, Delete at 2.7:1). */}

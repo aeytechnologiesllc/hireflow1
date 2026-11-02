@@ -44,6 +44,8 @@ import {
   APPLIED_OPTIONS,
   BELOW_OPTIONS,
   FLAG_OPTIONS,
+  JOB_ALL,
+  JOB_LIVE,
   PAGE_SIZE,
   SCORE_OPTIONS,
   SORT_OPTIONS,
@@ -51,6 +53,7 @@ import {
   activeFilterCount,
   applyListState,
   countryOptions,
+  jobFilterChoices,
   optionCounts,
   parseListState,
   profileRedirectFor,
@@ -337,10 +340,24 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
   /* ── The list's state is the URL ───────────────────────────────────── */
   // Inside a job the job is the page, not a filter: it is in the path, never
   // in ?roleId=.
-  const state = useMemo(() => {
+  const parsedState = useMemo(() => {
     const parsed = parseListState(searchParams);
     return jobId ? { ...parsed, job: jobId } : parsed;
   }, [searchParams, jobId]);
+  // The page opens on the live jobs (the owner, 2026-11-02, with a new job
+  // live beside October's closed one and a draft, all with the same name:
+  // "as soon as you land here ... only the active jobs ... if they want to see
+  // all, they can see all"). Only when some jobs are live and some are not;
+  // ?roleId=all is every job, ?roleId=<id> one.
+  const liveJobIds = useMemo(() => new Set(jobRows.filter((j) => j.status === "live").map((j) => j.id)), [jobRows]);
+  const liveFirst = !jobId && liveJobIds.size > 0 && jobRows.some((j) => j.status !== "live");
+  const jobScope = jobId ?? (parsedState.job === JOB_ALL ? null : parsedState.job ?? (liveFirst ? JOB_LIVE : null));
+  // What the list library filters on: one job's id, or null for every row
+  // handed to it (the live jobs' rows when the scope is "live").
+  const state = useMemo(
+    () => ({ ...parsedState, job: jobScope === JOB_LIVE ? null : jobScope }),
+    [parsedState, jobScope],
+  );
   /** Any change but "Show 25 more" starts again from the first 25. Replace,
    *  not push: Back leaves the page, it does not undo a filter. */
   const update = useCallback(
@@ -371,8 +388,27 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
      as held, and what is waiting for the update bar (view.updates). The
      owner: "the page is doing this weird refresh thing" — a heartbeat every
      two seconds re-sorted it, and every moved row replayed its fade. */
-  const live = useMemo(() => applyListState(rows, state, now, stepTitle), [rows, state, now, stepTitle]);
-  const held = useHeldApplicantList(rows, live, state, !isLoading);
+  // Two jobs with one name (a copied job keeps it): each row's job says which
+  // ("· Philippines" for a live one, "· Closed" / "· Draft" otherwise), so
+  // "All jobs" never shows rows that read the same for different jobs.
+  const taggedRows = useMemo(() => {
+    const byTitle = new Map<string, number>();
+    for (const j of jobRows) byTitle.set(j.title, (byTitle.get(j.title) ?? 0) + 1);
+    const tags = new Map<string, string>();
+    for (const j of jobRows) {
+      if ((byTitle.get(j.title) ?? 0) < 2) continue;
+      const [status, place] = jobFilterChoices([j])[0].hint.split(" · ");
+      tags.set(j.id, j.status === "live" && place ? place : status);
+    }
+    if (tags.size === 0) return rows;
+    return rows.map((r) => (r.jobId && tags.has(r.jobId) && r.jobTitle ? { ...r, jobTitle: `${r.jobTitle} · ${tags.get(r.jobId)}` } : r));
+  }, [rows, jobRows]);
+  const scopeRows = useMemo(
+    () => (jobScope === JOB_LIVE ? taggedRows.filter((r) => r.jobId != null && liveJobIds.has(r.jobId)) : taggedRows),
+    [taggedRows, jobScope, liveJobIds],
+  );
+  const live = useMemo(() => applyListState(scopeRows, state, now, stepTitle), [scopeRows, state, now, stepTitle]);
+  const held = useHeldApplicantList(scopeRows, live, state, !isLoading);
   const view = held.view;
   // His own interview ratings, shown as a small tag on the rows that have one.
   const interviewScoresByApplication = useInterviewScores();
@@ -485,8 +521,8 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
     // Only the steps of jobs someone in view applied to, in each job's order.
     const inScope = new Set(view.scoped.map((r) => r.jobId));
     const scopedJourneys = [...journeys.entries()].filter(([id]) => inScope.has(id)).map(([, j]) => j);
-    const scoreCounts = optionCounts(rows, state, "score", SCORE_OPTIONS.map((o) => o.value), now);
-    const countryCounts = optionCounts(rows, state, "country", countryOptions(view.scoped).map((o) => o.value), now);
+    const scoreCounts = optionCounts(scopeRows, state, "score", SCORE_OPTIONS.map((o) => o.value), now);
+    const countryCounts = optionCounts(scopeRows, state, "country", countryOptions(view.scoped).map((o) => o.value), now);
     const list: FilterGroup[] = [
       { key: "where", label: "Where they are", sheetLabel: "Where they are", value: state.where, anyValue: "any", options: whereOptions(scopedJourneys) },
       {
@@ -520,17 +556,23 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
         key: "job",
         label: "Job",
         sheetLabel: "Job",
-        value: state.job ?? "",
-        anyValue: "",
-        options: [{ value: "", label: "All jobs" }, ...jobRows.map((j) => ({ value: j.id, label: j.title }))],
+        value: jobScope ?? (liveFirst ? JOB_ALL : ""),
+        anyValue: liveFirst ? JOB_LIVE : "",
+        // Live first, then drafts, then closed; each says which it is and
+        // where, since a copied job keeps its name.
+        options: [
+          ...(liveFirst ? [{ value: JOB_LIVE, label: "Live jobs" }, { value: JOB_ALL, label: "All jobs" }] : [{ value: "", label: "All jobs" }]),
+          ...jobFilterChoices(jobRows),
+        ],
       });
     }
     return list;
-  }, [journeys, jobRows, rows, state, now, view.scoped, jobId]);
+  }, [journeys, jobRows, scopeRows, state, now, view.scoped, jobId, jobScope, liveFirst]);
 
   const pick = useCallback(
     (key: FilterKey, value: string) => {
-      if (key === "job") update({ job: value || null });
+      // "Live jobs" is where the page opens, so it is no ?roleId= at all.
+      if (key === "job") update({ job: value === JOB_LIVE ? null : value || null });
       else update({ [key]: value } as Partial<ApplicantListState>);
     },
     [update],
@@ -684,8 +726,12 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
   // A ?roleId= link to a job that is not in the list: deleted, or not one
   // this team member is on. Said as such, with a way back to everyone.
   const jobMissing = !!state.job && !shareJob;
-  // The job's name beside the count when one job is shown.
-  const shownJob = shareJob ?? (jobRows.length === 1 ? jobRows[0] : null);
+  // The job's name beside the count when one job is shown (the one live job
+  // counts as one when the page is on the live jobs).
+  const liveOnly = jobScope === JOB_LIVE && liveJobIds.size === 1 ? jobRows.find((j) => liveJobIds.has(j.id)) ?? null : null;
+  const shownJob = shareJob ?? liveOnly ?? (jobRows.length === 1 ? jobRows[0] : null);
+  /** "See everyone who applied": every job, also when the page opens on the live ones. */
+  const seeEveryone = () => update({ job: liveFirst ? JOB_ALL : null });
 
   /* ── Nothing has come in yet ───────────────────────────────────────────
      With a live role this page used to say "Publish a role… Post your first
@@ -733,7 +779,7 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
           </p>
           <div className="mt-5 flex flex-wrap gap-2">
             {rows.length > 0 && (
-              <button className="ck-btn ck-btn-primary !py-2 !text-[12.5px]" onClick={() => update({ job: null })}>
+              <button className="ck-btn ck-btn-primary !py-2 !text-[12.5px]" onClick={seeEveryone}>
                 See everyone who applied
               </button>
             )}
@@ -772,7 +818,7 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
               </div>
               <div className="mt-5 flex flex-wrap gap-2">
                 {state.job && rows.length > 0 && (
-                  <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={() => update({ job: null })}>
+                  <button className="ck-btn ck-btn-outline !py-2 !text-[12.5px]" onClick={seeEveryone}>
                     See everyone who applied
                   </button>
                 )}
@@ -1168,7 +1214,9 @@ export default function CockpitApplicants({ jobId = null }: { jobId?: string | n
       <PassByScoreDialog
         open={passByScoreOpen}
         rows={people}
-        jobLabel={shownJob?.title ?? "All your jobs"}
+        // Who a mass pass reaches, exactly: one job (with which one it is), the
+        // live jobs the page opened on, or every job.
+        jobLabel={shownJob ? `${shownJob.title} · ${jobFilterChoices([shownJob])[0].hint}` : jobScope === JOB_LIVE ? "Your live jobs" : "All your jobs"}
         onClose={() => setPassByScoreOpen(false)}
         onDone={() => clearPicks()}
       />
