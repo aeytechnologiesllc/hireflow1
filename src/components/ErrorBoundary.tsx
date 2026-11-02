@@ -2,6 +2,7 @@ import React, { Component, ErrorInfo, ReactNode } from 'react';
 import { AlertTriangle, RefreshCw, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { reportError } from '@/lib/crashReporter';
+import { isLoadFailure, reloadForLoadFailure } from '@/lib/loadRecovery';
 
 interface Props {
   children: ReactNode;
@@ -10,6 +11,8 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  /** The app's code did not load whole and the page is reloading itself (lib/loadRecovery.ts). */
+  reloading?: boolean;
 }
 
 class ErrorBoundary extends Component<Props, State> {
@@ -31,6 +34,10 @@ class ErrorBoundary extends Component<Props, State> {
     // 'unhandledrejection' (src/lib/crashReporter.ts), so a React
     // render-time throw reaches the developer dashboard too.
     reportError(error.message, error.stack);
+    // Half-loaded code on a dropping connection (Safari: "Cannot access
+    // uninitialized variable"): reload by itself, once a minute at most,
+    // rather than leave them on this screen pressing Refresh.
+    if (isLoadFailure(error.message) && reloadForLoadFailure()) this.setState({ reloading: true });
   }
 
   private handleReload = () => {
@@ -42,6 +49,13 @@ class ErrorBoundary extends Component<Props, State> {
   };
 
   public render() {
+    if (this.state.hasError && this.state.reloading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-4" role="status">
+          <p className="text-muted-foreground">The page didn't load completely. Loading it again…</p>
+        </div>
+      );
+    }
     if (this.state.hasError) {
       return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
