@@ -10,10 +10,11 @@
  * Paying happens inside HireFlow (2026-11-01, the owner: "it would be nicer
  * if you could do a self-hosted checkout inside of our app where we don't
  * have to go out"): Stripe's own payment form (Embedded Checkout), mounted in
- * a dialog, whenever the site has Stripe's publishable key
- * (VITE_STRIPE_PUBLISHABLE_KEY, public by design). Without it the page asks
- * for Stripe's hosted page, as before, so nothing breaks before the key is set.
- * Card details only ever go to Stripe's form.
+ * a dialog. The page always asks for it; billing-checkout gives it, with
+ * Stripe's publishable key (public by design), when the function secret
+ * STRIPE_PUBLISHABLE_KEY is set, so Stripe's keys live in one place. Until
+ * then the answer is Stripe's hosted page, as before. Card details only ever
+ * go to Stripe's form.
  */
 import type { ComponentType } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,16 +34,12 @@ export function checkoutStandIn(): CheckoutStandIn | null {
   return standIn;
 }
 
-/** Stripe's publishable key (pk_live_… or pk_test_…), or null: then Checkout is Stripe's hosted page. */
-export function stripePublishableKey(): string | null {
-  if (standIn) return standIn.publishableKey;
-  const key = (import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY ?? "").trim();
-  return /^pk_(?:live|test)_[A-Za-z0-9]+$/.test(key) ? key : null;
-}
+/** The publishable key billing-checkout gave with the last form inside HireFlow. */
+let givenKey: string | null = null;
 
-/** Whether paying can happen inside HireFlow (Embedded Checkout). */
-export function embeddedCheckoutAvailable(): boolean {
-  return stripePublishableKey() !== null;
+/** Stripe's publishable key (pk_live_… or pk_test_…) for the form being opened, or null. */
+export function stripePublishableKey(): string | null {
+  return standIn ? standIn.publishableKey : givenKey;
 }
 
 async function call(name: "billing-checkout" | "billing-portal", body: Record<string, unknown>): Promise<BillingCallOutcome> {
@@ -65,11 +62,12 @@ async function call(name: "billing-checkout" | "billing-portal", body: Record<st
 /**
  * A Stripe Checkout for this job ($99) or for Unlimited (optionally putting
  * this job live too): Stripe's form inside HireFlow ({ kind: "embedded" })
- * when the site has the publishable key, else Stripe's page ({ kind: "redirect" }).
- * A function deployed before embedded Checkout answers with its page either way.
+ * when billing-checkout has the publishable key, else Stripe's page ({ kind: "redirect" }).
  */
-export function startCheckout(kind: "job" | "unlimited", jobId?: string | null): Promise<BillingCallOutcome> {
-  return call("billing-checkout", { kind, ...(jobId ? { jobId } : {}), ...(embeddedCheckoutAvailable() ? { ui: "embedded" } : {}) });
+export async function startCheckout(kind: "job" | "unlimited", jobId?: string | null): Promise<BillingCallOutcome> {
+  const outcome = await call("billing-checkout", { kind, ...(jobId ? { jobId } : {}), ui: "embedded" });
+  if (outcome.kind === "embedded") givenKey = outcome.publishableKey;
+  return outcome;
 }
 
 /** Stripe's billing page for the business owner. */

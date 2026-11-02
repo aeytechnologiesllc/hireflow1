@@ -9,6 +9,8 @@
  *   - stripeConfig: both secrets, or null. While either is missing every
  *     billing function answers 503 "billing is not set up" and nothing else
  *     changes (the owner sets them himself, last).
+ *   - stripePublishableKey: the public key for the form inside HireFlow, or
+ *     null (then Stripe's own page).
  *   - Prices are found by lookup key (hireflow_job_30d_v1,
  *     hireflow_unlimited_monthly_v1), never by a hard-coded price id: test
  *     and live mode have different ids, the keys are the same (guard
@@ -45,6 +47,18 @@ export function stripeConfig(env: (key: string) => string | undefined): StripeCo
   const webhookSecret = (env("STRIPE_WEBHOOK_SECRET") ?? "").trim();
   if (!secretKey || !webhookSecret) return null;
   return { secretKey, webhookSecret, livemode: /^(?:sk|rk)_live_/.test(secretKey) };
+}
+
+/**
+ * Stripe's publishable key (public by design) for the payment form inside
+ * HireFlow: STRIPE_PUBLISHABLE_KEY, a function secret beside the other two, so
+ * Stripe's keys live in one place (the owner, 2026-11-01). Only a key of the
+ * secret key's own mode; else null, and paying is Stripe's own page.
+ */
+export function stripePublishableKey(env: (key: string) => string | undefined, livemode: boolean): string | null {
+  const key = (env("STRIPE_PUBLISHABLE_KEY") ?? "").trim();
+  if (!/^pk_(?:live|test)_[A-Za-z0-9]+$/.test(key)) return null;
+  return key.startsWith("pk_live_") === livemode ? key : null;
 }
 
 export type FormValue = string | number | boolean | null | undefined | FormValue[] | { [key: string]: FormValue };

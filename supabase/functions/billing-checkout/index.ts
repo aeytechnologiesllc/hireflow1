@@ -2,13 +2,14 @@
  * billing-checkout — a Stripe Checkout page for a job ($99, 30 days) or for
  * Unlimited ($299 a month) (pricing v9; docs/BILLING.md).
  *
- *   POST { kind: "job" | "unlimited", jobId?, ui? }  ->  { url } | { clientSecret }
+ *   POST { kind: "job" | "unlimited", jobId?, ui? }  ->  { url } | { clientSecret, publishableKey }
  *
  * Paying inside HireFlow (2026-11-01): with ui: "embedded" the session is
  * Stripe's embedded form (ui_mode embedded_page, or embedded on an account
- * whose API version predates 2026-03-25) and the answer is its client secret,
- * which the page mounts with Stripe.js; without it, Stripe's hosted page and
- * its address, as before. Either way each $99 payment gets an invoice
+ * whose API version predates 2026-03-25) and the answer is its client secret
+ * with Stripe's publishable key (STRIPE_PUBLISHABLE_KEY, a function secret),
+ * which the page mounts with Stripe.js; without ui, or while that key is not
+ * set, Stripe's hosted page and its address, as before. Either way each $99 payment gets an invoice
  * (invoice_creation) saying which job it was for, so it shows in Stripe's
  * billing page and the business's email.
  *
@@ -46,6 +47,7 @@ import {
   STILL_BILLING,
   stripeConfig,
   stripeErrorParam,
+  stripePublishableKey,
   stripeRequest,
   subscriptionsOfCustomer,
   type FormValue,
@@ -103,7 +105,9 @@ serve(async (req) => {
   if (!kind) return json({ error: "That request could not be read.", code: "bad_kind" }, 400);
   const jobId = typeof body.jobId === "string" && UUID.test(body.jobId) ? body.jobId : null;
   if (kind === "job" && !jobId) return json({ error: REFUSALS.job_not_found.error, code: "job_not_found" }, 404);
-  const embedded = body.ui === "embedded";
+  // The form inside HireFlow needs Stripe's publishable key; without it, Stripe's own page.
+  const publishableKey = stripePublishableKey((key) => Deno.env.get(key), config.livemode);
+  const embedded = body.ui === "embedded" && publishableKey !== null;
 
   const admin = createClient(Deno.env.get("SUPABASE_URL") ?? "", Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "", {
     auth: { persistSession: false },
@@ -299,7 +303,7 @@ serve(async (req) => {
   }
   const { error: openedError } = await admin.rpc("billing_checkout_opened", { p_claim: claimId, p_session: sessionId });
   if (openedError) console.error("[billing-checkout] could not record the checkout:", openedError.message);
-  return json(embedded ? { clientSecret } : { url });
+  return json(embedded ? { clientSecret, publishableKey } : { url });
 });
 
 /** "HireFlow: “Chat agent” live for 30 days, unlimited applicants" (the job's title made plain, cut to 80). */

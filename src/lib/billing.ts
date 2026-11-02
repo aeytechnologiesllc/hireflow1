@@ -313,8 +313,8 @@ export const BILLING_CARD_WORDS = {
 
 export type BillingCallOutcome =
   | { kind: "redirect"; url: string }
-  /** Stripe's payment form inside HireFlow (Embedded Checkout): mount it with this client secret. */
-  | { kind: "embedded"; clientSecret: string }
+  /** Stripe's payment form inside HireFlow (Embedded Checkout): mount it with this client secret and Stripe's publishable key. */
+  | { kind: "embedded"; clientSecret: string; publishableKey: string }
   /** No payment is needed after all (Unlimited, or the exempt account): publish as usual. */
   | { kind: "publish"; message: string }
   /** The business must confirm its email first (the Publish screen asks for the code). */
@@ -327,8 +327,20 @@ const TRY_AGAIN = "Payments aren't available just now. Try again in a moment.";
 /** billing-checkout's or billing-portal's answer, as the page acts on it. */
 export function billingCallOutcome(status: number | null | undefined, body: unknown): BillingCallOutcome {
   const b = isObject(body) ? body : {};
-  // The form inside HireFlow: a Checkout Session's client secret (cs_test_…_secret_… or cs_live_…).
-  if (status === 200 && typeof b.clientSecret === "string" && /^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(b.clientSecret) && b.clientSecret.length <= 500) return { kind: "embedded", clientSecret: b.clientSecret };
+  // The form inside HireFlow: a Checkout Session's client secret (cs_test_…_secret_… or cs_live_…)
+  // with Stripe's publishable key of the same mode (pk_test_… or pk_live_…).
+  if (
+    status === 200 &&
+    typeof b.clientSecret === "string" &&
+    /^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(b.clientSecret) &&
+    b.clientSecret.length <= 500 &&
+    typeof b.publishableKey === "string" &&
+    /^pk_(?:test|live)_[A-Za-z0-9]+$/.test(b.publishableKey) &&
+    b.publishableKey.length <= 500 &&
+    b.clientSecret.startsWith("cs_live_") === b.publishableKey.startsWith("pk_live_")
+  ) {
+    return { kind: "embedded", clientSecret: b.clientSecret, publishableKey: b.publishableKey };
+  }
   // Stripe's pages are https; a local preview's own page (src/dev-preview/previewBilling.ts) is http://localhost.
   if (status === 200 && typeof b.url === "string" && /^(?:https:\/\/|http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?\/)/.test(b.url)) return { kind: "redirect", url: b.url };
   const said = typeof b.error === "string" && b.error.trim() ? b.error.trim() : null;

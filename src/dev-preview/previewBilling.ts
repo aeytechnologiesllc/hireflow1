@@ -20,8 +20,8 @@
  *   paid:<job id>  back from Checkout for that job: it goes live 4 seconds in
  *                  (as billing-webhook would), with 30 days paid
  *   slow           with paid:…, it never does (the calm message after 30 s)
- *   embedded       paying inside HireFlow (2026-11-01): the page has a
- *                  publishable key, billing-checkout answers a client secret,
+ *   embedded       paying inside HireFlow (2026-11-01): billing-checkout has
+ *                  the publishable key and answers a client secret with it,
  *                  and a stand-in for Stripe's form (PreviewCheckoutForm.tsx;
  *                  Stripe.js cannot load offline) "pays"; the payment lands 3
  *                  seconds later, as billing-webhook would record it
@@ -184,11 +184,12 @@ export function previewBilling(
       }
       if (name === "billing-checkout") {
         const jobId = typeof body.jobId === "string" ? body.jobId : null;
-        // Inside HireFlow: a client secret naming what is paid for (cs_test_preview_<kind>_<cents>_<job>_secret_x).
-        if ((body as { ui?: unknown }).ui === "embedded") {
+        // Inside HireFlow (as billing-checkout does once it has the publishable key): a client secret
+        // naming what is paid for (cs_test_preview_<kind>_<cents>_<job>_secret_x).
+        if ((body as { ui?: unknown }).ui === "embedded" && embedded) {
           const kind = body.kind === "unlimited" ? "unlimited" : "job";
           const cents = charged ?? (kind === "job" ? 9900 : 29900);
-          return { data: { clientSecret: `cs_test_preview_${kind}_${cents}_${jobId ? jobId.replace(/-/g, "") : "none"}_secret_x` }, error: null };
+          return { data: { clientSecret: `cs_test_preview_${kind}_${cents}_${jobId ? jobId.replace(/-/g, "") : "none"}_secret_x`, publishableKey: "pk_test_preview" }, error: null };
         }
         if (body.kind === "unlimited") {
           return { data: { url: jobId ? previewUrl(`/jobs/${jobId}`, `unlimited,paid:${jobId}`, "unlimited") : previewUrl("/settings", "unlimited", "unlimited") }, error: null };

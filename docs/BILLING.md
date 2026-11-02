@@ -327,10 +327,14 @@ launch_locks_behaviour section 33.
   have to go out"): the choice opens Stripe's own payment form in the same
   dialog (`StripeCheckoutForm`: Embedded Checkout, Stripe.js loaded from
   js.stripe.com only when the form opens; the card goes to Stripe, never to
-  HireFlow), then the confirmation in place. It needs the site's publishable
-  key, **`VITE_STRIPE_PUBLISHABLE_KEY`** (Vercel, Production; `pk_live_…`,
-  public by design). Without it the dialog goes to Stripe's hosted page and
-  back to the job page, as before. Settings' Go Unlimited does the same
+  HireFlow), then the confirmation in place. It needs Stripe's publishable
+  key, **`STRIPE_PUBLISHABLE_KEY`** (`pk_live_…`, public by design), a
+  Supabase function secret beside the other two, so Stripe's keys live in one
+  place (the owner, 2026-11-01; it was a Vercel setting,
+  `VITE_STRIPE_PUBLISHABLE_KEY`, until then). The page always asks for the
+  form; billing-checkout gives it, with the key, only when the key is set and
+  of the secret key's mode. Without it the dialog goes to Stripe's hosted page
+  and back to the job page, as before. Settings' Go Unlimited does the same
   (`CheckoutDialog`). The Content-Security-Policy allows Stripe.js
   (`scripts/csp.mjs`: js.stripe.com, *.js.stripe.com, hooks.stripe.com,
   checkout.stripe.com, api.stripe.com).
@@ -459,8 +463,10 @@ in this order:
    finalized invoices), so the receipt the confirmation promises is emailed.
    Optional: Settings → Branding, so Stripe's form and receipts carry
    HireFlow's mark and the jade.
-5. In Vercel, add **`VITE_STRIPE_PUBLISHABLE_KEY`** (`pk_live_…`, Production),
-   then redeploy. Until then paying goes to Stripe's hosted page, as before.
+5. In Supabase (Edge Functions → Secrets), add **`STRIPE_PUBLISHABLE_KEY`**
+   (`pk_live_…`, from Stripe's API keys page, the row above the secret key).
+   No redeploy: billing-checkout reads it on its next call. Until then paying
+   goes to Stripe's hosted page, as before.
 6. Run the live test again (a business account that is not the platform
    admin's): the form opens in the dialog, the confirmation shows the amount
    charged, Settings → Billing lists it with its receipt.

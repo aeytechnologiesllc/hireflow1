@@ -246,9 +246,14 @@ console.log("\nAfter paying: the confirmation, the plan button, Settings -> Bill
   );
   check("no time-of-day pitch, no \"AI\" in the new words", !/morning|night|tonight|\bAI\b/i.test(JSON.stringify([B.PLAN_WORDS, B.BILLING_TAB_WORDS, B.PAYMENT_CONFIRMATION_WORDS, B.CHECKOUT_DIALOG_WORDS.secure, B.CHECKOUT_DIALOG_WORDS.back])));
   check(
-    "the page reads Checkout's client secret as the form to mount, and nothing else as one",
-    B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9" }).kind === "embedded" && B.billingCallOutcome(200, { clientSecret: "javascript:alert(1)" }).kind === "failed" &&
-      B.billingCallOutcome(200, { clientSecret: "cs_test_x-y" }).kind === "failed",
+    "the page reads Checkout's client secret with Stripe's publishable key of the same mode as the form to mount, and nothing else as one",
+    B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9", publishableKey: "pk_live_K3y" }).kind === "embedded" &&
+      B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9", publishableKey: "pk_live_K3y" }).publishableKey === "pk_live_K3y" &&
+      B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9" }).kind === "failed" &&
+      B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9", publishableKey: "pk_test_K3y" }).kind === "failed" &&
+      B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9", publishableKey: "sk_live_K3y" }).kind === "failed" &&
+      B.billingCallOutcome(200, { clientSecret: "javascript:alert(1)", publishableKey: "pk_live_K3y" }).kind === "failed" &&
+      B.billingCallOutcome(200, { clientSecret: "cs_test_x-y", publishableKey: "pk_test_K3y" }).kind === "failed",
   );
 
   // Settings' tabs: General, Billing, Account, Notifications; a link opens Billing.
@@ -291,9 +296,9 @@ console.log("\nAfter paying: the confirmation, the plan button, Settings -> Bill
   const form = read("src/components/billing/StripeCheckoutForm.tsx");
   const api = read("src/lib/billingApi.ts");
   check(
-    "Stripe.js is loaded only when a form opens (the pure loader, never on page load), with the publishable key from VITE_STRIPE_PUBLISHABLE_KEY; without it, Stripe's hosted page",
-    /import\("@stripe\/stripe-js\/pure"\)/.test(form) && !/^import [^;]*from "@stripe\/stripe-js"/m.test(form) && /import\.meta\.env\.VITE_STRIPE_PUBLISHABLE_KEY/.test(api) &&
-      /\.\.\.\(embeddedCheckoutAvailable\(\) \? \{ ui: "embedded" \} : \{\}\)/.test(api),
+    "Stripe.js is loaded only when a form opens (the pure loader, never on page load), with the publishable key billing-checkout gave with the form (STRIPE_PUBLISHABLE_KEY, a function secret); the page always asks for the form",
+    /import\("@stripe\/stripe-js\/pure"\)/.test(form) && !/^import [^;]*from "@stripe\/stripe-js"/m.test(form) && !/import\.meta\.env\.VITE_STRIPE_PUBLISHABLE_KEY/.test(api) &&
+      /ui: "embedded" \}\);/.test(api) && /if \(outcome\.kind === "embedded"\) givenKey = outcome\.publishableKey;/.test(api),
   );
   const pkg = JSON.parse(read("package.json"));
   check("the Stripe packages are pinned to exact versions", /^\d+\.\d+\.\d+$/.test(pkg.dependencies["@stripe/stripe-js"]) && /^\d+\.\d+\.\d+$/.test(pkg.dependencies["@stripe/react-stripe-js"]), show([pkg.dependencies["@stripe/stripe-js"], pkg.dependencies["@stripe/react-stripe-js"]]));

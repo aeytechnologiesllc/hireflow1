@@ -274,11 +274,29 @@ console.log("\n3. A checkout for a job\n");
 console.log("\n3b. Paying inside HireFlow (Stripe's embedded form), and an invoice for each $99 (2026-11-01)\n");
 {
   world.checkAnswer = () => ({ ok: true, owner_id: OWNER, email: "owner@clinic.example", company: "Clinic One", job_title: "Chat agent\u0007 <b>", customer_id: "cus_kept" });
+  // Before the publishable key is a function secret, the page's ask is Stripe's own page.
+  reset();
+  const keyless = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
+  const keylessPage = world.stripe.find((c) => c.path === "/checkout/sessions")?.body;
+  world.env.STRIPE_PUBLISHABLE_KEY = "pk_live_abc";
+  reset();
+  const otherMode = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
+  check(
+    "without STRIPE_PUBLISHABLE_KEY (or with one of the other mode), ui: \"embedded\" gets Stripe's hosted page, never a form the page could not open",
+    keyless.status === 200 && typeof keyless.body?.url === "string" && !("clientSecret" in keyless.body) && !keylessPage?.has("ui_mode") &&
+      otherMode.status === 200 && typeof otherMode.body?.url === "string" && !("clientSecret" in otherMode.body),
+    show([keyless, otherMode]),
+  );
+  world.env.STRIPE_PUBLISHABLE_KEY = " pk_test_abc ";
   reset();
   const made = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
   const sessions = world.stripe.filter((c) => c.path === "/checkout/sessions");
   const p = sessions[0]?.body;
-  check("with ui: \"embedded\" the answer is the session's client secret, never a page address", made.status === 200 && made.body?.clientSecret === "cs_test_x_secret_abc123" && !("url" in (made.body ?? {})), show(made));
+  check(
+    "with the key and ui: \"embedded\" the answer is the session's client secret and the publishable key, never a page address",
+    made.status === 200 && made.body?.clientSecret === "cs_test_x_secret_abc123" && made.body?.publishableKey === "pk_test_abc" && !("url" in (made.body ?? {})),
+    show(made),
+  );
   check(
     "the embedded session: ui_mode embedded_page, no redirect for a card, the way back only to the job on HireFlow's own host, and no success or cancel page",
     p?.get("ui_mode") === "embedded_page" && p.get("redirect_on_completion") === "if_required" && p.get("return_url") === `https://staff.hireflownow.com/jobs/${JOB}?billing=paid` &&
@@ -326,7 +344,9 @@ console.log("\n3b. Paying inside HireFlow (Stripe's embedded form), and an invoi
   const otherRefusal = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
   world.sessionRefused = false;
   check("any other refusal is not retried", otherRefusal.status === 502 && world.stripe.filter((c) => c.path === "/checkout/sessions").length === 1, show(otherRefusal));
-  check("the answer is read by the page as the form to mount", (await import(path.join(ROOT, "src/lib/billing.ts"))).billingCallOutcome(200, { clientSecret: "cs_test_x_secret_abc123" }).kind === "embedded");
+  const pageReads = (await import(path.join(ROOT, "src/lib/billing.ts"))).billingCallOutcome(200, made.body);
+  check("the answer is read by the page as the form to mount, with its key", pageReads.kind === "embedded" && pageReads.publishableKey === "pk_test_abc", show(pageReads));
+  delete world.env.STRIPE_PUBLISHABLE_KEY;
   world.checkAnswer = () => ({ ok: true, owner_id: OWNER, email: "owner@clinic.example", company: "Clinic One", job_title: "Chat agent", customer_id: null });
 }
 

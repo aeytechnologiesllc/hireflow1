@@ -593,12 +593,22 @@ export default [
         detail.push("src/components/billing/PlanButton.tsx: the plan button is the owner's, and only what planSummary answers (nothing while off or for the exempt account)");
       // Paying inside HireFlow keeps Checkout's rules (the order and the claim are held by never-two-unlimited-and-money-given-back).
       const checkout = code(await read("supabase/functions/billing-checkout/index.ts"));
-      if (!/const embedded = body\.ui === "embedded";/.test(checkout) || !/\{ ui_mode: "embedded_page", return_url: paid, redirect_on_completion: "if_required" \}/.test(checkout) || !/const paid = `\$\{back\}\?billing=\$\{kind === "job" \? "paid" : "unlimited"\}`;/.test(checkout))
+      if (!/const embedded = body\.ui === "embedded" && publishableKey !== null;/.test(checkout) || !/\{ ui_mode: "embedded_page", return_url: paid, redirect_on_completion: "if_required" \}/.test(checkout) || !/const paid = `\$\{back\}\?billing=\$\{kind === "job" \? "paid" : "unlimited"\}`;/.test(checkout))
         detail.push("billing-checkout: the embedded form comes back (if a payment needs a redirect) only to HireFlow's own job or Settings page");
       if (!/invoice_creation: \{ enabled: true, invoice_data: \{ description, metadata \} \}/.test(checkout)) detail.push("billing-checkout: each $99 payment makes an invoice (invoice_creation) saying what it paid for");
       if ((checkout.match(/"\/checkout\/sessions",/g) ?? []).length !== 1) detail.push("billing-checkout: one place makes the Checkout page (cards only, the claim's Idempotency-Key), embedded or hosted");
+      // Stripe.js gets only a publishable key: the function secret STRIPE_PUBLISHABLE_KEY, of the secret key's own mode,
+      // handed back with the form and checked again by the page (2026-11-01: one place for Stripe's keys, not Vercel).
       const api = code(await read("src/lib/billingApi.ts"));
-      if (!/return \/\^pk_\(\?:live\|test\)_\[A-Za-z0-9\]\+\$\/\.test\(key\) \? key : null;/.test(api)) detail.push("src/lib/billingApi.ts: only a publishable key (pk_live_ / pk_test_) is read for Stripe.js, never a secret");
+      const stripeShared = code(await read("supabase/functions/_shared/stripe.ts"));
+      if (
+        !/const publishableKey = stripePublishableKey\(\(key\) => Deno\.env\.get\(key\), config\.livemode\);/.test(checkout) ||
+        !/const key = \(env\("STRIPE_PUBLISHABLE_KEY"\) \?\? ""\)\.trim\(\);\s*if \(!\/\^pk_\(\?:live\|test\)_\[A-Za-z0-9\]\+\$\/\.test\(key\)\) return null;\s*return key\.startsWith\("pk_live_"\) === livemode \? key : null;/.test(stripeShared) ||
+        !/\/\^pk_\(\?:test\|live\)_\[A-Za-z0-9\]\+\$\/\.test\(b\.publishableKey\)/.test(words) ||
+        !/if \(outcome\.kind === "embedded"\) givenKey = outcome\.publishableKey;/.test(api) ||
+        /import\.meta\.env\.VITE_STRIPE/.test(api)
+      )
+        detail.push("src/lib/billingApi.ts: only a publishable key (pk_live_ / pk_test_), billing-checkout's STRIPE_PUBLISHABLE_KEY of the secret key's mode, is read for Stripe.js, never a secret");
       // Stripe.js is allowed by the Content-Security-Policy.
       const csp = (await read("scripts/csp.mjs")) ?? "";
       for (const host of ["https://js.stripe.com", "https://hooks.stripe.com", "https://checkout.stripe.com", "https://api.stripe.com"]) if (!csp.includes(`"${host}"`)) detail.push(`scripts/csp.mjs: ${host} is not in the policy (Stripe's embedded form)`);
