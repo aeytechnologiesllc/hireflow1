@@ -499,7 +499,9 @@ export default [
       if (begin < 0 || expire < 0 || list < 0 || make < 0 || !(begin < expire && expire < list && list < make))
         detail.push("billing-checkout: claim (billing_checkout_begin), expire the earlier page, ask Stripe for the customer's subscriptions, then make the page, in that order");
       if (!/payment_method_types: \["card"\],/.test(checkout)) detail.push("billing-checkout: Checkout must take cards only (payment_method_types card), for both kinds");
-      if (!/\{ idempotencyKey: `hireflow-checkout-\$\{claimId\}` \}/.test(checkout)) detail.push("billing-checkout: the page must be made with an Idempotency-Key from the claim");
+      // One key from the claim for each form name (Stripe keeps a refused request's key: the live idempotency_error of 2026-11-02).
+      if (!/\{ idempotencyKey: name === "hosted" \? `hireflow-checkout-\$\{claimId\}` : `hireflow-checkout-\$\{claimId\}-\$\{name\}` \}/.test(checkout))
+        detail.push("billing-checkout: the page must be made with an Idempotency-Key from the claim, its own for each embedded form name");
       if (!/const live = listed\.list\.filter\(\(sub\) => STILL_BILLING\.has\(String\(sub\.status \?\? ""\)\)\);/.test(checkout)) detail.push("billing-checkout: an Unlimited is refused while Stripe lists one that is on or still being charged");
       const stripe = code(await read("supabase/functions/_shared/stripe.ts"));
       if (!/export const STILL_BILLING = new Set\(\["active", "trialing", "past_due", "unpaid", "incomplete"\]\);/.test(stripe)) detail.push("_shared/stripe.ts: STILL_BILLING is every status Stripe may still charge (active, trialing, past_due, unpaid, incomplete)");

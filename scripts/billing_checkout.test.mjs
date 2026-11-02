@@ -106,6 +106,9 @@ const world = {
   expireRefused: false,
   sessionRefused: false,
   uiModesRefused: [],
+  // Stripe keeps an Idempotency-Key with the request it first came with, a refused one too (the live
+  // idempotency_error of 2026-11-02): the same key with other parameters is refused.
+  idempotency: {},
   problems: [],
   client(url, key, opts) {
     if (key === "anon-key") {
@@ -162,6 +165,14 @@ globalThis.fetch = async (url, init = {}) => {
   const read = /^\/checkout\/sessions\/(cs_[A-Za-z0-9_]+)$/.exec(call.path);
   if (call.method === "GET" && read) return new Response(JSON.stringify({ id: read[1], status: world.sessions[read[1]] ?? "open" }), { status: 200 });
   if (call.method === "POST" && call.path === "/checkout/sessions") {
+    const key = call.headers["Idempotency-Key"];
+    if (key) {
+      const sent = call.body.toString();
+      if (key in world.idempotency && world.idempotency[key] !== sent) {
+        return new Response(JSON.stringify({ error: { type: "idempotency_error", message: `Keys for idempotent requests can only be used with the same parameters they were first used with. Try using a key other than '${key}' if you meant to execute a different request.` } }), { status: 400 });
+      }
+      world.idempotency[key] = sent;
+    }
     if (world.sessionRefused) return new Response(JSON.stringify({ error: { message: "no" } }), { status: 400 });
     const ui = call.body.get("ui_mode");
     // The account's API version knows one name for the embedded form (2026-03-25 renamed it).
@@ -184,6 +195,7 @@ const ask = async (handler, body, { token = "owner-token", origin = "https://sta
 const reset = () => {
   world.dbCalls = [];
   world.stripe = [];
+  world.idempotency = {};
 };
 
 console.log("\n1. Not set up, not signed in, not a request\n");
@@ -298,15 +310,15 @@ console.log("\n3b. Paying inside HireFlow (Stripe's embedded form), and an invoi
     show(made),
   );
   check(
-    "the embedded session: ui_mode embedded_page, no redirect for a card, the way back only to the job on HireFlow's own host, and no success or cancel page",
-    p?.get("ui_mode") === "embedded_page" && p.get("redirect_on_completion") === "if_required" && p.get("return_url") === `https://staff.hireflownow.com/jobs/${JOB}?billing=paid` &&
+    "the embedded session: ui_mode embedded first (the live account's API version, 2025-11-17), no redirect for a card, the way back only to the job on HireFlow's own host, and no success or cancel page",
+    p?.get("ui_mode") === "embedded" && p.get("redirect_on_completion") === "if_required" && p.get("return_url") === `https://staff.hireflownow.com/jobs/${JOB}?billing=paid` &&
       !p.has("success_url") && !p.has("cancel_url"),
     show(p && [...p]),
   );
   check(
-    "…and every rule of Checkout kept: cards only, the owner's customer, the claim's Idempotency-Key, the metadata, the page recorded on the claim",
+    "…and every rule of Checkout kept: cards only, the owner's customer, the claim's Idempotency-Key (one for each form name), the metadata, the page recorded on the claim",
     p?.get("payment_method_types[0]") === "card" && !p.has("payment_method_types[1]") && p.get("customer") === "cus_kept" && p.get("mode") === "payment" &&
-      sessions[0].headers["Idempotency-Key"] === "hireflow-checkout-c1a1a1a1-0000-4000-8000-000000000001" && p.get("metadata[owner_id]") === OWNER && p.get("metadata[job_id]") === JOB &&
+      sessions.length === 1 && sessions[0].headers["Idempotency-Key"] === "hireflow-checkout-c1a1a1a1-0000-4000-8000-000000000001-embedded" && p.get("metadata[owner_id]") === OWNER && p.get("metadata[job_id]") === JOB &&
       show(world.dbCalls.find((c) => c.fn === "billing_checkout_opened")?.args) === show({ p_claim: "c1a1a1a1-0000-4000-8000-000000000001", p_session: "cs_test_x" }),
     show(p && [...p]),
   );
@@ -321,15 +333,25 @@ console.log("\n3b. Paying inside HireFlow (Stripe's embedded form), and an invoi
   const hosted = world.stripe.find((c) => c.path === "/checkout/sessions")?.body;
   check("without it, Stripe's hosted page as before (and its invoice too)", !hosted?.has("ui_mode") && hosted?.get("success_url") === `https://staff.hireflownow.com/jobs/${JOB}?billing=paid` && hosted.get("invoice_creation[enabled]") === "true", show(hosted && [...hosted]));
 
-  // An account on an API version before 2026-03-25 knows "embedded", not "embedded_page".
+  // The live account (API version 2025-11-17) knows "embedded", not "embedded_page": one try.
   world.uiModesRefused = ["embedded_page"];
+  reset();
+  const live = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
+  check(
+    "an account that knows only \"embedded\" (HireFlow's live one) gets the form in one try",
+    live.status === 200 && live.body?.clientSecret === "cs_test_x_secret_abc123" && world.stripe.filter((c) => c.path === "/checkout/sessions").length === 1,
+    show(live),
+  );
+  // An account on 2026-03-25 or later knows "embedded_page", not "embedded".
+  world.uiModesRefused = ["embedded"];
   reset();
   const older = await ask(checkout, { kind: "unlimited", ui: "embedded" }, { origin: "https://hireflownow.com" });
   const tries = world.stripe.filter((c) => c.path === "/checkout/sessions");
   check(
-    "Stripe refusing the ui_mode name: the other name, once, with the same Idempotency-Key (a refused request is not kept for it); Unlimited's way back is Settings",
-    older.status === 200 && older.body?.clientSecret === "cs_test_x_secret_abc123" && tries.length === 2 && tries[0].body.get("ui_mode") === "embedded_page" && tries[1].body.get("ui_mode") === "embedded" &&
-      tries[0].headers["Idempotency-Key"] === tries[1].headers["Idempotency-Key"] && tries[1].body.get("return_url") === "https://hireflownow.com/settings?billing=unlimited" &&
+    "Stripe refusing the ui_mode name: the other name, once, with its own Idempotency-Key (Stripe keeps a refused request's key, and the same key with another name is an idempotency_error); Unlimited's way back is Settings",
+    older.status === 200 && older.body?.clientSecret === "cs_test_x_secret_abc123" && tries.length === 2 && tries[0].body.get("ui_mode") === "embedded" && tries[1].body.get("ui_mode") === "embedded_page" &&
+      tries[0].headers["Idempotency-Key"] === "hireflow-checkout-c1a1a1a1-0000-4000-8000-000000000001-embedded" && tries[1].headers["Idempotency-Key"] === "hireflow-checkout-c1a1a1a1-0000-4000-8000-000000000001-embedded_page" &&
+      tries[1].body.get("return_url") === "https://hireflownow.com/settings?billing=unlimited" &&
       tries[1].body.get("mode") === "subscription" && !tries[1].body.has("invoice_creation[enabled]") && /Unlimited/.test(tries[1].body.get("subscription_data[description]") ?? ""),
     show([older, tries.map((t) => [...t.body])]),
   );

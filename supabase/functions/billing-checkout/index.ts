@@ -273,23 +273,27 @@ serve(async (req) => {
   // Stripe's own page. Embedded: no redirect for a card (the page shows the
   // confirmation itself); the way back is only for a payment that needs one.
   // Stripe's 2026-03-25 API renamed "embedded" to "embedded_page": the account's
-  // version decides, so the other name is tried when Stripe refuses the first.
-  const pages: Array<Record<string, FormValue>> = embedded
+  // version decides (HireFlow's live account is on 2025-11-17, so "embedded"
+  // first), and the other name is tried when Stripe refuses the first. Each name
+  // has its own Idempotency-Key: Stripe keeps a key with the request it first
+  // came with, a refused one too, and answered the second name with an
+  // idempotency_error (the owner's first in-app payment, 2026-11-02).
+  const pages: Array<[string, Record<string, FormValue>]> = embedded
     ? [
-        { ui_mode: "embedded_page", return_url: paid, redirect_on_completion: "if_required" },
-        { ui_mode: "embedded", return_url: paid, redirect_on_completion: "if_required" },
+        ["embedded", { ui_mode: "embedded", return_url: paid, redirect_on_completion: "if_required" }],
+        ["embedded_page", { ui_mode: "embedded_page", return_url: paid, redirect_on_completion: "if_required" }],
       ]
-    : [{ success_url: paid, cancel_url: `${back}?billing=cancelled` }];
+    : [["hosted", { success_url: paid, cancel_url: `${back}?billing=cancelled` }]];
   let session: StripeReply = { ok: false, status: 0, body: null };
-  for (const page of pages) {
+  for (const [name, page] of pages) {
     session = await stripeRequest(
       config,
       "POST",
       "/checkout/sessions",
       { ...fields, ...page },
-      { idempotencyKey: `hireflow-checkout-${claimId}` },
+      { idempotencyKey: name === "hosted" ? `hireflow-checkout-${claimId}` : `hireflow-checkout-${claimId}-${name}` },
     );
-    // Only a refused ui_mode tries the other name (a refused request is not kept for its Idempotency-Key).
+    // Only a refused ui_mode tries the other name (Stripe made no page for it).
     if (session.ok || !(embedded && session.status === 400 && stripeErrorParam(session) === "ui_mode")) break;
   }
   const url = typeof session.body?.url === "string" ? session.body.url : null;
