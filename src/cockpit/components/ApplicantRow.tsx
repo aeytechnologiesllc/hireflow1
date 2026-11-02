@@ -312,7 +312,7 @@ export function ScoreCell({ row, size = 30, reserve = false }: { row: ApplicantL
 /** The avatar — their photo, or plain initials on a raised disc, as the
  *  mockup draws it — with a live dot when they did something in the last
  *  two minutes. */
-function Who({ row, size = 38 }: { row: ApplicantListRow; size?: number }) {
+export function Who({ row, size = 38 }: { row: ApplicantListRow; size?: number }) {
   return (
     <span className="relative shrink-0">
       {row.avatarUrl ? (

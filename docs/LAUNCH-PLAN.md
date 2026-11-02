@@ -961,6 +961,34 @@ Mac), Quora, directories, the blog. Use tagged links everywhere
 Newest first. One entry per phase close-out, plus an entry whenever a
 session stops mid-phase (say exactly where).
 
+### 2026-11-02 — The second hiring run, watched live; fixes as they came up
+
+The owner's second real hire through HireFlow: a Chat Support Agent job (Philippines, USD 250 for the
+first month, then 350; 4 days a week), posted on OnlineJobs.ph at 14:43 EST. About 82 applied and 31
+finished every test in four hours. Watched every 20 minutes (Opus 5.5), and fixed live:
+
+- **Sign-up** (ce230df3): one sign-up at a time (a double click told a new applicant "already
+  registered"); an address that has an account opens Sign in with it filled in; Supabase's leaked-password
+  refusal (a third of sign-ups met it once) explained before the button.
+- **Hiring side** (117b4395): each test a dot on the journey line from Applied to Tested; Applicants opens
+  on the live jobs, each job in the menu says Live/Draft/Closed, where and when; "All" on Jobs shows the
+  closed ones; same-named jobs told apart on rows, Analytics and the pass dialog.
+- **Uploads** (27ed80e0): a profile upload that times out (504 after 60 s from Asia, the file saved) is
+  waited out (`src/lib/uploadConfirmed.ts`), not shown as failed.
+- **Half-loaded code** (8e4b951a): a page whose code did not load whole (Safari, "Cannot access
+  uninitialized variable") reloads itself, once a minute at most (`src/lib/loadRecovery.ts`).
+- **Dashboard**: once a live job has applicants, the page is that job (its numbers, its own steps, its
+  link), the best so far and who is doing what (`components/LiveJobDashboard.tsx`); the all-time tiles,
+  Visits, the Messages card and the mixed-jobs pipeline are gone from it. Shown to the owner as screenshots
+  from the preview (`__previewScenario=zulu`) and approved ("It's a lot better").
+- **Price**: the job price's lookup key is back on the $99 price (the $1 test price inactive), checked in
+  Stripe. The temporary `zz-price-restore` function is a stub returning 404; delete it.
+
+Still open (the audit of same-named jobs and counts): the Documents job filter merges same-named jobs (it
+filters by title); a job card's "Applied" counts people on the form; the Messages badge counts more than
+"Needs you"; the Documents "ready" meter ignores the filters; a few screens name a job by title alone
+(profile header, Interviews, Messages, the offer and request pickers, team access).
+
 ### 2026-10-31 — Billing, pricing v9, built behind the switch (not applied, not deployed, not committed)
 
 Built by a subagent session (Opus 5.5) from the owner's decisions: a business's first published job free

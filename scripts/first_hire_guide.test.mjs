@@ -179,7 +179,9 @@ check("the dashboard asks the rules for the stage", /firstHireStage\(/.test(dash
 check("only an owner is ever shown it: a team member, or the old demo schema, never", /role === "employer" && !isTeamMember/.test(dash) && /schemaMode !== "showcase"/.test(dash));
 check("it waits for the jobs and applicants to load, so a failed load never reads as 'post your first job'", /const guideLoaded = !isLoading && !jobsLoading && !candidatesFailed && !jobsFailed;/.test(dash));
 check("the old welcome card and share hero are gone", !/function FirstStepsGuide/.test(dash) && !/<ShareJobHero/.test(dash) && !/data-first-steps/.test(dash));
-check("the guide replaces the numbers, the pipeline, the record, the activity and the share card until it is done", /\{guideStage \? \(\s*\/\*[^*]*\*\/\s*<FirstHireGuide[^>]*\/>\s*\) : \(\s*<>\s*\{\/\*[^]*?<section aria-label="At a glance"/.test(dash));
+// Since 2026-11-02 a live job with applicants has its own view (LiveJobCard), in
+// the same place: the guide still comes first and replaces both.
+check("the guide replaces the numbers, the pipeline, the record, the activity and the share card until it is done", /\{guideStage \? \(\s*\/\*[^*]*\*\/\s*<FirstHireGuide[^>]*\/>\s*\) : liveView \? \(\s*<>[^]*?<LiveJobCard[^]*?\) : \(\s*<>\s*\{\/\*[^]*?<section aria-label="At a glance"/.test(dash));
 check("the 'You're set up' line is the first thing after it", /\{showSetUp && <SetUpNote/.test(dash) && /guideFlags\.seen && !guideFlags\.away/.test(dash));
 check("an owner's first applicant is the guide's moment, not a second card", /candidates\.length === 1 && !guideEligible/.test(dash));
 check("'What needs you today' is untouched for everyone else", /What needs you today/.test(dash) && /awaitingDecision > 0/.test(dash));

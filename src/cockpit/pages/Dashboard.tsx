@@ -44,6 +44,8 @@ import {
   avaAdvanceRec,
 } from "../hooks/useCockpitData";
 import { buildJourneyPipeline, mapActivityFeed, type JourneyPipelineStage } from "../lib/mappers";
+import { useApplicantList } from "../hooks/useApplicantList";
+import { HappeningNow, LiveJobCard, LiveJobLine, StepList, liveJobCounts } from "../components/LiveJobDashboard";
 import { firstHireStage, type GuideApplicant } from "../lib/firstHireStage";
 import { gemPosition } from "../lib/gemRail";
 import type { Candidate } from "../data";
@@ -734,6 +736,44 @@ export default function CockpitDashboard() {
     [candidates],
   );
 
+  /* ── The live job's own view (lib: components/LiveJobDashboard.tsx). Once a
+     live job has applicants, the page is about it: its numbers, its steps,
+     the best so far and who is doing what, all counted from the Applicants
+     list's rows so each number and the list it opens agree. ── */
+  const list = useApplicantList();
+  const liveJobViews = useMemo(
+    () =>
+      jobs
+        .filter((j) => j.status === "live")
+        .map((job) => {
+          const rows = list.rows.filter((r) => r.jobId === job.id);
+          const raw = rawJobs.find((r) => r.id === job.id);
+          const steps = buildJourneyPipeline(
+            applications.filter((a) => (a as { job_id?: string | null }).job_id === job.id),
+            raw ? [raw] : [],
+          );
+          return { job, rows, counts: liveJobCounts(rows, list.now), steps };
+        })
+        .filter((v) => v.rows.length > 0)
+        // The busiest live job first: it gets the full card, any other one a line.
+        .sort((a, b) => b.rows.length - a.rows.length),
+    [jobs, rawJobs, applications, list.rows, list.now],
+  );
+  const liveView = liveJobViews.length > 0 && !list.isLoading;
+  const liveRows = useMemo(() => liveJobViews.flatMap((v) => v.rows), [liveJobViews]);
+  // The best so far: finished every test, still in the running, scored at
+  // least 50 (a 34 that Ava would decline is no one's "best"), highest first.
+  const bestSoFar = useMemo(() => {
+    const byId = new Map(candidates.map((c) => [c.id, c]));
+    return liveRows
+      .filter((r) => r.finished && r.status !== "rejected" && r.status !== "hired" && r.score != null && r.score >= 50)
+      .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+      .map((r) => byId.get(r.id))
+      .filter((c): c is Candidate => !!c)
+      .slice(0, 5);
+  }, [liveRows, candidates]);
+  const finishedLive = useMemo(() => liveRows.filter((r) => r.finished && r.status !== "rejected").length, [liveRows]);
+
   // The very first applicant this account has ever had, once. Dismissed
   // permanently (per-applicant) in localStorage — the same once-only pattern
   // Interviews.tsx uses for its "picked" state — so it never comes back once
@@ -787,6 +827,159 @@ export default function CockpitDashboard() {
     if (!actionDialog) return;
     await advance(actionDialog.cand.id, statusOf(actionDialog.cand.id));
     setActionDialog(null);
+  };
+
+  /* ── What needs you today, as one function: the live job's view draws only
+     the interviews (its own card counts the decisions, and Messages has its
+     own tab and badge: the owner, 2026-11-02). ── */
+  const renderNeeds = (opts: { decision: boolean; messages: boolean; emptyLine: boolean }) => {
+            const rows: Array<{ key: string; node: JSX.Element }> = [];
+        let i = 0;
+
+        if (interviewNeeds.today.length === 1) {
+          const r = interviewNeeds.today[0];
+          const joinable = canJoinDaily(r);
+          const external = r.response === "confirmed" && r.meetingProvider !== "daily" && !!r.meetingLink;
+          rows.push({
+            key: "today",
+            node: (
+              <NeedsRow
+                icon={Video}
+                tone="good"
+                title={`${format(r.at, "h:mm a")} — ${r.name}`}
+                meta={`${r.role} · today`}
+                actionLabel={joinable || external ? "Join" : "View"}
+                onOpen={() => navigate("/interviews")}
+                onAction={() => {
+                  if (joinable) navigate(`/interviews/${r.id}/room`);
+                  else if (!(external && openExternal(r.meetingLink))) navigate("/interviews");
+                }}
+                index={i++}
+              />
+            ),
+          });
+        } else if (interviewNeeds.today.length > 1) {
+          rows.push({
+            key: "today",
+            node: (
+              <NeedsRow
+                icon={Video}
+                tone="good"
+                title={`${interviewNeeds.today.length} interviews today`}
+                meta={`starting at ${format(interviewNeeds.today[0].at, "h:mm a")}`}
+                actionLabel="View"
+                onOpen={() => navigate("/interviews")}
+                index={i++}
+              />
+            ),
+          });
+        }
+
+        if (interviewNeeds.overdue.length > 0) {
+          rows.push({
+            key: "overdue",
+            node: (
+              <NeedsRow
+                icon={AlertCircle}
+                tone="brass"
+                title={`${interviewNeeds.overdue.length} ${interviewNeeds.overdue.length === 1 ? "interview needs" : "interviews need"} an outcome marked`}
+                meta="Past their scheduled time — say what happened"
+                actionLabel="Review"
+                onOpen={() => navigate("/interviews")}
+                index={i++}
+              />
+            ),
+          });
+        }
+
+        if (interviewNeeds.reschedule.length > 0) {
+          rows.push({
+            key: "reschedule",
+            node: (
+              <NeedsRow
+                icon={Clock}
+                tone="brass"
+                title={`${interviewNeeds.reschedule.length} ${interviewNeeds.reschedule.length === 1 ? "candidate asked" : "candidates asked"} for a different time`}
+                meta="Your held slot is still open — pick a new one"
+                actionLabel="Review"
+                onOpen={() => navigate("/interviews")}
+                index={i++}
+              />
+            ),
+          });
+        }
+
+        if (opts.decision && awaitingDecision > 0) {
+          rows.push({
+            key: "decision",
+            node: (
+              <NeedsRow
+                icon={Users}
+                tone="good"
+                title={`${awaitingDecision} ${awaitingDecision === 1 ? "applicant is" : "applicants are"} waiting on your decision`}
+                meta="Sealed and ranked — pass, or move them forward"
+                actionLabel="Review"
+                onOpen={() => navigate("/applicants")}
+                index={i++}
+              />
+            ),
+          });
+        }
+
+        if (interviewNeeds.awaitingPick.length > 0) {
+          rows.push({
+            key: "awaiting-pick",
+            node: (
+              <NeedsRow
+                icon={Clock}
+                tone="muted"
+                title={`${interviewNeeds.awaitingPick.length} interview ${interviewNeeds.awaitingPick.length === 1 ? "time is" : "times are"} waiting on the candidate`}
+                meta="You'll hear the moment they pick a time"
+                actionLabel="View"
+                onOpen={() => navigate("/interviews")}
+                index={i++}
+              />
+            ),
+          });
+        }
+
+        if (opts.messages && unreadMessages > 0) {
+          rows.push({
+            key: "messages",
+            node: (
+              <NeedsRow
+                icon={MessageSquare}
+                tone="good"
+                title={`${unreadMessages} unread ${unreadMessages === 1 ? "message" : "messages"}`}
+                meta="From candidates you're talking with"
+                actionLabel="Open"
+                onOpen={() => navigate("/messages")}
+                index={i++}
+              />
+            ),
+          });
+        }
+
+        if (rows.length === 0 && !opts.emptyLine) return null;
+        return (
+          <section>
+            <h2 className="font-display mb-2 text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+              What needs you today
+            </h2>
+            {rows.length === 0 && !opts.emptyLine ? null : rows.length > 0 ? (
+              <div className="flex flex-col gap-2">{rows.map((r) => <div key={r.key}>{r.node}</div>)}</div>
+            ) : (
+              <div className="ck-card-flat ck-reveal flex items-center gap-3 px-4 py-3">
+                <AvaSeal size={22} />
+                <p className="text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
+                  <span style={{ color: "var(--hf-text)", fontWeight: 600 }}>Nothing needs you right now.</span>{" "}
+                  I&rsquo;m still reading and watching — anything that needs a decision will show up here the
+                  moment it does.
+                </p>
+              </div>
+            )}
+          </section>
+        );
   };
 
   if (isLoading || jobsLoading) {
@@ -865,6 +1058,91 @@ export default function CockpitDashboard() {
       {guideStage ? (
         /* ── Your first hire: the next step, and nothing else asking. ── */
         <FirstHireGuide light={guideStage} jobs={jobs} candidates={candidates} onPostJob={startRole} notifications={guideNotifications} welcomeName={profile?.company_name?.trim() || null} />
+      ) : liveView ? (
+        <>
+          {/* ── The live job, first: what it is, its four numbers, its steps. ── */}
+          <LiveJobCard
+            job={liveJobViews[0].job}
+            counts={liveJobViews[0].counts}
+            onOpenList={(query) => navigate(`/applicants?${query}`)}
+            steps={
+              liveJobViews[0].steps.length > 0 ? (
+                <>
+                  {/* A phone has no room for every step's name on one line: there it is a list. */}
+                  <div className="max-[640px]:hidden">
+                    <MiniJourneyRail stages={liveJobViews[0].steps} />
+                  </div>
+                  <StepList stages={liveJobViews[0].steps} className="min-[641px]:hidden" />
+                </>
+              ) : null
+            }
+          />
+          {liveJobViews.slice(1).map((v, i) => (
+            <LiveJobLine key={v.job.id} job={v.job} counts={v.counts} index={i + 1} onOpenList={(query) => navigate(`/applicants?${query}`)} />
+          ))}
+
+          {/* Interviews to run or answer, when there are any (decisions are the card's "Waiting on you"). */}
+          {renderNeeds({ decision: false, messages: false, emptyLine: false })}
+
+          <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 min-[1100px]:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
+            {/* ── The best so far: Ava's sealed rows, finished people only. ── */}
+            <section className="min-w-0">
+              <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <h2 className="font-display text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+                  Best so far
+                </h2>
+                {finishedLive > bestSoFar.length && (
+                  <button
+                    className="text-[12.5px] font-medium"
+                    style={{ color: "var(--action-soft-fg)" }}
+                    onClick={() => navigate(`/applicants?where=finished${liveJobViews.length === 1 ? `&roleId=${encodeURIComponent(liveJobViews[0].job.id)}` : ""}`)}
+                  >
+                    See all {finishedLive} who finished →
+                  </button>
+                )}
+              </div>
+              {bestSoFar.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {bestSoFar.map((c, i) => (
+                    <SealedRow
+                      key={c.id}
+                      candidate={c}
+                      index={i}
+                      showRole={liveJobViews.length > 1}
+                      advanceLabel={moveLabelFor(c.id) === "Offer" ? "Send offer letter" : moveLabelFor(c.id)}
+                      stateWords={statusOf(c.id) === "offered" ? "Offer out" : statusOf(c.id) === "interview" ? "Interview stage" : null}
+                      passLabel={statusOf(c.id) === "offered" ? passAskWords(firstName(c.name), true).confirm : "Pass"}
+                      busy={isUpdating}
+                      onOpen={() => navigate(`/applicants/${c.id}`)}
+                      onPass={() => setActionDialog({ type: "pass", cand: c })}
+                      onAdvance={() => (moveLabelFor(c.id) === "Offer" ? setOfferFor(c.id) : setActionDialog({ type: "advance", cand: c }))}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="ck-card-flat ck-reveal flex items-center gap-3 px-4 py-4">
+                  <AvaSeal size={22} />
+                  <p className="text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
+                    <span style={{ color: "var(--hf-text)", fontWeight: 600 }}>Nobody has finished every test yet.</span>{" "}
+                    The moment someone does, they land here with their score and the evidence behind it.
+                  </p>
+                </div>
+              )}
+            </section>
+
+            {/* ── Who is doing what, right now. ── */}
+            <HappeningNow
+              rows={liveRows}
+              counts={{
+                takingNow: liveJobViews.reduce((n, v) => n + v.counts.takingNow, 0),
+                onFormNow: liveJobViews.reduce((n, v) => n + v.counts.onFormNow, 0),
+              }}
+              index={1}
+              onOpen={(row) => navigate(`/applicants/${row.id}`)}
+              onSeeAll={() => navigate(`/applicants${liveJobViews.length === 1 ? `?roleId=${encodeURIComponent(liveJobViews[0].job.id)}` : ""}`)}
+            />
+          </div>
+        </>
       ) : (
         <>
           {/* ── The numbers, always. 2026-10-05: with a live role and nobody in
@@ -891,154 +1169,7 @@ export default function CockpitDashboard() {
           {/* ── What needs you today — the single most valuable thing this
               page can do. Real items only; a truthful, warm line when there
               genuinely is nothing. ── */}
-          {(() => {
-            const rows: Array<{ key: string; node: JSX.Element }> = [];
-            let i = 0;
-
-            if (interviewNeeds.today.length === 1) {
-              const r = interviewNeeds.today[0];
-              const joinable = canJoinDaily(r);
-              const external = r.response === "confirmed" && r.meetingProvider !== "daily" && !!r.meetingLink;
-              rows.push({
-                key: "today",
-                node: (
-                  <NeedsRow
-                    icon={Video}
-                    tone="good"
-                    title={`${format(r.at, "h:mm a")} — ${r.name}`}
-                    meta={`${r.role} · today`}
-                    actionLabel={joinable || external ? "Join" : "View"}
-                    onOpen={() => navigate("/interviews")}
-                    onAction={() => {
-                      if (joinable) navigate(`/interviews/${r.id}/room`);
-                      else if (!(external && openExternal(r.meetingLink))) navigate("/interviews");
-                    }}
-                    index={i++}
-                  />
-                ),
-              });
-            } else if (interviewNeeds.today.length > 1) {
-              rows.push({
-                key: "today",
-                node: (
-                  <NeedsRow
-                    icon={Video}
-                    tone="good"
-                    title={`${interviewNeeds.today.length} interviews today`}
-                    meta={`starting at ${format(interviewNeeds.today[0].at, "h:mm a")}`}
-                    actionLabel="View"
-                    onOpen={() => navigate("/interviews")}
-                    index={i++}
-                  />
-                ),
-              });
-            }
-
-            if (interviewNeeds.overdue.length > 0) {
-              rows.push({
-                key: "overdue",
-                node: (
-                  <NeedsRow
-                    icon={AlertCircle}
-                    tone="brass"
-                    title={`${interviewNeeds.overdue.length} ${interviewNeeds.overdue.length === 1 ? "interview needs" : "interviews need"} an outcome marked`}
-                    meta="Past their scheduled time — say what happened"
-                    actionLabel="Review"
-                    onOpen={() => navigate("/interviews")}
-                    index={i++}
-                  />
-                ),
-              });
-            }
-
-            if (interviewNeeds.reschedule.length > 0) {
-              rows.push({
-                key: "reschedule",
-                node: (
-                  <NeedsRow
-                    icon={Clock}
-                    tone="brass"
-                    title={`${interviewNeeds.reschedule.length} ${interviewNeeds.reschedule.length === 1 ? "candidate asked" : "candidates asked"} for a different time`}
-                    meta="Your held slot is still open — pick a new one"
-                    actionLabel="Review"
-                    onOpen={() => navigate("/interviews")}
-                    index={i++}
-                  />
-                ),
-              });
-            }
-
-            if (awaitingDecision > 0) {
-              rows.push({
-                key: "decision",
-                node: (
-                  <NeedsRow
-                    icon={Users}
-                    tone="good"
-                    title={`${awaitingDecision} ${awaitingDecision === 1 ? "applicant is" : "applicants are"} waiting on your decision`}
-                    meta="Sealed and ranked — pass, or move them forward"
-                    actionLabel="Review"
-                    onOpen={() => navigate("/applicants")}
-                    index={i++}
-                  />
-                ),
-              });
-            }
-
-            if (interviewNeeds.awaitingPick.length > 0) {
-              rows.push({
-                key: "awaiting-pick",
-                node: (
-                  <NeedsRow
-                    icon={Clock}
-                    tone="muted"
-                    title={`${interviewNeeds.awaitingPick.length} interview ${interviewNeeds.awaitingPick.length === 1 ? "time is" : "times are"} waiting on the candidate`}
-                    meta="You'll hear the moment they pick a time"
-                    actionLabel="View"
-                    onOpen={() => navigate("/interviews")}
-                    index={i++}
-                  />
-                ),
-              });
-            }
-
-            if (unreadMessages > 0) {
-              rows.push({
-                key: "messages",
-                node: (
-                  <NeedsRow
-                    icon={MessageSquare}
-                    tone="good"
-                    title={`${unreadMessages} unread ${unreadMessages === 1 ? "message" : "messages"}`}
-                    meta="From candidates you're talking with"
-                    actionLabel="Open"
-                    onOpen={() => navigate("/messages")}
-                    index={i++}
-                  />
-                ),
-              });
-            }
-
-            return (
-              <section>
-                <h2 className="font-display mb-2 text-[16px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-                  What needs you today
-                </h2>
-                {rows.length > 0 ? (
-                  <div className="flex flex-col gap-2">{rows.map((r) => <div key={r.key}>{r.node}</div>)}</div>
-                ) : (
-                  <div className="ck-card-flat ck-reveal flex items-center gap-3 px-4 py-3">
-                    <AvaSeal size={22} />
-                    <p className="text-[13.5px]" style={{ color: "var(--hf-text-soft)" }}>
-                      <span style={{ color: "var(--hf-text)", fontWeight: 600 }}>Nothing needs you right now.</span>{" "}
-                      I&rsquo;m still reading and watching — anything that needs a decision will show up here the
-                      moment it does.
-                    </p>
-                  </div>
-                )}
-              </section>
-            );
-          })()}
+          {renderNeeds({ decision: true, messages: true, emptyLine: true })}
 
           {/* ── Pipeline at a glance — the real journey vocabulary, real
               counts. Only worth a section once there is a live pipeline to
