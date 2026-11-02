@@ -184,13 +184,6 @@ function Sidebar() {
             <ThemeSwitch />
             <NotificationBell />
           </div>
-          {/* The plan (2026-11-01): what the business is on and each live
-              job's remaining days (from its real pass), one click from anywhere. The owner only, while
-              billing is on, never the exempt account (PlanButton draws nothing
-              otherwise). */}
-          <div className="w-full min-w-0">
-            <PlanButton />
-          </div>
           <div className="w-full min-w-0">
             <AccountMenu align="start" side="top">
               <button
@@ -418,6 +411,9 @@ export function CockpitShell({ children }: { children: ReactNode }) {
         <div className="ck-grain" aria-hidden />
         <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
           {!hasOwnMobileHeader && <MobileTopBar />}
+          {/* The plan at the top right (the owner, 2026-11-02, "like Higgsfield on the top right"): the business
+              owner only, while billing is on, never the exempt account (PlanButton draws nothing otherwise). */}
+          <PlanButton />
           <main
             // .main{padding:18px 26px 40px} in the design — with the top bar
             // gone the page title starts where the mockup starts it.

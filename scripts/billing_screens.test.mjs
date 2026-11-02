@@ -250,6 +250,9 @@ console.log("\nAfter paying: the confirmation, the plan button, Settings -> Bill
     B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9", publishableKey: "pk_live_K3y" }).kind === "embedded" &&
       B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9", publishableKey: "pk_live_K3y" }).publishableKey === "pk_live_K3y" &&
       B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9" }).kind === "failed" &&
+      // The dev preview's stand-in (underscores before "_secret_") and Stripe's live token ("%" after it).
+      B.billingCallOutcome(200, { clientSecret: "cs_test_preview_job_9900_abc_secret_x", publishableKey: "pk_test_preview" }).kind === "embedded" &&
+      B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_fid%2FJ2Fg+Y2=", publishableKey: "pk_live_K3y" }).kind === "embedded" &&
       B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9", publishableKey: "pk_test_K3y" }).kind === "failed" &&
       B.billingCallOutcome(200, { clientSecret: "cs_live_a1B2_secret_Zz9", publishableKey: "sk_live_K3y" }).kind === "failed" &&
       B.billingCallOutcome(200, { clientSecret: "javascript:alert(1)", publishableKey: "pk_live_K3y" }).kind === "failed" &&
@@ -281,16 +284,25 @@ console.log("\nAfter paying: the confirmation, the plan button, Settings -> Bill
   const more = read("src/cockpit/pages/More.tsx");
   const planButton = read("src/components/billing/PlanButton.tsx");
   check(
-    "the plan button: in the sidebar right above the account switcher, on a phone at the top of More; the owner's only, from planSummary",
-    shell.indexOf("<PlanButton />") > 0 && shell.indexOf("<PlanButton />") < shell.indexOf('<AccountMenu align="start" side="top">') && /<PlanButton variant="card" \/>/.test(more) &&
+    "the plan button: at the top right of the page area on a computer, in its own row above the page (never in the sidebar, which keeps the account), on a phone at the top of More; the owner's only, from planSummary",
+    shell.indexOf("<PlanButton />") > shell.indexOf("{!hasOwnMobileHeader && <MobileTopBar />}") && shell.indexOf("<main", shell.indexOf("export function CockpitShell")) > shell.indexOf("<PlanButton />") &&
+      shell.indexOf("<PlanButton />") > shell.indexOf("export function CockpitShell") && /hidden justify-end px-\[26px\] pt-3 md:flex" data-plan-top/.test(planButton) && /<PlanButton variant="card" \/>/.test(more) &&
       /if \(!owner\) return null;/.test(planButton) && /return planSummary\(billing, live\);/.test(planButton),
   );
   const dialog = read("src/components/billing/PublishPaymentDialog.tsx");
   check(
     "the payment dialog: Stripe's form in place (embedded), then the confirmation in place; once paid, closing never says \"saved, goes live once it's paid for\"",
-    /if \(outcome\.kind === "embedded"\) \{/.test(dialog) && /<StripeCheckoutForm clientSecret=\{stage\.clientSecret\}/.test(dialog) && /<PaymentConfirmation\b/.test(dialog) &&
+    /if \(outcome\.kind === "embedded"\) \{/.test(dialog) && /<StripePayPanel\s[\s\S]*?clientSecret=\{stage\.clientSecret\}/.test(dialog) && /<PaymentConfirmation\b/.test(dialog) &&
       /if \(paid\) finish\("close"\);\s*else onOpenChange\(false\);/.test(dialog),
   );
+  const payForm = read("src/components/billing/StripeCheckoutForm.tsx");
+  check(
+    "paying: the dialog is white around Stripe's form, 1,000 px wide (Stripe's two columns, no scroll on a laptop), the form edge to edge, sizes and colours easing between steps",
+    /PAY_DIALOG_CLASS = "max-w-\[1000px\] !max-h-\[96dvh\] !gap-0 !p-0"/.test(payForm) && /PAY_DIALOG_STYLE = \{ background: "#FFFFFF"/.test(payForm) && /transition-\[max-width,background-color\]/.test(payForm) &&
+      !/data-stripe-checkout className="overflow-hidden rounded-xl"/.test(payForm) && /stage\.step === "pay" \? PAY_DIALOG_CLASS/.test(dialog),
+  );
+  const confirmation = read("src/components/billing/PaymentConfirmation.tsx");
+  check("after paying for a live job: what happens next, and a way to Applicants", /const showsNext = confirmed && \(what === "unlimited" \|\| c\.live === true\);/.test(confirmation) && /<Link to="\/applicants"/.test(confirmation));
   const note = read("src/cockpit/components/BillingReturnNote.tsx");
   check("back from Stripe's hosted page (the fallback): the confirmation dialog, once (closing takes ?billing= off)", /<PaymentConfirmationDialog\b/.test(note) && /next\.delete\("billing"\);/.test(note));
   const form = read("src/components/billing/StripeCheckoutForm.tsx");

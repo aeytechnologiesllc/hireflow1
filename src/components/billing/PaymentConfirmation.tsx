@@ -18,7 +18,8 @@
  * (BillingReturnNote, Settings). Words: src/lib/billing.ts.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, Loader2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ArrowRight, Check, Loader2, Users } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
 import { useEmployerJobs } from "@/hooks/useJobs";
@@ -129,6 +130,8 @@ export function PaymentConfirmation({
   const canShare = confirmed && !!jobId && c.live === true && !!onShare;
   const canSeeJobs = confirmed && !jobId && !!onSeeJobs;
   const canSeeBilling = confirmed && owner && billingTabShown(c.billing) && !!onSeeBilling;
+  // A live job: where its applicants will show up.
+  const showsNext = confirmed && (what === "unlimited" || c.live === true);
 
   return (
     <div className="space-y-5" data-payment-confirmation={c.state} data-payment-what={what}>
@@ -190,6 +193,22 @@ export function PaymentConfirmation({
             )}
           </Row>
         </dl>
+      )}
+
+      {showsNext && (
+        <div className="flex items-start gap-3 rounded-xl px-4 py-3" style={{ background: "var(--action-soft)", border: "1px solid color-mix(in srgb, var(--action) 22%, transparent)" }} data-payment-next>
+          <Users className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--action-soft-fg)" }} aria-hidden />
+          <div className="min-w-0 text-[13px] leading-snug" style={{ color: "var(--ink)" }}>
+            <p className="font-semibold">{W.nextHeading}</p>
+            <p className="mt-0.5" style={{ color: "var(--ink-2)" }}>
+              {W.nextNote}
+            </p>
+            <Link to="/applicants" className="mt-1.5 inline-flex items-center gap-1 font-semibold underline-offset-2 hover:underline" style={{ color: "var(--action-soft-fg)" }}>
+              {W.seeApplicants}
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+            </Link>
+          </div>
+        </div>
       )}
 
       {(canShare || canSeeJobs || canSeeBilling) && (

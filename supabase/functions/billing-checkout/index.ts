@@ -258,6 +258,10 @@ serve(async (req) => {
     line_items: [{ price: price.id, quantity: 1 }],
     // Cards only: a payment that settles days later would be taken with nothing given.
     payment_method_types: ["card"],
+    // Without Stripe's Link: its button, its "save my information" and phone fields and its "Bank" (a bank
+    // payment that settles later) made the form 1,111 px tall in the dialog (the owner, 2026-11-02: "a weird
+    // scroll on the desktop"); without them it is 797 px, or 687 px at 1,000 px wide (two columns).
+    wallet_options: { link: { display: "never" } },
     metadata,
     ...(kind === "job"
       ? {
@@ -319,7 +323,7 @@ serve(async (req) => {
  * character after "_secret_", no space; the page hands it only to Stripe.js. src/lib/billing.ts reads it the same way.
  */
 function isCheckoutClientSecret(secret: string): boolean {
-  return secret.length <= 2000 && /^cs_(?:test|live)_[A-Za-z0-9]+_secret_[\x21-\x7e]+$/.test(secret);
+  return secret.length <= 2000 && /^cs_(?:test|live)_[A-Za-z0-9_]+_secret_[\x21-\x7e]+$/.test(secret);
 }
 
 /** The client secret's shape for the log: its length and the kinds of character in it, never its value. */

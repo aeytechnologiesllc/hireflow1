@@ -334,7 +334,7 @@ export function billingCallOutcome(status: number | null | undefined, body: unkn
     typeof b.clientSecret === "string" &&
     // "cs_live_<id>_secret_<Stripe's token>": the token carries "/", "+", "%" and "=" too (billing-checkout's
     // isCheckoutClientSecret); it only ever goes to Stripe.js.
-    /^cs_(?:test|live)_[A-Za-z0-9]+_secret_[\x21-\x7e]+$/.test(b.clientSecret) &&
+    /^cs_(?:test|live)_[A-Za-z0-9_]+_secret_[\x21-\x7e]+$/.test(b.clientSecret) &&
     b.clientSecret.length <= 2000 &&
     typeof b.publishableKey === "string" &&
     /^pk_(?:test|live)_[A-Za-z0-9]+$/.test(b.publishableKey) &&
@@ -613,6 +613,11 @@ export const PAYMENT_CONFIRMATION_WORDS = {
   share: "Share your job",
   seeBilling: "See billing",
   seeJobs: "See your jobs",
+  // What happens next, once a job is live (the owner, 2026-11-02: "find a way to take me to the applicants or say
+  // this is where you will see the applicant"). New applicants ring the bell (the applications notification trigger).
+  nextHeading: "What happens next",
+  nextNote: "Everyone who applies shows up in Applicants, with their test results and Ava's notes. Your bell tells you when someone new applies.",
+  seeApplicants: "Open Applicants",
 } as const;
 
 /** The confirmation's words (src/components/billing/PaymentConfirmation.tsx draws them). */

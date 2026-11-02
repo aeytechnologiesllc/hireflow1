@@ -5,8 +5,11 @@
  * name and a meter that drains; HireFlow prices a job for 30 days, so the
  * meter is each live job's days left, drawn as a ring (DaysRing).
  *
- * In the sidebar above the account (the rail shows the ring alone), and on a
- * phone at the top of More. The dropdown: the plan, what it costs (brass:
+ * At the top right of every page on a computer (the owner, 2026-11-02: "it
+ * would have been nice if it was like Higgsfield on the top right ... On the
+ * left side, you could have the settings instead"; it sat in the sidebar above
+ * the account), in its own slim row so it never covers a page's own buttons,
+ * and on a phone at the top of More. The dropdown: the plan, what it costs (brass:
  * money), each live job with its ring ("23 days left"), Unlimited's renewal,
  * and the ways to Billing and Payment history. Drawn only for the business
  * owner while billing is on, and never for the exempt account (planSummary
@@ -14,7 +17,7 @@
  */
 import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronRight, ChevronsUpDown, CreditCard, History } from "lucide-react";
+import { ChevronDown, ChevronRight, ChevronsUpDown, CreditCard, History } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,7 +41,7 @@ function usePlanSummary(billing: BillingState): PlanSummary | null {
 }
 
 /** Nothing (and no jobs read) unless this is the business owner and billing shows: on, never the exempt account. */
-export function PlanButton({ variant = "sidebar" }: { variant?: "sidebar" | "card" }) {
+export function PlanButton({ variant = "top" }: { variant?: "top" | "card" }) {
   const { role, isTeamMember } = useAuth();
   const owner = role === "employer" && !isTeamMember;
   const { billing } = useBilling();
@@ -62,13 +65,13 @@ function PlanGlyph({ plan, size = 30 }: { plan: PlanSummary; size?: number }) {
   );
 }
 
-function PlanButtonShown({ billing, variant }: { billing: BillingState; variant: "sidebar" | "card" }) {
+function PlanButtonShown({ billing, variant }: { billing: BillingState; variant: "top" | "card" }) {
   const plan = usePlanSummary(billing);
   const navigate = useNavigate();
   if (!plan) return null;
   const card = variant === "card";
 
-  return (
+  const menu = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button
@@ -78,12 +81,12 @@ function PlanButtonShown({ billing, variant }: { billing: BillingState; variant:
           className={
             card
               ? "ck-card flex w-full items-center gap-3 p-4 text-left"
-              : "flex w-full min-w-0 items-center justify-center gap-2.5 rounded-xl px-0 py-2 transition-colors hover:bg-[var(--hf-surface-raised)] min-[1121px]:justify-start min-[1121px]:px-3"
+              : "flex min-w-0 items-center gap-2.5 rounded-full py-1.5 pl-1.5 pr-3 transition-colors hover:bg-[var(--hf-surface-raised)] data-[state=open]:bg-[var(--hf-surface-raised)]"
           }
-          style={card ? undefined : { border: "1px solid var(--line)" }}
+          style={card ? undefined : { border: "1px solid var(--line)", background: "var(--surface)", boxShadow: "var(--hf-shadow-soft)" }}
         >
-          <PlanGlyph plan={plan} size={card ? 40 : 30} />
-          <span className={card ? "min-w-0 flex-1" : "hidden min-w-0 flex-1 text-left min-[1121px]:block"}>
+          <PlanGlyph plan={plan} size={card ? 40 : 28} />
+          <span className={card ? "min-w-0 flex-1" : "min-w-0 text-left"}>
             <span className="block truncate text-[13px] font-semibold leading-tight" style={{ color: "var(--hf-text)" }}>
               {plan.name}
             </span>
@@ -91,13 +94,17 @@ function PlanButtonShown({ billing, variant }: { billing: BillingState; variant:
               {plan.sub}
             </span>
           </span>
-          <ChevronsUpDown className={card ? "h-4 w-4 shrink-0" : "hidden h-4 w-4 shrink-0 min-[1121px]:block"} style={{ color: "var(--hf-text-muted)" }} />
+          {card ? (
+            <ChevronsUpDown className="h-4 w-4 shrink-0" style={{ color: "var(--hf-text-muted)" }} />
+          ) : (
+            <ChevronDown className="h-4 w-4 shrink-0" style={{ color: "var(--hf-text-muted)" }} />
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align={card ? "start" : "end"}
-        side={card ? "bottom" : "right"}
-        sideOffset={card ? 8 : 24}
+        side="bottom"
+        sideOffset={8}
         className={`${card ? "w-[var(--radix-dropdown-menu-trigger-width)]" : "w-[300px]"} max-w-[calc(100vw-32px)] p-1.5`}
         style={{ background: "var(--surface)", border: "1px solid var(--line)", boxShadow: "var(--shadow-md)", color: "var(--hf-text)" }}
         data-plan-menu
@@ -190,5 +197,12 @@ function PlanButtonShown({ billing, variant }: { billing: BillingState; variant:
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+  if (card) return menu;
+  // Its own slim row at the top right of the page area, on a computer only (a phone has it on More).
+  return (
+    <div className="pointer-events-none relative z-20 hidden justify-end px-[26px] pt-3 md:flex" data-plan-top>
+      <div className="pointer-events-auto">{menu}</div>
+    </div>
   );
 }

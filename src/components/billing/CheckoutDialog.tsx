@@ -7,11 +7,10 @@
  * instead, as before.
  */
 import { useEffect, useState } from "react";
-import { Lock } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { CHECKOUT_DIALOG_WORDS as C } from "@/lib/billing";
 import { PaymentConfirmation, type ConfirmationActions } from "./PaymentConfirmation";
-import { StripeCheckoutForm } from "./StripeCheckoutForm";
+import { DIALOG_STEP_EASE, PAY_DIALOG_CLASS, PAY_DIALOG_STYLE, StripePayPanel, focusDialogItself } from "./StripeCheckoutForm";
 
 export function CheckoutDialog({
   clientSecret,
@@ -26,19 +25,13 @@ export function CheckoutDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-h-[92dvh] max-w-[620px] overflow-y-auto" data-payment-step={paidAt ? "paid" : "pay"}>
-        {clientSecret && paidAt === null && (
-          <>
-            <DialogHeader className="pr-6 text-left">
-              <DialogTitle>{C.unlimitedTitle}</DialogTitle>
-              <DialogDescription className="flex items-start gap-1.5">
-                <Lock className="mt-[3px] h-3.5 w-3.5 shrink-0" aria-hidden />
-                {C.secure}
-              </DialogDescription>
-            </DialogHeader>
-            <StripeCheckoutForm clientSecret={clientSecret} onComplete={() => setPaidAt(Date.now())} />
-          </>
-        )}
+      <DialogContent
+        className={`max-h-[92dvh] overflow-y-auto ${DIALOG_STEP_EASE} ${paidAt === null ? PAY_DIALOG_CLASS : "max-w-[620px]"}`}
+        style={paidAt === null ? PAY_DIALOG_STYLE : undefined}
+        onOpenAutoFocus={focusDialogItself}
+        data-payment-step={paidAt ? "paid" : "pay"}
+      >
+        {clientSecret && paidAt === null && <StripePayPanel title={C.unlimitedTitle} secure={C.secure} clientSecret={clientSecret} onComplete={() => setPaidAt(Date.now())} />}
         {paidAt !== null && (
           <>
             <DialogTitle className="sr-only">{C.paidTitle}</DialogTitle>

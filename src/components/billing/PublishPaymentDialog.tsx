@@ -25,13 +25,12 @@
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Lock } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CHECKOUT_DIALOG_WORDS as C, PUBLISH_PAYMENT_WORDS as W } from "@/lib/billing";
 import { startCheckout } from "@/lib/billingApi";
 import { PaymentConfirmation } from "./PaymentConfirmation";
-import { StripeCheckoutForm } from "./StripeCheckoutForm";
+import { DIALOG_STEP_EASE, PAY_DIALOG_CLASS, PAY_DIALOG_STYLE, StripePayPanel } from "./StripeCheckoutForm";
 
 export type PaidNext = "share" | "billing" | "close";
 
@@ -131,7 +130,11 @@ export function PublishPaymentDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className={`max-h-[92dvh] overflow-y-auto ${stage.step === "choose" ? "max-w-[560px]" : "max-w-[620px]"}`} data-payment-step={stage.step}>
+      <DialogContent
+        className={`max-h-[92dvh] overflow-y-auto ${DIALOG_STEP_EASE} ${stage.step === "choose" ? "max-w-[560px]" : stage.step === "pay" ? PAY_DIALOG_CLASS : "max-w-[620px]"}`}
+        style={stage.step === "pay" ? PAY_DIALOG_STYLE : undefined}
+        data-payment-step={stage.step}
+      >
         {stage.step === "choose" && (
           <>
             <DialogHeader>
@@ -198,22 +201,13 @@ export function PublishPaymentDialog({
         )}
 
         {stage.step === "pay" && (
-          <>
-            <DialogHeader className="pr-6 text-left">
-              <DialogTitle>{stage.what === "unlimited" ? C.unlimitedTitle : C.jobTitle(jobTitle)}</DialogTitle>
-              <DialogDescription className="flex items-start gap-1.5">
-                <Lock className="mt-[3px] h-3.5 w-3.5 shrink-0" aria-hidden />
-                {C.secure}
-              </DialogDescription>
-            </DialogHeader>
-            <StripeCheckoutForm clientSecret={stage.clientSecret} onComplete={() => setStage({ step: "paid", what: stage.what, since: Date.now() })} />
-            <div>
-              <button type="button" className="ck-btn ck-btn-ghost !px-2.5 !py-1.5 !text-[12.5px]" onClick={() => setStage({ step: "choose" })}>
-                <ChevronLeft className="h-4 w-4" aria-hidden />
-                {C.back}
-              </button>
-            </div>
-          </>
+          <StripePayPanel
+            title={stage.what === "unlimited" ? C.unlimitedTitle : C.jobTitle(jobTitle)}
+            secure={C.secure}
+            clientSecret={stage.clientSecret}
+            onComplete={() => setStage({ step: "paid", what: stage.what, since: Date.now() })}
+            back={{ label: C.back, onBack: () => setStage({ step: "choose" }) }}
+          />
         )}
 
         {stage.step === "paid" && (

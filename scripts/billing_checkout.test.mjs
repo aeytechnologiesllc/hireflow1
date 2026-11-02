@@ -318,8 +318,8 @@ console.log("\n3b. Paying inside HireFlow (Stripe's embedded form), and an invoi
     show(p && [...p]),
   );
   check(
-    "…and every rule of Checkout kept: cards only, the owner's customer, the claim's Idempotency-Key (one for each form name), the metadata, the page recorded on the claim",
-    p?.get("payment_method_types[0]") === "card" && !p.has("payment_method_types[1]") && p.get("customer") === "cus_kept" && p.get("mode") === "payment" &&
+    "…and every rule of Checkout kept: cards only (no Link, so no bank payment either), the owner's customer, the claim's Idempotency-Key (one for each form name), the metadata, the page recorded on the claim",
+    p?.get("payment_method_types[0]") === "card" && !p.has("payment_method_types[1]") && p.get("wallet_options[link][display]") === "never" && p.get("customer") === "cus_kept" && p.get("mode") === "payment" &&
       sessions.length === 1 && sessions[0].headers["Idempotency-Key"] === "hireflow-checkout-c1a1a1a1-0000-4000-8000-000000000001-embedded" && p.get("metadata[owner_id]") === OWNER && p.get("metadata[job_id]") === JOB &&
       show(world.dbCalls.find((c) => c.fn === "billing_checkout_opened")?.args) === show({ p_claim: "c1a1a1a1-0000-4000-8000-000000000001", p_session: "cs_test_x" }),
     show(p && [...p]),
