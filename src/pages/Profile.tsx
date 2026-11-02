@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ProfileCompleteness } from "@/components/ProfileCompleteness";
 import { isSupportedResumeFile } from "@/utils/resumeFiles";
+import { STILL_SAVING_WORDS, uploadConfirmed } from "@/lib/uploadConfirmed";
 
 // Must match allowed_mime_types on the public `avatars` bucket
 // (supabase/migrations/20260916223000_storage_bucket_limits.sql). No SVG: it can
@@ -110,9 +111,7 @@ function OwnProfile() {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file, { upsert: true });
+      const { error: uploadError } = await uploadConfirmed(supabase.storage.from("avatars"), fileName, file, { upsert: true }, { onWaiting: () => toast.info(STILL_SAVING_WORDS) });
 
       if (uploadError) throw uploadError;
 
@@ -153,9 +152,7 @@ function OwnProfile() {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/logo-${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file, { upsert: true });
+      const { error: uploadError } = await uploadConfirmed(supabase.storage.from("avatars"), fileName, file, { upsert: true }, { onWaiting: () => toast.info(STILL_SAVING_WORDS) });
 
       if (uploadError) throw uploadError;
 
@@ -205,9 +202,8 @@ function OwnProfile() {
       const fileExt = file.name.split(".").pop();
       const fileName = `${user.id}/profile-resume-${Date.now()}.${fileExt}`;
 
-      const { error: uploadError } = await supabase.storage
-        .from("resumes")
-        .upload(fileName, file);
+      // A slow connection's timeout is waited out, not shown as "failed" (lib/uploadConfirmed.ts).
+      const { error: uploadError } = await uploadConfirmed(supabase.storage.from("resumes"), fileName, file, undefined, { onWaiting: () => toast.info(STILL_SAVING_WORDS) });
 
       if (uploadError) throw uploadError;
 
