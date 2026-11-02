@@ -135,10 +135,14 @@ await load('import "./supabase/functions/generate-flow/index.ts";', {
   check("the function is loaded", typeof fn === "function");
   const openai = { bodies: [], signals: [] };
   const content = JSON.stringify(PLAN);
+  let refuseEffort = false;
   globalThis.fetch = async (url, init) => {
     openai.bodies.push(JSON.parse(init.body));
     openai.signals.push(init.signal);
     const body = JSON.parse(init.body);
+    if (refuseEffort && "reasoning_effort" in body) {
+      return new Response(JSON.stringify({ error: { message: "Unsupported parameter: 'reasoning_effort' is not supported with this model.", param: "reasoning_effort" } }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
     if (!body.stream) return new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status: 200, headers: { "Content-Type": "application/json" } });
     const enc = new TextEncoder();
     let i = 0;
@@ -168,7 +172,7 @@ await load('import "./supabase/functions/generate-flow/index.ts";', {
   check("…\"writing\" first, then each part in order, then the plan", lines[0]?.stage === "writing" && JSON.stringify(lines.slice(1, -1).map((l) => l.part)) === JSON.stringify(KEYS) && !!lines.at(-1)?.result, JSON.stringify(lines.map((l) => Object.keys(l)[0])));
   const plan = lines.at(-1).result;
   check("…the plan filtered as the one-piece answer is (no age question, no age requirement)", plan.application.length === 2 && !plan.application.some((q) => /age/i.test(q)) && !plan.jobPost.requirements.some((r) => /years old/i.test(r)) && plan.generatedBy?.provider === "openai");
-  check("…and the model was asked to stream", openai.bodies.at(-1)?.stream === true);
+  check("…and the model was asked to stream, thinking little first (reasoning_effort low)", openai.bodies.at(-1)?.stream === true && openai.bodies.at(-1)?.reasoning_effort === "low");
   const prompt = openai.bodies.at(-1)?.messages?.[1]?.content ?? "";
   check("a customer-service job asks for no quiz and no practice case (the pack's are used): shorter to write", /- quiz: an empty array \(this job's skills check comes from its own scenario pack\)/.test(prompt) && /- simulation: an empty array/.test(prompt) && !/scenario quiz items/.test(prompt) && /written interview questions/.test(prompt) && /short application questions/.test(prompt));
   check("…and the follow-up answers are still in it", /Owner follow-up answers:\nWhat kind of business is it\?: Home services/.test(prompt));
@@ -180,6 +184,17 @@ await load('import "./supabase/functions/generate-flow/index.ts";', {
   const csLess = await fn(new Request("http://fn/generate-flow", { method: "POST", headers: { Authorization: "Bearer signed-in" }, body: JSON.stringify({ brief, rigor: "medium" }) }));
   await csLess.json();
   check("any other job is asked for its quiz and practice as before", /- 8 scenario quiz items \{scenario, good\}/.test(openai.bodies.at(-1)?.messages?.[1]?.content ?? "") && /- 1 simulation scenario\(s\)/.test(openai.bodies.at(-1)?.messages?.[1]?.content ?? ""));
+
+  refuseEffort = true;
+  const asked = openai.bodies.length;
+  const refused = await ask({ progress: true });
+  const refusedLines = (await refused.text()).trim().split("\n").map((l) => JSON.parse(l));
+  refuseEffort = false;
+  check(
+    "a model that refuses reasoning_effort is asked once more without it, and the plan still comes",
+    refused.status === 200 && !!refusedLines.at(-1)?.result && openai.bodies.length === asked + 2 && openai.bodies[asked].reasoning_effort === "low" && !("reasoning_effort" in openai.bodies[asked + 1]),
+    JSON.stringify(openai.bodies.slice(asked).map((b) => b.reasoning_effort ?? null)),
+  );
 
   const cut = await ask({ progress: true });
   const reader = cut.body.getReader();
@@ -287,6 +302,16 @@ console.warn = () => {}; // the fallbacks below are expected; their warnings are
   check("the interview waits for its questions and its dimensions", S(["jobPost", "application", "voiceQuestions"]).interview === "writing" && S(["jobPost", "application", "voiceQuestions", "voiceDimensions"]).interview === "ready");
   check("the plan back: all ready; the built-in plan: the writer's four are its first draft", Object.values(S([], "openai")).every((s) => s === "ready") && S(["jobPost"], "template").post === "draft" && S([], "template").skills === "ready");
   check("the wait line comes after 6 s and names the limit; the draft line says why", F.writerWaitLine(5000, 40000) === null && /^Ava is still writing\. If it takes more than 40 seconds, I'll use a ready-made first draft/.test(F.writerWaitLine(12400, 40000)) && F.secondsWords(12400) === "12 s" && /took more than 40 seconds/.test(F.draftLine("timeout", 40000)) && /isn't available right now/.test(F.draftLine("unavailable", 40000)));
+  // One at a time (the owner's second run: "It doesn't go one by one ... it just jumps").
+  const burst = S(["jobPost", "application", "voiceQuestions", "voiceDimensions", "shortlistWeights", "phaseRationales"]);
+  check(
+    "the screen shows ready only what is really ready, from the top: the pack's three at the start, all seven once the writer is done",
+    F.readyFromTop(P, st0) === 3 && F.readyFromTop(P, burst) === 7 && F.readyFromTop(P, S(["application"])) === 3 && F.readyFromTop(P, S([], "template")) === 7,
+  );
+  check(
+    "…one more a beat: shown parts keep their state, the next one is being made, the rest wait (a burst never lands at once)",
+    F.shownBuildState(0, "ready", 1) === "ready" && F.shownBuildState(1, "ready", 1) === "writing" && F.shownBuildState(2, "ready", 1) === "waiting" && F.shownBuildState(3, "draft", 4) === "draft" && F.BUILD_TICK_MS >= 300 && F.BUILD_TICK_MS <= 800,
+  );
 }
 
 console.warn = realWarn;
@@ -296,6 +321,11 @@ console.warn = realWarn;
   const page = read("src/pages/AvaCreateJob.tsx");
   const shared = read("src/components/ava/createFlow/shared.tsx");
   check("no timed lines for show: the build screen lists the plan's parts and their states", /parts=\{buildParts\}/.test(page) && /states=\{buildStates\}/.test(page) && !/reasoning=\{playbook\.reasoning\}/.test(page) && !/setTimeout\(tick, 750\)/.test(shared) && /data-build-part=\{part\.id\}/.test(shared));
+  check(
+    "BuildStep reveals one part a beat up to what is really ready, then says ready and opens the review only after the last tick",
+    /const really = readyFromTop\(parts, states\);/.test(shared) && /setTimeout\(\(\) => setShown\(\(n\) => Math\.min\(n \+ 1, really\)\), BUILD_TICK_MS\)/.test(shared) &&
+      /const done = !!finished && allShown;/.test(shared) && /shownBuildState\(i, states\[part\.id\] \?\? "waiting", shown\)/.test(shared) && /if \(reduce\) \{\s*setShown\(really\);/.test(shared),
+  );
   check("the build starts once on arriving (never again because an answer changed under it) and leaving stops it", /if \(step === 3\) \{\s*advanceBuildRef\.current = false;\s*void runGenerationRef\.current\(\);\s*\} else \{\s*genRunRef\.current \+= 1;\s*genStopRef\.current\?\.abort\(\);/.test(page) && /\}, \[step\]\);/.test(page));
   check("only the latest build's answer is used", /if \(genRunRef\.current !== run\) return;/.test(page));
   check("the stuck notice waits past the writer's own limit (it came at 25 s, before the 40 s one)", /setBuildStuck\(true\), WRITER_TIME_LIMIT_MS \+ 15000\)/.test(page) && !/setBuildStuck\(true\), 25000\)/.test(page));

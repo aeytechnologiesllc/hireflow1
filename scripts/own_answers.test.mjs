@@ -57,9 +57,9 @@ const defs = playbook.followUps({}, { roleTitle: "Chat support agent", whatTheyD
 const hoursQ = defs.find((f) => f.id === "cs-hours");
 const own = hoursQ.chips.indexOf(M.OWN_HOURS_CHIP);
 
-// 1. The question: the four picks, then the business's own.
+// 1. The question: three picks, then the business's own; weekends a switch beside them, not a pick.
 {
-  check("When will they work? keeps its four picks and adds Set your own hours last", JSON.stringify(hoursQ.chips) === JSON.stringify(["Daytime", "Evenings or nights", "Weekends too", "Rotating shifts", "Set your own hours"]) && own === 4 && hoursQ.def === 0);
+  check("When will they work? has three picks and Set your own hours last, no \"Weekends too\" pick", JSON.stringify(hoursQ.chips) === JSON.stringify(["Daytime", "Evenings or nights", "Rotating shifts", "Set your own hours"]) && own === 3 && hoursQ.def === 0);
   check("…the same chips as CS_HOURS_CHIPS, with a short tag for the strip", JSON.stringify([...M.CS_HOURS_CHIPS]) === JSON.stringify(hoursQ.chips) && M.ANSWER_TAGS["cs-hours"]["Set your own hours"] === "Own hours");
 }
 
@@ -71,7 +71,19 @@ const own = hoursQ.chips.indexOf(M.OWN_HOURS_CHIP);
   check("the writer reads the hours as written, under its own question", h?.answer === HOURS && h.question === "When will they work?", JSON.stringify(h));
   check("…left out while empty (the writer is never told \"Set your own hours\")", !answers({ "cs-hours": own }, { hours: "   " }).some((a) => a.questionId === "cs-hours") && !answers({ "cs-hours": own }, {}).some((a) => a.questionId === "cs-hours"));
   check("a pick is answered as before, whatever was typed", answers({ "cs-hours": 1 }, { hours: HOURS }).find((a) => a.questionId === "cs-hours").answer === "Evenings or nights");
-  check("ownHoursIn: the business's own hours, null for one of the four", M.ownHoursIn(mine, M.CS_HOURS_CHIPS) === HOURS && M.ownHoursIn(answers({ "cs-hours": 2 }, {}), M.CS_HOURS_CHIPS) === null && M.ownHoursIn([], M.CS_HOURS_CHIPS) === null);
+  check("ownHoursIn: the business's own hours, null for one of the picks", M.ownHoursIn(mine, M.CS_HOURS_CHIPS) === HOURS && M.ownHoursIn(answers({ "cs-hours": 2 }, {}), M.CS_HOURS_CHIPS) === null && M.ownHoursIn([], M.CS_HOURS_CHIPS) === null);
+  const weekends = answers({ "cs-hours": 1 }, { weekends: true });
+  const at = weekends.findIndex((a) => a.questionId === "cs-hours");
+  check(
+    "the weekends switch keeps the pick and tells the writer \"Do they work weekends?\" right after it",
+    weekends[at]?.answer === "Evenings or nights" && weekends[at + 1]?.questionId === M.WEEKENDS_ID && weekends[at + 1].question === "Do they work weekends?" && weekends[at + 1].answer === "Yes, weekends too" && weekends.filter((a) => a.questionId === M.WEEKENDS_ID).length === 1,
+    JSON.stringify(weekends),
+  );
+  check(
+    "…never with the business's own hours (they say their own days), never while off, and never twice",
+    !answers({ "cs-hours": own }, { hours: HOURS, weekends: true }).some((a) => a.questionId === M.WEEKENDS_ID) && !answers({ "cs-hours": 1 }, { weekends: false }).some((a) => a.questionId === M.WEEKENDS_ID) &&
+      M.withOwnWords(weekends, { weekends: true }).filter((a) => a.questionId === M.WEEKENDS_ID).length === 1 && M.ownHoursIn(weekends, M.CS_HOURS_CHIPS) === null,
+  );
 }
 
 // 3. The job post says them, on either plan, once.
@@ -95,6 +107,9 @@ const own = hoursQ.chips.indexOf(M.OWN_HOURS_CHIP);
   const picked = M.answersGiven(defs, { "cs-hours": 1 }, { step: 4, questionIndex: 0 });
   check("…but one of the four only on the writer's (the built-in plan reads none)", !M.fromYourAnswers("job-post", { ...a, answers: picked }, { writtenByAva: false }).includes("Evenings or nights") && M.fromYourAnswers("job-post", { ...a, answers: picked }, { writtenByAva: true }).includes("Evenings or nights"));
   check("an empty field shows nothing", !M.givenWithOwnWords([{ questionId: "cs-hours", answer: "Set your own hours" }], { hours: "" }).length);
+  const both = { ...a, answers: M.givenWithOwnWords(M.answersGiven(defs, { "cs-hours": 1 }, { step: 4, questionIndex: 0 }), { weekends: true }) };
+  check("the strip shows the pick and \"Weekends too\" together", M.knownSoFar(both).includes("Evenings or nights") && M.knownSoFar(both).includes("Weekends too"), JSON.stringify(M.knownSoFar(both)));
+  check("…and not with the business's own hours", !M.knownSoFar({ ...a, answers: M.givenWithOwnWords(M.answersGiven(defs, { "cs-hours": own }, { step: 4, questionIndex: 0 }), { hours: HOURS, weekends: true }) }).includes("Weekends too"));
 }
 
 // 5. The page.
@@ -102,6 +117,10 @@ const own = hoursQ.chips.indexOf(M.OWN_HOURS_CHIP);
   const page = readFileSync(path.join(ROOT, "src/pages/AvaCreateJob.tsx"), "utf8");
   check("Set your own hours opens a field with the owner's kind of example", /fu\.id === "cs-hours" && fu\.chips\[picked\] === OWN_HOURS_CHIP/.test(page) && page.includes('placeholder="e.g. Mon–Fri, 9am–5pm Manila time"') && /Your job post will say “\{ownHoursLine\(ownWords\.hours\)\}”/.test(page));
   check("a tap on it puts the cursor in the field", /questionId === "cs-hours" && chip === OWN_HOURS_CHIP \? "own-hours"/.test(page));
+  check(
+    "the weekends switch sits under the hours picks (not with Set your own hours) and is kept with the draft's own words",
+    /fu\.id === "cs-hours" && fu\.chips\[picked\] !== OWN_HOURS_CHIP && \(\s*<label[^>]*data-weekends>/.test(page) && /<Switch checked=\{!!ownWords\.weekends\} onCheckedChange=\{\(weekends\) => setOwnWords\(\(o\) => \(\{ \.\.\.o, weekends \}\)\)\}/.test(page),
+  );
   check("the built plan's post gets the hours, whichever plan wrote it", /jobPost: withOwnHoursInPost\(result\.flow\.jobPost, ownHoursIn\(brief\.followUps, CS_HOURS_CHIPS\)\)/.test(page));
 }
 

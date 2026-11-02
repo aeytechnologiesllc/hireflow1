@@ -98,6 +98,34 @@ export function buildPartStates(parts: readonly BuildPart[], progress: { arrived
   return out;
 }
 
+/*
+ * One part at a time (the owner's second live run, 2026-11-01: "It doesn't go one by one. It just gets stuck on one,
+ * and then it just jumps"). The pack's three were ticked together the moment the screen opened, and the writer's four
+ * came in a burst once the model began to write. The screen now shows them in order at a steady beat: a part becomes
+ * the one being made, then ready, BUILD_TICK_MS apart at the least, however they really arrive. Never ahead of the
+ * truth: only a part that is really ready is shown ready.
+ */
+
+/** The least time between two parts shown ready. */
+export const BUILD_TICK_MS = 450;
+
+/** How many parts, from the top, are really ready (or the built-in plan's first draft). */
+export function readyFromTop(parts: readonly { id: BuildPartId | string }[], states: Readonly<Record<string, BuildPartState>>): number {
+  let n = 0;
+  for (const p of parts) {
+    const s = states[p.id];
+    if (s !== "ready" && s !== "draft") break;
+    n += 1;
+  }
+  return n;
+}
+
+/** The state the screen shows for the part at `index` when `shown` parts have been shown ready: the next one is the one being made. */
+export function shownBuildState(index: number, real: BuildPartState, shown: number): BuildPartState {
+  if (index < shown) return real;
+  return index === shown ? "writing" : "waiting";
+}
+
 /** "12 s". */
 export function secondsWords(ms: number): string {
   return `${Math.max(0, Math.floor(ms / 1000))} s`;

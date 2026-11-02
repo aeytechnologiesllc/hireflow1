@@ -16,7 +16,7 @@ import {
 
 import { DISPLAY, STEPS, type Accent } from "./sharedAtoms";
 import { FROM_YOUR_ANSWERS } from "@/lib/builderHints";
-import { writerWaitLine } from "@/lib/buildProgress";
+import { BUILD_TICK_MS, readyFromTop, shownBuildState, writerWaitLine } from "@/lib/buildProgress";
 
 import { GemRail } from "@/components/rail/GemRail";
 import {
@@ -346,9 +346,11 @@ export function PhaseRow({
 /**
  * "Building your hiring plan…", as it really happens (src/lib/buildProgress.ts; the owner's live run of 2026-11-01:
  * "it felt like it almost got stuck because it was there for a very long time and the last process"). Each line is a
- * part of the plan: the pack's are ready at once, the writer's turn ready as generate-flow says each is written, and the
- * first not yet written says "Writing…". Nothing is timed for show: the review opens a beat after the plan is back
- * (longer when the built-in plan's first draft stood in, so its line can be read).
+ * part of the plan: the pack's are ready at once, the writer's turn ready as generate-flow says each is written. They
+ * are shown one at a time at a steady beat (BUILD_TICK_MS; the second run: "It doesn't go one by one ... it just
+ * jumps"), never ahead of what is really ready: the part being made turns, with a line running under it, then ticks.
+ * The review opens a beat after the last tick (longer when the built-in plan's first draft stood in, so its line can
+ * be read).
  */
 export function BuildStep({
   role,
@@ -363,7 +365,7 @@ export function BuildStep({
 }: {
   role: string;
   rigorLabel: string;
-  parts: ReadonlyArray<{ id: string; label: string; detail: string }>;
+  parts: ReadonlyArray<{ id: string; label: string; detail: string; from?: "pack" | "writer" }>;
   states: Readonly<Record<string, "ready" | "writing" | "waiting" | "draft">>;
   /** When the build started (Date.now()), for the seconds shown and the line under the parts. */
   startedAt: number | null;
@@ -377,55 +379,86 @@ export function BuildStep({
 }) {
   const reduce = useReducedMotion();
   const [now, setNow] = useState(() => Date.now());
+
+  // How many parts are shown ready: one more each beat, up to what is really ready. A new build starts again at none.
+  const really = readyFromTop(parts, states);
+  const [shown, setShown] = useState(0);
+  useEffect(() => setShown(0), [startedAt]);
   useEffect(() => {
-    if (finished || startedAt == null) return;
+    if (reduce) {
+      setShown(really);
+      return;
+    }
+    if (shown >= really) return;
+    const t = setTimeout(() => setShown((n) => Math.min(n + 1, really)), BUILD_TICK_MS);
+    return () => clearTimeout(t);
+  }, [shown, really, reduce]);
+  const allShown = parts.length > 0 && shown >= parts.length;
+  const done = !!finished && allShown;
+
+  useEffect(() => {
+    if (done || startedAt == null) return;
     setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(t);
-  }, [finished, startedAt]);
+  }, [done, startedAt]);
   const elapsedMs = startedAt == null ? 0 : Math.max(0, now - startedAt);
   const waitLine = finished ? null : writerWaitLine(elapsedMs, limitMs);
   useEffect(() => {
-    if (!finished) return;
+    if (!done) return;
     const t = setTimeout(onDone, finished === "template" ? (reduce ? 1200 : 2400) : reduce ? 250 : 650);
     return () => clearTimeout(t);
-  }, [finished, onDone, reduce]);
+  }, [done, finished, onDone, reduce]);
 
-  const STATE_WORDS = { ready: null, writing: "Writing…", waiting: null, draft: "First draft" } as const;
   return (
-    <div className="flex flex-col items-center text-center" data-build-step>
+    <div className="flex flex-col items-center text-center" data-build-step data-build-shown={shown}>
       <h2 className="mt-2 text-2xl sm:text-3xl" style={{ fontFamily: DISPLAY, fontWeight: 500, color: "hsl(var(--foreground))" }}>
-        {finished ? "Your hiring plan is ready." : "Building your hiring plan…"}
+        {done ? "Your hiring plan is ready." : "Building your hiring plan…"}
       </h2>
       <p className="mt-2 text-sm" style={{ color: "hsl(var(--muted-foreground))" }}>
         {role} · <span style={{ color: "hsl(var(--ck-brass))" }}>{rigorLabel}</span>
-        {!finished && <span className="ml-2 tabular-nums opacity-70" data-build-elapsed>· {Math.max(0, Math.floor(elapsedMs / 1000))} s</span>}
+        {!done && <span className="ml-2 tabular-nums opacity-70" data-build-elapsed>· {Math.max(0, Math.floor(elapsedMs / 1000))} s</span>}
       </p>
       <ul className="mt-7 w-full max-w-md space-y-1.5 text-left" aria-live="polite">
         {parts.map((part, i) => {
-          const state = states[part.id] ?? "waiting";
+          const state = shownBuildState(i, states[part.id] ?? "waiting", shown);
           const writing = state === "writing";
-          const words = STATE_WORDS[state];
+          const words = writing ? (part.from === "pack" ? "Setting up…" : "Writing…") : state === "draft" ? "First draft" : null;
           return (
-            <motion.li
+            <li
               key={part.id}
-              initial={reduce ? false : { opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: reduce ? 0 : 0.28, delay: reduce ? 0 : i * 0.05, ease: [0.4, 0, 0.2, 1] }}
-              className="flex items-center gap-3 rounded-xl px-3.5 py-2.5 transition-colors duration-500"
+              className="relative flex items-center gap-3 overflow-hidden rounded-xl px-3.5 py-2.5 transition-[background-color,border-color] duration-300"
               style={{ background: writing ? "hsl(var(--primary) / 0.1)" : "transparent", border: writing ? "1px solid hsl(var(--primary) / 0.28)" : "1px solid transparent" }}
               data-build-part={part.id}
               data-state={state}
             >
-              {state === "ready" || state === "draft" ? (
-                <Check className="h-4 w-4 shrink-0" style={{ color: state === "ready" ? "hsl(var(--ck-action))" : "hsl(var(--muted-foreground))" }} aria-hidden />
-              ) : writing ? (
-                <span className={`h-3.5 w-3.5 shrink-0 rounded-full${reduce ? "" : " animate-pulse"}`} style={{ background: "hsl(var(--primary))", boxShadow: "0 0 0 4px hsl(var(--primary) / 0.18)" }} aria-hidden />
-              ) : (
-                <span className="h-3.5 w-3.5 shrink-0 rounded-full" style={{ border: "1.5px solid hsl(var(--border))" }} aria-hidden />
-              )}
+              <span className="relative flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden>
+                <AnimatePresence initial={false} mode="wait">
+                  {state === "ready" || state === "draft" ? (
+                    <motion.span
+                      key="done"
+                      initial={reduce ? false : { scale: 0.4, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={reduce ? { duration: 0 } : { type: "spring", stiffness: 520, damping: 26 }}
+                    >
+                      <Check className="h-4 w-4" style={{ color: state === "ready" ? "hsl(var(--ck-action))" : "hsl(var(--muted-foreground))" }} />
+                    </motion.span>
+                  ) : writing ? (
+                    <motion.span key="turning" initial={reduce ? false : { opacity: 0 }} animate={{ opacity: 1 }} exit={reduce ? undefined : { opacity: 0, transition: { duration: 0.12 } }}>
+                      <span
+                        className={`block h-3.5 w-3.5 rounded-full${reduce ? "" : " animate-spin"}`}
+                        style={{ border: "2px solid hsl(var(--primary) / 0.22)", borderTopColor: "hsl(var(--primary))", animationDuration: "0.9s" }}
+                      />
+                    </motion.span>
+                  ) : (
+                    <motion.span key="waiting" exit={reduce ? undefined : { opacity: 0, transition: { duration: 0.1 } }}>
+                      <span className="block h-3.5 w-3.5 rounded-full" style={{ border: "1.5px solid hsl(var(--border))" }} />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm" style={{ color: state === "waiting" ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))", fontWeight: writing ? 600 : 500 }}>{part.label}</span>
+                <span className="block text-sm transition-colors duration-300" style={{ color: state === "waiting" ? "hsl(var(--muted-foreground))" : "hsl(var(--foreground))", fontWeight: writing ? 600 : 500 }}>{part.label}</span>
                 <span className="block text-[12px] leading-snug" style={{ color: "hsl(var(--muted-foreground))" }}>{part.detail}</span>
               </span>
               {words && (
@@ -433,7 +466,19 @@ export function BuildStep({
                   {words}
                 </span>
               )}
-            </motion.li>
+              {/* The part being made: a line runs under it, so a long one never looks stopped. */}
+              {writing && !reduce && (
+                <span className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px] overflow-hidden" aria-hidden>
+                  <motion.span
+                    className="absolute inset-y-0 w-1/3 rounded-full"
+                    style={{ background: "linear-gradient(90deg, transparent, hsl(var(--primary) / 0.75), transparent)" }}
+                    initial={{ left: "-35%" }}
+                    animate={{ left: "100%" }}
+                    transition={{ duration: 1.3, ease: "easeInOut", repeat: Infinity }}
+                  />
+                </span>
+              )}
+            </li>
           );
         })}
       </ul>

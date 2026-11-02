@@ -55,6 +55,9 @@ function take<T>(a: unknown, n: number): T[] {
   return Array.isArray(a) ? (a.slice(0, n) as T[]) : [];
 }
 
+/** How long the writer thinks before it writes (generate-flow's one model call). */
+const WRITER_REASONING_EFFORT = "low";
+
 const CONTENT_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -268,24 +271,31 @@ Tailor everything to: ${brief.roleTitle || brief.title || "this role"}.`;
     // The builder asks for the plan's parts as they are written (see the top of this file).
     const wantsParts = body?.progress === true;
     const upstream = new AbortController();
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: sys },
-          { role: "user", content: userMsg },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: { name: "ava_job_flow", strict: true, schema: CONTENT_SCHEMA },
-        },
-        max_completion_tokens: 12000,
-        ...(wantsParts ? { stream: true } : {}),
-      }),
-      signal: upstream.signal,
-    });
+    // Little thinking before writing: the plan took 21-24 s, most of it the model thinking before its first part, then
+    // every part at once (the owner's live run of 2026-11-01: "it just gets stuck on one, and then it just jumps").
+    // A model that takes no reasoning_effort refuses it with a 400 naming it, and is asked again without.
+    const askModel = (withEffort: boolean) =>
+      fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: "system", content: sys },
+            { role: "user", content: userMsg },
+          ],
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: "ava_job_flow", strict: true, schema: CONTENT_SCHEMA },
+          },
+          max_completion_tokens: 12000,
+          ...(withEffort ? { reasoning_effort: WRITER_REASONING_EFFORT } : {}),
+          ...(wantsParts ? { stream: true } : {}),
+        }),
+        signal: upstream.signal,
+      });
+    let res = await askModel(true);
+    if (res.status === 400 && /reasoning_effort/.test(await res.clone().text())) res = await askModel(false);
 
     if (!res.ok) {
       const detail = await res.text();

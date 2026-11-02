@@ -179,14 +179,16 @@ function json(body: unknown, status = 200): Response {
  * on the page, as live). Asked for its parts as they are written (the page's
  * `progress: true`), it sends them as the live function does, one line each
  * at the share of the time the writer takes to reach it, then the result.
+ * `sample,writer:<seconds>,burst`: as the live writer was seen on 2026-11-01, thinking for most of the time and then
+ * sending every part within the last tenth (the build screen shows them one at a time all the same).
  * `sample,hang`: it never answers (the page's own time limit decides).
  * Plain `sample` answers as before: down, so the built-in plan is used.
  */
-export function previewWriterSpec(value: string | null): { mode: "down" } | { mode: "writer"; seconds: number } | { mode: "hang" } {
+export function previewWriterSpec(value: string | null): { mode: "down" } | { mode: "writer"; seconds: number; burst?: boolean } | { mode: "hang" } {
   const flags = (value ?? "").split(",").map((w) => w.trim());
   if (flags.includes("hang")) return { mode: "hang" };
   const writer = flags.find((f) => /^writer:\d+(\.\d+)?$/.test(f));
-  return writer ? { mode: "writer", seconds: Number(writer.slice(7)) } : { mode: "down" };
+  return writer ? { mode: "writer", seconds: Number(writer.slice(7)), ...(flags.includes("burst") ? { burst: true } : {}) } : { mode: "down" };
 }
 
 const SAMPLE_PLAN = {
@@ -215,7 +217,7 @@ const SAMPLE_PLAN = {
 };
 
 /** The sample writer's answer: the plan's parts at the share of the time the live writer reaches each, then the result. */
-function sampleWriter(seconds: number, progress: boolean, signal: AbortSignal | null | undefined): Promise<Response> {
+function sampleWriter(seconds: number, progress: boolean, signal: AbortSignal | null | undefined, burst = false): Promise<Response> {
   const total = Math.max(0, seconds) * 1000;
   const wait = (ms: number) =>
     new Promise<void>((resolve, reject) => {
@@ -226,16 +228,27 @@ function sampleWriter(seconds: number, progress: boolean, signal: AbortSignal | 
       });
     });
   if (!progress) return wait(total).then(() => json(SAMPLE_PLAN));
-  const parts: Array<[string, number]> = [
-    ["jobPost", 0.45],
-    ["application", 0.55],
-    ["quiz", 0.56],
-    ["simulation", 0.57],
-    ["voiceQuestions", 0.85],
-    ["voiceDimensions", 0.88],
-    ["shortlistWeights", 0.93],
-    ["phaseRationales", 1],
-  ];
+  const parts: Array<[string, number]> = burst
+    ? [
+        ["jobPost", 0.9],
+        ["application", 0.92],
+        ["quiz", 0.92],
+        ["simulation", 0.93],
+        ["voiceQuestions", 0.96],
+        ["voiceDimensions", 0.97],
+        ["shortlistWeights", 0.99],
+        ["phaseRationales", 1],
+      ]
+    : [
+        ["jobPost", 0.45],
+        ["application", 0.55],
+        ["quiz", 0.56],
+        ["simulation", 0.57],
+        ["voiceQuestions", 0.85],
+        ["voiceDimensions", 0.88],
+        ["shortlistWeights", 0.93],
+        ["phaseRationales", 1],
+      ];
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -277,7 +290,7 @@ export function installPreviewSampleAi(supabaseUrl: string, enabled: boolean, wr
       if (writer.mode === "hang") {
         return new Promise<Response>((_, reject) => init?.signal?.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError"))));
       }
-      if (writer.mode === "writer") return sampleWriter(writer.seconds, (body as { progress?: unknown }).progress === true, init?.signal);
+      if (writer.mode === "writer") return sampleWriter(writer.seconds, (body as { progress?: unknown }).progress === true, init?.signal, writer.burst);
       await new Promise((resolve) => setTimeout(resolve, 1200));
       return json({ error: "Sample preview: the built-in plan is used." }, 503);
     }

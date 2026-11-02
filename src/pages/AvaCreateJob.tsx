@@ -120,13 +120,14 @@ import {
   type BuilderAnswers,
 } from "@/lib/builderHints";
 import type { LucideIcon } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { candidateOrigin } from "@/lib/hosts";
 import { jobPageUrl, jobShareUrl } from "@/lib/jobLinks";
 import { useOwnBusiness } from "@/hooks/useBusinessPage";
 import { CS_INDUSTRY_CHIPS } from "@/lib/avaEngine/customerService";
 import { PACK_CHOICES, businessKindLine } from "@/lib/businessKind";
 import { buildPartStates, buildPartsFor, draftLine } from "@/lib/buildProgress";
-import { OWN_HOURS_CHIP, OWN_WORDS_MAX, SOMETHING_ELSE, givenWithOwnWords, ownBusinessPack, ownHoursIn, ownHoursLine, withOwnHoursInPost, withOwnWords, type OwnWords } from "@/lib/ownAnswers";
+import { OWN_HOURS_CHIP, OWN_WORDS_MAX, SOMETHING_ELSE, WEEKENDS_LABEL, givenWithOwnWords, ownBusinessPack, ownHoursIn, ownHoursLine, withOwnHoursInPost, withOwnWords, type OwnWords } from "@/lib/ownAnswers";
 import { claimSuggestedSlug } from "@/lib/jobSlugAvailability";
 
 const KIND_ICON: Record<string, { icon: LucideIcon; accent: ReviewPhaseCard["accent"] }> = {
@@ -727,6 +728,14 @@ function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: Av
     if (latestPlaceRef.current.trim() === q) setGeoPreview(p);
   }, [briefFields.location, workMode, atOffice]);
 
+  // The place Publish saves is looked up while the plan is read, so Publish never waits for it (src/lib/geocode.ts
+  // asks once a place; the owner's live run of 2026-11-01: "even publishing takes a really long time").
+  useEffect(() => {
+    if (!flow) return;
+    const place = (briefFromForm({ ...briefFields, followUps: [] }).location ?? "").trim();
+    if (place && !placeNamesNothing(place)) void geocodePlace(place);
+  }, [flow, briefFields]);
+
   useEffect(() => {
     if (!rigorTouched) setRigor(playbook.rigor.recommended);
   }, [playbook.rigor.recommended, rigorTouched]);
@@ -1263,6 +1272,14 @@ function JobBuilder({ userId, initialDraft }: { userId: string; initialDraft: Av
                         );
                       })}
                     </div>
+                    {/* Weekends beside any time of day, never a pick that unpicks it (the owner's second run, 2026-11-01:
+                        "if I'm saying weekends too ... the other one gets unhighlighted"). The business's own hours say their own days. */}
+                    {fu.id === "cs-hours" && fu.chips[picked] !== OWN_HOURS_CHIP && (
+                      <label className="mt-5 inline-flex cursor-pointer items-center gap-2.5 text-sm" data-weekends>
+                        <Switch checked={!!ownWords.weekends} onCheckedChange={(weekends) => setOwnWords((o) => ({ ...o, weekends }))} aria-label={WEEKENDS_LABEL} />
+                        {WEEKENDS_LABEL}
+                      </label>
+                    )}
                     {/* Something else is the business's own words, and Ava picks the closest situations from them
                         (the owner, 2026-11-01: "Now something else doesn't do anything"; src/lib/businessKind.ts). */}
                     {fu.id === "cs-industry" && fu.chips[picked] === SOMETHING_ELSE && (() => {

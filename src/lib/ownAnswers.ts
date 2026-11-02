@@ -24,6 +24,12 @@ import { businessKindFromWords } from "@/lib/businessKind";
 export const SOMETHING_ELSE = "Something else";
 /** The hours chip that opens the business's own hours. */
 export const OWN_HOURS_CHIP = "Set your own hours";
+/** "Weekends too", a switch beside the hours picks (the business's own hours say their own days). */
+export const WEEKENDS_LABEL = "Weekends too";
+/** The answer the writer gets when the weekends switch is on. */
+export const WEEKENDS_ID = "cs-weekends";
+export const WEEKENDS_QUESTION = "Do they work weekends?";
+export const WEEKENDS_ANSWER = "Yes, weekends too";
 /** The answer the writer gets with the business's own words. */
 export const BUSINESS_WORDS_ID = "cs-business";
 export const BUSINESS_WORDS_QUESTION = "What does your business do?";
@@ -37,6 +43,8 @@ export interface OwnWords {
   businessPack?: ScenarioPackId | null;
   /** "Set your own hours", under When will they work. */
   hours?: string;
+  /** The "Weekends too" switch under When will they work (not with the business's own hours). */
+  weekends?: boolean;
 }
 
 function clean(text: string | null | undefined): string {
@@ -59,14 +67,15 @@ export function chipForPack(pack: ScenarioPackId): string {
  * The brief's answers with the business's own words in: Something else
  * answered as its pack's chip, followed by the words themselves; Set your own
  * hours answered with the hours as written (left out while empty, so the
- * writer is never told "Set your own hours").
+ * writer is never told "Set your own hours"); any other pick followed, with
+ * the weekends switch on, by "Do they work weekends?".
  */
 export function withOwnWords(answers: readonly BriefAnswer[], own: OwnWords | null | undefined): BriefAnswer[] {
   const business = clean(own?.business);
   const hours = clean(own?.hours);
   const out: BriefAnswer[] = [];
   for (const a of answers) {
-    if (a.questionId === BUSINESS_WORDS_ID) continue;
+    if (a.questionId === BUSINESS_WORDS_ID || a.questionId === WEEKENDS_ID) continue;
     if (a.questionId === "cs-industry" && a.answer === SOMETHING_ELSE) {
       const pack = ownBusinessPack(own);
       out.push(pack ? { ...a, answer: chipForPack(pack) } : a);
@@ -78,24 +87,25 @@ export function withOwnWords(answers: readonly BriefAnswer[], own: OwnWords | nu
       continue;
     }
     out.push(a);
+    if (a.questionId === "cs-hours" && own?.weekends) out.push({ questionId: WEEKENDS_ID, question: WEEKENDS_QUESTION, answer: WEEKENDS_ANSWER });
   }
   return out;
 }
 
 /**
  * The answers as the builder's hints show them (src/lib/builderHints.ts): the
- * business's words in place of "Something else" and "Set your own hours".
+ * business's words in place of "Something else" and "Set your own hours", and
+ * "Weekends too" beside any other hours pick while its switch is on.
  */
 export function givenWithOwnWords<T extends { questionId: string; answer: string }>(given: readonly T[], own: OwnWords | null | undefined): T[] {
   const business = clean(own?.business);
   const hours = clean(own?.hours);
-  return given
-    .map((g) => {
-      if (g.questionId === "cs-industry" && g.answer === SOMETHING_ELSE && business) return { ...g, answer: business };
-      if (g.questionId === "cs-hours" && g.answer === OWN_HOURS_CHIP) return hours ? { ...g, answer: hours } : null;
-      return g;
-    })
-    .filter((g): g is T => !!g);
+  return given.flatMap((g): T[] => {
+    if (g.questionId === "cs-industry" && g.answer === SOMETHING_ELSE && business) return [{ ...g, answer: business }];
+    if (g.questionId === "cs-hours" && g.answer === OWN_HOURS_CHIP) return hours ? [{ ...g, answer: hours }] : [];
+    if (g.questionId === "cs-hours" && own?.weekends) return [g, { ...g, answer: WEEKENDS_LABEL }];
+    return [g];
+  });
 }
 
 /** The business's own hours, as the brief carries them; null when it picked one of the four. */

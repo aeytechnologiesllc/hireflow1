@@ -28,7 +28,8 @@ export const REMOTE_FOLLOWUPS: FollowUpDef[] = [
     id: "remote-equipment",
     question: "What computer or equipment will they work on?",
     chips: ["We provide the computer", "They use their own computer", "Own computer + specific specs"],
-    def: 0,
+    // Their own computer first: most remote jobs provide none (the owner's live run, 2026-11-01).
+    def: 1,
   },
 ];
 
@@ -1064,11 +1065,13 @@ export function jobKindFollowUp(brief: Pick<JobBrief, "roleTitle" | "whatTheyDo"
 export const CHAT_AGENT_KIND: FollowUpDef = { id: JOB_KIND_ID, question: "What kind of job is it?", chips: [...JOB_KIND_CHIPS], def: 0 };
 
 /**
- * "When will they work?": four picks and the business's own hours (the owner's live run of 2026-11-01: "pick or define
+ * "When will they work?": three picks and the business's own hours (the owner's live run of 2026-11-01: "pick or define
  * your own timings ... easy, but also very customizable"). The last opens a field; its words are the answer the writer
- * reads (src/lib/ownAnswers.ts withOwnWords) and the job post says them (withOwnHoursInPost).
+ * reads (src/lib/ownAnswers.ts withOwnWords) and the job post says them (withOwnHoursInPost). Weekends are a switch
+ * beside any of the three, not a fifth pick (the owner's second run: picking "Weekends too" unpicked "Evenings or
+ * nights"; ownAnswers.ts WEEKENDS_ID).
  */
-export const CS_HOURS_CHIPS = ["Daytime", "Evenings or nights", "Weekends too", "Rotating shifts", "Set your own hours"] as const;
+export const CS_HOURS_CHIPS = ["Daytime", "Evenings or nights", "Rotating shifts", "Set your own hours"] as const;
 
 /**
  * For "Another kind of job", the next question: which is closest, starting on
