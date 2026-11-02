@@ -299,9 +299,11 @@ serve(async (req) => {
   const url = typeof session.body?.url === "string" ? session.body.url : null;
   const clientSecret = typeof session.body?.client_secret === "string" ? session.body.client_secret : null;
   const sessionId = typeof session.body?.id === "string" ? session.body.id : null;
-  const usable = embedded ? !!clientSecret && /^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(clientSecret) : !!url && /^https:\/\//.test(url);
+  const usable = embedded ? !!clientSecret && isCheckoutClientSecret(clientSecret) : !!url && /^https:\/\//.test(url);
   if (!session.ok || !usable || !sessionId) {
-    console.error("[billing-checkout] Stripe did not make the checkout:", session.status, JSON.stringify(session.body?.error ?? null));
+    // What Stripe's answer looked like, never the secret itself (a page Stripe made but the check refused).
+    const shape = session.ok ? JSON.stringify({ sessionId: !!sessionId, url: !!url, clientSecret: secretShape(clientSecret) }) : "";
+    console.error("[billing-checkout] Stripe did not make the checkout:", session.status, JSON.stringify(session.body?.error ?? null), shape);
     await release();
     return failed("stripe");
   }
@@ -309,6 +311,27 @@ serve(async (req) => {
   if (openedError) console.error("[billing-checkout] could not record the checkout:", openedError.message);
   return json(embedded ? { clientSecret, publishableKey } : { url });
 });
+
+/**
+ * An embedded Checkout Session's client secret: "cs_live_<id>_secret_<rest>". The rest is Stripe's own token and
+ * carries more than letters and digits on the live account ("/", "+", "%", "="): the first check allowed only
+ * [A-Za-z0-9_] and threw away every page Stripe made (the owner's in-app payment, 2026-11-02). Any printable
+ * character after "_secret_", no space; the page hands it only to Stripe.js. src/lib/billing.ts reads it the same way.
+ */
+function isCheckoutClientSecret(secret: string): boolean {
+  return secret.length <= 2000 && /^cs_(?:test|live)_[A-Za-z0-9]+_secret_[\x21-\x7e]+$/.test(secret);
+}
+
+/** The client secret's shape for the log: its length and the kinds of character in it, never its value. */
+function secretShape(secret: string | null): unknown {
+  if (secret == null) return null;
+  return {
+    length: secret.length,
+    mode: /^cs_live_/.test(secret) ? "live" : /^cs_test_/.test(secret) ? "test" : "other",
+    hasSecretMark: secret.includes("_secret_"),
+    otherCharacters: [...new Set(secret.replace(/[A-Za-z0-9_]/g, ""))].map((c) => c.charCodeAt(0)).slice(0, 20),
+  };
+}
 
 /** "HireFlow: “Chat agent” live for 30 days, unlimited applicants" (the job's title made plain, cut to 80). */
 function jobPaymentDescription(title: unknown): string {

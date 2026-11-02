@@ -109,6 +109,8 @@ const world = {
   // Stripe keeps an Idempotency-Key with the request it first came with, a refused one too (the live
   // idempotency_error of 2026-11-02): the same key with other parameters is refused.
   idempotency: {},
+  // The embedded session's client secret, when a check needs Stripe's live shape.
+  clientSecret: null,
   problems: [],
   client(url, key, opts) {
     if (key === "anon-key") {
@@ -177,7 +179,7 @@ globalThis.fetch = async (url, init = {}) => {
     const ui = call.body.get("ui_mode");
     // The account's API version knows one name for the embedded form (2026-03-25 renamed it).
     if (ui && world.uiModesRefused.includes(ui)) return new Response(JSON.stringify({ error: { type: "invalid_request_error", param: "ui_mode", message: `Invalid ui_mode: ${ui}` } }), { status: 400 });
-    if (ui) return new Response(JSON.stringify({ id: "cs_test_x", url: null, client_secret: "cs_test_x_secret_abc123" }), { status: 200 });
+    if (ui) return new Response(JSON.stringify({ id: "cs_test_x", url: null, client_secret: world.clientSecret ?? "cs_test_x_secret_abc123" }), { status: 200 });
     return new Response(JSON.stringify({ id: "cs_test_x", url: "https://checkout.stripe.com/c/pay/cs_test_x" }), { status: 200 });
   }
   if (call.method === "POST" && call.path === "/billing_portal/sessions") return new Response(JSON.stringify({ id: "bps_1", url: "https://billing.stripe.com/p/session/test_1" }), { status: 200 });
@@ -366,7 +368,26 @@ console.log("\n3b. Paying inside HireFlow (Stripe's embedded form), and an invoi
   const otherRefusal = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
   world.sessionRefused = false;
   check("any other refusal is not retried", otherRefusal.status === 502 && world.stripe.filter((c) => c.path === "/checkout/sessions").length === 1, show(otherRefusal));
+  // Stripe's live client secret carries more than letters and digits after "_secret_" (the owner's in-app payment,
+  // 2026-11-02: every page Stripe made was thrown away as "unusable").
+  const LIVE_SHAPE = "cs_test_a1B2c3D4e5_secret_fidnandhYHdWcXxpYCc/J2FgY2RwaXEnKSd+Ymtx%2FY2Rp=dmApJ2R1bE5gfCc";
+  world.uiModesRefused = [];
+  world.clientSecret = LIVE_SHAPE;
+  reset();
+  const liveShape = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
+  world.clientSecret = null;
+  check("a client secret of Stripe's live shape (\"/\", \"+\", \"%\", \"=\" after \"_secret_\") is handed to the page", liveShape.status === 200 && liveShape.body?.clientSecret === LIVE_SHAPE, show(liveShape));
+  world.clientSecret = "cs_test_x_secret_has space";
+  reset();
+  const spaced = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
+  world.clientSecret = "javascript:alert(1)";
+  reset();
+  const notOne = await ask(checkout, { kind: "job", jobId: JOB, ui: "embedded" });
+  world.clientSecret = null;
+  check("…but never one with a space, or one that is not a Checkout Session's (502, and the log says its shape, never its value)", spaced.status === 502 && notOne.status === 502, show([spaced, notOne]));
   const pageReads = (await import(path.join(ROOT, "src/lib/billing.ts"))).billingCallOutcome(200, made.body);
+  const pageReadsLive = (await import(path.join(ROOT, "src/lib/billing.ts"))).billingCallOutcome(200, { clientSecret: LIVE_SHAPE, publishableKey: "pk_test_abc" });
+  check("the page reads a live-shaped client secret as the form to mount too", pageReadsLive.kind === "embedded" && pageReadsLive.clientSecret === LIVE_SHAPE, show(pageReadsLive));
   check("the answer is read by the page as the form to mount, with its key", pageReads.kind === "embedded" && pageReads.publishableKey === "pk_test_abc", show(pageReads));
   delete world.env.STRIPE_PUBLISHABLE_KEY;
   world.checkAnswer = () => ({ ok: true, owner_id: OWNER, email: "owner@clinic.example", company: "Clinic One", job_title: "Chat agent", customer_id: null });

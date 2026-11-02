@@ -332,8 +332,10 @@ export function billingCallOutcome(status: number | null | undefined, body: unkn
   if (
     status === 200 &&
     typeof b.clientSecret === "string" &&
-    /^cs_(?:test|live)_[A-Za-z0-9_]+$/.test(b.clientSecret) &&
-    b.clientSecret.length <= 500 &&
+    // "cs_live_<id>_secret_<Stripe's token>": the token carries "/", "+", "%" and "=" too (billing-checkout's
+    // isCheckoutClientSecret); it only ever goes to Stripe.js.
+    /^cs_(?:test|live)_[A-Za-z0-9]+_secret_[\x21-\x7e]+$/.test(b.clientSecret) &&
+    b.clientSecret.length <= 2000 &&
     typeof b.publishableKey === "string" &&
     /^pk_(?:test|live)_[A-Za-z0-9]+$/.test(b.publishableKey) &&
     b.publishableKey.length <= 500 &&
