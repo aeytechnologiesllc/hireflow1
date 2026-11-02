@@ -87,6 +87,8 @@ function takeResetRedirect(): string | null {
   }
 }
 
+const COMMON_PASSWORD_HINT = "Use a new password you don't use anywhere else. Common ones like Password123 are refused.";
+
 // Real-time password requirements component
 const PasswordRequirements = ({ password }: { password: string }) => {
   const requirements = [
@@ -111,6 +113,10 @@ const PasswordRequirements = ({ password }: { password: string }) => {
           </span>
         </div>
       ))}
+      {/* Supabase refuses a password found in a data leak, which a third of
+          the first day's applicants met at least once (2026-11-02): say so
+          before they press the button. */}
+      <p className="text-xs text-muted-foreground">{COMMON_PASSWORD_HINT}</p>
     </div>
   );
 };
@@ -128,6 +134,7 @@ export default function CandidateAuth() {
   const reduceMotion = useReducedMotion();
   const formRef = useRef<HTMLDivElement>(null);
   const redirectingRef = useRef(false);
+  const signingUpRef = useRef(false);
 
   const [isLoading, setIsLoading] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
@@ -419,6 +426,12 @@ export default function CandidateAuth() {
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    // A quick double click (or Enter, then a click) sent two sign-ups before
+    // the button could turn off: the first made the account, the second told
+    // the brand-new applicant "already registered, please sign in" (live,
+    // 2026-11-02). One sign-up at a time, and none while we are moving on.
+    if (signingUpRef.current || redirectingRef.current) return;
+    signingUpRef.current = true;
     setIsLoading(true);
 
     try {
@@ -431,6 +444,7 @@ export default function CandidateAuth() {
           variant: "warning",
           description: err.issues[0].message,
         });
+        signingUpRef.current = false;
         setIsLoading(false);
         return;
       }
@@ -440,15 +454,23 @@ export default function CandidateAuth() {
     const { error, needsConfirmation } = await signUp(signUpEmail, signUpPassword, signUpName, "candidate", undefined, safeRedirectTarget);
 
     if (error) {
-      const errorMessage = error.message.includes("already registered")
-        ? "This email is already registered. Please sign in instead."
-        : error.message;
-
-      toast({
-        variant: "warning",
-        title: "Sign Up Failed",
-        description: errorMessage,
-      });
+      if (error.message.includes("already registered")) {
+        // Someone who applied before (October's applicants) already has an
+        // account: take them to Sign in with their email filled in.
+        setSignInEmail(signUpEmail);
+        setActiveTab("signin");
+        toast({
+          variant: "warning",
+          title: "You already have an account",
+          description: "Sign in with this email. If you forgot your password, use Forgot password.",
+        });
+      } else {
+        toast({
+          variant: "warning",
+          title: "Sign Up Failed",
+          description: getPasswordErrorMessage(error) ?? error.message,
+        });
+      }
     } else if (needsConfirmation) {
       toast({
         title: "Check your email!",
@@ -464,8 +486,12 @@ export default function CandidateAuth() {
         duration: 1500,
       });
       await routeAuthenticatedUser();
+      // Moving on (by this call, or the page's own when the account arrived
+      // first): the button stays off until the page changes.
+      if (redirectingRef.current) return;
     }
 
+    signingUpRef.current = false;
     setIsLoading(false);
   };
 
