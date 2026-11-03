@@ -83,6 +83,20 @@ day's quota at a time (URL Inspection, then Request indexing).
 try); IndexNow sent 23 pages. Indexing requests were refused for the day
 ("Quota exceeded"): the new four go first in the next day's requests.
 
+2026-11-03, about 10:20 EST, URL Inspection of every page: **on Google are
+`/blog` and 17 of the 18 articles** (the two that went live that morning,
+`hiring-a-support-agent-on-onlinejobs-ph` and
+`customer-service-skills-test-for-hiring`, included); Google took all but the
+five requested on 2026-11-02 from the sitemaps, with no request. **Not yet:**
+`hiring-a-chat-support-team-lead-from-155-applicants`,
+`customer-service-job-post-writer` and `/open-jobs` ("Discovered - currently
+not indexed"). Request indexing still answered "Quota exceeded" (it had not
+come back since the night before), so those three are the only requests left.
+Both sitemaps "Success": `blog-sitemap.xml` 20 pages (read Nov 3),
+`sitemap.xml` 8 (read Nov 2). A `site:hireflownow.com` search met Google's
+robot check (reCAPTCHA), which is never solved for anyone: Search Console is
+the record.
+
 Bing, Yandex, Naver and Seznam take **IndexNow**: `node scripts/indexnow.mjs`
 sends every page of the public site but the job and careers pages (their ping
 went with Google Jobs), using the key served at
