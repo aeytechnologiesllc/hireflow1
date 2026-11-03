@@ -678,7 +678,7 @@ export function indexPage(posts) {
   <h1>Guides to hiring customer service agents</h1>
   <p class="dek">${escapeHtml(description)}</p>
 </header>
-<section class="list" aria-label="Every guide">${posts.length ? posts.map(card).join("") : "<p>The first guides are on their way.</p>"}</section>
+<section class="list" aria-label="Every guide"><a class="card" href="/blog/${TOOL_SLUG}"><b>${escapeHtml(TOOL_TITLE)}</b><span>${escapeHtml(TOOL_DESCRIPTION)}</span><small>Free tool</small></a>${posts.length ? posts.map(card).join("") : "<p>The first guides are on their way.</p>"}</section>
 ${endBlock("blog-index", "list")}
 </main>
 ` +
@@ -724,11 +724,171 @@ export function notFoundPage(posts) {
   );
 }
 
+/**
+ * The free job post writer (docs/MARKETING.md, 2026-11-03): a page in the
+ * guides' look at /blog/customer-service-job-post-writer, so the blog's own
+ * rewrite serves it and the blog sitemap lists it. Its form runs in the
+ * visitor's browser only (public/job-post-writer.js, a file of its own, so the
+ * Content-Security-Policy needs no new hash); nothing typed is sent anywhere.
+ * It never asks for age or a birth date (what-you-cannot-ask-filipino-applicants).
+ */
+export const TOOL_SLUG = "customer-service-job-post-writer";
+/** When the writer last changed: its sitemap date. */
+export const TOOL_UPDATED = "2026-11-03";
+export const TOOL_TITLE = "Free job post writer for customer service agents";
+export const TOOL_DESCRIPTION = "Write a clear job post for a remote chat or email support agent in two minutes, with the shift worked out in Philippine time.";
+
+const TOOL_STYLE = `
+  .tool { margin-top: 30px; display: grid; gap: 26px; }
+  .tool fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: 14px; }
+  .tool legend { padding: 0; margin-bottom: 6px; font: 650 21px/1.3 var(--serif); color: var(--ink); }
+  .tool .row { display: grid; gap: 6px; }
+  .tool .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tool .trio { display: grid; grid-template-columns: 1.2fr .8fr 1fr; gap: 12px; }
+  .tool label, .tool .lbl { font: 600 15px/1.35 var(--sans); color: var(--ink); }
+  .tool .hint { font: 400 14px/1.45 var(--sans); color: var(--ink-3); }
+  .tool input[type=text], .tool input[type=time], .tool select, .tool textarea {
+    width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid rgba(29, 51, 41, .28); border-radius: 3px; background: #FBF8F1; color: var(--ink);
+    font: 400 16px/1.4 var(--sans); }
+  .tool input:focus-visible, .tool select:focus-visible, .tool textarea:focus-visible, .tool button:focus-visible { outline: 2px solid var(--action); outline-offset: 2px; }
+  .tool .choices { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+  .tool .choices label { display: inline-flex; align-items: center; gap: 8px; font-weight: 500; min-height: 32px; }
+  .tool .choices input { width: 18px; height: 18px; accent-color: var(--action); }
+  .tool [hidden] { display: none; }
+  .out { display: grid; gap: 10px; }
+  .out textarea { min-height: 520px; font: 400 14.5px/1.6 var(--type); white-space: pre-wrap; background: var(--paper-3); }
+  .out .act { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .out button { min-height: 44px; padding: 10px 20px; border: 0; border-radius: 3px; background: var(--action); color: #F5F0E5; font: 650 16px/1 var(--sans); cursor: pointer; }
+  .out button:active { background: var(--action-deep); }
+  .out [role=status] { font: 400 14.5px/1.4 var(--sans); color: var(--ink-3); }
+  @media (max-width: 560px) {
+    .tool .pair, .tool .trio { grid-template-columns: 1fr; }
+    .out textarea { min-height: 460px; }
+  }
+`;
+
+const ZONE_OPTIONS = [
+  ["America/New_York", "US Eastern"],
+  ["America/Chicago", "US Central"],
+  ["America/Denver", "US Mountain"],
+  ["America/Phoenix", "Arizona"],
+  ["America/Los_Angeles", "US Pacific"],
+  ["America/Toronto", "Toronto"],
+  ["Europe/London", "UK"],
+  ["Europe/Berlin", "Central Europe"],
+  ["Asia/Dubai", "UAE"],
+  ["Asia/Singapore", "Singapore"],
+  ["Australia/Perth", "Perth"],
+  ["Australia/Sydney", "Sydney"],
+  ["Pacific/Auckland", "New Zealand"],
+  ["Asia/Manila", "Philippines"],
+];
+
+export function toolPage(posts) {
+  const canonical = `${SITE}/blog/${TOOL_SLUG}`;
+  const graph = [
+    ORG,
+    {
+      "@type": "WebApplication",
+      "@id": `${canonical}#app`,
+      name: TOOL_TITLE,
+      description: TOOL_DESCRIPTION,
+      url: canonical,
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Any",
+      isAccessibleForFree: true,
+      publisher: { "@id": `${SITE}/#org` },
+      inLanguage: "en",
+    },
+    {
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { "@type": "ListItem", position: 1, name: "HireFlow", item: `${SITE}/` },
+        { "@type": "ListItem", position: 2, name: "Guides", item: `${SITE}/blog` },
+        { "@type": "ListItem", position: 3, name: TOOL_TITLE, item: canonical },
+      ],
+    },
+  ];
+  const related = ["customer-service-job-post-template", "how-to-hire-customer-service-agents-from-the-philippines", "what-you-cannot-ask-filipino-applicants"]
+    .map((slug) => posts.find((p) => p.slug === slug))
+    .filter(Boolean);
+  const opt = (pairs, selected) => pairs.map(([v, l]) => `<option value="${v}"${v === selected ? " selected" : ""}>${escapeHtml(l)}</option>`).join("");
+  return (
+    head({ title: `${TOOL_TITLE} | HireFlow`, description: TOOL_DESCRIPTION, canonical, type: "website", graph, campaign: TOOL_SLUG }).replace(
+      "</style>\n</head>",
+      `${TOOL_STYLE}</style>\n<script src="/job-post-writer.js" defer></script>\n</head>`,
+    ) +
+    `<main>
+<article class="sheet">
+  <p class="crumbs"><a href="/blog"><span aria-hidden="true">←</span>Guides</a></p>
+  <h1>${escapeHtml(TOOL_TITLE)}</h1>
+  <p class="dek">Fill in a few details and get a clear job post for a remote chat or email support agent, with your shift worked out in Philippine time. Copy it into any job board or your careers page. Nothing you type leaves this page.</p>
+  <noscript><p class="dek">This writer needs JavaScript. There is a post to copy and fill in by hand in <a href="/blog/customer-service-job-post-template">the customer service job post template</a>.</p></noscript>
+  <form id="jpw" class="tool" autocomplete="off">
+    <fieldset>
+      <legend>Your business</legend>
+      <div class="row"><label for="jpw-business">Business name <span class="hint">(optional)</span></label><input id="jpw-business" name="business" type="text" maxlength="80" placeholder="Bright Smile Dental"></div>
+      <div class="row"><label for="jpw-kind">What kind of business</label><select id="jpw-kind" name="kind">${opt([["dental", "Dental office"], ["medical", "Medical office or clinic"], ["store", "Online store"], ["software", "Software company"], ["home", "Home services"], ["other", "Something else"]], "store")}</select></div>
+      <div class="row" id="jpw-kindtext-row" hidden><label for="jpw-kindtext">Your business in a few words</label><input id="jpw-kindtext" name="kindText" type="text" maxlength="80" placeholder="a travel agency for families"></div>
+      <div class="row"><label for="jpw-about">One line about your customers <span class="hint">(optional)</span></label><input id="jpw-about" name="about" type="text" maxlength="240" placeholder="Our customers are busy parents who shop from their phones."></div>
+    </fieldset>
+    <fieldset>
+      <legend>The job</legend>
+      <div class="row"><span class="lbl" id="jpw-channel-l">How they talk to customers</span><div class="choices" role="radiogroup" aria-labelledby="jpw-channel-l"><label><input type="radio" name="channel" value="chat" checked> Chat</label><label><input type="radio" name="channel" value="email"> Email</label><label><input type="radio" name="channel" value="both"> Chat and email</label></div></div>
+      <div class="row" id="jpw-chats-row"><label for="jpw-chats">Chats at once, once trained</label><select id="jpw-chats" name="chats">${opt([["1", "1"], ["2", "2"], ["3", "3"], ["4", "4"]], "2")}</select></div>
+      <div class="row"><label for="jpw-private">Private details they will see</label><select id="jpw-private" name="privateInfo">${opt([["none", "None"], ["patient", "Patient records"], ["orders", "Order and payment details"], ["accounts", "Customer account details"]], "none")}</select></div>
+      <div class="row"><label for="jpw-tools">Tools they will use <span class="hint">(optional)</span></label><input id="jpw-tools" name="tools" type="text" maxlength="120" placeholder="Zendesk and Shopify"></div>
+      <div class="row"><label for="jpw-exp">Customer service experience</label><select id="jpw-exp" name="experience">${opt([["0", "None needed"], ["1", "At least 1 year"], ["2", "At least 2 years"], ["4", "At least 4 years"]], "1")}</select></div>
+    </fieldset>
+    <fieldset>
+      <legend>Hours and pay</legend>
+      <div class="trio">
+        <div class="row"><label for="jpw-tz">Your time zone</label><select id="jpw-tz" name="tz">${opt(ZONE_OPTIONS, "America/New_York")}</select></div>
+        <div class="row"><label for="jpw-start">Shift starts</label><input id="jpw-start" name="start" type="time" value="09:00"></div>
+        <div class="row"><label for="jpw-end">Shift ends</label><input id="jpw-end" name="end" type="time" value="17:00"></div>
+      </div>
+      <div class="pair">
+        <div class="row"><label for="jpw-days">Days</label><input id="jpw-days" name="days" type="text" maxlength="60" value="Monday to Friday"></div>
+        <div class="row"><span class="lbl" id="jpw-sched-l">Full or part time</span><div class="choices" role="radiogroup" aria-labelledby="jpw-sched-l"><label><input type="radio" name="schedule" value="full" checked> Full time</label><label><input type="radio" name="schedule" value="part"> Part time</label></div></div>
+      </div>
+      <div class="trio">
+        <div class="row"><label for="jpw-pay">Pay <span class="hint">(optional)</span></label><input id="jpw-pay" name="pay" type="text" inputmode="decimal" maxlength="20" placeholder="500"></div>
+        <div class="row"><label for="jpw-cur">Currency</label><select id="jpw-cur" name="currency">${opt([["USD", "USD"], ["PHP", "PHP"], ["AUD", "AUD"], ["CAD", "CAD"], ["GBP", "GBP"], ["EUR", "EUR"]], "USD")}</select></div>
+        <div class="row"><label for="jpw-period">Per</label><select id="jpw-period" name="period">${opt([["month", "Month"], ["hour", "Hour"]], "month")}</select></div>
+      </div>
+      <div class="row"><span class="lbl" id="jpw-where-l">Who can apply</span><div class="choices" role="radiogroup" aria-labelledby="jpw-where-l"><label><input type="radio" name="where" value="ph" checked> People in the Philippines</label><label><input type="radio" name="where" value="anywhere"> Anyone, any country</label></div></div>
+    </fieldset>
+    <div class="out">
+      <label for="jpw-out" class="lbl">Your job post</label>
+      <textarea id="jpw-out" readonly spellcheck="false"></textarea>
+      <div class="act"><button type="button" id="jpw-copy">Copy the post</button><span id="jpw-status" role="status" aria-live="polite"></span></div>
+    </div>
+  </form>
+  <div class="body">
+<h2>Why the post looks like this</h2>
+<ul>
+<li><strong>The channel is in the title.</strong> People search for "chat support" or "email support", and the right ones find you.</li>
+<li><strong>The shift is in both time zones.</strong> The Philippines is UTC+8 all year and never changes its clocks, so when yours change, the Philippine hours move by an hour. The post says so before anyone applies.</li>
+<li><strong>There is no age and no birth date.</strong> In the Philippines, asking for either while people apply breaks the law (Republic Act No. 10911). Collect the date of birth after the hire, from the ID you ask for then. This is general information, not legal advice.</li>
+<li><strong>The private details are named.</strong> Someone who will see patient records or payment details should know it, and agree to your rules, before they apply.</li>
+</ul>
+<p>Once the post is up, give every applicant the same short work sample, a real customer chat from your kind of business, and read only the strongest few closely. HireFlow does that part for you.</p>
+</div>
+</article>
+${endBlock(TOOL_SLUG, "tool")}
+${related.length ? `<section class="more" aria-label="More guides"><h2>More guides</h2><div class="cards">${related.map(card).join("")}</div></section>` : ""}
+</main>
+` +
+    foot()
+  );
+}
+
 export function sitemap(posts) {
   const latest = posts.reduce((max, p) => ((p.updated || p.date) > max ? p.updated || p.date : max), "");
   const urls = [
     { loc: `${SITE}/blog`, lastmod: latest },
     ...posts.map((p) => ({ loc: `${SITE}/blog/${p.slug}`, lastmod: p.updated || p.date })),
+    { loc: `${SITE}/blog/${TOOL_SLUG}`, lastmod: TOOL_UPDATED },
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -777,7 +937,9 @@ export function buildBlog({ contentDir = path.join(ROOT, "content", "blog"), out
     writeFileSync(file, text);
     written.push(rel);
   };
+  if (posts.some((p) => p.slug === TOOL_SLUG)) throw new Error(`${TOOL_SLUG}: that address is the job post writer's`);
   write("blog/index.html", indexPage(posts));
+  write(`blog/${TOOL_SLUG}/index.html`, toolPage(posts));
   for (const post of posts) write(`blog/${post.slug}/index.html`, postPage(post, posts));
   write("blog/feed.xml", feed(posts));
   write("blog/not-found.html", notFoundPage(posts));

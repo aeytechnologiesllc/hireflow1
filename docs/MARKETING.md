@@ -7,7 +7,8 @@ accounts, 1 in the last 30 days). Google had only the front page
 
 **Voice (owner, 2026-11-03):** HireFlow speaks as the company ("we", the
 HireFlow team), never the owner's name or personal details. His hiring runs
-are "how we hired our own support team". Channels that need no personal
+are told as "a US online business run by the people behind HireFlow" (never
+"our own team": the team is his business's, and the blog test refuses it). Channels that need no personal
 account come first: our blog, free tools on hireflownow.com, Google and Bing.
 Accounts elsewhere use a company address (hello@hireflownow.com; the domain
 forwards email through Namecheap).
@@ -51,7 +52,8 @@ something converts
    a guest on My Wife Quit Her Job, EcomCrew, Entrepreneurs on Fire, Side
    Hustle School and others ([MWQHJ](https://mywifequitherjob.com/john-jonas-onlinejobsph/),
    [EcomCrew](https://www.ecomcrew.com/e154-how-to-hire-filipino-vas-with-john-jonas-of-onlinejobs-ph/)).
-   The same shows take guests with a story like the owner's.
+   The same shows take guests with a story like this one; the guest speaks
+   for HireFlow, not as the owner by name.
 4. **Google, slowly.** Search Console is set up; finish the indexing requests,
    then one article a week aimed at what these owners search ("how to screen
    virtual assistant applicants", "customer service test for hiring"). Content
@@ -62,6 +64,15 @@ something converts
    [Lilach Bullock](https://www.lilachbullock.com/free-ai-tool-directories-to-submit-your-tool/),
    [WitsCode, checked 2026-10](https://witscode.com/resources/saas-launch-playbook/ai-tool-directories)).
    The owner makes the accounts; the copy is written for him.
+
+## Done so far
+
+- 2026-11-03: the team lead story, the agent cost guide and the Philippines
+  hiring guide finished in company voice; the free **job post writer** at
+  `/blog/customer-service-job-post-writer` (`public/job-post-writer.js`, page
+  from `scripts/build-blog.mjs`, proof `scripts/job_post_writer.test.mjs`).
+  After each one goes live: request indexing in Search Console, run
+  `node scripts/indexnow.mjs`.
 
 ## Ads: not yet
 

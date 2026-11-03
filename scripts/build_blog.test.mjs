@@ -215,8 +215,8 @@ for (const p of all.filter((x) => !x.draft)) {
 }
 // Drafts too: the repository is public, so a draft is read before the owner publishes it (the second Phase 6 review).
 for (const p of all) {
-  // The cost guide is about an agent's pay (the owner's real figure); no post names a HireFlow price.
-  check(`${p.slug}: no price but the free first job (the law's own fines and the cost guide's pay aside)`, !/\$\s?\d|₱\s?\d|\d[\d,.]*\s*(\/|a|per)\s*(mo|month)\b/i.test(p.body.replace(/₱50,000 to ₱500,000|₱50,000|₱500,000/g, "").replace(p.slug === "what-a-remote-support-agent-really-costs" ? /\$500 a month/g : /$^/g, "")));
+  // The cost guide is about an agent's pay (the owner's real figures: $350 a month after a $250 training month, a $500 lead); no post names a HireFlow price.
+  check(`${p.slug}: no price but the free first job (the law's own fines and the cost guide's pay aside)`, !/\$\s?\d|₱\s?\d|\d[\d,.]*\s*(\/|a|per)\s*(mo|month)\b/i.test(p.body.replace(/₱50,000 to ₱500,000|₱50,000|₱500,000/g, "").replace(p.slug === "what-a-remote-support-agent-really-costs" ? /\$500 a month|\$350 a month|\*\*\$250\*\*/g : /$^/g, "")));
   check(`${p.slug}: under the HireFlow byline, never "our own" team, agents or hire (the team lead was hired for the owner's own business)`, !/HireFlow's own team|\bour own (support )?(team|agents|staff|hire)\b/i.test(p.body + p.description));
 }
 {
