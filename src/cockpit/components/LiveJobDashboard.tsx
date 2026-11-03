@@ -6,15 +6,18 @@
  * 173 ... that's not what they want to see. They want to see what's going on
  * ... who's the best", and the pipeline mixed his closed October job's steps
  * ("Escalated chat practice") into the live one's. So the page leads with the
- * live job itself: its own four numbers (each opening the list it counts),
- * its own steps, and its link; then the best so far (Dashboard.tsx's sealed
- * rows) and who is doing what right now, in the Applicants list's own words.
+ * live job itself: its own four numbers (each opening the list it counts)
+ * and its link; then the best so far (Dashboard.tsx's sealed rows) and who
+ * is doing what right now, in the Applicants list's own words. The card had
+ * the job's step rail under its numbers for an hour; its "26 Application"
+ * under "83 Applied" read as a second count competing with the first (the
+ * owner: "I don't really understand it by looking at it"), so it went.
  *
  * Every number here is counted from the Applicants list's rows
  * (useApplicantList), so a number on this page and the list it opens always
  * agree.
  */
-import { useCallback, useState, type ReactNode } from "react";
+import { useCallback, useState } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { applyLinkFor } from "./ShareJobCard";
@@ -48,20 +51,15 @@ function Figure({ label, value, note, onClick, first = false }: { label: string;
   );
 }
 
-/**
- * The live job: what it is, that it is live, its four numbers, its own steps
- * (`steps`, Dashboard.tsx's mini rail of this job alone) and its link.
- */
+/** The live job: what it is, that it is live, its four numbers and its link. */
 export function LiveJobCard({
   job,
   counts,
-  steps,
   onOpenList,
   index = 0,
 }: {
   job: JobRow;
   counts: LiveJobCounts;
-  steps: ReactNode;
   /** Opens Applicants on this job, with the list's own filter (?where=, ?score=, ?tab=). */
   onOpenList: (query: string) => void;
   index?: number;
@@ -113,13 +111,6 @@ export function LiveJobCard({
         <Figure label="Finished every test" value={counts.finished} onClick={() => onOpenList(`${job_}&where=finished`)} />
         <Figure label="Scored 70 or more" value={counts.seventyUp} note="of those finished" onClick={() => onOpenList(`${job_}&where=finished&score=70-up`)} />
         <Figure label="Waiting on you" value={counts.waiting} note="finished, not decided" onClick={() => onOpenList(`${job_}&tab=needs-review`)} />
-      </div>
-
-      <div className="mt-4">
-        <p className="mb-2 text-[12px] font-medium" style={{ color: "var(--hf-text-muted)" }}>
-          Where everyone is, step by step
-        </p>
-        {steps}
       </div>
     </section>
   );
@@ -223,23 +214,5 @@ export function LiveJobLine({ job, counts, onOpenList, index = 0 }: { job: JobRo
         {num(counts.waiting, "waiting on you", `${job_}&tab=needs-review`)}
       </span>
     </div>
-  );
-}
-
-/** The job's steps as a list, for a phone: each step's name and how many are on it now. */
-export function StepList({ stages, className = "" }: { stages: ReadonlyArray<{ key: string; label: string; count: number }>; className?: string }) {
-  return (
-    <ul className={`grid grid-cols-2 gap-x-4 ${className}`}>
-      {stages.map((stage) => (
-        <li key={stage.key} className="flex items-baseline justify-between gap-2 py-1 text-[13px]" style={{ borderBottom: "1px solid var(--line)" }}>
-          <span className="min-w-0 truncate" style={{ color: stage.count > 0 ? "var(--hf-text)" : "var(--hf-text-muted)" }}>
-            {stage.label}
-          </span>
-          <span className="ck-num shrink-0 font-semibold" style={{ color: stage.count > 0 ? "var(--hf-text)" : "var(--hf-text-muted)" }}>
-            {stage.count}
-          </span>
-        </li>
-      ))}
-    </ul>
   );
 }

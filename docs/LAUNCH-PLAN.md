@@ -977,10 +977,12 @@ finished every test in four hours. Watched every 20 minutes (Opus 5.5), and fixe
   waited out (`src/lib/uploadConfirmed.ts`), not shown as failed.
 - **Half-loaded code** (8e4b951a): a page whose code did not load whole (Safari, "Cannot access
   uninitialized variable") reloads itself, once a minute at most (`src/lib/loadRecovery.ts`).
-- **Dashboard**: once a live job has applicants, the page is that job (its numbers, its own steps, its
-  link), the best so far and who is doing what (`components/LiveJobDashboard.tsx`); the all-time tiles,
+- **Dashboard**: once a live job has applicants, the page is that job (its four numbers and its link),
+  the best so far and who is doing what (`components/LiveJobDashboard.tsx`); the all-time tiles,
   Visits, the Messages card and the mixed-jobs pipeline are gone from it. Shown to the owner as screenshots
-  from the preview (`__previewScenario=zulu`) and approved ("It's a lot better").
+  from the preview (`__previewScenario=zulu`) and approved ("It's a lot better"). The job's step rail
+  under the numbers went an hour after it shipped: its "26 Application" under "83 Applied" read as a
+  second count competing with the first ("I don't really understand it by looking at it").
 - **Price**: the job price's lookup key is back on the $99 price (the $1 test price inactive), checked in
   Stripe. The temporary `zz-price-restore` function is a stub returning 404; delete it.
 

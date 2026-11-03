@@ -46,7 +46,10 @@ const dash = await readFile(path.join(ROOT, "src/cockpit/pages/Dashboard.tsx"), 
 const live = dash.slice(dash.indexOf(") : liveView ? ("), dash.indexOf(") : (\n        <>\n          {/* ── The numbers, always."));
 check("the live view is its own branch, after the first-hire guide", live.length > 0 && dash.indexOf("guideStage ? (") < dash.indexOf(") : liveView ? ("));
 check("it leads with the live job's card, the busiest job first", /<LiveJobCard/.test(live) && /\.sort\(\(a, b\) => b\.rows\.length - a\.rows\.length\)/.test(dash));
-check("its steps are that job's alone (never the closed job's)", /buildJourneyPipeline\(\s*applications\.filter\(\(a\) => \(a as \{ job_id\?: string \| null \}\)\.job_id === job\.id\),\s*raw \? \[raw\] : \[\],?\s*\)/.test(dash));
+// The step rail sat under the four numbers for an hour: its "26 Application"
+// under "83 Applied" read as a second, competing count (the owner, 2026-11-02).
+const card = await readFile(path.join(ROOT, "src/cockpit/components/LiveJobDashboard.tsx"), "utf8");
+check("no step rail on the live view: four numbers, nothing counting the same people again", !/MiniJourneyRail|StepList|buildJourneyPipeline/.test(live) && !/step by step|StepList|steps:/.test(card));
 check("no all-time tiles, no Visits, no Messages card in it", !/StatTile|Visits|unreadMessages|"messages"/.test(live) && /renderNeeds\(\{ decision: false, messages: false, emptyLine: false \}\)/.test(live));
 check("best so far: finished, still in the running, 50 or more", /r\.finished && r\.status !== "rejected" && r\.status !== "hired" && r\.score != null && r\.score >= 50/.test(dash) && /<SealedRow/.test(live));
 check("happening now is there, beside it", /<HappeningNow/.test(live));

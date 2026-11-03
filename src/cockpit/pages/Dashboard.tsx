@@ -45,7 +45,7 @@ import {
 } from "../hooks/useCockpitData";
 import { buildJourneyPipeline, mapActivityFeed, type JourneyPipelineStage } from "../lib/mappers";
 import { useApplicantList } from "../hooks/useApplicantList";
-import { HappeningNow, LiveJobCard, LiveJobLine, StepList, liveJobCounts } from "../components/LiveJobDashboard";
+import { HappeningNow, LiveJobCard, LiveJobLine, liveJobCounts } from "../components/LiveJobDashboard";
 import { firstHireStage, type GuideApplicant } from "../lib/firstHireStage";
 import { gemPosition } from "../lib/gemRail";
 import type { Candidate } from "../data";
@@ -737,9 +737,12 @@ export default function CockpitDashboard() {
   );
 
   /* ── The live job's own view (lib: components/LiveJobDashboard.tsx). Once a
-     live job has applicants, the page is about it: its numbers, its steps,
-     the best so far and who is doing what, all counted from the Applicants
-     list's rows so each number and the list it opens agree. ── */
+     live job has applicants, the page is about it: its four numbers, the
+     best so far and who is doing what, all counted from the Applicants
+     list's rows so each number and the list it opens agree. No step rail:
+     its "26 Application" under the card's "83 Applied" read as a second,
+     competing count (the owner, 2026-11-02: "I don't really understand it
+     by looking at it"). ── */
   const list = useApplicantList();
   const liveJobViews = useMemo(
     () =>
@@ -747,17 +750,12 @@ export default function CockpitDashboard() {
         .filter((j) => j.status === "live")
         .map((job) => {
           const rows = list.rows.filter((r) => r.jobId === job.id);
-          const raw = rawJobs.find((r) => r.id === job.id);
-          const steps = buildJourneyPipeline(
-            applications.filter((a) => (a as { job_id?: string | null }).job_id === job.id),
-            raw ? [raw] : [],
-          );
-          return { job, rows, counts: liveJobCounts(rows, list.now), steps };
+          return { job, rows, counts: liveJobCounts(rows, list.now) };
         })
         .filter((v) => v.rows.length > 0)
         // The busiest live job first: it gets the full card, any other one a line.
         .sort((a, b) => b.rows.length - a.rows.length),
-    [jobs, rawJobs, applications, list.rows, list.now],
+    [jobs, list.rows, list.now],
   );
   const liveView = liveJobViews.length > 0 && !list.isLoading;
   const liveRows = useMemo(() => liveJobViews.flatMap((v) => v.rows), [liveJobViews]);
@@ -1060,23 +1058,8 @@ export default function CockpitDashboard() {
         <FirstHireGuide light={guideStage} jobs={jobs} candidates={candidates} onPostJob={startRole} notifications={guideNotifications} welcomeName={profile?.company_name?.trim() || null} />
       ) : liveView ? (
         <>
-          {/* ── The live job, first: what it is, its four numbers, its steps. ── */}
-          <LiveJobCard
-            job={liveJobViews[0].job}
-            counts={liveJobViews[0].counts}
-            onOpenList={(query) => navigate(`/applicants?${query}`)}
-            steps={
-              liveJobViews[0].steps.length > 0 ? (
-                <>
-                  {/* A phone has no room for every step's name on one line: there it is a list. */}
-                  <div className="max-[640px]:hidden">
-                    <MiniJourneyRail stages={liveJobViews[0].steps} />
-                  </div>
-                  <StepList stages={liveJobViews[0].steps} className="min-[641px]:hidden" />
-                </>
-              ) : null
-            }
-          />
+          {/* ── The live job, first: what it is and its four numbers. ── */}
+          <LiveJobCard job={liveJobViews[0].job} counts={liveJobViews[0].counts} onOpenList={(query) => navigate(`/applicants?${query}`)} />
           {liveJobViews.slice(1).map((v, i) => (
             <LiveJobLine key={v.job.id} job={v.job} counts={v.counts} index={i + 1} onOpenList={(query) => navigate(`/applicants?${query}`)} />
           ))}
