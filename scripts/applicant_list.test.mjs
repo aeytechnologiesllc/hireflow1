@@ -1625,5 +1625,44 @@ console.log("\nB. Remove and block: the blocked are on Blocked, and nowhere else
   check("the words the candidate sees", B.APPLICANT_BLOCKED_MESSAGE === "We can't take an application from this account.");
 }
 
+// Held under the chat practice's bar (2026-11-03): with the team, on Needs
+// review, never declined; the same rule the server holds them by.
+console.log("\nHeld under the chat practice's bar:\n");
+{
+  const barJob = {
+    ...JOB,
+    workflow_steps: JOB.workflow_steps.map((s) => (s.id === "step_chat" ? { ...s, config: { ...s.config, interview_bar: 80 } } : s)),
+  };
+  const marks = { completedAt: "2026-11-03T02:00:00.000Z" };
+  const heldApp = (score, phase = "step_chat", status = "reviewing", mode = "auto") => ({
+    id: `held-${score}-${phase}-${status}-${mode}`,
+    job_id: JOB_ID,
+    candidate_id: "c0000000-0000-4000-8000-000000000009",
+    status,
+    phase,
+    created_at: "2026-11-03T00:00:00.000Z",
+    updated_at: "2026-11-03T02:00:00.000Z",
+    ai_score: 55,
+    ai_scorecard: { overallScore: 55, decisionState: "needs_more_evidence", recommendedAction: "review" },
+    notes: JSON.stringify({
+      _trusted: { step_chat: { stepType: "chat_simulation", ...marks } },
+      chatSimulationResult: { score, completed: true },
+      step_chat: { type: "chat_simulation", completed: true },
+    }),
+    jobs: { ...barJob, processing_mode: mode },
+  });
+  const rowOf = (app) => L.listRowFor(app, buildAssessmentRecord(app, { sessions: [], now: NOW }), L.journeyForJob(app.jobs), NOW);
+  const held = rowOf(heldApp(62));
+  check("under the bar: held, on Needs review, chip Needs review", eq(held.held, { score: 62, bar: 80 }) && held.tab === "needs-review" && held.chip?.label === "Needs review", show({ held: held.held, tab: held.tab, chip: held.chip }));
+  check("…its line says so and waits for the team", /under this job's 80 for the interview · waiting for you/.test(held.lineText), held.lineText);
+  check("…no step is theirs to take now", held.stepIndex === null && held.currentStepId === null);
+  check("at the bar: not held", rowOf(heldApp(80)).held === null);
+  check("a manual job holds nobody here (its own parking is unchanged)", rowOf(heldApp(62, "step_chat", "reviewing", "manual")).held === null);
+  check("once the team let them take the interview: not held", rowOf(heldApp(62, "step_interview")).held === null);
+  check("declined: not held", rowOf(heldApp(62, "step_chat", "rejected")).held === null);
+  const plan = (await import(pathToFileURL(path.join(ROOT, "src/cockpit/lib/passByScore.ts")).href)).passByScorePlan([held], 60);
+  check("Pass below a score reaches someone held under the line", plan.pass.targets.length === 1 && plan.noFinalScore === 0, show({ targets: plan.pass.targets.length, noFinal: plan.noFinalScore }));
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed ? 1 : 0);

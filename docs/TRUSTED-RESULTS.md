@@ -154,7 +154,9 @@ the old path losing the scorecard.
 
 ## Moving on in auto mode — `advanceAfterStep` (2026-10-05)
 
-Owner: in an **auto-mode** job nobody is ever parked part-way. Every
+Owner: in an **auto-mode** job nobody is ever parked part-way (since
+2026-11-03, except under a step's own bar, below: held for the team, never
+declined). Every
 applicant takes every test up to and including the last one, Ava only scores
 and flags, and he decides at the end. Deal-breakers are a highlighted flag
 (`ai_scorecard.dealBreakerFlags`), never a stop.
@@ -213,6 +215,31 @@ passes `awaitAnalysis: true` so a batch scores one application at a time; an
 analysis that did not save comes back as `analysisError`, and the batch
 counts that applicant in `failed` ("Moved on, but Ava could not score them")
 rather than as handled.
+
+**Since 2026-11-03 (the owner, on the AI bill: about 23¢ an applicant, most
+of it Ava rereading the whole record after every step on the larger model):**
+
+- **Ava scores once.** `shouldScoreAfterStep` starts the analysis only for a
+  move that finishes every test (`finishedAllSteps`), or one that waits on
+  the employer. A step part-way is judged by its own test; Ava reads the
+  record once, at the end, from the same evidence. Applicants part-way show
+  no Ava score until then.
+- **A step's bar can hold someone for the team.** A chat practice step may set
+  `config.interview_bar` (1–100). An applicant whose graded score on it
+  (`notes.chatSimulationResult.score`, trusted) is under the bar is not moved
+  on: `planAutoAdvance` answers `needs_employer_approval` with `heldBelowBar`,
+  nothing is written, Ava scores them once, and no "ready for interview"
+  heads-up goes out. Nobody is declined by it: the hiring team sees them on
+  Needs review ("waiting for you"), and either presses **Let them take the
+  next test** or passes them, as a person does every decline. The applicant
+  sees their practice saved and the team opening the next step; their reply
+  never names the bar or the score. Only before a real next step (a chat
+  practice as the last test goes to Decision), and a practice with no grade
+  holds nobody. The rule is `stepHoldBar` / `heldBelowStepBar` in both
+  `candidateJourney.ts` copies, so the server and the cockpit list agree.
+  Live job 43a2a54a sets 80 (all eight applicants the owner kept had 87+;
+  76 of the 92 interviewed were declined anyway). A job editor that rebuilds
+  the step's config could drop the key: check it after editing that step.
 
 Manual-mode jobs are unchanged: the analysis runs while the caller waits, and
 `handleAutopilotDecision` (score, then advance / defer / recommend-decline)

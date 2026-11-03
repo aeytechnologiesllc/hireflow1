@@ -33,7 +33,7 @@ import {
   withoutNulCharacters,
   stepOpenFor,
 } from "../supabase/functions/_shared/trustedResults.ts";
-import { buildCandidateJourney, DECISION_STAGE_ID } from "../supabase/functions/_shared/candidateJourney.ts";
+import { buildCandidateJourney, DECISION_STAGE_ID, heldBelowStepBar, stepHoldBar } from "../supabase/functions/_shared/candidateJourney.ts";
 import { readChatInterviewResult, readChatSimulationResult } from "../supabase/functions/_shared/autopilot.ts";
 
 let passed = 0;
@@ -1330,7 +1330,28 @@ console.log("\nA step that moves the candidate on by itself still gets scored:\n
     application: typingSnapshot,
     processingMode: "auto",
   });
-  check("the request that moved them always scores", moved.kind === "advance" && shouldScoreAfterStep(moved, typingSnapshot.notes) === true);
+  // Since 2026-11-03 a move part-way starts no scorecard: Ava reads the
+  // record once, when every test is done (the AI bill).
+  check(
+    "a move part-way starts no scorecard",
+    moved.kind === "advance" && moved.finishedAllSteps === false && shouldScoreAfterStep(moved, typingSnapshot.notes) === false,
+    JSON.stringify(moved),
+  );
+  const lastId = ZULU[ZULU.length - 2].id;
+  const lastType = ZULU[ZULU.length - 2].type;
+  const lastSnapshot = { phase: lastId, status: "reviewing", notes: JSON.stringify(trusted(lastId, lastType)) };
+  const finishing = await advanceAfterStep(casAdmin({ id: "app-3", ...lastSnapshot }), {
+    applicationId: "app-3",
+    steps: ZULU,
+    completedStepId: lastId,
+    application: lastSnapshot,
+    processingMode: "auto",
+  });
+  check(
+    "the move that finishes every test scores",
+    finishing.kind === "advance" && finishing.finishedAllSteps === true && shouldScoreAfterStep(finishing, lastSnapshot.notes) === true,
+    JSON.stringify(finishing),
+  );
   check(
     "a refused request never scores",
     shouldScoreAfterStep({ kind: "refused", reason: "phase_mismatch", currentPhase: "quiz", currentStatus: "reviewing" }, typingSnapshot.notes) === false,
@@ -1461,6 +1482,59 @@ console.log("\nAn ungraded result still moves the candidate on, and is not a sco
   check("a step already handed in is refused before the review runs again", stepOpenFor(app({ notes: sent, phase: "wf-chat" }), ask).code === "already_submitted");
   check("…and while it waits for the team (reviewing on the step)", stepOpenFor(app({ notes: sent, status: "reviewing" }), ask).code === "already_submitted");
   check("…unless the team sent the applicant back to it (pending on this step)", stepOpenFor(app({ notes: sent, status: "pending" }), ask).ok === true);
+}
+
+// ============================================================================
+// Held under the chat practice's bar (2026-11-03, the owner, on the AI bill):
+// the written interview is for people who pass the chat practice. Under the
+// bar the applicant waits for the hiring team; nobody is declined by it.
+// ============================================================================
+console.log("\nHeld under a step's bar, never declined:\n");
+{
+  const raw = (bar) => [
+    { id: "step_typing", type: "typing_test" },
+    { id: "step_chat", type: "chat_simulation", config: bar === undefined ? {} : { interview_bar: bar } },
+    { id: "step_interview", type: "chat_interview" },
+  ];
+  const chatDone = (score) =>
+    JSON.stringify({ ...trusted("step_chat", "chat_simulation"), chatSimulationResult: { score, completed: true } });
+  const at = (score) => ({ phase: "step_chat", status: "reviewing", notes: chatDone(score) });
+  const planWith = (bar, application) =>
+    planAutoAdvance({ steps: ZULU, completedStepId: "step_chat", application, processingMode: "auto", workflowSteps: raw(bar) });
+
+  const under = planWith(80, at(62));
+  check(
+    "a chat practice under the bar holds them for the team (no move, no decline)",
+    under.kind === "needs_employer_approval" && under.heldBelowBar?.score === 62 && under.heldBelowBar?.bar === 80 && under.nextStep.id === "step_interview",
+    JSON.stringify(under),
+  );
+  check("…and Ava reads them once, for the team", shouldScoreAfterStep(under, at(62).notes) === true);
+  const covered = JSON.stringify({
+    ...JSON.parse(at(62).notes),
+    avaAnalysisMeta: { analysisStartedAt: "2026-10-05T15:47:41.000Z", triggeredByStep: "step_chat" },
+  });
+  check("…a repeat of the same call starts nothing", shouldScoreAfterStep(under, covered) === false);
+  check("at the bar they go on", planWith(80, at(80)).kind === "advance");
+  check("over the bar they go on", planWith(80, at(91)).kind === "advance");
+  check("a job that sets no bar holds nobody", planWith(undefined, at(10)).kind === "advance");
+  check("no job steps given: nobody is held", plan("step_chat", at(10)).kind === "advance");
+  check(
+    "a practice with no grade holds nobody",
+    planWith(80, { phase: "step_chat", status: "reviewing", notes: JSON.stringify({ ...trusted("step_chat", "chat_simulation"), chatSimulationResult: { completed: true } }) }).kind === "advance",
+  );
+  check("a bar out of range holds nobody", planWith(0, at(10)).kind === "advance" && planWith(120, at(10)).kind === "advance");
+  check("a bar on another kind of step holds nobody", stepHoldBar([{ id: "step_typing", type: "typing_test", config: { interview_bar: 80 } }], "step_typing") === null);
+
+  const lastChat = buildCandidateJourney([{ id: "step_chat", type: "chat_simulation" }], { hasQuiz: false });
+  const last = planAutoAdvance({
+    steps: lastChat,
+    completedStepId: "step_chat",
+    application: at(10),
+    processingMode: "auto",
+    workflowSteps: [{ id: "step_chat", type: "chat_simulation", config: { interview_bar: 80 } }],
+  });
+  check("the chat practice as the last test still goes to Decision", last.kind === "advance" && last.finishedAllSteps === true, JSON.stringify(last));
+  check("heldBelowStepBar reads the trusted score", JSON.stringify(heldBelowStepBar(raw(80), "step_chat", { chatSimulationResult: { score: 79 } })) === JSON.stringify({ score: 79, bar: 80 }));
 }
 
 console.log(`\n${passed} passed, ${failed} failed.`);

@@ -37,6 +37,8 @@ export interface ScoreRow extends PassableRow {
   scoreKind: string;
   shortlisted?: boolean;
   blocked?: boolean;
+  /** Held under a step's bar (applicantList): waiting on the team, as a finished applicant is. */
+  held?: { score: number; bar: number } | null;
 }
 
 /** Where the line starts. */
@@ -82,7 +84,9 @@ export function passByScorePlan(rows: readonly ScoreRow[], line: number): PassBy
     if (seen.has(row.id)) continue;
     seen.add(row.id);
     if (row.blocked || row.tab === "blocked") continue;
-    const scored = row.finished && row.scoreKind === "final" && typeof row.score === "number";
+    // Someone held under a step's bar is with the team too: Ava's one read
+    // of them is the score to judge (applicantList `held`).
+    const scored = (row.held ? true : row.finished && row.scoreKind === "final") && typeof row.score === "number";
     if (row.status === "interview") {
       if (scored && (row.score as number) < under) kept.interview += 1;
       continue;

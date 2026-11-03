@@ -1738,6 +1738,7 @@ async function handleAutoModeStep(params: {
       completedStepId: currentPhaseId,
       application: snapshot,
       processingMode: job?.processing_mode,
+      workflowSteps: job?.workflow_steps,
     });
     const analysis = await runAvaAnalysis(context);
     if (!analysis.ok) return jsonResponse(analysis.body, analysis.status);
@@ -1764,6 +1765,7 @@ async function handleAutoModeStep(params: {
     completedStepId: currentPhaseId,
     application: snapshot,
     processingMode: job?.processing_mode,
+    workflowSteps: job?.workflow_steps,
   });
 
   if (outcome.kind === "error") {
@@ -1779,8 +1781,10 @@ async function handleAutoModeStep(params: {
     reason: outcome.kind === "refused" ? outcome.reason : null,
   });
 
-  // Score when this request moved them on, or when no stored analysis has
-  // read this step's result yet (shouldScoreAfterStep). The second case is
+  // Score when this request finished every test (or waits on the employer),
+  // once: a step part-way starts no scorecard since 2026-11-03, the AI bill
+  // (shouldScoreAfterStep). Also when no stored analysis has read the last
+  // step's result yet. The second case is
   // not only a repeat: complete-video-intro and ai-analyze-portfolio move
   // the candidate on themselves (recordStepResult, advance "auto_mode"), so
   // the page's own call after a video or a portfolio always finds them
@@ -1822,7 +1826,9 @@ async function scoreAfterStep(context: AnalysisContext, outcome: AdvanceAfterSte
     });
   }
 
-  if (outcome.kind === "needs_employer_approval") {
+  // Held under a step's bar: Ava's read is for the team's decision, and no
+  // interview is waiting to be set up, so no "ready for interview" heads-up.
+  if (outcome.kind === "needs_employer_approval" && !outcome.heldBelowBar) {
     await notifyEmployerInterviewReady({
       supabaseAdmin: context.supabaseAdmin,
       employerId: context.job?.employer_id,
@@ -1878,14 +1884,25 @@ function autoModeAnswer(
         ...scoreFields,
       };
     case "needs_employer_approval":
-      return {
-        success: true,
-        message: "Step recorded; the next step is an interview the employer sets up",
-        decision: "needs_employer_approval",
-        reason: "Next phase is Ava Interview which requires employer configuration",
-        ...analysisField,
-        ...scoreFields,
-      };
+      // The same decision either way, so every page waits the same way: a
+      // person opens the next step. The applicant's own reply never says why
+      // (no bar, no score): the hiring team's screens do.
+      return outcome.heldBelowBar
+        ? {
+            success: true,
+            message: "Step recorded; the hiring team opens the next step",
+            decision: "needs_employer_approval",
+            ...analysisField,
+            ...scoreFields,
+          }
+        : {
+            success: true,
+            message: "Step recorded; the next step is an interview the employer sets up",
+            decision: "needs_employer_approval",
+            reason: "Next phase is Ava Interview which requires employer configuration",
+            ...analysisField,
+            ...scoreFields,
+          };
     case "refused":
       return {
         success: true,

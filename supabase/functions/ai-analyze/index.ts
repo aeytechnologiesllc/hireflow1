@@ -330,7 +330,9 @@ Rules for structuredScore (every sub-score is 0-100):
 - hardRequirementConflicts must only list explicit conflicts with what THIS job's own text requires (quote the job's own words for the requirement, e.g. 'The job asks for "at least 2 years of customer support experience"; the candidate has about 1 year.'), wrong-resume/authenticity issues, missing legal/licensing blockers, or schedule/work-eligibility blockers the candidate's own answers state. Describe a requirement in the job's own words only: never call one "non-negotiable", a "deal-breaker" or "mandatory" unless the job's text uses that word. A workflow phase that has not happened yet (a pending quiz, typing test, simulation or interview), or a skill such a phase will measure, is NOT a conflict: missing evidence is never a conflict, so leave it out of this list. The computer and connection check is evidence for the hiring team, never a conflict, pending or done: never list its figures, a connection below the job's bar, a "not the computer they will use" answer or a phone/tablet run here, even when the job asks for a reliable connection; they go under Phase Concerns. A finished test's own result (skills check, typing test, chat practice, written interview) is never a conflict either: it already counts as that test's score, so listing it would count the same shortfall twice; describe it under Phase Concerns. Each conflict is an object: "text" is the conflict as described above, and "source" says where the evidence for it came from: "application" (the form answers), "resume", "interview" (something the candidate SAID in a written or voice interview, such as never having led a team), or "test:<name>" (for example "test:typing", "test:quiz", "test:chat_practice") ONLY when the conflict is a test's own measured result (a score, a typing speed, wrong answers, how they did in the practice chat). One requirement per conflict${options.teamLead ? TEAM_LEAD_SCORE_RULES : ""}
 - transferableEvidence must contain 2-6 short evidence phrases when adjacent fit exists; otherwise use an empty array
 - confidence must reflect evidence coverage and stability, not closeness to the passing threshold
-- summary must be 1-2 sentences and should mention direct fit vs transferable fit when relevant`;
+- summary must be 1-2 sentences and should mention direct fit vs transferable fit when relevant
+
+Length of "analysis" (the narrative): keep it short. Keep every section header and every labelled line of the required format (other screens read them), but write each value in a few words or one short sentence, give at most 3 bullets in any list (Phase Highlights and Phase Concerns included), never repeat a point in a later section, and keep the whole narrative under 450 words. A shorter report changes no score: judge on all the evidence exactly as before.`;
 }
 
 /**
@@ -1500,6 +1502,8 @@ Your skill match analysis should be based on what the candidate stated in their 
               apiKey: OPENAI_API_KEY!,
               business,
               model: OPENAI_MODEL,
+              // Every scorecard of a kind opens with the same long instructions.
+              cacheKey: `scorecard:${type}`,
               messages: withInstruction(msgs),
               maxCompletionTokens: 4500,
               temperature: 0,
@@ -1536,6 +1540,7 @@ Your skill match analysis should be based on what the candidate stated in their 
           apiKey: OPENAI_API_KEY!,
           business,
           model: OPENAI_MODEL,
+          cacheKey: `scorecard:${type}`,
           messages: msgs,
           maxCompletionTokens: 4000,
           ...(type === "interview" ? { temperature: 0.95 } : { temperature: 0 }),

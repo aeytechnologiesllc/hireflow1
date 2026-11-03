@@ -330,3 +330,41 @@ export function resolveGatedStep(
   if (!typeMatchesPhase(steps[index].type, query.expectedType)) return { matched: false, index: -1 };
   return { matched: true, index };
 }
+
+/**
+ * The bar a step sets for going on (`config.interview_bar`, 1-100), or null.
+ * Only the chat practice sets one (the owner, 2026-11-03, on the AI bill: the
+ * written interview is for people who pass the chat practice). An applicant
+ * whose own score on that step is under it is HELD on the step for the hiring
+ * team: the next step opens only when a person lets them take it, and nobody
+ * is declined by it. A person makes every decline.
+ */
+export function stepHoldBar(workflowSteps: unknown, stepId: string | null | undefined): number | null {
+  if (!stepId || !Array.isArray(workflowSteps)) return null;
+  const step = workflowSteps.find(
+    (s) => !!s && typeof s === "object" && (s as { id?: unknown }).id === stepId,
+  ) as { type?: unknown; config?: unknown } | undefined;
+  if (!step || step.type !== "chat_simulation") return null;
+  const config = step.config && typeof step.config === "object" ? (step.config as Record<string, unknown>) : {};
+  const bar = typeof config.interview_bar === "number" ? config.interview_bar : Number(config.interview_bar);
+  return Number.isFinite(bar) && bar > 0 && bar <= 100 ? bar : null;
+}
+
+/**
+ * The chat practice score and the bar when `stepId` holds this applicant:
+ * the step sets a bar and their graded score on file (the trusted
+ * `chatSimulationResult.score`, which no applicant can write) is under it.
+ * Null otherwise; a practice with no grade holds nobody.
+ */
+export function heldBelowStepBar(
+  workflowSteps: unknown,
+  stepId: string | null | undefined,
+  notes: Record<string, unknown> | null | undefined,
+): { score: number; bar: number } | null {
+  const bar = stepHoldBar(workflowSteps, stepId);
+  if (bar == null || !notes) return null;
+  const result = notes.chatSimulationResult;
+  const raw = result && typeof result === "object" ? (result as Record<string, unknown>).score : undefined;
+  const score = typeof raw === "number" ? raw : typeof raw === "string" && raw.trim() !== "" ? Number(raw) : NaN;
+  return Number.isFinite(score) && score < bar ? { score, bar } : null;
+}

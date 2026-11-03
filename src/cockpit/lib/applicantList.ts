@@ -34,7 +34,7 @@ import {
   type LiveState,
   type StepReopenRow,
 } from "@/cockpit/lib/assessmentRecord";
-import { buildCandidateJourney, DECISION_STAGE_ID, titleFor, type CandidateJourneyStep, type WorkflowStepLike } from "@/lib/candidateJourney";
+import { buildCandidateJourney, DECISION_STAGE_ID, heldBelowStepBar, titleFor, type CandidateJourneyStep, type WorkflowStepLike } from "@/lib/candidateJourney";
 import { milestonesFor, type MilestoneView } from "@/cockpit/lib/milestones";
 import { parseApplicationNotes } from "@/lib/applicationNotes";
 import {
@@ -203,6 +203,10 @@ export interface ApplicantListRow {
   liveState: LiveState | null;
   /** Every journey step done or skipped. */
   finished: boolean;
+  /** Held after a step whose bar their score is under (the chat practice's,
+   *  for the written interview; candidateJourney.stepHoldBar): waiting on the
+   *  team, who let them take the next test or pass. Sits on Needs review. */
+  held: { score: number; bar: number } | null;
   /** rejected, interview, offered or hired. */
   decided: boolean;
   flags: { count: number; kinds: FlagKind[]; tooltip: string | null };
@@ -838,12 +842,18 @@ export function listRowFor(
   const stepDots = dots.slice(0, -1);
   const finished = stepDots.length > 0 && stepDots.every((d) => d.state === "done" || d.state === "below" || d.state === "skipped");
   const stepTotal = dots.length;
+  // Held on the step they stand on (an auto job moves nobody on past its
+  // bar; trustedResults.planAutoAdvance, the same rule): with the team.
+  const held =
+    !finished && (status === "reviewing" || status === "pending") && app.jobs?.processing_mode === "auto"
+      ? heldBelowStepBar(app.jobs?.workflow_steps, app.phase, notes as unknown as Record<string, unknown>)
+      : null;
 
   // Where they are: the line's own step (the live attempt, else the step in
   // progress, else, parked on a finished step, the first not reached). None
   // once finished or decided.
   let stepIndex: number | null = null;
-  if (!decided && !finished) {
+  if (!decided && !finished && !held) {
     const at = lineStepIndex(profileDots, live?.stepId);
     stepIndex = at >= 0 ? at : null;
   }
@@ -880,8 +890,9 @@ export function listRowFor(
 
   // ── The line under the dots: the profile's rail says the same words ──
   const recommendedAction = str(scorecard?.recommendedAction);
-  const line: LineSegment[] =
-    journeyLineRuns(profileDots, status, { live, sessions, recommendedAction, now }) ?? [{ text: onForm ? "Filling in the form" : "Applied", tone: "soft" }];
+  const line: LineSegment[] = held
+    ? [{ text: `Chat practice ${Math.round(held.score)}, under this job's ${held.bar} for the interview · waiting for you`, tone: "amber" }]
+    : journeyLineRuns(profileDots, status, { live, sessions, recommendedAction, now }) ?? [{ text: onForm ? "Filling in the form" : "Applied", tone: "soft" }];
   const lineText = line.map((s) => s.text).join("");
 
   // ── Last active words ──
@@ -900,7 +911,7 @@ export function listRowFor(
     // check that failed, and not someone who left.
     activeWords = `Active ${agoWords(lastActiveMs, now)}`;
     activeTone = "good";
-  } else if (finished) {
+  } else if (finished || held) {
     activeWords = `Done ${agoWords(lastActiveMs, now)}`;
   } else {
     // Someone who walked away reads "Last active 20 h ago" too, as on the
@@ -944,7 +955,7 @@ export function listRowFor(
 
   const profile = app.profiles ?? null;
   const name = str(profile?.full_name) ?? str(profile?.email) ?? "Applicant";
-  const tab = tabFor({ status, finished, liveState });
+  const tab = held ? "needs-review" : tabFor({ status, finished, liveState });
 
   return {
     id: app.id,
@@ -958,7 +969,7 @@ export function listRowFor(
     status,
     tab,
     // The profile header's chip, by the same rule (Needs review = the tab's).
-    chip: applicantChip(status, finished),
+    chip: applicantChip(status, finished || !!held),
     country,
     appliedAt: appliedMs != null ? new Date(appliedMs).toISOString() : null,
     appliedWords: `${onForm ? "started" : "applied"} ${appliedAgo}`,
@@ -977,6 +988,7 @@ export function listRowFor(
     liveNow,
     liveState,
     finished,
+    held,
     decided,
     flags: { count: record.integrityTotal, kinds, tooltip: integrity && record.integrityTotal > 0 ? integritySummary(integrity) : null },
     below,

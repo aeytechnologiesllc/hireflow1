@@ -477,6 +477,7 @@ serve(async (req) => {
           apiKey: OPENAI_API_KEY,
           model: OPENAI_CHAT_SIMULATION_EVAL_MODEL,
           business: practiceJob.employerId,
+          cacheKey: "grade:chat-practice",
           messages: buildEvaluatorMessages(
             {
               rubric,
@@ -888,6 +889,8 @@ serve(async (req) => {
         apiKey: OPENAI_API_KEY,
         model: OPENAI_CHAT_SIMULATION_MODEL,
         business,
+        // One practice chat's turns share their whole opening: kept cached.
+        cacheKey: target ? `chat-practice:${target.applicationId}` : null,
         messages: buildSimulationApiMessages(
           customerPromptFor(liveCustomerName, liveScenario, liveMessageCount, liveChannel),
           history,

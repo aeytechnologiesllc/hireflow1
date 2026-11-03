@@ -1076,6 +1076,7 @@ IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidat
           apiKey: OPENAI_API_KEY,
           model: OPENAI_CHAT_INTERVIEW_EVAL_MODEL,
           business: billedBusiness,
+          cacheKey: "grade:interview",
           messages: buildInterviewGraderMessages(
             {
               jobTitle: interviewJobTitle || "",
@@ -1275,6 +1276,8 @@ IMPORTANT: NEVER skip the "do you have any questions" step. Always give candidat
         messages: apiMessages,
         temperature: 0.8,
         maxCompletionTokens: 900,
+        // One interview's turns share their whole opening: kept cached.
+        cacheKey: target?.applicationId ? `interview:${target.applicationId}` : null,
       });
     } catch (error) {
       if (recording && replyId) {

@@ -77,6 +77,7 @@
 
 import {
   buildCandidateJourney,
+  heldBelowStepBar,
   positionFor,
   resolveGatedStep,
   typeMatchesPhase,
@@ -913,17 +914,27 @@ export type AutoAdvancePlan =
       nextStep: CandidateJourneyStep;
       finishedAllSteps: boolean;
     }
-  | { kind: "needs_employer_approval"; completedStep: CandidateJourneyStep; nextStep: CandidateJourneyStep }
+  | {
+      kind: "needs_employer_approval";
+      completedStep: CandidateJourneyStep;
+      nextStep: CandidateJourneyStep;
+      /** Held on the step because its own score is under the bar the job set
+       *  on it (stepHoldBar): the hiring team opens the next step, or passes. */
+      heldBelowBar?: { score: number; bar: number };
+    }
   | { kind: "refused"; reason: AutoAdvanceRefusal };
 
-/** Pure: what moving on after `completedStepId` means for this application. */
+/** Pure: what moving on after `completedStepId` means for this application.
+ *  `workflowSteps` (the job's own, with their config) gives the bar a step
+ *  may set; without it nobody is held. */
 export function planAutoAdvance(input: {
   steps: readonly CandidateJourneyStep[];
   completedStepId: string | null | undefined;
   application: AdvanceSnapshot;
   processingMode: string | null | undefined;
+  workflowSteps?: unknown;
 }): AutoAdvancePlan {
-  const { steps, completedStepId, application, processingMode } = input;
+  const { steps, completedStepId, application, processingMode, workflowSteps } = input;
   if (processingMode !== "auto") return { kind: "refused", reason: "not_auto_mode" };
   if (!completedStepId) return { kind: "refused", reason: "no_step_id" };
   if (application.status && CLOSED_STATUSES.has(application.status)) {
@@ -948,6 +959,15 @@ export function planAutoAdvance(input: {
     if (!landed) return { kind: "refused", reason: "result_missing" };
     if (!decision.advance) {
       return { kind: "needs_employer_approval", completedStep, nextStep };
+    }
+    // Under the step's own bar (the chat practice's, for the written
+    // interview): held for the hiring team, never declined. Only before a
+    // real next step: someone on their last test goes to Decision as ever.
+    const held = nextStep.id !== DECISION_STAGE_ID
+      ? heldBelowStepBar(workflowSteps, completedStep.id, parseNotesObject(application.notes))
+      : null;
+    if (held) {
+      return { kind: "needs_employer_approval", completedStep, nextStep, heldBelowBar: held };
     }
     return {
       kind: "advance",
@@ -1006,6 +1026,8 @@ export async function advanceAfterStep(
     completedStepId: string | null | undefined;
     application: AdvanceSnapshot;
     processingMode: string | null | undefined;
+    /** The job's own workflow steps, for a step's bar (planAutoAdvance). */
+    workflowSteps?: unknown;
   },
 ): Promise<AdvanceAfterStepOutcome> {
   const plan = planAutoAdvance(input);
@@ -1056,10 +1078,19 @@ export async function advanceAfterStep(
  * that step to be scored. No for a true repeat (the step's analysis already
  * started after its result was recorded), so a network retry does not pay
  * for a second analysis or notify the employer twice. No for a refusal.
+ *
+ * Since 2026-11-03 (the owner, on the AI bill: about 5 scorecards a person,
+ * each reading the whole record on the larger model) only a move that
+ * finishes every test, or one that waits on the employer, starts it: a step
+ * part-way is judged by its own test, and Ava reads the record once, at the
+ * end. The final scorecard reads the same evidence it always did.
  */
 export function shouldScoreAfterStep(outcome: AdvanceAfterStepOutcome, notes: unknown): boolean {
-  if (outcome.kind === "advance") return true;
-  if (outcome.kind === "already_advanced" || outcome.kind === "needs_employer_approval") {
+  if (outcome.kind === "advance") return outcome.finishedAllSteps;
+  if (outcome.kind === "already_advanced") {
+    return outcome.finishedAllSteps && !analysisCoversStep(outcome.completedStep.id, notes);
+  }
+  if (outcome.kind === "needs_employer_approval") {
     return !analysisCoversStep(outcome.completedStep.id, notes);
   }
   return false;

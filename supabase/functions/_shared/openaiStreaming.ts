@@ -1,4 +1,4 @@
-import { AiUnavailableError, classifyOpenAIHttpFailure, modelSupportsTemperature } from "./openai.ts";
+import { AiUnavailableError, cacheKeyField, cacheKeyWasRefused, classifyOpenAIHttpFailure, modelSupportsTemperature } from "./openai.ts";
 import type { OpenAIMessage } from "./openai.ts";
 import { budgetUnitsFor, takeDailyAiBudget } from "./aiBudget.ts";
 
@@ -28,6 +28,8 @@ interface StreamOpenAIChatOptions {
   headerTimeoutMs?: number;
   /** For tests: the pause before try `attempt + 1`. */
   pauseMs?: (attempt: number) => number;
+  /** OpenAI's prompt_cache_key (_shared/openai.ts cacheKeyField): one applicant's chat keeps its cached opening. */
+  cacheKey?: string | null;
 }
 
 /**
@@ -65,6 +67,7 @@ export async function streamOpenAIChatCompletion(options: StreamOpenAIChatOption
     headerTimeoutMs = DEFAULT_HEADER_TIMEOUT_MS,
     pauseMs = defaultPause,
     business = null,
+    cacheKey = null,
   } = options;
   const tries = Math.max(1, attempts);
   const headerWaitMs = Number.isFinite(headerTimeoutMs) && headerTimeoutMs > 0 ? headerTimeoutMs : DEFAULT_HEADER_TIMEOUT_MS;
@@ -76,6 +79,7 @@ export async function streamOpenAIChatCompletion(options: StreamOpenAIChatOption
 
   for (let attempt = 1; ; attempt++) {
     let response: Response;
+    const cacheField = cacheKeyField(cacheKey);
     // Only the wait for the headers is timed. The request's signal stays
     // tied to the reply's body for as long as it streams, so the one thing
     // that can abort it (this timer) is disarmed the moment the headers are
@@ -102,6 +106,7 @@ export async function streamOpenAIChatCompletion(options: StreamOpenAIChatOption
           ...(modelSupportsTemperature(model) ? { temperature } : {}),
           max_completion_tokens: maxCompletionTokens,
           stream: true,
+          ...cacheField,
         }),
         signal: controller.signal,
       });
@@ -127,6 +132,10 @@ export async function streamOpenAIChatCompletion(options: StreamOpenAIChatOption
 
     if (!response.ok) {
       const errorText = await response.text();
+      if (cacheKeyWasRefused(response.status, errorText, "prompt_cache_key" in cacheField)) {
+        attempt -= 1;
+        continue;
+      }
       const message = `OpenAI stream error ${response.status}: ${errorText}`;
       const failure = classifyOpenAIHttpFailure(response.status, errorText);
       if (failure.retry && attempt < tries) {

@@ -26,6 +26,12 @@ export interface OpenAIChatOptions {
   timeoutMs?: number;
   /** The business the call is for (a job's employer_id, or the asking account): counted against its daily AI budget (_shared/aiBudget.ts). */
   business?: string | null;
+  /**
+   * OpenAI's prompt_cache_key: calls that share it (one applicant's chat, one
+   * kind of scorecard) are sent where their shared opening is already cached,
+   * which OpenAI bills at a discount. Never changes what the model reads.
+   */
+  cacheKey?: string | null;
 }
 
 export interface OpenAIChatResult {
@@ -267,6 +273,41 @@ export function modelSupportsTemperature(model: string): boolean {
   return !/^(gpt-5|o[1-9])/i.test(model.trim());
 }
 
+/** Set once OpenAI refuses prompt_cache_key: every later call leaves it out. */
+let cacheKeyRefused = false;
+
+/** The cache hint for a request body, or nothing (none given, or refused before). */
+export function cacheKeyField(cacheKey: string | null | undefined): { prompt_cache_key?: string } {
+  return cacheKey && !cacheKeyRefused ? { prompt_cache_key: cacheKey.slice(0, 64) } : {};
+}
+
+/**
+ * A 400 that names prompt_cache_key: the key is dropped for good and the
+ * caller sends the same request again without it. The hint saves money; it
+ * must never cost an applicant their turn.
+ */
+export function cacheKeyWasRefused(status: number, errorText: string, sentKey: boolean): boolean {
+  if (!sentKey || status !== 400 || !/prompt_cache_key/i.test(errorText)) return false;
+  cacheKeyRefused = true;
+  console.warn("[openai] prompt_cache_key refused; sending without it from now on");
+  return true;
+}
+
+/** One line per call: what it read and wrote, and how much of what it read was cached. */
+function logUsage(model: string, raw: Record<string, unknown>): void {
+  const usage = raw?.usage as Record<string, unknown> | undefined;
+  if (!usage || typeof usage !== "object") return;
+  const promptDetails = (usage.prompt_tokens_details ?? {}) as Record<string, unknown>;
+  const completionDetails = (usage.completion_tokens_details ?? {}) as Record<string, unknown>;
+  console.log("[openai] usage", JSON.stringify({
+    model,
+    prompt: usage.prompt_tokens ?? null,
+    cached: promptDetails.cached_tokens ?? null,
+    completion: usage.completion_tokens ?? null,
+    reasoning: completionDetails.reasoning_tokens ?? null,
+  }));
+}
+
 export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAIChatResult> {
   const {
     apiKey,
@@ -279,6 +320,7 @@ export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAI
     retries = 3,
     timeoutMs = 60000,
     business = null,
+    cacheKey = null,
   } = options;
 
   // Today's budget first: the business's own, then the platform's (fails open; _shared/aiBudget.ts).
@@ -289,6 +331,7 @@ export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAI
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= Math.max(1, retries); attempt++) {
+    const cacheField = cacheKeyField(cacheKey);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -305,12 +348,17 @@ export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAI
           ...(temperature !== undefined && modelSupportsTemperature(model) ? { temperature } : {}),
           max_completion_tokens: maxCompletionTokens,
           ...(responseFormat ? { response_format: responseFormat } : {}),
+          ...cacheField,
         }),
         signal: controller.signal,
       });
 
       if (!response.ok) {
         const errorText = await response.text();
+        if (cacheKeyWasRefused(response.status, errorText, "prompt_cache_key" in cacheField)) {
+          attempt -= 1;
+          continue;
+        }
         const message = `OpenAI error ${response.status}: ${errorText}`;
         const failure = classifyOpenAIHttpFailure(response.status, errorText);
         if (failure.retry && attempt < retries) {
@@ -325,6 +373,7 @@ export async function callOpenAIChat(options: OpenAIChatOptions): Promise<OpenAI
       }
 
       const raw = (await response.json()) as Record<string, unknown>;
+      logUsage(model, raw);
       const content = (raw as { choices?: { message?: { content?: string } }[] })?.choices?.[0]?.message?.content;
       if (!content || typeof content !== "string") {
         throw new Error("OpenAI response did not include message content");
