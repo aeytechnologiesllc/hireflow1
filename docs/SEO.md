@@ -74,6 +74,15 @@ tests, interview questions, email test) before the daily quota ran out (about
 ten a day). Still to request: the other nine articles and `/open-jobs`, one
 day's quota at a time (URL Inspection, then Request indexing).
 
+2026-11-03: three guides and the free job post writer went live
+(`hiring-a-chat-support-team-lead-from-155-applicants`,
+`what-a-remote-support-agent-really-costs`,
+`how-to-hire-customer-service-agents-from-the-philippines`,
+`customer-service-job-post-writer`); `blog-sitemap.xml` resubmitted and read
+("Success", 18 pages, so the earlier "Couldn't fetch" was only Google's first
+try); IndexNow sent 23 pages. Indexing requests were refused for the day
+("Quota exceeded"): the new four go first in the next day's requests.
+
 Bing, Yandex, Naver and Seznam take **IndexNow**: `node scripts/indexnow.mjs`
 sends every page of the public site but the job and careers pages (their ping
 went with Google Jobs), using the key served at
