@@ -1843,6 +1843,14 @@ async function handleAutoModeStep(params: {
   if (!startsAnalysis && !awaitAnalysis) {
     return jsonResponse(autoModeAnswer(outcome, null, false));
   }
+  // One run per finished step: the page and the server's own backstop
+  // (step-move-on) both ask, seconds apart, before the first run has saved
+  // (2026-11-03: two scorecards and two bell cards for one held applicant).
+  // The first ask in a five-minute window starts it; a later one finds it
+  // running. Fails open: a limiter error never costs a score.
+  if (!awaitAnalysis && !(await firstAskToScore(supabaseAdmin, applicationId, currentPhaseId))) {
+    return jsonResponse(autoModeAnswer(outcome, null, true));
+  }
 
   const task = scoreAfterStep(context, outcome);
   if (awaitAnalysis) {
@@ -1850,6 +1858,26 @@ async function handleAutoModeStep(params: {
   }
   await runInBackground("Background analysis", task);
   return jsonResponse(autoModeAnswer(outcome, null, true));
+}
+
+/** True for the first ask to score this step in a five-minute window (check_rate_limit), or when the limiter cannot answer. */
+async function firstAskToScore(supabaseAdmin: any, applicationId: string, stepId: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabaseAdmin.rpc("check_rate_limit", {
+      p_bucket: "scorecard-start",
+      p_identifier: `${applicationId}:${stepId}`,
+      p_limit: 1,
+      p_window_secs: 300,
+    });
+    if (error) {
+      console.error("[trigger-ava-analysis] scorecard-start limiter failed (scoring anyway):", error);
+      return true;
+    }
+    return (data as { allowed?: unknown } | null)?.allowed !== false;
+  } catch (limiterError) {
+    console.error("[trigger-ava-analysis] scorecard-start limiter threw (scoring anyway):", limiterError);
+    return true;
+  }
 }
 
 /** The background half of an auto-mode step: Ava's analysis, then (only if a
