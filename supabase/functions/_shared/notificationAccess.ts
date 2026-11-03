@@ -134,6 +134,8 @@ export const NOTIFICATION_RULES: Readonly<Record<string, NotificationRule>> = {
   voice_minutes_low: { who: "service" },
   voice_minutes_exhausted: { who: "service" },
   interview_ready: { who: "service" },
+  // An applicant held under a step's bar, waiting for a person (trigger-ava-analysis).
+  review_waiting: { who: "service" },
   interview_reminder: { who: "service" },
   // A time has just become agreed (candidate-interview-response): the
   // applicant's confirmation and the hiring team's notice.

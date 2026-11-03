@@ -69,6 +69,7 @@ type NotificationType =
   | "voice_minutes_low"
   | "voice_minutes_exhausted"
   | "interview_ready"
+  | "review_waiting"
   | "steps_reopened"
   | "continue_on_computer"
   | "business_email_code";
@@ -83,6 +84,7 @@ const EMPLOYER_FACING: ReadonlySet<NotificationType> = new Set<NotificationType>
   "voice_minutes_low",
   "voice_minutes_exhausted",
   "interview_ready",
+  "review_waiting",
   "interview_time_picked",
   "business_email_code",
 ]);
@@ -149,6 +151,8 @@ interface NotificationRequest {
     minutes_remaining?: string;
     active_jobs_count?: string;
     score?: string;
+    /** review_waiting: the step's bar the score is under. */
+    bar?: string;
     /** new_message: the sender's user id, for the employer's thread deep link. */
     sender_id?: string;
     /** new_message: skips the role lookup when the caller already knows. */
@@ -789,6 +793,20 @@ const getEmailContent = (
         `${staffBaseUrl}/applicants`
       ),
     },
+
+    // EMPLOYER-FACING - held under a step's bar, waiting for a person
+    // (trigger-ava-analysis, at most once a day for a job: the bell has each one).
+    review_waiting: {
+      subject: `Waiting for your decision: ${data.job_title}`,
+      html: wrapEmail(
+        "Applicants are waiting for you",
+        `<p><strong>${esc(data.candidate_name)}</strong> scored <strong>${esc(data.score)}</strong> on the chat practice for <strong>${esc(data.job_title)}</strong>, under this job's <strong>${esc(data.bar)}</strong> for the written interview.</p>
+         <p>HireFlow held them for you before the interview. Nobody was declined: a person makes every decline.</p>
+         <p ${A.muted}>Open Needs review to pass on them, or let them take the interview. This email comes once a day; your bell shows each one as it happens.</p>`,
+        "Open Needs review",
+        `${staffBaseUrl}/applicants?tab=needs-review`
+      ),
+    },
   };
 
   return templates[type];
@@ -817,6 +835,7 @@ const getPreferenceField = (type: NotificationType): string => {
     voice_minutes_low: "email_voice_minutes",
     voice_minutes_exhausted: "email_voice_minutes",
     interview_ready: "email_new_applications", // Uses new_applications pref since it's about new candidates
+    review_waiting: "email_new_applications",
     steps_reopened: "email_phase_updates",
     continue_on_computer: "email_phase_updates",
     // Never consulted: the code is sent before any preference is read (a

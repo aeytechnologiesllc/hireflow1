@@ -156,7 +156,7 @@ const fn = await src("supabase/functions/send-notification-email/index.ts");
   check("no rule is for a kind that is gone", ruled.every((k) => kinds.includes(k)), ruled.filter((k) => !kinds.includes(k)).join(", "));
 
   const who = (k) => A.NOTIFICATION_RULES[k]?.who;
-  check("the system's own alerts are the system's only", ["document_signed", "reschedule_requested", "voice_minutes_low", "voice_minutes_exhausted", "interview_ready", "interview_reminder", "steps_reopened", "interview_confirmed", "interview_time_picked"].every((k) => who(k) === "service"));
+  check("the system's own alerts are the system's only", ["document_signed", "reschedule_requested", "voice_minutes_low", "voice_minutes_exhausted", "interview_ready", "review_waiting", "interview_reminder", "steps_reopened", "interview_confirmed", "interview_time_picked"].every((k) => who(k) === "service"));
   check("a decision or a phase move is the hiring team's, and needs the pipeline permission", ["status_rejected", "status_hired", "phase_advanced"].every((k) => who(k) === "staff" && A.NOTIFICATION_RULES[k].permission === "can_manage_pipeline"));
   check("interview emails need the scheduling permission", ["interview_scheduled", "interview_pick_time", "interview_cancelled", "interview_rescheduled"].every((k) => who(k) === "staff" && A.NOTIFICATION_RULES[k].permission === "can_schedule_interviews"));
   check("document emails need the documents permission", ["document_sent", "document_requested"].every((k) => who(k) === "staff" && A.NOTIFICATION_RULES[k].permission === "can_send_documents"));

@@ -287,6 +287,53 @@ async function notifyEmployerInterviewReady(params: {
 }
 
 /**
+ * Someone held under a step's bar (planAutoAdvance heldBelowBar) waits for a
+ * person, so the job's owner is told: a bell card (with its push) for each
+ * one, and one email a day for the job (claim_daily_alert), so a busy day is
+ * one email, not sixty. The owner, 2026-11-03: whoever does the hiring must
+ * get a proper notice that someone needs looking at.
+ */
+async function notifyEmployerHeld(params: {
+  supabaseAdmin: any;
+  application: any;
+  job: any;
+  profile: any;
+  applicationId: string;
+  held: { score: number; bar: number };
+}) {
+  const { supabaseAdmin, application, job, profile, applicationId, held } = params;
+  const employerId = job?.employer_id;
+  if (!employerId) return;
+  try {
+    const candidateName = profile?.full_name || profile?.email || "An applicant";
+    const jobTitle = job?.title || "your job";
+    const score = Math.round(held.score);
+    await supabaseAdmin.from("notifications").insert({
+      user_id: employerId,
+      type: "application",
+      title: "Waiting for your decision",
+      message: `${candidateName} scored ${score} on the chat practice, under your ${held.bar} for the written interview. Held for you, not declined.`,
+      link: `/applicants/${applicationId}`,
+      is_read: false,
+    });
+    const jobKey = application?.job_id || employerId;
+    const { data: firstToday, error: claimError } = await supabaseAdmin.rpc("claim_daily_alert", { p_alert: `held:${jobKey}` });
+    if (claimError) console.error("[trigger-ava-analysis] Could not claim today's held email:", claimError);
+    if (firstToday === true) {
+      await supabaseAdmin.functions.invoke("send-notification-email", {
+        body: {
+          type: "review_waiting",
+          recipient_user_id: employerId,
+          data: { candidate_name: candidateName, job_title: jobTitle, score: String(score), bar: String(held.bar) },
+        },
+      });
+    }
+  } catch (notifyError) {
+    console.error("[trigger-ava-analysis] Failed to tell the employer someone is held:", notifyError);
+  }
+}
+
+/**
  * The original decision path: score first, then advance, defer or park on
  * Ava's recommendation. Since 2026-10-05 it serves MANUAL jobs only (their
  * behaviour is unchanged). Auto-mode jobs go through handleAutoModeStep
@@ -1826,9 +1873,18 @@ async function scoreAfterStep(context: AnalysisContext, outcome: AdvanceAfterSte
     });
   }
 
-  // Held under a step's bar: Ava's read is for the team's decision, and no
-  // interview is waiting to be set up, so no "ready for interview" heads-up.
-  if (outcome.kind === "needs_employer_approval" && !outcome.heldBelowBar) {
+  // Held under a step's bar: the team is told someone waits for them (not
+  // "ready for interview": no interview is waiting to be set up).
+  if (outcome.kind === "needs_employer_approval" && outcome.heldBelowBar) {
+    await notifyEmployerHeld({
+      supabaseAdmin: context.supabaseAdmin,
+      application: context.application,
+      job: context.job,
+      profile: analysis.ok ? analysis.profile : null,
+      applicationId: context.applicationId,
+      held: outcome.heldBelowBar,
+    });
+  } else if (outcome.kind === "needs_employer_approval") {
     await notifyEmployerInterviewReady({
       supabaseAdmin: context.supabaseAdmin,
       employerId: context.job?.employer_id,
