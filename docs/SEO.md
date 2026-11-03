@@ -53,3 +53,30 @@ keep it right. Proof: `scripts/seo_pages.test.mjs`.
 - staff.hireflownow.com is `noindex, nofollow` (a header in `vercel.json`).
 - A new public page that should be found calls `usePageHead` with its path;
   one that should not passes `noindex`.
+
+## Getting into search engines (2026-11-02)
+
+The owner asked why Google had not listed the site. Checked live that day:
+robots.txt lets every crawler in and names both sitemaps; `/sitemap.xml` and
+`/blog-sitemap.xml` are valid XML (6 pages, the open jobs, 13 articles); the
+front page and every article say `index, follow` with their own canonical and
+serve their text in the HTML; Vercel's firewall has no rules of its own. Google
+had **only the front page** (`site:hireflownow.com`, already showing the $99
+line, so crawled since 2026-11-01) and no article (`site:hireflownow.com/blog`:
+nothing). Nothing blocks it: the site is new, few other sites link to it, and
+Google was never told about it. Google's sitemap ping was shut down in 2023, so
+the only way to ask is **Google Search Console** (the owner's sign-in):
+
+1. Add a URL-prefix property for `https://hireflownow.com/`, method "HTML tag".
+2. The tag goes in the `<head>` of `public/landing.html` (the front page), then Verify.
+3. Sitemaps: add `sitemap.xml` and `blog-sitemap.xml`.
+4. URL Inspection → Request indexing for the front page, `/blog` and each
+   article (Google allows about ten a day).
+
+Bing Webmaster Tools can then import the property from Search Console.
+
+Bing, Yandex, Naver and Seznam take **IndexNow**: `node scripts/indexnow.mjs`
+sends every page of the public site but the job and careers pages (their ping
+went with Google Jobs), using the key served at
+`/8f1bfc75cd683af0c7f05fe79664ec51.txt`. Sent on 2026-11-02 (19 pages, 200 OK).
+Run it again after publishing an article.
