@@ -5,6 +5,13 @@ market ourselves?" No outside business has signed up yet (16 business
 accounts, 1 in the last 30 days). Google had only the front page
 (docs/SEO.md, "Getting into search engines").
 
+**Voice (owner, 2026-11-03):** HireFlow speaks as the company ("we", the
+HireFlow team), never the owner's name or personal details. His hiring runs
+are "how we hired our own support team". Channels that need no personal
+account come first: our blog, free tools on hireflownow.com, Google and Bing.
+Accounts elsewhere use a company address (hello@hireflownow.com; the domain
+forwards email through Namecheap).
+
 ## Who we are for, in one line
 
 Small businesses hiring remote chat or email support agents, most often from
@@ -33,7 +40,7 @@ something converts
    posting "remote customer service", "chat support"), and in the Facebook
    groups where employers hire Filipino VAs. Send a short, personal message
    from the owner: his own story, the free first job, an offer to set the job
-   up for them. About ten a day. This is the fastest path to the first
+   up for them, signed as the HireFlow team. About ten a day. This is the fastest path to the first
    customers.
 2. **Post the story where owners ask about hiring.** Reddit (r/smallbusiness,
    r/ecommerce, r/shopify, r/Entrepreneur), Facebook groups for employers of
