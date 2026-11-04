@@ -232,10 +232,15 @@ const GENERAL_PLAN: InterviewPlan = {
       redFlag: "\"I can't think of one\", or a mistake that is really a boast.",
     },
     {
-      id: "this_job",
-      question: "From what you know so far, which part of this job will be hardest for you?",
-      listenFor: "They have thought about the actual job. An honest weak spot and how they would handle it.",
-      redFlag: "\"Nothing\", or an answer that shows they have not read what the job is.",
+      // The owner (2026-11-04): "we need people who have strong judgment
+      // calls"; they can never know everything, so the call must be theirs,
+      // and they own it if it goes wrong.
+      id: "judgment_call",
+      question:
+        "Can you tell me about a time a customer needed something your rules did not cover? What call did you make, and how did it turn out?",
+      listenFor:
+        "A real call they made themselves that kept the customer and stayed within what they knew (looked into it, offered what they could, followed up), and, if it went wrong, that they owned it and put it right.",
+      redFlag: "No example; \"I just told them no\" or \"I passed it up\"; promising money or a date they could not know; blaming someone else when it went wrong.",
     },
   ],
   close: [
@@ -293,10 +298,15 @@ const SUPPORT_CORE_END: GuideQuestion[] = [
     redFlag: "No example, or a story about how the manager was wrong.",
   },
   {
-    id: "this_job",
-    question: "From what you know so far, which part of this job will be hardest for you?",
-    listenFor: "They have thought about the actual job. An honest weak spot and how they would handle it.",
-    redFlag: "\"Nothing\", or an answer that shows they have not read what the job is.",
+    // The owner (2026-11-04): "we need people who have strong judgment
+    // calls"; they can never know everything, so the call must be theirs,
+    // and they own it if it goes wrong.
+    id: "judgment_call",
+    question:
+      "Can you tell me about a time a customer needed something your rules did not cover? What call did you make, and how did it turn out?",
+    listenFor:
+      "A real call they made themselves that kept the customer and stayed within what they knew (looked into it, offered what they could, followed up), and, if it went wrong, that they owned it and put it right.",
+    redFlag: "No example; \"I just told them no\" or \"I passed it up\"; promising money or a date they could not know; blaming someone else when it went wrong.",
   },
 ];
 
