@@ -14,6 +14,7 @@
  * have one yet.
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type {
   DailyCall,
   DailyEventObjectFatalError,
@@ -208,6 +209,19 @@ function formatElapsed(totalSeconds: number) {
   return `${m}:${s}`;
 }
 
+/** Under Tailwind's sm: the phone layout, where the call fills the screen. */
+function useSmallScreen(): boolean {
+  const query = "(max-width: 639px)";
+  const [small, setSmall] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  useEffect(() => {
+    const list = window.matchMedia(query);
+    const onChange = () => setSmall(list.matches);
+    list.addEventListener("change", onChange);
+    return () => list.removeEventListener("change", onChange);
+  }, []);
+  return small;
+}
+
 /** Above this (0-1), someone is speaking. */
 const SPEAKING_LEVEL = 0.03;
 
@@ -234,6 +248,9 @@ function SpeakingBars({ level, small = false }: { level: number; small?: boolean
 
 export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeave, startCamOff = false, startMicOff = false }: MeetingRoomProps) {
   const [phase, setPhase] = useState<RoomPhase>("connecting");
+  // On a phone the call is put straight on the page body: inside the app's
+  // shell (a z-index of its own) the bottom menu bar sat on top of it.
+  const smallScreen = useSmallScreen();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [participants, setParticipants] = useState<DailyParticipantsObject | null>(null);
   const [micOn, setMicOn] = useState(true);
@@ -560,7 +577,7 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
     );
   }
 
-  return (
+  const callView = (
     // On a phone the call fills the screen, as WhatsApp and Google Meet do
     // (the owner, 2026-11-04); from sm up it sits in the page as before.
     <div className="fixed inset-0 z-50 flex flex-col bg-[var(--slab)] sm:static sm:z-auto sm:gap-4 sm:bg-transparent">
@@ -724,6 +741,7 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       </div>
     </div>
   );
+  return smallScreen ? createPortal(callView, document.body) : callView;
 }
 
 function RoomControlButton({
