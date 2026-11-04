@@ -30,5 +30,16 @@ export default function middleware(request) {
   if (/Natively\/(iOS|Android)/.test(request.headers.get("user-agent") || "")) {
     return Response.redirect(`https://staff.${url.hostname.replace(/^www\./, "")}/`, 302);
   }
+  // Someone signed in to the hiring side goes straight to the dashboard, not
+  // the front page (the owner, 2026-11-04). The app leaves the mark on the
+  // whole domain (src/lib/signedInMark.ts): "staff" when they are signed in
+  // on the staff host, "main" when on this one. "/?home" still shows the
+  // front page.
+  const signedIn = /(?:^|;\s*)hf_team=(staff|main)(?:;|$)/.exec(request.headers.get("cookie") || "");
+  if (signedIn && !url.searchParams.has("home")) {
+    return signedIn[1] === "staff"
+      ? Response.redirect(`https://staff.${url.hostname.replace(/^www\./, "")}/`, 302)
+      : Response.redirect(new URL("/dashboard", url).toString(), 302);
+  }
   return new Response(null, { headers: { "x-middleware-rewrite": new URL("/landing.html", url).toString() } });
 }

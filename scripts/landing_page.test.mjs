@@ -35,6 +35,22 @@ const main = middleware(new Request("https://hireflownow.com/"));
 check("hireflownow.com/ is the landing page", main.headers.get("x-middleware-rewrite") === "https://hireflownow.com/landing.html");
 const staff = middleware(new Request("https://staff.hireflownow.com/"));
 check("staff.hireflownow.com/ is left to the app (sign-in or the dashboard)", staff.headers.get("x-middleware-next") === "1" && !staff.headers.get("x-middleware-rewrite"));
+{
+  // Signed in to the hiring side: straight to the dashboard (the owner, 2026-11-04).
+  const withMark = (value, at = "https://hireflownow.com/") => middleware(new Request(at, { headers: { cookie: `sb=x; hf_team=${value}; other=1` } }));
+  const toStaff = withMark("staff");
+  check("signed in on the staff host: hireflownow.com/ goes to staff.hireflownow.com/", toStaff.status === 302 && toStaff.headers.get("location") === "https://staff.hireflownow.com/");
+  const fromWww = withMark("staff", "https://www.hireflownow.com/");
+  check("…from www too", fromWww.status === 302 && fromWww.headers.get("location") === "https://staff.hireflownow.com/");
+  const toMain = withMark("main");
+  check("signed in on the main host: its own /dashboard", toMain.status === 302 && toMain.headers.get("location") === "https://hireflownow.com/dashboard");
+  const home = withMark("staff", "https://hireflownow.com/?home");
+  check("/?home still shows the front page", home.headers.get("x-middleware-rewrite") === "https://hireflownow.com/landing.html?home" || /landing\.html/.test(home.headers.get("x-middleware-rewrite") || ""));
+  const junk = withMark("admin");
+  check("any other mark is the front page", junk.headers.get("x-middleware-rewrite") === "https://hireflownow.com/landing.html");
+  const signedInSource = await readFile(path.join(ROOT, "src/lib/signedInMark.ts"), "utf8");
+  check("the app's mark has the middleware's name, and carries no token or id", /SIGNED_IN_MARK = "hf_team"/.test(signedInSource) && /where \? `\$\{SIGNED_IN_MARK\}=\$\{where\}/.test(signedInSource));
+}
 const vercel = JSON.parse(await read("vercel.json"));
 check("job links and short links still go to the job page's own render", vercel.rewrites.some((r) => r.source === "/candidate/job/:id" && r.destination.startsWith("/api/job-prerender")) && vercel.rewrites.some((r) => r.source === "/:slug"));
 

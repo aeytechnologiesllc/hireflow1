@@ -5,6 +5,8 @@ import { getPasswordErrorMessage } from "@/lib/authErrorMessages";
 import { removeThisDeviceBeforeSignOut } from "@/lib/webPush";
 import { inAppPath } from "@/lib/safeLink";
 import { signupSourceFrom } from "@/lib/signupSource";
+import { markSignedIn } from "@/lib/signedInMark";
+import { isStaffHost, isStaffRole } from "@/lib/hosts";
 
 type AppRole = "employer" | "candidate" | "team_member" | "developer";
 
@@ -53,6 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<AppRole | null>(null);
   const [isTeamMember, setIsTeamMember] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // hireflownow.com/ sends a signed-in hiring team straight to its dashboard
+  // (src/lib/signedInMark.ts, middleware.js). Applicants keep the front page.
+  useEffect(() => {
+    if (loading) return;
+    markSignedIn(user && (isStaffRole(role) || isTeamMember) ? (isStaffHost() ? "staff" : "main") : null);
+  }, [loading, user, role, isTeamMember]);
   // Whose role and team membership are already looked up, and whether the
   // start-up read of the session is still to come. Together they keep each
   // look-up to once per person (the performance check, 2026-10-11: one cold
