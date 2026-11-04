@@ -90,17 +90,19 @@ const wantedKey = (userId: string) => `hf-web-push-wanted:${userId}`;
  * a signed-out phone), and signing back in as the same person quietly puts it
  * back. Only "Turn off" forgets it.
  */
-function wanted(userId: string): boolean {
+/** They pressed Turn off on this browser: never switched back on by itself. */
+function turnedOffHere(userId: string): boolean {
   try {
-    return window.localStorage.getItem(wantedKey(userId)) === "1";
+    return window.localStorage.getItem(wantedKey(userId)) === "0";
   } catch {
     return false;
   }
 }
 function setWanted(userId: string, on: boolean) {
   try {
-    if (on) window.localStorage.setItem(wantedKey(userId), "1");
-    else window.localStorage.removeItem(wantedKey(userId));
+    // "0", not removed: a Turn off must stay off, where never asked may be
+    // switched on by itself once the phone already allows notifications.
+    window.localStorage.setItem(wantedKey(userId), on ? "1" : "0");
   } catch {
     /* private browsing: the device still works, it just isn't re-saved at sign-in */
   }
@@ -298,12 +300,17 @@ export async function turnOnWebPush(userId: string): Promise<TurnOnResult> {
  */
 export async function restoreWebPush(userId: string): Promise<void> {
   try {
-    if (quickStatus() || Notification.permission !== "granted" || !wanted(userId)) return;
+    // The phone already allows notifications (the owner, 2026-11-04: "if
+    // the system one is already enabled, it should already be enabled; you
+    // shouldn't have to do this"): set this device up quietly, unless they
+    // turned it off here. HireFlow's own card then never shows.
+    if (quickStatus() || Notification.permission !== "granted" || turnedOffHere(userId)) return;
     const registration = await workerRegistration(10000);
     if (!registration) return;
     const existing = await registration.pushManager.getSubscription();
     if (existing && (await isSaved(userId, existing.endpoint)) && sameBytes(existing.options.applicationServerKey, await publicKey())) return;
     await saveDevice(await subscribeThisBrowser(registration));
+    setWanted(userId, true);
     announce();
   } catch (error) {
     console.warn("[push] could not restore this device:", error);

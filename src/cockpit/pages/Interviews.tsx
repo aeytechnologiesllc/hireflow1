@@ -604,8 +604,11 @@ export default function CockpitInterviews() {
       ) : (
         <>
           {/* ── The week at a glance ──────────────────────────── */}
+          {/* Not on a phone (the owner, 2026-11-04): there it opened on
+              days already gone and pushed the calls themselves down. The
+              list below has every time; the strip is for a wider screen. */}
           {dated.length > 0 && (
-            <section>
+            <section className="hidden md:block">
               {/* Any week but the one we are in says which it is (the coming
                   one too, on a weekend). */}
               {!isSameDay(weekStart, calendarWeek) && (
