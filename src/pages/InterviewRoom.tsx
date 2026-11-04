@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import MeetingRoom from "@/components/meeting/MeetingRoom";
+import { entryScript, entryScriptOfUrl, shouldReloadFor } from "@/lib/newVersion";
 import { AlertTriangle, ArrowLeft, Camera, CheckCircle, Loader2, Mic } from "lucide-react";
 
 interface RoomContext {
@@ -109,6 +110,55 @@ function useDevicePreview() {
   return { granted, hasVideo, hasAudio, error, micLevels, requestAccess, release, getStream: () => streamRef.current };
 }
 
+const ROOM_RELOADED_FOR = "hf-room-updated-for";
+
+/**
+ * The join screen picks up a newer build before the call starts (the owner,
+ * 2026-11-04: applicants will never know to refresh). useAutoUpdate leaves
+ * this page alone, so no call is ever cut off; before joining there is
+ * nothing to lose, so the screen asks once on arrival and every 30 seconds
+ * while it waits, and reloads once per build. Never once joined.
+ */
+function useFreshJoinScreen(joined: boolean): void {
+  useEffect(() => {
+    if (import.meta.env.DEV || joined) return;
+    let running: string | null = null;
+    for (const script of Array.from(document.querySelectorAll<HTMLScriptElement>('script[type="module"][src]'))) {
+      running = entryScriptOfUrl(script.getAttribute("src")) ?? running;
+    }
+    if (!running) return;
+    let stopped = false;
+    const ask = async () => {
+      try {
+        const response = await fetch(`/?fresh=${Date.now()}`, { cache: "no-store", headers: { Accept: "text/html" } });
+        if (!response.ok || stopped) return;
+        const live = entryScript(await response.text());
+        let reloadedFor: string | null = null;
+        try {
+          reloadedFor = window.sessionStorage.getItem(ROOM_RELOADED_FOR);
+        } catch {
+          return; // No memory of having reloaded: never risk a loop.
+        }
+        if (!live || !shouldReloadFor(running, live, reloadedFor)) return;
+        try {
+          window.sessionStorage.setItem(ROOM_RELOADED_FOR, live);
+        } catch {
+          return;
+        }
+        window.location.reload();
+      } catch {
+        // Offline or mid-deploy: ask again soon.
+      }
+    };
+    void ask();
+    const timer = window.setInterval(ask, 30_000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+    };
+  }, [joined]);
+}
+
 export default function InterviewRoom() {
   const { id, appId } = useParams<{ id?: string; appId?: string }>();
   const navigate = useNavigate();
@@ -117,6 +167,7 @@ export default function InterviewRoom() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [ctx, setCtx] = useState<RoomContext | null>(null);
   const [confirmed, setConfirmed] = useState(false);
+  useFreshJoinScreen(confirmed);
 
   useEffect(() => {
     let cancelled = false;
