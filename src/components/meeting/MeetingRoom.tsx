@@ -561,8 +561,13 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
+    // On a phone the call fills the screen, as WhatsApp and Google Meet do
+    // (the owner, 2026-11-04); from sm up it sits in the page as before.
+    <div className="fixed inset-0 z-50 flex flex-col bg-[var(--slab)] sm:static sm:z-auto sm:gap-4 sm:bg-transparent">
+      <div
+        className="flex items-center justify-between px-4 pb-2 text-sm sm:px-0 sm:pb-0 sm:pt-0 sm:text-muted-foreground"
+        style={{ paddingTop: "max(12px, env(safe-area-inset-top))", color: "var(--slab-ink-2)" }}
+      >
         <span className="flex items-center gap-2">
           <span
             className={`h-2 w-2 rounded-full ${remoteHasJoined ? "bg-[var(--action-bright)]" : "animate-pulse bg-muted-foreground/50"}`}
@@ -574,7 +579,7 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       </div>
 
       {/* Main stage — letterhead-framed, remote camera or either side's screen share */}
-      <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-border/50 bg-[var(--slab)]">
+      <div className="relative min-h-0 w-full flex-1 overflow-hidden bg-[var(--slab)] sm:aspect-video sm:flex-none sm:rounded-xl sm:border sm:border-border/50">
         <span
           aria-hidden
           className="absolute left-6 right-6 top-0 z-10 h-[2px] rounded-[1px]"
@@ -619,7 +624,7 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
         )}
 
         {/* Local picture-in-picture */}
-        <div className="absolute bottom-3 right-3 z-10 aspect-video w-28 overflow-hidden rounded-lg border border-white/20 bg-black shadow-lg sm:w-40">
+        <div className="absolute right-3 top-3 z-10 aspect-[3/4] w-24 overflow-hidden rounded-lg border border-white/20 bg-black shadow-lg sm:bottom-3 sm:top-auto sm:aspect-video sm:w-40">
           {localCamTrack ? (
             <video
               ref={localVideoRef}
@@ -645,12 +650,12 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       <audio ref={remoteAudioRef} autoPlay />
       <audio ref={screenAudioRef} autoPlay />
 
-      <p className="-mt-1 text-center text-xs text-muted-foreground" aria-live="polite">
+      <p className="py-1.5 text-center text-xs sm:-mt-1 sm:py-0 sm:text-muted-foreground" style={{ color: "var(--slab-ink-2)" }} aria-live="polite">
         {!micOn ? "Your microphone is muted" : shownLocalLevel > SPEAKING_LEVEL ? "Your mic is working" : "Speak to check your mic: the bars by \"You\" move"}
       </p>
 
       {devicesOpen && (
-        <div className="ck-card grid gap-3 px-4 py-3 text-sm sm:grid-cols-3">
+        <div className="ck-card mx-3 mb-2 grid gap-3 px-4 py-3 text-sm sm:mx-0 sm:mb-0 sm:grid-cols-3">
           {([
             ["mic", "Microphone", deviceList.mics],
             ["cam", "Camera", deviceList.cams],
@@ -680,7 +685,10 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       )}
 
       {/* Controls */}
-      <div className="ck-card flex items-center justify-center gap-3 px-4 py-3">
+      <div
+        className="ck-card flex items-center justify-center gap-3 rounded-none border-x-0 border-b-0 px-4 pt-3 sm:rounded-[var(--hf-radius-lg)] sm:border-x sm:border-b sm:py-3"
+        style={{ paddingBottom: "max(12px, env(safe-area-inset-bottom))" }}
+      >
         <RoomControlButton
           onClick={toggleMic}
           label={micOn ? "Mute microphone" : "Unmute microphone"}
