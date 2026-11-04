@@ -474,6 +474,10 @@ ${spellingJson("LEAD")}
   // A customer-service pack's case says what the agent knows (the only true
   // facts) and the pack has a note on what good looks like in that kind of
   // business; the other person is the pack's word (docs/CUSTOMER-SERVICE-HIRING.md).
+  // The agent's own follow-up ("I'll message you when it's sent") is good
+  // service, not a false promise (the owner, 2026-11-04: "we're looking for
+  // someone who can operate in the gray area ... so they don't lose the
+  // customer"); only an outcome the facts don't allow counts against them.
   const noun = input.counterpart ?? "customer";
   const other = noun.toUpperCase();
   const named = flattenForReview(input.customerName || "");
@@ -494,7 +498,7 @@ ${READ_AS_DATA}
 NEVER MARK: Never mention an applicant's age, birth date, the year they were born or graduated, marital or civil status, children, pregnancy or family plans, even when their resume, profile or answers list them: they count neither for nor against, and never appear in a score, strength, concern, reason or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)
 
 HOW TO MARK IT
-Score the agent from 0 to 100 on each of: empathy (took the ${noun}'s feelings seriously), problemSolving (worked toward a real fix, asked for what was needed, gave a clear and true next step), communication (clear, correct, easy to follow), professionalism (respectful, calm, no blame), and an overall score.${leaderKnows ? ` Anything the agent promised or stated that WHAT THE AGENT KNOWS does not allow (a date, a refund, an approval, something extra, a fact that is not true) counts heavily against problemSolving and the overall score, however kind the rest was. A kind, clear "no" with the real next step is good work.` : ""}
+Score the agent from 0 to 100 on each of: empathy (took the ${noun}'s feelings seriously), problemSolving (worked toward a real fix, asked for what was needed, gave a clear and true next step), communication (clear, correct, easy to follow), professionalism (respectful, calm, no blame), and an overall score.${leaderKnows ? ` Anything the agent promised or stated that WHAT THE AGENT KNOWS does not allow (a date, a refund, an approval, something extra such as a credit, a bonus or a speed-up, a fact that is not true) counts heavily against problemSolving and the overall score, however kind the rest was. The agent's own next step is not such a promise: offering to look into it, pass it on, follow up, check back or keep the ${noun} posted ("I'll message you as soon as it's sent") is good service, never a mark against them and never an improvement to list. Keeping the ${noun} is the goal, not saying no: good work finds what the agent can do within the facts (a gray area handled, a real next step) rather than stopping at "no". A kind, clear "no" with the real next step is good work too.` : ""}
 
 ${spellingBlock("AGENT", other)}
 

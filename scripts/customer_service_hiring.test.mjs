@@ -2615,6 +2615,7 @@ console.log("\n-- the server: the step's pack, the grader, the person played --"
   check("the grader sees what the agent knows, as the only true facts", system.includes("WHAT THE AGENT KNOWS (the only true facts") && system.includes(P.splitBrief(medicalCase.scenario).leaderKnows.slice(0, 40)));
   check("…the pack's note on what good looks like", system.includes("WHAT GOOD LOOKS LIKE IN THIS KIND OF BUSINESS") && system.includes(SHARED.scenarioPack("medical").evaluatorNote.slice(0, 40)));
   check("…and that a promise the facts do not allow counts heavily", /counts heavily against problemSolving/.test(system));
+  check("…but the agent's own follow-up is good service, never a mark against them", /keep the \w+ posted .* is good service, never a mark against them/.test(system));
   check("the other side is PATIENT, never CUSTOMER", /marked PATIENT/.test(system) && /Never list a word from a PATIENT line/.test(system) && !/\bCUSTOMER\b/.test(system));
   {
     // The dental pack's emergency case, graded with the server's own dental note (the three-reader review of 2026-11-01).
