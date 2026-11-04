@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { askNotificationsOnSignInTap } from "@/lib/webPush";
 import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -314,6 +315,9 @@ export default function Auth() {
       return;
     }
 
+    // The phone's own notification question, inside this tap (nothing
+    // awaited before it: an iPhone allows it only here).
+    askNotificationsOnSignInTap();
     const { error } = await signIn(signInEmail, signInPassword);
 
     if (error) {

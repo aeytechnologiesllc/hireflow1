@@ -290,6 +290,32 @@ export async function turnOnWebPush(userId: string): Promise<TurnOnResult> {
   }
 }
 
+/* ------------------------------------------------- asking at sign-in */
+
+let signInAsk: Promise<NotificationPermission> | null = null;
+
+/**
+ * The phone's own question, on the Sign in tap (the owner, 2026-11-04:
+ * "right after I sign in, the system prompt, not HireFlow's card with two
+ * buttons"). An iPhone shows it only inside a tap, so it is asked here, before
+ * anything is awaited, and only when nothing has been answered yet; the
+ * phone remembers the answer. restoreWebPush then sets the device up once
+ * they are signed in. Never throws.
+ */
+export function askNotificationsOnSignInTap(): void {
+  try {
+    if (insideNativeApp() || quickStatus() || typeof Notification === "undefined" || Notification.permission !== "default") return;
+    signInAsk = Notification.requestPermission();
+  } catch {
+    signInAsk = null;
+  }
+}
+
+/** The sign-in question is still on screen: HireFlow's own card waits. */
+export function signInAskPending(): boolean {
+  return signInAsk !== null && typeof Notification !== "undefined" && Notification.permission === "default";
+}
+
 /* ----------------------------------------------------- keeping it right */
 
 /**
@@ -300,6 +326,11 @@ export async function turnOnWebPush(userId: string): Promise<TurnOnResult> {
  */
 export async function restoreWebPush(userId: string): Promise<void> {
   try {
+    // The answer to the Sign in tap's question, when there was one.
+    if (signInAsk) {
+      await signInAsk.catch(() => "default");
+      signInAsk = null;
+    }
     // The phone already allows notifications (the owner, 2026-11-04: "if
     // the system one is already enabled, it should already be enabled; you
     // shouldn't have to do this"): set this device up quietly, unless they

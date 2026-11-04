@@ -23,5 +23,12 @@ export default function middleware(request) {
   if (url.hostname.startsWith("staff.")) {
     return new Response(null, { headers: { "x-middleware-next": "1" } });
   }
+  // The phone app (the Natively wrapper, named in its user agent) opens on
+  // the hiring team's door, never the front page (the owner, 2026-11-04:
+  // "once I open it: sign in if not signed in, else the dashboard; do not
+  // take me to the landing page"). staff.<host>/ does exactly that.
+  if (/Natively\/(iOS|Android)/.test(request.headers.get("user-agent") || "")) {
+    return Response.redirect(`https://staff.${url.hostname.replace(/^www\./, "")}/`, 302);
+  }
   return new Response(null, { headers: { "x-middleware-rewrite": new URL("/landing.html", url).toString() } });
 }

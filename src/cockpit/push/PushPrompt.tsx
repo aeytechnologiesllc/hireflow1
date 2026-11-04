@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useWebPush } from "@/hooks/useWebPush";
 import { afterAnswered, afterNotNow, canOffer, promptPageOk, readMemory, writeMemory } from "./pushPromptState";
+import { signInAskPending } from "@/lib/webPush";
 import "./push.css";
 
 /**
@@ -61,6 +62,7 @@ export function PushPrompt() {
         canOffer(memory, Date.now()) &&
         Date.now() - openedAt.current >= FIRST_WAIT_MS &&
         document.visibilityState === "visible" &&
+        !signInAskPending() &&
         !somethingElseOpen() &&
         !someoneTyping();
       steady = quiet ? steady + 1 : 0;
