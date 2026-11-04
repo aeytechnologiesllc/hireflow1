@@ -30,6 +30,7 @@ import {
   RefreshCw,
   ScreenShare,
   ScreenShareOff,
+  Settings2,
   Video,
   VideoOff,
   WifiOff,
@@ -138,6 +139,30 @@ function formatElapsed(totalSeconds: number) {
   return `${m}:${s}`;
 }
 
+/** Above this (0-1), someone is speaking. */
+const SPEAKING_LEVEL = 0.03;
+
+/** Five bars that rise with the voice: who is speaking, and that a mic works. */
+function SpeakingBars({ level, small = false }: { level: number; small?: boolean }) {
+  // Daily's level is small for normal speech; lift it so talking fills the bars.
+  const lifted = Math.min(1, Math.sqrt(Math.max(0, level)) * 2.2);
+  const max = small ? 10 : 14;
+  return (
+    <span className="flex items-end gap-[2px]" aria-hidden style={{ height: max }}>
+      {[0.35, 0.6, 1, 0.6, 0.35].map((weight, i) => (
+        <span
+          key={i}
+          className="w-[3px] rounded-full transition-[height] duration-100 motion-reduce:transition-none"
+          style={{
+            height: Math.max(2, Math.round(max * Math.min(1, lifted * weight * 1.4))),
+            background: lifted * weight > 0.15 ? "var(--action-bright)" : "rgba(255,255,255,0.45)",
+          }}
+        />
+      ))}
+    </span>
+  );
+}
+
 export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeave }: MeetingRoomProps) {
   const [phase, setPhase] = useState<RoomPhase>("connecting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -146,6 +171,11 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
   const [camOn, setCamOn] = useState(true);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [attempt, setAttempt] = useState(0);
+  // How loud each side is right now, 0-1 (Daily's audio level observers):
+  // the bars that move when someone speaks, so both can see the mic works
+  // (the owner, 2026-11-04).
+  const [localLevel, setLocalLevel] = useState(0);
+  const [remoteLevel, setRemoteLevel] = useState(0);
 
   const callRef = useRef<DailyCall | null>(null);
   const startedAtRef = useRef<number | null>(null);
@@ -197,6 +227,11 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
         call.on("participant-left", refreshParticipants);
         call.on("track-started", refreshParticipants);
         call.on("track-stopped", refreshParticipants);
+        call.on("local-audio-level", (ev) => setLocalLevel(typeof ev?.audioLevel === "number" ? ev.audioLevel : 0));
+        call.on("remote-participants-audio-level", (ev) => {
+          const levels = Object.values(ev?.participantsAudioLevel ?? {}).filter((v): v is number => typeof v === "number");
+          setRemoteLevel(levels.length > 0 ? Math.max(...levels) : 0);
+        });
         call.on("left-meeting", () => {
           if (!cancelled) setPhase("left");
         });
@@ -220,6 +255,9 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
         startedAtRef.current = Date.now();
         refreshParticipants();
         setPhase("in-call");
+        // The speaking bars. A failure only means no bars: the call goes on.
+        call.startLocalAudioLevelObserver(150).catch(() => {});
+        call.startRemoteParticipantsAudioLevelObserver(150).catch(() => {});
       } catch (err) {
         if (cancelled) return;
         const message = err instanceof Error ? err.message : "Couldn't connect to the call";
@@ -304,6 +342,46 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
   const toggleCam = useCallback(() => {
     callRef.current?.setLocalVideo(!camOn);
   }, [camOn]);
+
+  // Choosing the microphone, camera and speaker, in the call (the owner,
+  // 2026-11-04: either side must be able to change them). Listed when the
+  // panel opens, since a headset plugged in mid-call should show up.
+  const [devicesOpen, setDevicesOpen] = useState(false);
+  const [deviceList, setDeviceList] = useState<{ mics: MediaDeviceInfo[]; cams: MediaDeviceInfo[]; speakers: MediaDeviceInfo[] }>({ mics: [], cams: [], speakers: [] });
+  const [chosen, setChosen] = useState<{ mic: string; cam: string; speaker: string }>({ mic: "", cam: "", speaker: "" });
+
+  const openDevices = useCallback(async () => {
+    const call = callRef.current;
+    if (!call) return;
+    if (devicesOpen) {
+      setDevicesOpen(false);
+      return;
+    }
+    try {
+      const { devices } = await call.enumerateDevices();
+      const pick = (kind: string) => (devices as MediaDeviceInfo[]).filter((d) => d.kind === kind && d.deviceId);
+      setDeviceList({ mics: pick("audioinput"), cams: pick("videoinput"), speakers: pick("audiooutput") });
+      const current = await call.getInputDevices();
+      const idOf = (d: unknown) => (d && typeof d === "object" && "deviceId" in d ? String((d as { deviceId: unknown }).deviceId ?? "") : "");
+      setChosen({ mic: idOf(current.mic), cam: idOf(current.camera), speaker: idOf(current.speaker) });
+    } catch {
+      // Listing failed: the panel still opens, with what it has.
+    }
+    setDevicesOpen(true);
+  }, [devicesOpen]);
+
+  const chooseDevice = useCallback(async (kind: "mic" | "cam" | "speaker", deviceId: string) => {
+    const call = callRef.current;
+    if (!call || !deviceId) return;
+    setChosen((was) => ({ ...was, [kind]: deviceId }));
+    try {
+      if (kind === "mic") await call.setInputDevicesAsync({ audioDeviceId: deviceId });
+      else if (kind === "cam") await call.setInputDevicesAsync({ videoDeviceId: deviceId });
+      else await call.setOutputDeviceAsync({ outputDeviceId: deviceId });
+    } catch {
+      // A device that cannot be opened leaves the current one in place.
+    }
+  }, []);
 
   const toggleScreenShare = useCallback(async () => {
     const call = callRef.current;
@@ -455,6 +533,13 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
           </div>
         )}
 
+        {remoteHasJoined && (
+          <span className="absolute bottom-3 left-3 z-10 flex items-center gap-2 rounded-lg bg-black/55 px-2.5 py-1.5 text-xs font-medium text-white">
+            <SpeakingBars level={remoteLevel} />
+            {remoteLevel > SPEAKING_LEVEL ? `${otherLabel} is speaking` : otherLabel}
+          </span>
+        )}
+
         {stageIsScreenShare && (
           <span className="ck-pill absolute left-3 top-3 z-10 border-transparent bg-black/60 text-white">
             {stageIsMine ? "You're sharing your screen" : `${otherLabel} is sharing their screen`}
@@ -477,7 +562,8 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
               <VideoOff className="h-5 w-5" style={{ color: "var(--slab-ink-2)" }} />
             </div>
           )}
-          <span className="absolute bottom-1 left-1.5 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">
+          <span className="absolute bottom-1 left-1.5 flex items-center gap-1.5 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            {micOn && <SpeakingBars level={localLevel} small />}
             {selfLabel}
           </span>
         </div>
@@ -486,6 +572,40 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       {/* Remote audio sinks — hidden, they only carry sound */}
       <audio ref={remoteAudioRef} autoPlay />
       <audio ref={screenAudioRef} autoPlay />
+
+      <p className="-mt-1 text-center text-xs text-muted-foreground" aria-live="polite">
+        {!micOn ? "Your microphone is muted" : localLevel > SPEAKING_LEVEL ? "Your mic is working" : "Speak to check your mic: the bars by \"You\" move"}
+      </p>
+
+      {devicesOpen && (
+        <div className="ck-card grid gap-3 px-4 py-3 text-sm sm:grid-cols-3">
+          {([
+            ["mic", "Microphone", deviceList.mics],
+            ["cam", "Camera", deviceList.cams],
+            ["speaker", "Speaker", deviceList.speakers],
+          ] as const).map(([kind, label, list]) => (
+            <label key={kind} className="flex flex-col gap-1">
+              <span className="text-xs font-medium text-muted-foreground">{label}</span>
+              {list.length === 0 ? (
+                <span className="text-xs text-muted-foreground">{kind === "speaker" ? "Your browser's default" : `No ${label.toLowerCase()} found`}</span>
+              ) : (
+                <select
+                  className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm"
+                  value={chosen[kind]}
+                  onChange={(e) => void chooseDevice(kind, e.target.value)}
+                >
+                  {!chosen[kind] && <option value="">Choose…</option>}
+                  {list.map((d, i) => (
+                    <option key={d.deviceId} value={d.deviceId}>
+                      {d.label || `${label} ${i + 1}`}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </label>
+          ))}
+        </div>
+      )}
 
       {/* Controls */}
       <div className="ck-card flex items-center justify-center gap-3 px-4 py-3">
@@ -509,6 +629,9 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
           variant={isSharingScreen ? "active" : "default"}
         >
           {isSharingScreen ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}
+        </RoomControlButton>
+        <RoomControlButton onClick={openDevices} label="Choose microphone, camera and speaker" variant={devicesOpen ? "active" : "default"}>
+          <Settings2 className="h-5 w-5" />
         </RoomControlButton>
         <button
           type="button"
