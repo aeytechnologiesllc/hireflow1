@@ -1,6 +1,6 @@
 # Call backgrounds
 
-Room photos from Unsplash (unsplash.com/license: free for commercial use, no attribution required), resized to 1280x720:
+Room photos from Unsplash (unsplash.com/license: free for commercial use, no attribution required), resized to 1280x720 and softened (a slight blur, a little less brightness and colour) so they read as the room behind a webcam:
 
 | File | Unsplash photo |
 |---|---|
@@ -12,4 +12,4 @@ Room photos from Unsplash (unsplash.com/license: free for commercial use, no att
 | living-room.jpg | photo-1600210492486-724fe5c67fb0 |
 | studio.jpg | photo-1586023492125-27b2c045efd7 |
 
-sage-studio.jpg, deep-green.jpg and warm-office.jpg are HireFlow's own (drawn 2026-11-04). The *-thumb.jpg files are the picker's thumbnails.
+The studio-*.jpg backdrops are HireFlow's own (drawn 2026-11-04): one colour each, a soft pool of light behind the head, darker edges, a faint mottled texture and fine grain. The *-thumb.jpg files are the picker's thumbnails.
