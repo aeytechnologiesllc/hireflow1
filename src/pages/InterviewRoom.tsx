@@ -15,7 +15,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import MeetingRoom from "@/components/meeting/MeetingRoom";
 import { entryScript, entryScriptOfUrl, shouldReloadFor } from "@/lib/newVersion";
-import { AlertTriangle, ArrowLeft, Camera, CheckCircle, Loader2, Mic } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Camera, CheckCircle, Loader2, Mic, MicOff, Video, VideoOff } from "lucide-react";
 
 interface RoomContext {
   interviewId: string;
@@ -264,15 +264,32 @@ export default function InterviewRoom() {
   const device = useDevicePreview();
   const previewRef = useRef<HTMLVideoElement>(null);
 
+  // Google Meet's way (the owner, 2026-11-04): before joining, turn the
+  // camera and the microphone on or off, see yourself, and join as you are.
+  const [camWanted, setCamWanted] = useState(true);
+  const [micWanted, setMicWanted] = useState(true);
+
   useEffect(() => {
-    if (previewRef.current) {
-      previewRef.current.srcObject = device.getStream();
-    }
-  }, [device.granted, device]);
+    const el = previewRef.current;
+    const stream = device.getStream();
+    if (!el) return;
+    if (el.srcObject !== stream) el.srcObject = stream;
+    // A phone shows nothing until play() is called (autoplay alone is not enough).
+    if (stream) void el.play().catch(() => {});
+  }, [device.granted, device, camWanted]);
+
+  useEffect(() => {
+    const stream = device.getStream();
+    stream?.getVideoTracks().forEach((t) => (t.enabled = camWanted));
+    stream?.getAudioTracks().forEach((t) => (t.enabled = micWanted));
+  }, [device.granted, device, camWanted, micWanted]);
 
   const backHref = ctx?.backHref ?? (id ? "/interviews" : "/applications");
 
+  const [joinAs, setJoinAs] = useState({ camOff: false, micOff: false });
   const handleJoin = () => {
+    // What they chose here is what the call starts with.
+    setJoinAs({ camOff: !camWanted || !device.hasVideo, micOff: !micWanted || !device.hasAudio });
     // Hand off to the call — release our own preview stream first so Daily
     // acquires a clean camera/mic grab rather than fighting a second one.
     device.release();
@@ -367,6 +384,11 @@ export default function InterviewRoom() {
                 <p className="text-sm text-muted-foreground">No camera found: you'll join with your microphone only.</p>
               )}
               <div className={`relative mx-auto aspect-video w-full max-w-md overflow-hidden rounded-xl border border-border/50 bg-[var(--slab)] ${device.hasVideo ? "" : "hidden"}`}>
+                {!camWanted && (
+                  <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 text-sm" style={{ background: "var(--slab)", color: "var(--slab-ink-2)" }}>
+                    <VideoOff className="h-5 w-5" /> Camera is off
+                  </div>
+                )}
                 <video
                   ref={previewRef}
                   autoPlay
@@ -389,8 +411,33 @@ export default function InterviewRoom() {
                   ))}
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {device.micLevels.some((l) => l > 15) ? "Mic working" : "Speak to test your mic"}
+                  {!micWanted ? "Microphone off" : device.micLevels.some((l) => l > 15) ? "Mic working" : "Speak to test your mic"}
                 </span>
+              </div>
+
+              <div className="flex justify-center gap-3">
+                {device.hasAudio && (
+                  <button
+                    type="button"
+                    onClick={() => setMicWanted((on) => !on)}
+                    aria-pressed={!micWanted}
+                    aria-label={micWanted ? "Turn microphone off" : "Turn microphone on"}
+                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition-colors ${micWanted ? "border-[var(--brass-line)] text-muted-foreground" : "border-transparent bg-destructive/15 text-destructive"}`}
+                  >
+                    {micWanted ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
+                  </button>
+                )}
+                {device.hasVideo && (
+                  <button
+                    type="button"
+                    onClick={() => setCamWanted((on) => !on)}
+                    aria-pressed={!camWanted}
+                    aria-label={camWanted ? "Turn camera off" : "Turn camera on"}
+                    className={`flex h-12 w-12 items-center justify-center rounded-full border transition-colors ${camWanted ? "border-[var(--brass-line)] text-muted-foreground" : "border-transparent bg-destructive/15 text-destructive"}`}
+                  >
+                    {camWanted ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
+                  </button>
+                )}
               </div>
 
               <div className="flex flex-wrap justify-center gap-3">
@@ -415,6 +462,8 @@ export default function InterviewRoom() {
           selfLabel="You"
           otherLabel={ctx.otherLabel}
           onLeave={() => navigate(backHref)}
+          startCamOff={joinAs.camOff}
+          startMicOff={joinAs.micOff}
         />
       )}
     </div>

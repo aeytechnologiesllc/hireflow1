@@ -45,6 +45,9 @@ export interface MeetingRoomProps {
   otherLabel: string;
   /** Called after a clean teardown, both on the Leave button and on error "Back". */
   onLeave: () => void;
+  /** Join with the camera / microphone off (the join screen's own switches). */
+  startCamOff?: boolean;
+  startMicOff?: boolean;
 }
 
 type RoomPhase =
@@ -67,8 +70,74 @@ function activeTrack(
   participant: DailyParticipant | undefined,
   kind: TrackKind,
 ): MediaStreamTrack | null {
-  const track = participant?.tracks?.[kind]?.track;
+  // Only a track Daily says is playable, and its persistentTrack (stable
+  // across mutes): bound while still "loading", a phone's camera stayed
+  // black until it was turned off and on again (the owner, 2026-11-04).
+  const info = participant?.tracks?.[kind] as { state?: string; track?: unknown; persistentTrack?: unknown } | undefined;
+  if (!info || info.state !== "playable") return null;
+  const track = info.persistentTrack ?? info.track;
   return track instanceof MediaStreamTrack ? track : null;
+}
+
+/** Bind a track to a media element and start it (iOS needs the explicit play()). */
+function bindTrack(el: HTMLMediaElement | null, track: MediaStreamTrack | null) {
+  if (!el) return;
+  const current = el.srcObject instanceof MediaStream ? el.srcObject.getTracks()[0] : null;
+  if (current !== track) el.srcObject = track ? new MediaStream([track]) : null;
+  if (track) void el.play().catch(() => {});
+}
+
+/**
+ * How loud a microphone track is right now, 0-1, measured in the page
+ * itself (Web Audio). Daily's own level observers sent nothing on the
+ * owner's phone, so the bars stood still (2026-11-04).
+ */
+function useTrackLevel(track: MediaStreamTrack | null): number {
+  const [level, setLevel] = useState(0);
+  useEffect(() => {
+    if (!track) {
+      setLevel(0);
+      return;
+    }
+    let raf = 0;
+    let ctx: AudioContext | null = null;
+    const resume = () => void ctx?.resume().catch(() => {});
+    try {
+      const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!Ctor) return;
+      ctx = new Ctor();
+      const source = ctx.createMediaStreamSource(new MediaStream([track]));
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+      let last = 0;
+      const tick = (now: number) => {
+        raf = requestAnimationFrame(tick);
+        if (now - last < 100) return;
+        last = now;
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
+          sum += v * v;
+        }
+        setLevel(Math.min(1, Math.sqrt(sum / data.length)));
+      };
+      raf = requestAnimationFrame(tick);
+      // A phone starts the context suspended until the next touch.
+      resume();
+      window.addEventListener("pointerdown", resume, { passive: true });
+    } catch {
+      // No metering: the call itself is unaffected.
+    }
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("pointerdown", resume);
+      void ctx?.close().catch(() => {});
+    };
+  }, [track]);
+  return level;
 }
 
 /** Fetch this interview's {url, token} from the interview-rooms edge function,
@@ -163,7 +232,7 @@ function SpeakingBars({ level, small = false }: { level: number; small?: boolean
   );
 }
 
-export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeave }: MeetingRoomProps) {
+export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeave, startCamOff = false, startMicOff = false }: MeetingRoomProps) {
   const [phase, setPhase] = useState<RoomPhase>("connecting");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [participants, setParticipants] = useState<DailyParticipantsObject | null>(null);
@@ -219,7 +288,11 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
         const { default: DailyIframe } = await import("@daily-co/daily-js");
         if (cancelled) return;
 
-        const call = DailyIframe.createCallObject({ subscribeToTracksAutomatically: true });
+        const call = DailyIframe.createCallObject({
+          subscribeToTracksAutomatically: true,
+          startVideoOff: startCamOff,
+          startAudioOff: startMicOff,
+        });
         callRef.current = call;
 
         call.on("participant-joined", refreshParticipants);
@@ -311,29 +384,28 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
   // Bind whichever MediaStreamTrack should be on stage right now — the
   // active screen share if one exists, otherwise the remote camera.
   useEffect(() => {
-    const el = stageVideoRef.current;
-    if (!el) return;
-    const track = stageIsScreenShare ? stageTrack : remoteCamTrack;
-    el.srcObject = track ? new MediaStream([track]) : null;
+    bindTrack(stageVideoRef.current, stageIsScreenShare ? stageTrack : remoteCamTrack);
   }, [stageIsScreenShare, stageTrack, remoteCamTrack]);
 
   useEffect(() => {
-    const el = localVideoRef.current;
-    if (!el) return;
-    el.srcObject = localCamTrack ? new MediaStream([localCamTrack]) : null;
+    bindTrack(localVideoRef.current, localCamTrack);
   }, [localCamTrack]);
 
   useEffect(() => {
-    const el = remoteAudioRef.current;
-    if (!el) return;
-    el.srcObject = remoteMicTrack ? new MediaStream([remoteMicTrack]) : null;
+    bindTrack(remoteAudioRef.current, remoteMicTrack);
   }, [remoteMicTrack]);
 
   useEffect(() => {
-    const el = screenAudioRef.current;
-    if (!el) return;
-    el.srcObject = remoteScreenAudioTrack ? new MediaStream([remoteScreenAudioTrack]) : null;
+    bindTrack(screenAudioRef.current, remoteScreenAudioTrack);
   }, [remoteScreenAudioTrack]);
+
+  // The speaking bars: measured from the tracks themselves, Daily's own
+  // observers as a second source (whichever hears more).
+  const localMicTrack = micOn ? activeTrack(local, "audio") : null;
+  const measuredLocal = useTrackLevel(localMicTrack);
+  const measuredRemote = useTrackLevel(remoteMicTrack);
+  const shownLocalLevel = Math.max(measuredLocal, localLevel);
+  const shownRemoteLevel = Math.max(measuredRemote, remoteLevel);
 
   const toggleMic = useCallback(() => {
     callRef.current?.setLocalAudio(!micOn);
@@ -535,8 +607,8 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
 
         {remoteHasJoined && (
           <span className="absolute bottom-3 left-3 z-10 flex items-center gap-2 rounded-lg bg-black/55 px-2.5 py-1.5 text-xs font-medium text-white">
-            <SpeakingBars level={remoteLevel} />
-            {remoteLevel > SPEAKING_LEVEL ? `${otherLabel} is speaking` : otherLabel}
+            <SpeakingBars level={shownRemoteLevel} />
+            {shownRemoteLevel > SPEAKING_LEVEL ? `${otherLabel} is speaking` : otherLabel}
           </span>
         )}
 
@@ -563,7 +635,7 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
             </div>
           )}
           <span className="absolute bottom-1 left-1.5 flex items-center gap-1.5 rounded bg-black/50 px-1.5 py-0.5 text-[10px] font-medium text-white">
-            {micOn && <SpeakingBars level={localLevel} small />}
+            {micOn && <SpeakingBars level={shownLocalLevel} small />}
             {selfLabel}
           </span>
         </div>
@@ -574,7 +646,7 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       <audio ref={screenAudioRef} autoPlay />
 
       <p className="-mt-1 text-center text-xs text-muted-foreground" aria-live="polite">
-        {!micOn ? "Your microphone is muted" : localLevel > SPEAKING_LEVEL ? "Your mic is working" : "Speak to check your mic: the bars by \"You\" move"}
+        {!micOn ? "Your microphone is muted" : shownLocalLevel > SPEAKING_LEVEL ? "Your mic is working" : "Speak to check your mic: the bars by \"You\" move"}
       </p>
 
       {devicesOpen && (
