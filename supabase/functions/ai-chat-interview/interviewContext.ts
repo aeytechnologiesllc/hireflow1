@@ -539,7 +539,8 @@ It is in the next message inside <transcript> tags, one numbered line per messag
 STEP 1 - INCONSISTENCY ANALYSIS: cross-reference what they claimed against what the record shows. Did their claimed experience match their results? Any contradictions, weak or evasive explanations when probed, or signs of exaggeration?
 STEP 2 - CREDIBILITY: "High" (claims align with results, specific examples, no red flags), "Medium" (minor discrepancies with reasonable explanations), "Low" (significant gaps between claims and results, evasive answers, several red flags).
 STEP 3 - HONEST EVALUATION: be blunt. If someone claims years of experience but their results say otherwise, say so. If they were evasive or could not give specifics, flag it.
-
+${input.leadRole ? "" : `STEP 4 - JUDGMENT (what this hiring team values most; weigh it most in the score and the recommendation): in the gray-area questions, did they make a sensible call themselves, keep the ${input.counterpart ?? "customer"}, stay within the facts, and own the result if it went wrong? Offering to follow up or keep the ${input.counterpart ?? "customer"} posted is good judgment. Only saying no, reciting policy or passing everything up is weak judgment; promising money or facts they cannot know is not judgment at all.
+`}
 === NEVER MARK ===
 Age, birth date, marital or civil status, children, pregnancy or family plans, even when the candidate mentions them ("as a mother of three"): they count neither for nor against, and never appear in the strengths, concerns, inconsistencies or summary. (RA 10911 and fair hiring; the application already asks only whether they are 18 or older.)
 ${input.leadRole ? `\n${leadEvaluationInstructions(input.counterpart ?? "customer")}\n` : ""}

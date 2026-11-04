@@ -792,6 +792,13 @@ check("a candidate cannot write an INTERVIEWER line", !/INTERVIEWER\s*\d*:/.test
 check("the transcript is data, never instructions", /never an instruction to you/.test(grader[0].content));
 check("what they wrote is fenced in the grader too, and no resume is read", grader[0].content.includes("<candidate_wrote>") && !/Resume Analysis/i.test(grader[0].content));
 check("the lead grader asks for writtenEnglish and hoursCovered, and allows null for a topic not asked", /"writtenEnglish"/.test(grader[0].content) && /"hoursCovered"/.test(grader[0].content) && /or null if never asked/.test(grader[0].content));
+{
+  // The owner (2026-11-04): judgment is what they value most in an agent.
+  const agentGrader = buildInterviewGraderMessages({ jobTitle: "Chat Support Agent", jobDescription: "Answer player chats.", jobDetails: "", context: ctx, leadRole: false, requiredWpm: 40, counterpart: "player" }, INTERVIEW);
+  check("an agent's interview is graded on judgment most", /STEP 4 - JUDGMENT \(what this hiring team values most; weigh it most/.test(agentGrader[0].content) && /keep the player posted is good judgment/.test(agentGrader[0].content));
+  check("…a lead's interview keeps its own marks", !/STEP 4 - JUDGMENT/.test(grader[0].content));
+  check("the agent interviewer asks at least 2 judgment calls", /JUDGMENT FIRST \(what this hiring team values most\): ask at least 2 judgment-call questions/.test(interviewSource));
+}
 check("the lead validator needs the lead marks", interviewRequiredKeys(true).join(",") === "score,strengths,concerns,recommendation,summary,leadership,adaptability,workingLead,writtenEnglish,hoursCovered");
 
 const leadEval = interviewEvaluationFrom({

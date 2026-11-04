@@ -988,9 +988,9 @@ ${leadMustCoverBlock(candidateContext?.chatSimulationResult, counterpart)}
 `
   : `1. Conduct a professional 5-8 question interview
 2. Start with a warm, brief greeting (1-2 sentences max) - mention you've reviewed their materials
-3. Ask 2-3 technical/skills questions tailored to the job AND the candidate's specific background
-4. Ask 1-2 behavioral questions (STAR format scenarios)
-5. Ask 1 culture fit question
+3. JUDGMENT FIRST (what this hiring team values most): ask at least 2 judgment-call questions. Each is a short gray-area situation from this kind of work where the rules do not give the answer (the ${counterpart} wants something the agent cannot confirm yet, two rules point different ways, the answer is not in the guide and nobody senior is around). Ask what they would do and why, then follow up once: what if that call turned out wrong? Look for someone who makes a sensible call themselves, keeps the ${counterpart}, stays within the facts, and owns the result; not someone who only says no, recites policy or passes everything up
+4. Ask 1-2 technical/skills questions tailored to the job AND the candidate's specific background
+5. Ask 1 behavioral question (STAR format): a time they made a call on their own that the rules did not cover, and what happened
 6. MUST reference specific things from their assessments, application, or resume
 7. MUST probe any inconsistencies you detect between claims and performance
 `}
