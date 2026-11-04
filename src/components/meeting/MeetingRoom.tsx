@@ -32,6 +32,7 @@ import {
   ScreenShare,
   ScreenShareOff,
   Settings2,
+  Wallpaper,
   Video,
   VideoOff,
   WifiOff,
@@ -209,6 +210,41 @@ function formatElapsed(totalSeconds: number) {
   return `${m}:${s}`;
 }
 
+/**
+ * Background effects in the call (the owner, 2026-11-04: "blur the
+ * background or add a different one, premium, like the newer ones"). Daily's
+ * own processors; only where the browser can run them (supportsVideoProcessing:
+ * desktop browsers, not an iPhone). The choice is remembered on this browser
+ * and put back at the next call.
+ */
+type BackgroundChoice = "none" | "blur-light" | "blur-strong" | "sage-studio" | "deep-green" | "warm-office";
+const BACKGROUND_KEY = "hf-call-background";
+const BACKGROUNDS: { id: BackgroundChoice; label: string; image?: string }[] = [
+  { id: "none", label: "Off" },
+  { id: "blur-light", label: "Soft blur" },
+  { id: "blur-strong", label: "Blur" },
+  { id: "sage-studio", label: "Sage", image: "/call-backgrounds/sage-studio.jpg" },
+  { id: "deep-green", label: "Green", image: "/call-backgrounds/deep-green.jpg" },
+  { id: "warm-office", label: "Warm", image: "/call-backgrounds/warm-office.jpg" },
+];
+
+function readBackground(): BackgroundChoice {
+  try {
+    const saved = window.localStorage.getItem(BACKGROUND_KEY);
+    return BACKGROUNDS.some((b) => b.id === saved) ? (saved as BackgroundChoice) : "none";
+  } catch {
+    return "none";
+  }
+}
+
+function processorFor(choice: BackgroundChoice) {
+  if (choice === "blur-light") return { type: "background-blur" as const, config: { strength: 0.45 } };
+  if (choice === "blur-strong") return { type: "background-blur" as const, config: { strength: 1 } };
+  const image = BACKGROUNDS.find((b) => b.id === choice)?.image;
+  if (image) return { type: "background-image" as const, config: { source: `${window.location.origin}${image}` } };
+  return { type: "none" as const };
+}
+
 /** Under Tailwind's sm: the phone layout, where the call fills the screen. */
 function useSmallScreen(): boolean {
   const query = "(max-width: 639px)";
@@ -265,6 +301,11 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
   // said out loud with a retry, instead of a black square (Jhoanna's call,
   // 2026-11-04, showed no camera and nobody knew why).
   const [deviceProblem, setDeviceProblem] = useState<string | null>(null);
+  const [background, setBackground] = useState<BackgroundChoice>(() => readBackground());
+  const [backgroundOpen, setBackgroundOpen] = useState(false);
+  const [canEffects, setCanEffects] = useState(false);
+  const backgroundRef = useRef(background);
+  backgroundRef.current = background;
   const [remoteLevel, setRemoteLevel] = useState(0);
 
   const callRef = useRef<DailyCall | null>(null);
@@ -361,6 +402,17 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
         startedAtRef.current = Date.now();
         refreshParticipants();
         setPhase("in-call");
+        // Background effects: offered where the browser can run them, and
+        // the last choice put back.
+        try {
+          const supported = !!DailyIframe.supportedBrowser()?.supportsVideoProcessing;
+          setCanEffects(supported);
+          if (supported && backgroundRef.current !== "none") {
+            void call.updateInputSettings({ video: { processor: processorFor(backgroundRef.current) } }).catch(() => {});
+          }
+        } catch {
+          setCanEffects(false);
+        }
         // The speaking bars. A failure only means no bars: the call goes on.
         call.startLocalAudioLevelObserver(150).catch(() => {});
         call.startRemoteParticipantsAudioLevelObserver(150).catch(() => {});
@@ -485,6 +537,20 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       else await call.setOutputDeviceAsync({ outputDeviceId: deviceId });
     } catch {
       // A device that cannot be opened leaves the current one in place.
+    }
+  }, []);
+
+  const chooseBackground = useCallback(async (choice: BackgroundChoice) => {
+    setBackground(choice);
+    try {
+      window.localStorage.setItem(BACKGROUND_KEY, choice);
+    } catch {
+      // Not remembered: it still applies to this call.
+    }
+    try {
+      await callRef.current?.updateInputSettings({ video: { processor: processorFor(choice) } });
+    } catch {
+      setDeviceProblem("That background could not start on this browser.");
     }
   }, []);
 
@@ -687,6 +753,49 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
         {!micOn ? "Your microphone is muted" : shownLocalLevel > SPEAKING_LEVEL ? "Your mic is working" : "Speak to check your mic: the bars by \"You\" move"}
       </p>
 
+      {backgroundOpen && canEffects && (
+        <div className="ck-card mx-3 mb-2 px-4 py-3 sm:mx-0 sm:mb-0">
+          <div className="mb-2 text-xs font-medium text-muted-foreground">Background</div>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {BACKGROUNDS.map((b) => {
+              const on = background === b.id;
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => void chooseBackground(b.id)}
+                  aria-pressed={on}
+                  className="group flex flex-col items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-transform active:scale-95 motion-reduce:transition-none"
+                >
+                  <span
+                    className="relative block aspect-video w-full overflow-hidden rounded-lg border transition-shadow"
+                    style={{
+                      borderColor: on ? "var(--action)" : "var(--line-soft)",
+                      boxShadow: on ? "0 0 0 2px var(--action)" : "none",
+                      background: b.image
+                        ? `center / cover no-repeat url(${b.image})`
+                        : b.id === "none"
+                          ? "var(--surface-2)"
+                          : "linear-gradient(135deg, var(--surface-2), var(--line-soft))",
+                    }}
+                  >
+                    {!b.image && (
+                      <span
+                        className="absolute inset-0 flex items-center justify-center text-[10px]"
+                        style={{ filter: b.id === "none" ? "none" : `blur(${b.id === "blur-light" ? 1 : 2}px)`, color: "var(--ink-2)" }}
+                      >
+                        {b.id === "none" ? "None" : "● ● ●"}
+                      </span>
+                    )}
+                  </span>
+                  <span style={{ color: on ? "var(--ink)" : undefined }}>{b.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {devicesOpen && (
         <div className="ck-card mx-3 mb-2 grid gap-3 px-4 py-3 text-sm sm:mx-0 sm:mb-0 sm:grid-cols-3">
           {([
@@ -767,6 +876,15 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
         >
           {isSharingScreen ? <ScreenShareOff className="h-5 w-5" /> : <ScreenShare className="h-5 w-5" />}
         </RoomControlButton>
+        {canEffects && (
+          <RoomControlButton
+            onClick={() => setBackgroundOpen((open) => !open)}
+            label="Background: blur or a picture"
+            variant={backgroundOpen || background !== "none" ? "active" : "default"}
+          >
+            <Wallpaper className="h-5 w-5" />
+          </RoomControlButton>
+        )}
         <RoomControlButton onClick={openDevices} label="Choose microphone, camera and speaker" variant={devicesOpen ? "active" : "default"}>
           <Settings2 className="h-5 w-5" />
         </RoomControlButton>
