@@ -15,6 +15,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { BackgroundPicker, processorFor, readBackground, saveBackground, type BackgroundChoice } from "./backgrounds";
 import type {
   DailyCall,
   DailyEventObjectFatalError,
@@ -208,41 +209,6 @@ function formatElapsed(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const s = Math.floor(totalSeconds % 60).toString().padStart(2, "0");
   return `${m}:${s}`;
-}
-
-/**
- * Background effects in the call (the owner, 2026-11-04: "blur the
- * background or add a different one, premium, like the newer ones"). Daily's
- * own processors; only where the browser can run them (supportsVideoProcessing:
- * desktop browsers, not an iPhone). The choice is remembered on this browser
- * and put back at the next call.
- */
-type BackgroundChoice = "none" | "blur-light" | "blur-strong" | "sage-studio" | "deep-green" | "warm-office";
-const BACKGROUND_KEY = "hf-call-background";
-const BACKGROUNDS: { id: BackgroundChoice; label: string; image?: string }[] = [
-  { id: "none", label: "Off" },
-  { id: "blur-light", label: "Soft blur" },
-  { id: "blur-strong", label: "Blur" },
-  { id: "sage-studio", label: "Sage", image: "/call-backgrounds/sage-studio.jpg" },
-  { id: "deep-green", label: "Green", image: "/call-backgrounds/deep-green.jpg" },
-  { id: "warm-office", label: "Warm", image: "/call-backgrounds/warm-office.jpg" },
-];
-
-function readBackground(): BackgroundChoice {
-  try {
-    const saved = window.localStorage.getItem(BACKGROUND_KEY);
-    return BACKGROUNDS.some((b) => b.id === saved) ? (saved as BackgroundChoice) : "none";
-  } catch {
-    return "none";
-  }
-}
-
-function processorFor(choice: BackgroundChoice) {
-  if (choice === "blur-light") return { type: "background-blur" as const, config: { strength: 0.45 } };
-  if (choice === "blur-strong") return { type: "background-blur" as const, config: { strength: 1 } };
-  const image = BACKGROUNDS.find((b) => b.id === choice)?.image;
-  if (image) return { type: "background-image" as const, config: { source: `${window.location.origin}${image}` } };
-  return { type: "none" as const };
 }
 
 /** Under Tailwind's sm: the phone layout, where the call fills the screen. */
@@ -542,16 +508,17 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
 
   const chooseBackground = useCallback(async (choice: BackgroundChoice) => {
     setBackground(choice);
-    try {
-      window.localStorage.setItem(BACKGROUND_KEY, choice);
-    } catch {
-      // Not remembered: it still applies to this call.
-    }
+    saveBackground(choice);
     try {
       await callRef.current?.updateInputSettings({ video: { processor: processorFor(choice) } });
     } catch {
       setDeviceProblem("That background could not start on this browser.");
     }
+  }, []);
+  // Hovering a tile shows it at once; leaving the tiles puts the choice back.
+  const previewBackground = useCallback((choice: BackgroundChoice | null) => {
+    const show = choice ?? backgroundRef.current;
+    void callRef.current?.updateInputSettings({ video: { processor: processorFor(show) } }).catch(() => {});
   }, []);
 
   const toggleScreenShare = useCallback(async () => {
@@ -756,43 +723,7 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
       {backgroundOpen && canEffects && (
         <div className="ck-card mx-3 mb-2 px-4 py-3 sm:mx-0 sm:mb-0">
           <div className="mb-2 text-xs font-medium text-muted-foreground">Background</div>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
-            {BACKGROUNDS.map((b) => {
-              const on = background === b.id;
-              return (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => void chooseBackground(b.id)}
-                  aria-pressed={on}
-                  className="group flex flex-col items-center gap-1.5 text-[11px] font-medium text-muted-foreground transition-transform active:scale-95 motion-reduce:transition-none"
-                >
-                  <span
-                    className="relative block aspect-video w-full overflow-hidden rounded-lg border transition-shadow"
-                    style={{
-                      borderColor: on ? "var(--action)" : "var(--line-soft)",
-                      boxShadow: on ? "0 0 0 2px var(--action)" : "none",
-                      background: b.image
-                        ? `center / cover no-repeat url(${b.image})`
-                        : b.id === "none"
-                          ? "var(--surface-2)"
-                          : "linear-gradient(135deg, var(--surface-2), var(--line-soft))",
-                    }}
-                  >
-                    {!b.image && (
-                      <span
-                        className="absolute inset-0 flex items-center justify-center text-[10px]"
-                        style={{ filter: b.id === "none" ? "none" : `blur(${b.id === "blur-light" ? 1 : 2}px)`, color: "var(--ink-2)" }}
-                      >
-                        {b.id === "none" ? "None" : "● ● ●"}
-                      </span>
-                    )}
-                  </span>
-                  <span style={{ color: on ? "var(--ink)" : undefined }}>{b.label}</span>
-                </button>
-              );
-            })}
-          </div>
+          <BackgroundPicker value={background} onPreview={previewBackground} onChoose={(c) => void chooseBackground(c)} />
         </div>
       )}
 

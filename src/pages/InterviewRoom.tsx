@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import MeetingRoom from "@/components/meeting/MeetingRoom";
+import { BackgroundPicker, useBackgroundPreview } from "@/components/meeting/backgrounds";
 import { entryScript, entryScriptOfUrl, shouldReloadFor } from "@/lib/newVersion";
 import { AlertTriangle, ArrowLeft, Camera, CheckCircle, Loader2, Mic, MicOff, Video, VideoOff } from "lucide-react";
 
@@ -269,14 +270,19 @@ export default function InterviewRoom() {
   const [camWanted, setCamWanted] = useState(true);
   const [micWanted, setMicWanted] = useState(true);
 
+  const background = useBackgroundPreview(device.granted && device.hasVideo && camWanted && !confirmed);
+
   useEffect(() => {
     const el = previewRef.current;
-    const stream = device.getStream();
     if (!el) return;
-    if (el.srcObject !== stream) el.srcObject = stream;
+    // The background's picture when there is one, else the plain camera.
+    const stream = background.track ? new MediaStream([background.track]) : device.getStream();
+    const current = el.srcObject instanceof MediaStream ? el.srcObject.getVideoTracks()[0] : null;
+    const next = stream?.getVideoTracks()[0] ?? null;
+    if (current !== next || !el.srcObject) el.srcObject = stream;
     // A phone shows nothing until play() is called (autoplay alone is not enough).
     if (stream) void el.play().catch(() => {});
-  }, [device.granted, device, camWanted]);
+  }, [device.granted, device, camWanted, background.track]);
 
   useEffect(() => {
     const stream = device.getStream();
@@ -287,9 +293,12 @@ export default function InterviewRoom() {
   const backHref = ctx?.backHref ?? (id ? "/interviews" : "/applications");
 
   const [joinAs, setJoinAs] = useState({ camOff: false, micOff: false });
-  const handleJoin = () => {
+  const handleJoin = async () => {
     // What they chose here is what the call starts with.
     setJoinAs({ camOff: !camWanted || !device.hasVideo, micOff: !micWanted || !device.hasAudio });
+    // The background preview's camera goes first: the call opens its own,
+    // with the background saved here.
+    await background.stop();
     // Hand off to the call — release our own preview stream first so Daily
     // acquires a clean camera/mic grab rather than fighting a second one.
     device.release();
@@ -373,7 +382,7 @@ export default function InterviewRoom() {
                 </div>
               )}
               {device.error && (
-                <button onClick={handleJoin} className="ck-btn ck-btn-outline gap-2">
+                <button onClick={() => void handleJoin()} className="ck-btn ck-btn-outline gap-2">
                   Join without camera or mic
                 </button>
               )}
@@ -440,11 +449,18 @@ export default function InterviewRoom() {
                 )}
               </div>
 
+              {background.supported && device.hasVideo && camWanted && (
+                <div className="mx-auto w-full max-w-xl text-left">
+                  <div className="mb-2 text-xs font-medium text-muted-foreground">Background · hover to see it, click to keep it</div>
+                  <BackgroundPicker value={background.choice} onPreview={background.show} onChoose={background.choose} />
+                </div>
+              )}
+
               <div className="flex flex-wrap justify-center gap-3">
                 <button onClick={device.release} className="ck-btn ck-btn-outline">
                   Cancel
                 </button>
-                <button onClick={handleJoin} className="ck-btn ck-btn-primary gap-2">
+                <button onClick={() => void handleJoin()} className="ck-btn ck-btn-primary gap-2">
                   <CheckCircle className="h-4 w-4" />
                   Join interview
                 </button>
