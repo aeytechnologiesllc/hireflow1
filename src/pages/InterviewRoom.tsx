@@ -27,6 +27,8 @@ interface RoomContext {
  *  call takes over. */
 function useDevicePreview() {
   const [granted, setGranted] = useState(false);
+  const [hasVideo, setHasVideo] = useState(false);
+  const [hasAudio, setHasAudio] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [micLevels, setMicLevels] = useState<number[]>([0, 0, 0, 0, 0]);
   const streamRef = useRef<MediaStream | null>(null);
@@ -70,20 +72,28 @@ function useDevicePreview() {
 
   const requestAccess = useCallback(async () => {
     setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" },
-        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
-      streamRef.current = stream;
-      setGranted(true);
-      startLevelMonitor(stream);
-      return stream;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Couldn't access your camera or mic");
-      setGranted(false);
-      return null;
+    // Camera and mic first; then the mic alone (2026-11-04: the owner's
+    // computer has no camera and the room refused him outright); then the
+    // camera alone. Whatever is there is enough to join.
+    const video = { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" };
+    const audio = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    let lastError: unknown = null;
+    for (const constraints of [{ video, audio }, { audio }, { video }] as MediaStreamConstraints[]) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = stream;
+        setHasVideo(stream.getVideoTracks().length > 0);
+        setHasAudio(stream.getAudioTracks().length > 0);
+        setGranted(true);
+        if (stream.getAudioTracks().length > 0) startLevelMonitor(stream);
+        return stream;
+      } catch (err) {
+        lastError = err;
+      }
     }
+    setError(lastError instanceof Error ? lastError.message : "Couldn't access your camera or mic");
+    setGranted(false);
+    return null;
   }, [startLevelMonitor]);
 
   const release = useCallback(() => {
@@ -96,7 +106,7 @@ function useDevicePreview() {
 
   useEffect(() => () => release(), [release]);
 
-  return { granted, error, micLevels, requestAccess, release, getStream: () => streamRef.current };
+  return { granted, hasVideo, hasAudio, error, micLevels, requestAccess, release, getStream: () => streamRef.current };
 }
 
 export default function InterviewRoom() {
@@ -290,14 +300,22 @@ export default function InterviewRoom() {
                     We couldn't reach your camera or mic
                   </p>
                   <p className="mt-1 text-xs" style={{ color: "var(--amber-fg)", opacity: 0.85 }}>
-                    Check your browser's site permissions, then try again.
+                    Check your browser's site permissions, then try again. Or join without them: you can still hear and see the other side, and turn yours on in the call.
                   </p>
                 </div>
+              )}
+              {device.error && (
+                <button onClick={handleJoin} className="ck-btn ck-btn-outline gap-2">
+                  Join without camera or mic
+                </button>
               )}
             </div>
           ) : (
             <div className="mt-5 space-y-5">
-              <div className="relative mx-auto aspect-video w-full max-w-md overflow-hidden rounded-xl border border-border/50 bg-[var(--slab)]">
+              {!device.hasVideo && (
+                <p className="text-sm text-muted-foreground">No camera found: you'll join with your microphone only.</p>
+              )}
+              <div className={`relative mx-auto aspect-video w-full max-w-md overflow-hidden rounded-xl border border-border/50 bg-[var(--slab)] ${device.hasVideo ? "" : "hidden"}`}>
                 <video
                   ref={previewRef}
                   autoPlay
