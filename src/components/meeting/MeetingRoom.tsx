@@ -261,6 +261,10 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
   // the bars that move when someone speaks, so both can see the mic works
   // (the owner, 2026-11-04).
   const [localLevel, setLocalLevel] = useState(0);
+  // The camera or mic could not start (in use elsewhere, no permission):
+  // said out loud with a retry, instead of a black square (Jhoanna's call,
+  // 2026-11-04, showed no camera and nobody knew why).
+  const [deviceProblem, setDeviceProblem] = useState<string | null>(null);
   const [remoteLevel, setRemoteLevel] = useState(0);
 
   const callRef = useRef<DailyCall | null>(null);
@@ -317,6 +321,18 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
         call.on("participant-left", refreshParticipants);
         call.on("track-started", refreshParticipants);
         call.on("track-stopped", refreshParticipants);
+        call.on("camera-error", (ev) => {
+          const kind = (ev as { error?: { type?: string } } | undefined)?.error?.type;
+          setDeviceProblem(
+            kind === "permissions"
+              ? "Your browser blocked the camera or microphone. Allow them in the address bar, then press Try again."
+              : kind === "not-found"
+                ? "No camera or microphone was found on this device."
+                : kind === "cam-in-use" || kind === "mic-in-use" || kind === "cam-mic-in-use"
+                  ? "Another app is using your camera or microphone. Close it, then press Try again."
+                  : "Your camera or microphone could not start. Press Try again.",
+          );
+        });
         call.on("local-audio-level", (ev) => setLocalLevel(typeof ev?.audioLevel === "number" ? ev.audioLevel : 0));
         call.on("remote-participants-audio-level", (ev) => {
           const levels = Object.values(ev?.participantsAudioLevel ?? {}).filter((v): v is number => typeof v === "number");
@@ -698,6 +714,30 @@ export default function MeetingRoom({ interviewId, selfLabel, otherLabel, onLeav
               )}
             </label>
           ))}
+        </div>
+      )}
+
+      {deviceProblem && (
+        <div
+          className="mx-3 mb-2 flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-xs sm:mx-0 sm:mb-0"
+          style={{ background: "var(--amber-bg)", color: "var(--amber-fg)", border: "1px solid var(--brass-line)" }}
+          role="status"
+        >
+          <span>{deviceProblem}</span>
+          <button
+            type="button"
+            className="ck-btn ck-btn-outline shrink-0 !px-3 !py-1 !text-xs"
+            onClick={() => {
+              setDeviceProblem(null);
+              const call = callRef.current;
+              if (!call) return;
+              void call.setInputDevicesAsync({}).catch(() => {});
+              call.setLocalVideo(true);
+              call.setLocalAudio(true);
+            }}
+          >
+            Try again
+          </button>
         </div>
       )}
 
