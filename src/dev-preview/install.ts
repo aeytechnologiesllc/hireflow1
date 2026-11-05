@@ -1091,7 +1091,8 @@ function previewJobShape(tables: FixtureTables, spec: string | null, placeParam:
  */
 function previewInterviewTimes(tables: FixtureTables, spec: string | null): void {
   const words = (spec ?? "").split(",").map((w) => w.trim()).filter(Boolean);
-  const minutesFromNow: Record<string, number> = { now: 2, soon: 35, later: 180, over: -60, tomorrow: 24 * 60 };
+  // `past`: ended over an hour ago, so it is on the Past tab (lib/interviewWhen.ts interviewList).
+  const minutesFromNow: Record<string, number> = { now: 2, soon: 35, later: 180, over: -60, past: -180, tomorrow: 24 * 60 };
   const interviews = (tables.interviews ??= []);
   const template = interviews[0];
   const applications = (tables.applications ?? []).filter((a) => a.status === "interview" || a.status === "reviewing");

@@ -492,6 +492,31 @@ Proof: `scripts/interview_when.test.mjs`. In the preview:
 `/interviews?__preview=1&__previewScenario=zulu&__previewWhen=now,soon,later`
 puts made-up interviews two minutes, 35 minutes and three hours from now.
 
+## Upcoming and Past (2026-11-04)
+
+The owner, after a day of five calls: done interviews "should go into like old
+or history interviews ... as soon as like an hour past the interview", with a
+sub-tab, a way to shortlist from there, and a way to delete them from the
+history with a ⋯ menu.
+
+- The Interviews page has two tabs, **Upcoming** and **Past**, kept in the
+  address (`?view=past`). An interview is upcoming until an hour after it
+  ends (its own length, else 30 minutes), then past; one marked done or a
+  no-show is past at once; one with no time yet stays upcoming; a cancelled
+  one is in neither (`interviewList` in `src/cockpit/lib/interviewWhen.ts`).
+  A `scheduled` row from an earlier day is past whatever its time.
+- Past is newest first. One nobody has answered yet reads **Say how it went**
+  with **How did it go?** beside it, and Upcoming points to it ("1 past
+  interview still needs ...") so it is not forgotten. "Needs attention" and
+  "Recently completed" are gone: both are Past now.
+- A past row's ⋯ menu (the applicant list's `ActionsMenu`): **Add to
+  shortlist** / **Take off shortlist** (the same shortlist as Applicants,
+  `set_applications_shortlisted`, nothing sent to the applicant), **Interview
+  guide**, and **Remove from history**, which asks first and deletes the
+  interview row only: the application, the team's notes and the rating stay,
+  and nothing is sent.
+- The week strip still shows the whole week, today's calls included.
+
 ## When they do not show up (2026-10-09)
 
 The owner: "what should we do when an applicant doesn't show up for the

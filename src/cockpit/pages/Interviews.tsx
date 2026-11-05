@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { addDays, format, isSameDay, isToday, startOfDay, startOfWeek } from "date-fns";
-import { AlertCircle, CalendarPlus, HelpCircle, ShieldCheck, Video, type LucideIcon } from "lucide-react";
+import { AlertCircle, BookmarkMinus, BookmarkPlus, CalendarPlus, FileText, HelpCircle, ShieldCheck, Trash2, Video, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { EmployerRescheduleReviewDialog } from "@/components/EmployerRescheduleReviewDialog";
@@ -10,7 +10,7 @@ import { InterviewOutcomeDialog } from "../components/InterviewOutcomeDialog";
 import { InterviewScoreChip } from "../components/ApplicantRow";
 import { useInterviewScores } from "../hooks/useInterviewScores";
 import { interviewScoreWords } from "../lib/interviewScore";
-import { useInterviews, useUpdateInterview, type InterviewWithDetails } from "@/hooks/useInterviews";
+import { useDeleteInterview, useInterviews, useUpdateInterview, type InterviewWithDetails } from "@/hooks/useInterviews";
 import { supabase } from "@/integrations/supabase/client";
 import { notifyInterviewCancelled } from "@/utils/emailNotifications";
 import { buildEmployerInterviewIcs, downloadIcsFile, icsFileStem } from "@/lib/calendarInvite";
@@ -20,7 +20,10 @@ import CkAvatar from "../components/Avatar";
 import { ActionDialog } from "../components/ActionDialog";
 import { PageHeader } from "../components/PageHeader";
 import { CockpitErrorCard } from "../components/ErrorCard";
-import { interviewWhen } from "../lib/interviewWhen";
+import { interviewList, interviewWhen } from "../lib/interviewWhen";
+import { ActionsMenu } from "../components/ApplicantRowMenu";
+import { useShortlist, useShortlistActions } from "../hooks/useShortlist";
+import { canShortlist, shortlistActionLabel } from "../lib/shortlist";
 import { useCockpitAccount, useCockpitActions, useCockpitCandidates, useCockpitInterviews, useCockpitJobsData } from "../hooks/useCockpitData";
 import { useSendMessage } from "@/hooks/useMessages";
 import { NoShowDialog } from "../components/NoShowDialog";
@@ -247,6 +250,28 @@ export default function CockpitInterviews() {
   const sendMessage = useSendMessage();
   const { reject } = useCockpitActions();
   const updateInterview = useUpdateInterview();
+  const deleteInterview = useDeleteInterview();
+  // "Remove from history" for one past interview: confirmed first.
+  const [removing, setRemoving] = useState<Session | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const { ids: shortlisted, deployed: shortlistOn } = useShortlist();
+  const { setShortlisted } = useShortlistActions();
+  /* Upcoming and Past (the owner, 2026-11-04: done interviews "should go into
+     like old or history interviews ... as soon as like an hour past the
+     interview", with a sub-tab). Kept in the address, so Back and a reload
+     land on the same one. */
+  const [params, setParams] = useSearchParams();
+  const view: "upcoming" | "past" = params.get("view") === "past" ? "past" : "upcoming";
+  const setView = (next: "upcoming" | "past") =>
+    setParams(
+      (was) => {
+        const p = new URLSearchParams(was);
+        if (next === "past") p.set("view", "past");
+        else p.delete("view");
+        return p;
+      },
+      { replace: true },
+    );
 
   const today = useMemo(() => startOfDay(new Date()), []);
   /* A 30s clock, just to re-check the 15-minutes-out join window without a
@@ -318,31 +343,24 @@ export default function CockpitInterviews() {
     if (changed) setJustPicked((prev) => new Set([...prev, ...next]));
   }, [sessions]);
 
+  /* Upcoming until an hour after it ends (lib/interviewWhen.ts interviewList);
+     then Past, newest first, with every one done, missed, or never said. A
+     'scheduled' row from an earlier day is past whatever its time: the
+     candidate never picked, or nobody said what happened, and it waits
+     there with "How did it go?" so it gets resolved. */
   const upcoming = useMemo(
-    () => sessions.filter((s) => s.status === "scheduled" && (!s.at || s.at >= today)),
-    [sessions, today],
+    () => sessions.filter((s) => interviewList(s, now) === "upcoming" && (!s.at || s.at >= today)),
+    [sessions, today, now],
   );
-
-  const completed = useMemo(
+  const past = useMemo(
     () =>
       sessions
-        .filter((s) => s.status === "completed" || s.status === "no_show")
-        .sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0))
-        .slice(0, 4),
-    [sessions],
+        .filter((s) => interviewList(s, now) === "past" || (s.status === "scheduled" && !!s.at && s.at < today))
+        .sort((a, b) => (b.at?.getTime() ?? 0) - (a.at?.getTime() ?? 0)),
+    [sessions, today, now],
   );
-
-  /* A 'scheduled' row whose day has already passed — the candidate never
-     picked, or nobody marked what happened — falls out of both `upcoming`
-     (>= today) and `completed` (needs a completed/no_show status). Without
-     this it just vanishes; surface it instead so it gets resolved. */
-  const overdue = useMemo(
-    () =>
-      sessions
-        .filter((s) => s.status === "scheduled" && s.at && s.at < today)
-        .sort((a, b) => (a.at?.getTime() ?? 0) - (b.at?.getTime() ?? 0)),
-    [sessions, today],
-  );
+  /** Past, and nobody has said yet how it went. */
+  const pastOpen = useMemo(() => past.filter((s) => s.status === "scheduled"), [past]);
 
   const noShows = useMemo(() => sessions.filter((s) => s.status === "no_show").length, [sessions]);
 
@@ -512,6 +530,50 @@ export default function CockpitInterviews() {
   };
   const outcomeWhen = (s: Session) => (s.at ? `${isSameDay(s.at, new Date()) ? "today" : format(s.at, "EEEE")} at ${format(s.at, "h:mm aaa")}` : null);
 
+  const confirmRemove = async () => {
+    const target = removing;
+    if (!target) return;
+    setIsRemoving(true);
+    try {
+      await deleteInterview.mutateAsync(target.id);
+      toast.success(`Removed ${firstName(target.name)}'s interview from your history`);
+      setRemoving(null);
+    } catch (err) {
+      console.error("Error removing an interview:", err);
+      toast.error("Could not remove that interview. Try again.");
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  /** The ⋯ menu on a past interview: shortlist, the guide, remove. */
+  const pastMenu = (s: Session) => {
+    const stage = s.applicationId ? stageByApplication.get(s.applicationId) : undefined;
+    const on = !!s.applicationId && shortlisted.has(s.applicationId);
+    const items = [];
+    if (s.applicationId && shortlistOn && (on || canShortlist(stage === "Rejected" ? "rejected" : null))) {
+      const applicationId = s.applicationId;
+      items.push({
+        key: "shortlist",
+        label: shortlistActionLabel(on),
+        icon: on ? <BookmarkMinus className="h-4 w-4" aria-hidden /> : <BookmarkPlus className="h-4 w-4" aria-hidden />,
+        onSelect: () => void setShortlisted([{ applicationId, name: s.name }], !on),
+      });
+    }
+    if (s.applicationId) {
+      items.push({ key: "guide", label: "Interview guide", icon: <FileText className="h-4 w-4" aria-hidden />, onSelect: () => setGuideFor(s) });
+    }
+    items.push({
+      key: "remove",
+      label: "Remove from history",
+      icon: <Trash2 className="h-4 w-4" aria-hidden />,
+      danger: true,
+      hint: "Takes this interview off the list. Their application, your notes and your rating stay.",
+      onSelect: () => setRemoving(s),
+    });
+    return items;
+  };
+
   const subtitle =
     needsCall > 0
       ? `${needsCall} ${needsCall === 1 ? "time needs" : "times need"} your call — I have the rest handled.`
@@ -570,7 +632,7 @@ export default function CockpitInterviews() {
         }
       />
 
-      {upcoming.length === 0 && completed.length === 0 && overdue.length === 0 ? (
+      {upcoming.length === 0 && past.length === 0 ? (
         /* ── Nobody is on the calendar. Say so, and point at the one move. ── */
         <section className="ck-card ck-reveal p-6 md:p-8">
           <h2 className="font-display text-[20px]" style={{ color: "var(--ink)", fontWeight: 500 }}>
@@ -603,6 +665,128 @@ export default function CockpitInterviews() {
         </section>
       ) : (
         <>
+          <div role="tablist" aria-label="Interviews" className="flex flex-wrap gap-1.5" data-interview-tabs>
+            {(["upcoming", "past"] as const).map((v) => {
+              const on = view === v;
+              const count = v === "upcoming" ? upcoming.length : past.length;
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  role="tab"
+                  aria-selected={on}
+                  onClick={() => setView(v)}
+                  className={`ck-btn !py-1.5 !text-[12.5px] ${on ? "ck-btn-primary" : "ck-btn-outline"}`}
+                  data-interview-tab={v}
+                >
+                  {v === "upcoming" ? "Upcoming" : "Past"}
+                  <span className="ml-1.5 tnum opacity-75">{count}</span>
+                  {v === "past" && pastOpen.length > 0 && !on && (
+                    <span className="ml-1.5 h-1.5 w-1.5 rounded-full" style={{ background: "var(--amber-fg)" }} aria-label={`${pastOpen.length} to say how it went`} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {view === "past" ? (
+            <section className="space-y-2" data-interview-past>
+              {past.length === 0 ? (
+                <p className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
+                  Nothing here yet. An interview moves here an hour after it ends.
+                </p>
+              ) : (
+                past.map((s, i) => {
+                  const open = s.status === "scheduled";
+                  const stage = s.applicationId ? stageByApplication.get(s.applicationId) : undefined;
+                  const onList = !!s.applicationId && shortlisted.has(s.applicationId);
+                  const chip = interviewScoreWords(scoreOf(s))?.chip;
+                  return (
+                    <div
+                      key={s.id}
+                      className="ck-card ck-reveal flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
+                      style={{ ["--ck-i" as string]: Math.min(i, 8), borderRadius: 10 }}
+                      data-interview-past-row={open ? "open" : s.status}
+                    >
+                      <div className="min-w-[104px] shrink-0">
+                        <div
+                          className="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
+                          style={{ color: open ? "var(--amber-fg)" : "var(--brass)" }}
+                        >
+                          {s.at ? format(s.at, "EEE d MMM") : "Past"}
+                        </div>
+                        <div
+                          className="font-display tnum mt-[3px] whitespace-nowrap leading-none"
+                          style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em" }}
+                        >
+                          {s.at ? format(s.at, "h:mm aaa") : s.timeLabel}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => openRecord(s)}
+                        className="flex min-w-0 flex-1 basis-full items-center gap-3.5 text-left sm:basis-0"
+                      >
+                        <CkAvatar who={s.name} size={40} />
+                        <span className="min-w-0">
+                          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                            <span className="truncate text-[14px] font-semibold leading-[1.3]" style={{ color: "var(--ink)" }}>
+                              {s.name}
+                            </span>
+                            {open ? (
+                              <Chip tone="amber">Say how it went</Chip>
+                            ) : s.status === "no_show" ? (
+                              <Chip tone="mut">No-show</Chip>
+                            ) : stage === "Hired" ? (
+                              <Chip tone="live">Hired</Chip>
+                            ) : stage === "Rejected" ? (
+                              <Chip tone="mut">Passed</Chip>
+                            ) : (
+                              <Chip tone="mut">Interviewed</Chip>
+                            )}
+                            {onList && <Chip tone="live">On your shortlist</Chip>}
+                            {chip ? <InterviewScoreChip words={chip} /> : null}
+                          </span>
+                          <span className="mt-0.5 block truncate text-[12px] leading-[1.35]" style={{ color: "var(--ink-3)" }}>
+                            {[s.role, typeLabel(s.type), s.status === "no_show" ? "they did not show" : null].filter(Boolean).join(" · ")}
+                          </span>
+                        </span>
+                      </button>
+
+                      <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
+                        {open && (
+                          <button
+                            className="ck-btn ck-btn-primary !py-2 !text-[12px]"
+                            disabled={markingId === s.id}
+                            onClick={() => setOutcomeFor({ session: s, stage: "ask" })}
+                            data-outcome-open
+                          >
+                            How did it go?
+                          </button>
+                        )}
+                        <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => openRecord(s)}>
+                          Details
+                        </button>
+                        <ActionsMenu items={() => pastMenu(s)} label={`More for ${s.name}'s interview`} />
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+              {past.length > 0 && (
+                <div
+                  className="mt-2 flex items-center gap-2.5 px-4 py-3 text-[12px]"
+                  style={{ border: "1px dashed var(--line)", borderRadius: 10, color: "var(--ink-3)" }}
+                >
+                  <span>
+                    <b style={{ color: "var(--ink-2)" }}>No-shows so far: {noShows}.</b> Use ⋯ to shortlist someone or take them off the list.
+                  </span>
+                </div>
+              )}
+            </section>
+          ) : (
+          <>
           {/* ── The week at a glance ──────────────────────────── */}
           {/* Not on a phone (the owner, 2026-11-04): there it opened on
               days already gone and pushed the calls themselves down. The
@@ -917,86 +1101,27 @@ export default function CockpitInterviews() {
             </div>
           ) : (
             <p className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
-              Nothing coming up &mdash; everyone you have already met is below.
+              Nothing coming up &mdash; everyone you have already met is under Past.
             </p>
           )}
 
-          {/* ── Needs attention: the day came and went with nobody saying what
-                happened — a no-show never marked, or a pick that never came. ── */}
-          {overdue.length > 0 && (
-            <section className="space-y-2">
-              <SectionTitle>Needs attention</SectionTitle>
-              {overdue.map((s, i) => (
-                <div
-                  key={s.id}
-                  className="ck-card ck-reveal flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3"
-                  style={{ ["--ck-i" as string]: i, borderRadius: 10 }}
-                >
-                  <div className="min-w-[104px] shrink-0">
-                    <div
-                      className="text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
-                      style={{ color: "var(--amber-fg)" }}
-                    >
-                      {s.at ? format(s.at, "EEE d") : "Past"}
-                    </div>
-                    <div
-                      className="font-display tnum mt-[3px] whitespace-nowrap leading-none"
-                      style={{ fontSize: 22, fontWeight: 600, color: "var(--ink)", letterSpacing: "-0.02em" }}
-                    >
-                      {s.at ? format(s.at, "h:mm aaa") : s.timeLabel}
-                    </div>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => openRecord(s)}
-                    className="flex min-w-0 flex-1 basis-full items-center gap-3.5 text-left sm:basis-0"
-                  >
-                    <CkAvatar who={s.name} size={40} />
-                    <span className="min-w-0">
-                      <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                        <span
-                          className="truncate text-[14px] font-semibold leading-[1.3]"
-                          style={{ color: "var(--ink)" }}
-                        >
-                          {s.name}
-                        </span>
-                        <Chip tone="amber">Time passed</Chip>
-                      </span>
-                      <span className="mt-0.5 block text-[12px] leading-[1.35]" style={{ color: "var(--ink-3)" }}>
-                        {s.role} · time passed — say how it went
-                      </span>
-                    </span>
-                  </button>
-
-                  <div className="flex w-full shrink-0 items-center justify-end gap-2 sm:w-auto">
-                    <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => openRecord(s)}>
-                      Details
-                    </button>
-                    <button
-                      className="ck-btn ck-btn-primary !py-2 !text-[12px]"
-                      disabled={markingId === s.id}
-                      onClick={() => setOutcomeFor({ session: s, stage: "ask" })}
-                      data-outcome-open
-                    >
-                      How did it go?
-                    </button>
-                    {/* Quiet on purpose — this is the one irreversible move on the page. */}
-                    <button
-                      className="ck-btn ck-btn-ghost !py-2 !text-[12px]"
-                      style={{ color: "var(--ink-3)" }}
-                      onClick={() => setCancelling(s)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </section>
+          {/* Past interviews nobody has said anything about yet: a pointer, so
+              they are not forgotten on the other tab. */}
+          {pastOpen.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setView("past")}
+              className="flex w-full items-center gap-2 px-4 py-3 text-left text-[12.5px]"
+              style={{ border: "1px dashed var(--amber-line, var(--line))", borderRadius: 10, color: "var(--amber-fg)" }}
+              data-interview-past-open
+            >
+              <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
+              {pastOpen.length === 1 ? "1 past interview still needs" : `${pastOpen.length} past interviews still need`} &ldquo;How did it go?&rdquo; &rarr; Past
+            </button>
           )}
 
           {/* ── The brief, and the record ─────────────────────── */}
-          <div className={next && completed.length > 0 ? "grid gap-3 lg:grid-cols-2" : "grid gap-3"}>
+          <div className="grid gap-3">
             {next && (
               <section>
                 <SectionTitle>
@@ -1066,77 +1191,9 @@ export default function CockpitInterviews() {
               </section>
             )}
 
-            {completed.length > 0 && (
-              <section>
-                <SectionTitle>Recently completed</SectionTitle>
-                <div className="flex flex-col gap-1.5">
-                  {completed.map((s) => {
-                    const stage = s.applicationId ? stageByApplication.get(s.applicationId) : undefined;
-                    const meta = [s.role, typeLabel(s.type), s.status === "no_show" ? "they did not show" : null]
-                      .filter(Boolean)
-                      .join(" · ");
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => openRecord(s)}
-                        className="ck-card flex w-full items-center gap-3.5 px-4 py-3 text-left"
-                        style={{ borderRadius: 10 }}
-                      >
-                        <span
-                          className="min-w-[70px] shrink-0 whitespace-nowrap text-[10px] font-bold uppercase leading-[1.2] tracking-[0.1em]"
-                          style={{ color: "var(--brass)" }}
-                        >
-                          {s.at ? format(s.at, "MMM d") : "Done"}
-                        </span>
-                        <CkAvatar who={s.name} size={32} />
-                        <span className="min-w-0 flex-1">
-                          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                            <span
-                              className="truncate text-[14px] font-semibold leading-[1.3]"
-                              style={{ color: "var(--ink)" }}
-                            >
-                              {s.name}
-                            </span>
-                            {s.status === "no_show" ? (
-                              <Chip tone="mut">No-show</Chip>
-                            ) : stage === "Hired" ? (
-                              <Chip tone="live">Hired</Chip>
-                            ) : stage === "Rejected" ? (
-                              <Chip tone="mut">Passed</Chip>
-                            ) : (
-                              <Chip tone="mut">Interviewed</Chip>
-                            )}
-                            {(() => {
-                              const chip = interviewScoreWords(scoreOf(s))?.chip;
-                              return chip ? <InterviewScoreChip words={chip} /> : null;
-                            })()}
-                          </span>
-                          <span
-                            className="mt-0.5 block truncate text-[12px] leading-[1.35]"
-                            style={{ color: "var(--ink-3)" }}
-                          >
-                            {meta}
-                          </span>
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-                <div
-                  className="mt-2 flex items-center gap-2.5 px-4 py-3 text-[12px]"
-                  style={{ border: "1px dashed var(--line)", borderRadius: 10, color: "var(--ink-3)" }}
-                >
-                  <span>
-                    <b style={{ color: "var(--ink-2)" }}>
-                      No-shows so far: {noShows}.
-                    </b>{" "}
-                    Everyone gets the date and time by email the moment it is booked.
-                  </span>
-                </div>
-              </section>
-            )}
           </div>
+          </>
+          )}
         </>
       )}
 
@@ -1222,6 +1279,17 @@ export default function CockpitInterviews() {
         busy={isCancelling}
         onConfirm={() => void confirmCancel()}
         onClose={() => !isCancelling && setCancelling(null)}
+      />
+
+      <ActionDialog
+        open={!!removing}
+        title={removing ? `Remove ${firstName(removing.name)}'s interview from your history?` : ""}
+        description="Their application, your notes and your rating stay. Nothing is sent to them."
+        confirmLabel="Remove"
+        tone="danger"
+        busy={isRemoving}
+        onConfirm={() => void confirmRemove()}
+        onClose={() => !isRemoving && setRemoving(null)}
       />
 
       <NoShowDialog

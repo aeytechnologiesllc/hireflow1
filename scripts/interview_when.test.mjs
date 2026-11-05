@@ -88,5 +88,21 @@ console.log("\nThe wiring");
   check("docs/INTERVIEWS.md explains it and names this test", doc.includes("## Today, and how soon") && doc.includes("scripts/interview_when.test.mjs"));
 }
 
+{
+  // Upcoming and Past (the owner, 2026-11-04: "as soon as like an hour past the interview, it should go there").
+  const list = (status, startAt, minutes, now = NOW) => W.interviewList({ status, at: startAt, minutes }, now);
+  check("an hour after it ends it is past: a 12:00 30-minute call is upcoming at 1:29, past at 1:30", list("scheduled", at(12, 0), 30, at(13, 29)) === "upcoming" && list("scheduled", at(12, 0), 30, at(13, 30)) === "past");
+  check("…its own length counts (a 60-minute call at 11:00 is past at 1:00)", list("scheduled", at(11, 0), 60, at(13, 0)) === "past" && list("scheduled", at(11, 0), 60, at(12, 59)) === "upcoming");
+  check("no length on it: 30 minutes", list("scheduled", at(12, 0), null, at(13, 30)) === "past");
+  check("marked done or a no-show: past at once", list("completed", at(13, 30), 30) === "past" && list("no_show", at(13, 30), 30) === "past");
+  check("no time yet: upcoming; cancelled: in neither list", list("scheduled", null, 30) === "upcoming" && list("cancelled", at(9, 0), 30) === "none");
+  const page = code(await read("src/cockpit/pages/Interviews.tsx"));
+  check("the page has Upcoming and Past tabs, kept in the address", /\["upcoming", "past"\] as const/.test(page) && /params\.get\("view"\) === "past"/.test(page) && /role="tablist"/.test(page));
+  check("Upcoming and Past are both read from interviewList, and an earlier day's unanswered row is past", /interviewList\(s, now\) === "upcoming"/.test(page) && /interviewList\(s, now\) === "past" \|\| \(s\.status === "scheduled" && !!s\.at && s\.at < today\)/.test(page));
+  check("a past row's ⋯ menu: shortlist on or off, the guide, remove from history", /label: shortlistActionLabel\(on\)/.test(page) && /setShortlisted\(\[\{ applicationId, name: s\.name \}\], !on\)/.test(page) && /label: "Remove from history"/.test(page) && /<ActionsMenu items=\{\(\) => pastMenu\(s\)\}/.test(page));
+  check("removing asks first, says what stays, and sends nothing", /Their application, your notes and your rating stay\. Nothing is sent to them\./.test(page) && /deleteInterview\.mutateAsync\(target\.id\)/.test(page));
+  check("one still to answer keeps How did it go? on Past, and Upcoming points to it", /Say how it went/.test(page) && /data-interview-past-open/.test(page));
+}
+
 console.log(`\n${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

@@ -91,3 +91,26 @@ export function interviewsLeftToday(rows: readonly InterviewRowLike[] | null | u
   }
   return n;
 }
+
+/**
+ * When an interview leaves the Upcoming list for Past (the owner, 2026-11-04:
+ * "as soon as like an hour past the interview, it should go there"): an hour
+ * after its end, or as soon as it is marked done or a no-show. One with no
+ * time yet stays upcoming; a cancelled one is in neither list.
+ */
+export const PAST_AFTER_MS = 60 * 60_000;
+
+export type InterviewList = "upcoming" | "past" | "none";
+
+export function interviewList(
+  row: { status: string; at: Date | number | null | undefined; minutes?: number | null },
+  now: number,
+): InterviewList {
+  if (row.status === "completed" || row.status === "no_show") return "past";
+  if (row.status !== "scheduled") return "none";
+  if (row.at == null) return "upcoming";
+  const start = typeof row.at === "number" ? row.at : row.at.getTime();
+  if (!Number.isFinite(start)) return "upcoming";
+  const end = start + Math.max(1, row.minutes ?? DEFAULT_INTERVIEW_MINUTES) * 60_000;
+  return now >= end + PAST_AFTER_MS ? "past" : "upcoming";
+}
