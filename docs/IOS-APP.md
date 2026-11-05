@@ -82,6 +82,17 @@ website.
 **Not yet checked:** sending through Apple from the server (needs the
 `APNS_*` secrets) and a real iPhone (needs a TestFlight build).
 
+## Build 1 (2026-11-04)
+
+Archived from commit `b6882df0` at `~/HireFlow-builds/HireFlow-b1.xcarchive`
+(log beside it), version 1.0, build 1. It was signed automatically by
+Xcode's account on this Mac ("Apple Development: Created via API",
+"iOS Team Provisioning Profile: com.aeytechnologies.hireflow"), so the app
+ID **is registered**, with push (`aps-environment` in the archive). It is
+**not uploaded**: App Store Connect has no HireFlow app page yet (step 2
+below). Never reuse a build number once one is uploaded. Archives stay
+outside the repo.
+
 ## The owner's steps to the App Store
 
 1. **An Apple push key** (developer.apple.com → Certificates, IDs & Profiles →
@@ -92,9 +103,8 @@ website.
 2. **The app's page in App Store Connect** (appstoreconnect.apple.com → Apps →
    + → New App): iOS, name **HireFlow**, language English (U.S.), bundle ID
    **com.aeytechnologies.hireflow**, SKU `hireflow-ios`.
-   - If the bundle ID is not in the list yet, Claude registers it first from
-     this Mac (Xcode's automatic signing with the App Store Connect key
-     FairFix uses).
+   - The bundle ID is already registered (build 1's signing did it), so it is
+     in the list.
 3. **Then Claude:** archives build 1 and uploads it to TestFlight (FairFix's
    route, `scripts/export-ios.py` in FairFix). The owner installs TestFlight
    on the iPhone and taps the HireFlow invite.
