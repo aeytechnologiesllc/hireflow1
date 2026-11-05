@@ -48,7 +48,6 @@ import {
 } from "lucide-react";
 import { useSwipeGesture } from "@/hooks/useSwipeGesture";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { hapticLight } from "@/lib/haptics";
 import type { Json } from "@/integrations/supabase/types";
 import type { EmailStatus } from "@/utils/emailNotifications";
 import { candidateOrigin } from "@/lib/hosts";
@@ -1326,7 +1325,6 @@ export default function InterviewSchedulingWizard({
                       <button
                         type="button"
                         onClick={() => setExactTimeMode((v) => !v)}
-                        onPointerDown={hapticLight}
                         className="text-xs font-medium transition-opacity duration-150 ease-out active:opacity-60 motion-reduce:transition-none"
                         style={{ color: "var(--action)" }}
                       >
@@ -1427,7 +1425,6 @@ export default function InterviewSchedulingWizard({
                                 <button
                                   type="button"
                                   onClick={() => setViewDayIndex(idx)}
-                                  onPointerDown={hapticLight}
                                   className="flex flex-col items-center gap-1 rounded-full px-0.5 pt-0.5 pb-1 transition-transform duration-150 ease-out active:scale-[0.94] motion-reduce:transition-none"
                                 >
                                   <span
@@ -1480,7 +1477,6 @@ export default function InterviewSchedulingWizard({
                                     <button
                                       type="button"
                                       onClick={goToSuggested}
-                                      onPointerDown={hapticLight}
                                       className="text-xs font-semibold transition-opacity duration-150 ease-out active:opacity-60 motion-reduce:transition-none"
                                       // The phone stylesheet's 44px button floor would open a gap in this line.
                                       style={{ color: "var(--action)", minHeight: 0, padding: 0 }}
@@ -1564,7 +1560,6 @@ export default function InterviewSchedulingWizard({
                                       key={slot.value}
                                       type="button"
                                       onClick={() => handleWheelRowTap(i, slot.value)}
-                                      onPointerDown={hapticLight}
                                       data-wheel-time={slot.value}
                                       data-suggested={isSuggested ? "true" : undefined}
                                       className={theirs ? "grid w-full grid-cols-2 items-center gap-4" : "flex w-full items-center justify-center"}
@@ -1628,7 +1623,6 @@ export default function InterviewSchedulingWizard({
                               const centerSlot = daySlots[wheelCenterIndex];
                               if (centerSlot) toggleWindow(viewDay, centerSlot.value);
                             }}
-                            onPointerDown={hapticLight}
                             className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-all duration-150 ease-out active:scale-[0.96] motion-reduce:transition-none disabled:opacity-40 disabled:pointer-events-none"
                             style={
                               daySlots[wheelCenterIndex] &&
@@ -1684,7 +1678,6 @@ export default function InterviewSchedulingWizard({
                                   <button
                                     type="button"
                                     onClick={() => toggleWindow(w.day, w.time)}
-                                    onPointerDown={hapticLight}
                                     aria-label={`Remove ${format(w.day, "EEE d")} ${formatTimeToAMPM(w.time)}`}
                                     className="rounded-full p-1 transition-transform duration-150 ease-out active:scale-90 motion-reduce:transition-none"
                                     style={{ color: "var(--ink-3)" }}

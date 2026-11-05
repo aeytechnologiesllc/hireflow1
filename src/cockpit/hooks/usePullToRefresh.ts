@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { hapticMedium } from "@/lib/haptics";
 
 /**
  * Pull down to refresh on a phone (the owner, 2026-11-04: "a mobile first AAA
@@ -76,6 +77,8 @@ export function usePullToRefresh(scroller: RefObject<HTMLElement>, enabled: bool
         return;
       }
       distance = 0;
+      // Felt as it lets go, as an iPhone's list does (src/lib/haptics.ts).
+      hapticMedium();
       busyRef.current = true;
       setBusy(true);
       setPull(HOLD_PX);

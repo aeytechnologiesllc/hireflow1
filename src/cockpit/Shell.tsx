@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { Link, useLocation, useNavigate, useNavigationType } from "react-router-dom";
 import { useTheme } from "next-themes";
 import { ChevronDown, Bell, Sun, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { useUnreadCount } from "@/hooks/useNotifications";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { useInterviewsLeftToday } from "./hooks/useInterviewsLeftToday";
 import { usePullToRefresh } from "./hooks/usePullToRefresh";
+import { markTabSwitch, usePageMotion, type PageMotion } from "./lib/pageMotion";
 import { Wordmark } from "./components/Wordmark";
 import { AccountMenu } from "./components/AccountMenu";
 import { PlanButton } from "@/components/billing/PlanButton";
@@ -35,6 +36,9 @@ const NAV: NavItem[] = [
   // /team, so a hiring team with more than one person can have it back.
   { label: "Analytics", to: "/analytics", icon: "analytics" },
 ];
+
+/** The pages a phone reaches from More (they sit a level under it). */
+const MORE_PAGES = ["/interviews", "/documents", "/team", "/analytics", "/settings"] as const;
 
 const MOBILE_TABS: NavItem[] = [
   { label: "Dashboard", to: "/dashboard", icon: "dashboard" },
@@ -314,13 +318,13 @@ function MobileTopBar({ scrolled }: { scrolled: boolean }) {
   );
 }
 
-function MobileTabBar() {
+function MobileTabBar({ onReselect }: { onReselect: () => void }) {
   const { data: unreadMessages = 0 } = useUnreadMessagesCount();
   // Interviews live under More on a phone, so today's count rides on More.
   const interviewsToday = useInterviewsLeftToday();
   const { pathname } = useLocation();
   const navigate = useNavigate();
-  const moreActive = ["/interviews", "/documents", "/team", "/analytics", "/more", "/settings"].some((p) => isActive(pathname, p));
+  const moreActive = ["/more", ...MORE_PAGES].some((p) => isActive(pathname, p));
   const activeIndex = MOBILE_TABS.findIndex((tab) => (tab.to === "/more" ? moreActive : isActive(pathname, tab.to)));
   return (
     <nav
@@ -340,7 +344,14 @@ function MobileTabBar() {
           <button
             key={tab.to}
             onPointerDown={playNavIcon}
-            onClick={() => navigate(tab.to)}
+            onClick={() => {
+              // The tab you are on, at its top level: back to the top of the
+              // page, as an iPhone does. Deeper in it: back to its first page.
+              if (active && pathname === tab.to) return onReselect();
+              if (!active) markTabSwitch();
+              navigate(tab.to);
+            }}
+            data-haptic="selection"
             aria-current={active ? "page" : undefined}
             className="hf-tab relative flex min-w-0 flex-1 flex-col items-center gap-1 py-1"
             data-active={active ? "" : undefined}
@@ -390,9 +401,41 @@ const PROFILE_ROUTE = /^\/(?:jobs\/[^/]+\/)?applicants\/[^/]+\/?$/;
  *  keeps the bottom padding that clears the tab bar. */
 const FILLS_FRAME_ROUTES = ["/jobs/create"];
 
+/** One page of the shell. It remembers how it came in (PageMotion), and
+ *  hands itself to the page motion as it leaves, while still on screen. */
+function PageLayer({
+  motion,
+  onLeave,
+  className,
+  style,
+  children,
+}: {
+  motion: PageMotion | null;
+  onLeave: (page: HTMLElement) => void;
+  className: string;
+  style: CSSProperties;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [cameIn] = useState(motion);
+  useLayoutEffect(() => {
+    const page = ref.current;
+    return () => {
+      if (page) onLeave(page);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <div ref={ref} className={className} style={style} data-page-motion={cameIn ?? undefined}>
+      {children}
+    </div>
+  );
+}
+
 export function CockpitShell({ children }: { children: ReactNode }) {
   const isMobile = useIsMobile();
-  const { pathname } = useLocation();
+  const { pathname, key: locationKey } = useLocation();
+  const navType = useNavigationType();
   const fillsFrame = FILLS_FRAME_ROUTES.includes(pathname);
   // Detail/sub-routes (e.g. /applicants/:id) and the messages thread render
   // their own mobile header, so we suppress the shared mobile app bar there.
@@ -404,8 +447,17 @@ export function CockpitShell({ children }: { children: ReactNode }) {
   // Pull down at the top to refresh (a phone; never in the job builder, which scrolls itself).
   const mainRef = useRef<HTMLElement | null>(null);
   const refresh = usePullToRefresh(mainRef, !fillsFrame);
+  // A page slides in and out like an iPhone's (src/cockpit/lib/pageMotion.ts).
+  const pageMotion = usePageMotion({ pathname, locationKey, navType, scroller: mainRef, moreChildren: MORE_PAGES });
+  const toTop = () => mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  // In the iPhone app, a tap on the clock goes to the top, as in every iPhone app.
+  useEffect(() => {
+    const onStatusTap = () => mainRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+    window.addEventListener("statusTap", onStatusTap);
+    return () => window.removeEventListener("statusTap", onStatusTap);
+  }, []);
   return (
-    <div className="flex h-[100dvh] w-full overflow-hidden" style={{ background: "hsl(var(--ck-bg))" }}>
+    <div className="flex h-[var(--hf-app-h,100dvh)] w-full overflow-hidden" style={{ background: "hsl(var(--ck-bg))" }} data-cockpit-shell>
       <Sidebar />
       <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
         {/* Three slow lights drifting behind everything, so the page is never
@@ -458,14 +510,16 @@ export function CockpitShell({ children }: { children: ReactNode }) {
                 </div>
               </div>
             )}
-            <div
+            <PageLayer
               key={pathname}
+              motion={pageMotion.motion}
+              onLeave={pageMotion.onLeave}
               style={refresh.pull > 0 ? { transform: `translateY(${refresh.pull}px)`, transition: refresh.busy ? "transform 260ms ease" : "none" } : { transition: "transform 300ms cubic-bezier(0.22, 1, 0.36, 1)" }}
               className={`ck-page mx-auto w-full ${fillsFrame ? "h-full min-h-0 max-w-[1240px]" : PROFILE_ROUTE.test(pathname) ? "max-w-[1680px]" : "max-w-[1240px]"}`}>
               {children}
-            </div>
+            </PageLayer>
           </main>
-          <MobileTabBar />
+          <MobileTabBar onReselect={toTop} />
         </div>
       </div>
     </div>

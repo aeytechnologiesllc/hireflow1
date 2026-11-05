@@ -150,6 +150,8 @@ export function ActionDialog({
             style={dangerStyle ? { color: "var(--hf-danger)", borderColor: "color-mix(in srgb, var(--hf-danger) 50%, transparent)" } : undefined}
             onClick={() => onConfirm(withReason ? reason : undefined)}
             disabled={confirmDisabled}
+            // A pass or a decline is felt as the warning on a phone (src/lib/tapFeel.ts).
+            data-haptic={dangerStyle ? "warning" : undefined}
           >
             {busy ? busyLabel ?? "Working…" : confirmLabel}
           </button>

@@ -1,5 +1,7 @@
 import { useTheme } from "next-themes";
+import { useEffect, useRef } from "react";
 import { Toaster as Sonner, useSonner } from "sonner";
+import { hapticError, hapticSuccess, hapticWarning } from "@/lib/haptics";
 import "@/styles/toasts.css";
 
 type ToasterProps = React.ComponentProps<typeof Sonner>;
@@ -22,9 +24,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
   return (
     <>
       <ToastTimes />
+      <ToastFeel />
       <Sonner
         theme={theme as ToasterProps["theme"]}
         position="top-center"
+        // On a phone it drops in from just under the clock (and the notch).
+        mobileOffset={{ top: "calc(env(safe-area-inset-top, 0px) + 10px)", left: "10px", right: "10px" }}
         className="toaster group hf-toaster"
         closeButton
         icons={{
@@ -78,6 +83,28 @@ function Mark({ tone }: { tone: "ok" | "crit" | "warn" | "info" | "busy" }) {
       {tone !== "busy" && <span className="hf-toast-time" />}
     </span>
   );
+}
+
+/** A notification is felt on a phone as it arrives (src/lib/haptics.ts):
+ *  done is the success tap, a problem the error, a warning the warning.
+ *  Once for each, also when a "Saving..." card turns into its result. */
+function ToastFeel() {
+  const { toasts } = useSonner();
+  const felt = useRef(new Map<string | number, string>());
+  useEffect(() => {
+    const seen = new Set<string | number>();
+    for (const t of toasts) {
+      seen.add(t.id);
+      const type = t.type ?? "default";
+      if (felt.current.get(t.id) === type) continue;
+      felt.current.set(t.id, type);
+      if (type === "success") hapticSuccess();
+      else if (type === "error") hapticError();
+      else if (type === "warning") hapticWarning();
+    }
+    for (const id of felt.current.keys()) if (!seen.has(id)) felt.current.delete(id);
+  }, [toasts]);
+  return null;
 }
 
 /** Each notification's line runs for that notification's own time: Sonner

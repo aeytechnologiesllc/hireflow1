@@ -18,6 +18,9 @@ import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { insideHireFlowApp, turnOnNativePush } from "@/lib/nativePush";
 import { installSheetDrag } from "@/lib/sheetDrag";
+import { installSheetExit } from "@/lib/sheetExit";
+import { installTapFeel } from "@/lib/tapFeel";
+import { installPhoneKeyboard } from "@/lib/phoneKeyboard";
 
 
 // The big screens every visitor used to download up front, whichever one
@@ -215,9 +218,16 @@ function AutoUpdate() {
 // signed in, iOS asks to allow notifications (its own box, once), this phone's
 // push address is saved for them, and a tapped notification opens its page.
 // In a browser it does nothing.
-// A phone's bottom sheets close with a pull down (src/lib/sheetDrag.ts).
+// The phone's feel, one listener each for the whole app: a bottom sheet
+// closes with a pull down (src/lib/sheetDrag.ts) and slides away when it
+// closes any other way (src/lib/sheetExit.ts); every tap is felt
+// (src/lib/tapFeel.ts); the keyboard never covers what is being typed
+// (src/lib/phoneKeyboard.ts). The app, Android and a phone's browser alike.
 function SheetDrag() {
   useEffect(() => installSheetDrag(), []);
+  useEffect(() => installSheetExit(), []);
+  useEffect(() => installTapFeel(), []);
+  useEffect(() => installPhoneKeyboard(), []);
   return null;
 }
 

@@ -82,6 +82,34 @@ website.
 **Not yet checked:** sending through Apple from the server (needs the
 `APNS_*` secrets) and a real iPhone (needs a TestFlight build).
 
+## How it feels (2026-11-04, the second pass)
+
+The same in the app, on Android and in a phone's browser (the owner: "not
+on just an app ... on Android too ... Safari, Chrome"), from the web code;
+the app only adds two native parts:
+
+- **@capacitor/haptics**: Apple's own taps (src/lib/haptics.ts). A tab or a
+  choice is the selection click, a button a light tap, a pull that
+  refreshes a medium one, saved/sent the success tap, a decline confirm the
+  warning, a failure the error. Android gets a short buzz; iPhone Safari
+  and Chrome get iOS's switch click (iOS 18+), on taps only.
+- **@capacitor/keyboard** (resize "native"): the web view shrinks above the
+  keyboard, so a message box sits on it as in iMessage. iPhone Safari is
+  handled from the visual viewport (src/lib/phoneKeyboard.ts), Android by
+  the viewport's `interactive-widget=resizes-content`.
+- A tap on the clock scrolls the page to the top (the status bar's
+  `statusTap`).
+
+Checked in the Simulator: a tab tap reaches `Haptics selectionStart /
+selectionChanged / selectionEnd`; the clock tap goes to the top; the notes
+box comes into view above the keyboard with the tab bar and the profile's
+button bar out of the way; the same chat in iPhone Safari keeps its header
+under the clock and its box on the keyboard. Page slides, sheets that
+slide away and the rest are in scripts/phone_feel.test.mjs.
+
+A change to these plugins needs a new native build (`npx cap sync ios`);
+build 1 below was re-archived with them.
+
 ## Build 1 (2026-11-04)
 
 Archived from commit `d48fd336` (re-made with the swipe-back; still not uploaded) at `~/HireFlow-builds/HireFlow-b1.xcarchive`

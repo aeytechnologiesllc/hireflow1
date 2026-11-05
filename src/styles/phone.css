@@ -189,3 +189,99 @@
 @keyframes hf-ptr-spin {
   to { transform: translateY(22px) rotate(360deg); }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   THE SECOND PASS (the owner, 2026-11-04: "more iPhone style ... nicer
+   animation, opening, closing, feedback, tactile press feedback", and the
+   same in a phone's browser and on Android, not only in the app).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Pages slide like an iPhone's (src/cockpit/lib/pageMotion.ts) ──
+   A page that slides in or out is moved by the page motion itself, and one
+   the phone's own back swipe brought back is already in place, so neither
+   plays the quiet page turn; a tab switch is a quick fade. */
+.ck-page[data-page-motion="push"],
+.ck-page[data-page-motion="pop"],
+.ck-page[data-page-motion="none"] {
+  animation: none;
+}
+.ck-page[data-page-motion="tab"] {
+  animation: hf-tab-in 200ms ease-out backwards;
+}
+@keyframes hf-tab-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* The picture of a page that leaves, and a sheet that slides away
+   (src/lib/sheetExit.ts): both are put back as they were, so everything in
+   them that came in with an animation counts as long since in. */
+.hf-page-ghost,
+.hf-page-ghost *,
+[data-hf-leaving] *,
+[data-hf-leaving] {
+  animation-delay: -60s !important;
+  transition: none !important;
+}
+
+/* ── While typing on a phone (src/lib/phoneKeyboard.ts) ──
+   The tab bar steps down out of the way, and what was kept clear for it is
+   given back (the open chat reads --hf-chrome-h). */
+.hf-tabbar {
+  transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1), opacity 180ms ease;
+}
+@media (max-width: 767px) {
+  html.hf-typing .hf-tabbar,
+  html.hf-typing [data-phone-bar] {
+    transform: translate3d(0, 110%, 0);
+    opacity: 0;
+    pointer-events: none;
+  }
+  html.hf-typing main.ck-scroll {
+    padding-bottom: 8px !important;
+  }
+  html.hf-typing {
+    --hf-chrome-h: 16px;
+  }
+  /* iPhone Safari slides the whole page up to show the box; the app follows
+     it, so it sits exactly in what is left above the keyboard. */
+  html.hf-typing [data-cockpit-shell] {
+    transform: translate3d(0, var(--hf-app-top, 0px), 0);
+  }
+}
+
+/* ── Presses on a touch screen ──
+   A button sinks under the finger and springs back when let go; a switch's
+   knob springs across. */
+@media (pointer: coarse) {
+  .ck-btn:not(:disabled) {
+    transition:
+      background-color 140ms cubic-bezier(0.2, 0.7, 0.3, 1),
+      border-color 140ms cubic-bezier(0.2, 0.7, 0.3, 1),
+      filter 140ms cubic-bezier(0.2, 0.7, 0.3, 1),
+      transform 340ms cubic-bezier(0.34, 1.56, 0.64, 1),
+      box-shadow 140ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  }
+  .ck-btn:not(:disabled):hover {
+    transform: none;
+  }
+  .ck-btn:not(:disabled):active {
+    transform: scale(0.95);
+    transition-duration: 80ms;
+  }
+  button[role="switch"] > span {
+    transition: transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+  }
+  /* An action sheet's row, and a row in a list, darken a touch under the finger. */
+  [data-action-sheet] [role="menuitem"]:active {
+    transform: scale(0.99);
+  }
+}
+
+/* The sheets rise on iOS's own curve (the one its sheets use). */
+@media (max-width: 639px) {
+  .hf-modal-pop[data-state="open"],
+  .ck-modal > [role="dialog"] {
+    animation-duration: 500ms;
+    animation-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}

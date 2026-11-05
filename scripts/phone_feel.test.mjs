@@ -13,6 +13,7 @@
  * - the tab highlight glides to the tapped tab;
  * - pulling the page down refreshes it;
  * - a swipe from the left edge goes back.
+ * And the second pass (below), the same day.
  *
  * Run with: node scripts/phone_feel.test.mjs
  */
@@ -70,6 +71,32 @@ check("touch: no grey tap flash, and cards press in", /-webkit-tap-highlight-col
 
 const vc = await read("ios/App/App/MainViewController.swift");
 check("the iPhone app: a swipe from the left edge goes back a page", /allowsBackForwardNavigationGestures = true/.test(vc) && /customClass="MainViewController"/.test(await read("ios/App/App/Base.lproj/Main.storyboard")) && /MainViewController\.swift in Sources/.test(await read("ios/App/App.xcodeproj/project.pbxproj")));
+
+
+// ── The second pass (the owner, 2026-11-04: "more iPhone style ... opening,
+// closing, feedback, tactile press feedback", and the same in a phone's
+// browser and on Android). Driven on a headless iPhone and Android phone the
+// same day: push, pop with the back arrow, the phone's own back, a tab
+// switch, the tab again to the top, a ⋯ sheet and a confirm sliding away,
+// the tab bar stepping aside while typing.
+const haptics = await read("src/lib/haptics.ts");
+check("a tap is felt: Apple's own taps in the app, a buzz on Android, iOS's switch click in an iPhone browser", /from "@capacitor\/haptics"/.test(haptics) && /navigator\.vibrate\(BUZZ\[kind\]\)/.test(haptics) && /input\.setAttribute\("switch", ""\)/.test(haptics));
+const tap = await read("src/lib/tapFeel.ts");
+check("…from one listener, on a real tap only (never a scroll, never a click the code makes)", /document\.addEventListener\("click", onClick, true\)/.test(tap) && /if \(!e\.isTrusted\) return;/.test(tap) && /useEffect\(\(\) => installTapFeel\(\), \[\]\);/.test(await read("src/App.tsx")));
+check("…and no button buzzes on the touch that starts a scroll", !/onPointerDown=\{hapticLight\}/.test(await read("src/components/InterviewSchedulingWizard.tsx")) && !/hapticLight/.test(await read("src/components/ui/button.tsx")));
+check("…a pass or decline confirm is the warning; a notification its own feel", /data-haptic=\{dangerStyle \? "warning" : undefined\}/.test(await read("src/cockpit/components/ActionDialog.tsx")) && /function ToastFeel\(\)/.test(await read("src/components/ui/sonner.tsx")));
+const motion = await read("src/cockpit/lib/pageMotion.ts");
+check("pages slide like an iPhone's: deeper slides in from the right, back slides away, a tab fades", /if \(b > a\) return "push";/.test(motion) && /if \(b < a\) return "pop";/.test(motion) && /markTabSwitch\(\)/.test(shell) && /\.ck-page\[data-page-motion="tab"\]/.test(css));
+check("…never twice after the phone's own back swipe (the iPhone draws that itself)", /if \(navType === "POP" && !context\.tapped\) return context\.iPhone \? "none" : "pop";/.test(motion));
+check("…the incoming page solid to the last frame, so the old one never shows through", /backgroundColor: ground, boxShadow: "0 0 0 rgba\(0, 0, 0, 0\)"/.test(motion));
+check("…back to a list opens it where it was left; anywhere new at its top", /el\.scrollTop = navType === "POP" \? positions\.current\.get\(locationKey\) \?\? 0 : 0;/.test(motion));
+check("the tab you are on, tapped again, goes to the top; in the app, so does a tap on the clock", /if \(active && pathname === tab\.to\) return onReselect\(\);/.test(shell) && /addEventListener\("statusTap"/.test(shell));
+const exit = await read("src/lib/sheetExit.ts");
+check("a sheet slides away when it closes, not only when pulled", /observer\.observe\(document\.body, \{ childList: true \}\)/.test(exit) && /\.ck-modal, \[data-action-sheet\]/.test(exit) && /node\.setAttribute\("inert", ""\)/.test(exit));
+const keyboard = await read("src/lib/phoneKeyboard.ts");
+check("the keyboard never covers the box: Android shrinks the page, the app its web view, an iPhone browser fits the screen left", /interactive-widget=resizes-content/.test(await read("index.html")) && /"Keyboard": \{\s*"resize": "native"/.test(await read("capacitor.config.json")) && /--hf-app-h/.test(keyboard) && /h-\[var\(--hf-app-h,100dvh\)\]/.test(shell));
+check("…and while typing the tab bar (and a page's own bottom bar) steps aside", /html\.hf-typing \.hf-tabbar,\s*html\.hf-typing \[data-phone-bar\] \{/.test(css));
+check("notifications drop in as iPhone banners under the clock", /mobileOffset=\{\{ top: "calc\(env\(safe-area-inset-top, 0px\) \+ 10px\)"/.test(await read("src/components/ui/sonner.tsx")) && /backdrop-filter: saturate\(1\.8\) blur\(22px\)/.test(await read("src/styles/toasts.css")));
 
 console.log(`\n${passed} passed, ${failed} failed.`);
 if (failed > 0) process.exit(1);

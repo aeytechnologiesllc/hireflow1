@@ -1020,8 +1020,10 @@ export default function CockpitMessages() {
         <section
           className={`ck-card ck-reveal min-h-[420px] min-w-0 flex-1 flex-col overflow-hidden min-[1120px]:min-h-0 ${phoneList ? "hidden" : "flex"}`}
           // On a phone the open chat fills the screen down to the tab bar,
-          // so the box to write in is always in reach.
-          style={{ ["--ck-i" as string]: 1, ...(phoneThread ? { flex: "0 0 auto", height: "calc(100dvh - 104px - env(safe-area-inset-top, 0px))", minHeight: 0 } : null) }}
+          // so the box to write in is always in reach; while typing, down to
+          // the keyboard (src/lib/phoneKeyboard.ts: the screen left above it,
+          // and no tab bar).
+          style={{ ["--ck-i" as string]: 1, ...(phoneThread ? { flex: "0 0 auto", height: "calc(var(--hf-app-h, 100dvh) - var(--hf-chrome-h, 104px) - env(safe-area-inset-top, 0px))", minHeight: 0 } : null) }}
           data-chat-view={phoneThread ? "phone" : undefined}
         >
           {partner ? (

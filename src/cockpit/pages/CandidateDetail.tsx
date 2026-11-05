@@ -911,6 +911,8 @@ function CandidateProfile({
   const barNode = (
     <div
       ref={setBarEl}
+      // While typing on a phone it steps aside with the tab bar (src/styles/phone.css).
+      data-phone-bar={isMobile ? "" : undefined}
       // Phone: full width, above the cockpit's tab bar (the team member's
       // shell has none). Wider: the 640px column of the cards it acts on.
       className={

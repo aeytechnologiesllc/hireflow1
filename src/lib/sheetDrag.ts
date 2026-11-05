@@ -14,6 +14,8 @@
  * Phones only (under 640px, touch). A desktop never sees any of it.
  */
 
+import { hapticLight } from "./haptics";
+
 const SHEET = '.hf-modal-pop[data-state="open"], .ck-modal > [role="dialog"]';
 /** How tall the strip a pull can start on is, from the sheet's top edge. */
 const HANDLE_PX = 64;
@@ -93,8 +95,10 @@ export function installSheetDrag(): () => void {
     pull = null;
     if (!done?.moving) return;
     const speed = done.dy / Math.max(1, performance.now() - done.startAt);
-    if (done.dy > CLOSE_PX || (done.dy > 36 && speed > FLICK_PX_PER_MS)) closeSheet(done.el);
-    else settle(done.el, "translate3d(0, 0, 0)");
+    if (done.dy > CLOSE_PX || (done.dy > 36 && speed > FLICK_PX_PER_MS)) {
+      hapticLight();
+      closeSheet(done.el);
+    } else settle(done.el, "translate3d(0, 0, 0)");
   };
 
   document.addEventListener("touchstart", onStart, { passive: true });
