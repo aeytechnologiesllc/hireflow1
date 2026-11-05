@@ -84,7 +84,7 @@ website.
 
 ## Build 1 (2026-11-04)
 
-Archived from commit `b6882df0` at `~/HireFlow-builds/HireFlow-b1.xcarchive`
+Archived from commit `d48fd336` (re-made with the swipe-back; still not uploaded) at `~/HireFlow-builds/HireFlow-b1.xcarchive`
 (log beside it), version 1.0, build 1. It was signed automatically by
 Xcode's account on this Mac ("Apple Development: Created via API",
 "iOS Team Provisioning Profile: com.aeytechnologies.hireflow"), so the app
