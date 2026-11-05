@@ -409,7 +409,12 @@ export function CockpitShell({ children }: { children: ReactNode }) {
         {/* Paper is a material — a whisper of grain so the ground reads as
             stock, not a hex fill. */}
         <div className="ck-grain" aria-hidden />
-        <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Below the iPhone clock. In the Home Screen app the page is drawn
+            under the status bar (index.html: viewport-fit=cover,
+            black-translucent), so the top bar and every page's own header sat
+            under the clock (the phone audit, 2026-11-04). The inset is 0 in a
+            browser tab and on a computer, so nothing moves there. */}
+        <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
           {!hasOwnMobileHeader && <MobileTopBar />}
           {/* The plan at the top right (the owner, 2026-11-02, "like Higgsfield on the top right"): the business
               owner only, while billing is on, never the exempt account (PlanButton draws nothing otherwise). */}

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Archive, ArchiveRestore, Flag, Paperclip, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, ChevronLeft, Flag, Paperclip, Trash2 } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useMessageableEmployers, type MessageableEmployer } from "@/hooks/useMessages";
 import { ReportJobDialog } from "@/components/trust/ReportJobDialog";
 import { ReportBusinessNote } from "@/components/trust/ReportBusinessNote";
@@ -143,6 +144,7 @@ function ThreadRow({
   sealed,
   chip,
   onPick,
+  full = false,
 }: {
   conv: ThreadItem;
   index: number;
@@ -151,6 +153,8 @@ function ThreadRow({
   /** Where the applicant stands, once decided (the hiring team's side only). */
   chip: ReturnType<typeof chatStatusChip>;
   onPick: () => void;
+  /** The phone's list of chats: a full-width row, not the strip's card. */
+  full?: boolean;
 }) {
   const unread = conv.unread ?? 0;
   return (
@@ -159,9 +163,9 @@ function ThreadRow({
       onClick={onPick}
       aria-current={active ? "true" : undefined}
       data-thread-row={conv.id}
-      className="flex w-[220px] shrink-0 items-start gap-[11px] rounded-[10px] border p-3 text-left transition-colors hover:border-[var(--line-soft)] hover:bg-[var(--surface)] min-[1120px]:w-full min-[1120px]:shrink"
+      className={`flex shrink-0 items-start gap-[11px] rounded-[10px] border p-3 text-left transition-colors hover:border-[var(--line-soft)] hover:bg-[var(--surface)] min-[1120px]:w-full min-[1120px]:shrink ${full ? "w-full" : "w-[220px]"}`}
       style={{
-        background: active ? "var(--surface)" : "transparent",
+        background: active || full ? "var(--surface)" : "transparent",
         borderColor: active ? "var(--hair)" : "transparent",
         boxShadow: active ? "var(--hf-shadow-soft)" : undefined,
       }}
@@ -333,6 +337,15 @@ export default function CockpitMessages() {
   });
 
   const [activeId, setActiveId] = useState<string | null>(null);
+  /* On a phone, Messages works like WhatsApp (the phone pass, 2026-11-04):
+     the list of chats first, a tap opens that chat on the whole screen, and
+     the back arrow returns to the list. Arriving with a person named
+     (?candidate=, ?employer=) opens their chat straight away. From md up the
+     list and the chat sit side by side as before. */
+  const isPhone = useIsMobile();
+  const [phoneChat, setPhoneChat] = useState<boolean>(() => !!linkParam);
+  const phoneList = isPhone && !phoneChat;
+  const phoneThread = isPhone && phoneChat;
   const [filter, setFilter] = useState<ChatFilter>("all");
   const [confirmDelete, setConfirmDelete] = useState(false);
   // An applicant's Report on the chat with a business (the nineteenth Phase 5
@@ -389,6 +402,7 @@ export default function CockpitMessages() {
       if (appliedLink.current !== key) {
         appliedLink.current = key;
         setActiveId(linkedContactId);
+        setPhoneChat(true);
       }
       return;
     }
@@ -926,11 +940,11 @@ export default function CockpitMessages() {
 
   return (
     <div className="space-y-4 md:space-y-5">
-      {header}
+      {!phoneThread && header}
 
       <div className="flex flex-col gap-3.5 min-[1120px]:h-[calc(100dvh-180px)] min-[1120px]:min-h-[440px] min-[1120px]:flex-row min-[1120px]:items-stretch">
         {/* ── The threads, triaged ──────────────────────────── */}
-        <div className="ck-reveal flex min-w-0 flex-col min-[1120px]:w-[320px] min-[1120px]:min-h-0 min-[1120px]:shrink-0" style={{ ["--ck-i" as string]: 0 }}>
+        <div className={`ck-reveal min-w-0 flex-col min-[1120px]:w-[320px] min-[1120px]:min-h-0 min-[1120px]:shrink-0 ${phoneThread ? "hidden" : "flex"}`} style={{ ["--ck-i" as string]: 0 }}>
           <div className="mb-2.5 flex flex-wrap gap-1.5">
             <FilterPill label="All" tone="neutral" pressed={filter === "all"} onClick={() => setFilter("all")} />
             <FilterPill
@@ -960,7 +974,7 @@ export default function CockpitMessages() {
 
           {/* Narrow: a horizontal selector strip, so the conversation stays on
               screen. Wide: the full column. Neither scrolls the page sideways. */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1 min-[1120px]:min-h-0 min-[1120px]:flex-1 min-[1120px]:flex-col min-[1120px]:overflow-x-hidden min-[1120px]:overflow-y-auto min-[1120px]:pb-0">
+          <div className={phoneList ? "flex flex-col gap-2" : "flex gap-1.5 overflow-x-auto pb-1 min-[1120px]:min-h-0 min-[1120px]:flex-1 min-[1120px]:flex-col min-[1120px]:overflow-x-hidden min-[1120px]:overflow-y-auto min-[1120px]:pb-0"} data-thread-list={phoneList ? "phone" : "strip"}>
             {rows.length === 0 ? (
               <p className="px-1 py-3 text-[12px] leading-[1.5]" style={{ color: "var(--ink-3)" }} data-thread-list-empty>
                 {emptyListWords(filter, archivedCount)}
@@ -976,7 +990,11 @@ export default function CockpitMessages() {
                     active={c.id === contactId}
                     sealed={!!cand?.analyzed}
                     chip={isCandidate ? null : chatStatusChip(c.status)}
-                    onPick={() => setActiveId(c.id)}
+                    onPick={() => {
+                      setActiveId(c.id);
+                      if (isPhone) setPhoneChat(true);
+                    }}
+                    full={phoneList}
                   />
                 );
               })
@@ -1000,8 +1018,11 @@ export default function CockpitMessages() {
 
         {/* ── The conversation ──────────────────────────────── */}
         <section
-          className="ck-card ck-reveal flex min-h-[420px] min-w-0 flex-1 flex-col overflow-hidden min-[1120px]:min-h-0"
-          style={{ ["--ck-i" as string]: 1 }}
+          className={`ck-card ck-reveal min-h-[420px] min-w-0 flex-1 flex-col overflow-hidden min-[1120px]:min-h-0 ${phoneList ? "hidden" : "flex"}`}
+          // On a phone the open chat fills the screen down to the tab bar,
+          // so the box to write in is always in reach.
+          style={{ ["--ck-i" as string]: 1, ...(phoneThread ? { flex: "0 0 auto", height: "calc(100dvh - 104px - env(safe-area-inset-top, 0px))", minHeight: 0 } : null) }}
+          data-chat-view={phoneThread ? "phone" : undefined}
         >
           {partner ? (
             <>
@@ -1010,6 +1031,18 @@ export default function CockpitMessages() {
                 style={{ borderBottom: "1px solid var(--line-soft)" }}
                 data-chat-header
               >
+                {phoneThread && (
+                  <button
+                    type="button"
+                    onClick={() => setPhoneChat(false)}
+                    aria-label="All messages"
+                    className="-ml-2 grid h-10 w-10 shrink-0 place-items-center rounded-full"
+                    style={{ color: "var(--ink)" }}
+                    data-chat-back
+                  >
+                    <ChevronLeft className="h-6 w-6" aria-hidden />
+                  </button>
+                )}
                 <span className="relative shrink-0">
                   <CkAvatar who={partner.name} size={34} />
                   {sealedScore != null && (
@@ -1186,7 +1219,9 @@ export default function CockpitMessages() {
                     autoCapitalize="sentences"
                     onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
+                      // A phone's Return is a new line; its Send button sends
+                      // (the phone audit, 2026-11-04). A keyboard's Enter sends.
+                      if (e.key === "Enter" && !e.shiftKey && !isPhone) {
                         e.preventDefault();
                         void handleSend();
                       }

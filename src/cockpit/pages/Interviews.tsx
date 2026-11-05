@@ -530,6 +530,28 @@ export default function CockpitInterviews() {
   };
   const outcomeWhen = (s: Session) => (s.at ? `${isSameDay(s.at, new Date()) ? "today" : format(s.at, "EEEE")} at ${format(s.at, "h:mm aaa")}` : null);
 
+  /** An upcoming card's one move on a phone: answering a new time, joining, or saying how it went. */
+  const hasMove = (s: Session, tone: string | undefined) =>
+    s.response === "reschedule_requested" ||
+    (s.response === "confirmed" && (s.meetingProvider === "daily" || !!externalHref(s.meetingLink))) ||
+    tone === "over";
+
+  /** The ⋯ menu on an upcoming card, on a phone: what the wider card shows as buttons. */
+  const upcomingMenu = (s: Session) => {
+    const items = [];
+    if (hasMove(s, interviewWhen(s.at, now, s.minutes)?.tone)) {
+      items.push({ key: "details", label: "Details", icon: <FileText className="h-4 w-4" aria-hidden />, onSelect: () => openRecord(s) });
+    }
+    if (s.applicationId) {
+      items.push({ key: "guide", label: "Interview guide", icon: <HelpCircle className="h-4 w-4" aria-hidden />, onSelect: () => setGuideFor(s) });
+    }
+    if (s.response === "confirmed") {
+      items.push({ key: "calendar", label: "Add to calendar", icon: <CalendarPlus className="h-4 w-4" aria-hidden />, onSelect: () => addToCalendar(s) });
+    }
+    items.push({ key: "cancel", label: "Cancel interview", icon: <Trash2 className="h-4 w-4" aria-hidden />, danger: true, onSelect: () => setCancelling(s) });
+    return items;
+  };
+
   const confirmRemove = async () => {
     const target = removing;
     if (!target) return;
@@ -1033,13 +1055,21 @@ export default function CockpitInterviews() {
                     </button>
 
                     <div className="flex w-full shrink-0 flex-wrap items-center justify-end gap-2 sm:w-auto">
-                      <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => openRecord(s)}>
-                        Details
-                      </button>
-                      {s.applicationId && (
-                        <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => setGuideFor(s)} data-interview-guide-open>
-                          Interview guide
+                      {/* On a phone the card keeps its one move (Join, Review
+                          times, How did it go?) and the rest sit under ⋯ (the
+                          phone pass, 2026-11-04: six buttons wrapped into three
+                          ragged rows). Details stays out when there is no move. */}
+                      <span className={hasMove(s, when?.tone) ? "hidden sm:contents" : "contents"}>
+                        <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => openRecord(s)}>
+                          Details
                         </button>
+                      </span>
+                      {s.applicationId && (
+                        <span className="hidden sm:contents">
+                          <button className="ck-btn ck-btn-outline !py-2 !text-[12px]" onClick={() => setGuideFor(s)} data-interview-guide-open>
+                            Interview guide
+                          </button>
+                        </span>
                       )}
                       {confirm && (
                         <button className="ck-btn ck-btn-primary !py-2 !text-[12px]" onClick={() => setReviewing(s)} data-interview-answer>
@@ -1047,14 +1077,16 @@ export default function CockpitInterviews() {
                         </button>
                       )}
                       {s.response === "confirmed" && (
-                        <button
-                          className="ck-btn ck-btn-outline !py-2 !text-[12px]"
-                          onClick={() => addToCalendar(s)}
-                          title="Download a calendar invite (.ics) — works with Google, Apple and Outlook"
-                        >
-                          <CalendarPlus className="mr-1 inline h-3.5 w-3.5" aria-hidden />
-                          Add to calendar
-                        </button>
+                        <span className="hidden sm:contents">
+                          <button
+                            className="ck-btn ck-btn-outline !py-2 !text-[12px]"
+                            onClick={() => addToCalendar(s)}
+                            title="Download a calendar invite (.ics) — works with Google, Apple and Outlook"
+                          >
+                            <CalendarPlus className="mr-1 inline h-3.5 w-3.5" aria-hidden />
+                            Add to calendar
+                          </button>
+                        </span>
                       )}
                       {s.response === "confirmed" && s.meetingProvider === "daily" && (
                         <button
@@ -1087,13 +1119,18 @@ export default function CockpitInterviews() {
                         </button>
                       )}
                       {/* Quiet on purpose — this is the one irreversible move on the page. */}
-                      <button
-                        className="ck-btn ck-btn-ghost !py-2 !text-[12px]"
-                        style={{ color: "var(--ink-3)" }}
-                        onClick={() => setCancelling(s)}
-                      >
-                        Cancel
-                      </button>
+                      <span className="hidden sm:contents">
+                        <button
+                          className="ck-btn ck-btn-ghost !py-2 !text-[12px]"
+                          style={{ color: "var(--ink-3)" }}
+                          onClick={() => setCancelling(s)}
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                      <span className="contents sm:hidden">
+                        <ActionsMenu items={() => upcomingMenu(s)} label={`More for ${s.name}'s interview`} size={40} />
+                      </span>
                     </div>
                   </div>
                 );

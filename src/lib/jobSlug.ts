@@ -97,6 +97,8 @@ export const SITE_PATHS: readonly string[] = [
   "media",
   "screenshots",
   "share",
+  // The interview call's backgrounds (public/call-backgrounds, 2026-11-04).
+  "call-backgrounds",
   // The blog (scripts/build-blog.mjs, docs/BLOG.md): /blog, /blog/<post>, its sitemap.
   "blog",
   "blog-sitemap.xml",

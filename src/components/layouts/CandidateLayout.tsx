@@ -99,6 +99,8 @@ export default function CandidateLayout({
         <div
           ref={mainContentRef}
           className="flex-1 flex flex-col min-w-0 w-full max-w-full relative z-10"
+          // Below the iPhone clock in the Home Screen app (0 everywhere else).
+          style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
         >
           <AppHeader onMenuClick={handleToggleSidebar} isMobile={isMobile} />
           <main className="flex-1 p-4 md:p-8 overflow-auto overflow-x-hidden w-full max-w-full">

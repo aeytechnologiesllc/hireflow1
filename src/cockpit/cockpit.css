@@ -1665,3 +1665,32 @@ button.ckp-tile:focus-visible { outline: 2px solid var(--action); outline-offset
 @media (prefers-reduced-motion: reduce) {
   .ck-navicon[data-play] * { animation: none !important; }
 }
+
+/* ── Thumb-sized on a touch screen ─────────────────────────────
+   The owner, 2026-11-04: "focus on the mobile layout, the mobile user
+   experience". Measured at 390px, most cockpit buttons were 29-31px tall
+   (the compact !py-2 rows), under Apple's 44px floor. A finger gets at
+   least 40px, which every row here can carry with its gap; a mouse keeps
+   the compact size. The type stays 12px: only the target grows. */
+@media (pointer: coarse) {
+  .ck-btn {
+    min-height: 40px;
+  }
+}
+
+/* The journey on a phone's profile (CandidateDetail PhoneJourneyRail): each
+   step a readable column, the rail scrolled sideways, no scrollbar drawn.
+   From md up it is the rail as it was. */
+@media (max-width: 767px) {
+  .ckp-rail-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    margin: 0 -16px;
+    padding: 0 16px;
+  }
+  .ckp-rail-scroll::-webkit-scrollbar { display: none; }
+  .ckp-rail-scroll > .ckp-rail-inner { min-width: calc(var(--rail-steps, 6) * 74px); }
+  .ckp-rail-scroll .ck-rail-node { width: 70px; }
+}
+

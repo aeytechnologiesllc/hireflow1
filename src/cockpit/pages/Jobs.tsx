@@ -652,12 +652,18 @@ export default function CockpitJobs() {
       ) : (
         <>
           {/* ── What the roles are doing ─────────────────────── */}
+          {/* On a phone the figures are one row you can swipe, so your jobs
+              start on the first screen (the phone pass, 2026-11-04: three
+              stacked cards pushed them below it). */}
           {tiles.length > 0 && (
             <div
-              className={`grid gap-2.5 ${tiles.length >= 3 ? "sm:grid-cols-2 lg:grid-cols-3" : tiles.length === 2 ? "sm:grid-cols-2" : "sm:max-w-[300px]"}`}
+              className={`-mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:overflow-visible sm:px-0 sm:pb-0 ${tiles.length >= 3 ? "sm:grid-cols-2 lg:grid-cols-3" : tiles.length === 2 ? "sm:grid-cols-2" : "sm:max-w-[300px]"}`}
+              data-job-tiles
             >
               {tiles.map((t, i) => (
-                <Tile key={t.label} label={t.label} value={t.value} sub={t.sub} tone={t.tone} index={i} />
+                <div key={t.label} className={`shrink-0 sm:w-auto sm:max-w-none ${tiles.length === 1 ? "w-full" : "w-[76%] max-w-[300px]"}`}>
+                  <Tile label={t.label} value={t.value} sub={t.sub} tone={t.tone} index={i} />
+                </div>
               ))}
             </div>
           )}

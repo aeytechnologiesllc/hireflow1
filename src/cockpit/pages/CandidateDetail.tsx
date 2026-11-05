@@ -77,6 +77,7 @@ import {
   headerLine,
   inTheirWords,
   journeyDots,
+  journeyLine,
   pagerFor,
   readApplicantOrder,
   readApplicantTab,
@@ -172,6 +173,28 @@ function useClientWidth(el: HTMLElement | null): number | null {
     };
   }, [el]);
   return width;
+}
+
+/**
+ * The journey on a phone (the phone pass, 2026-11-04): eight steps in 343px
+ * gave each about 42px, and their names broke into syllables ("Appli-cation",
+ * "comput-er and connec-tion"). Each step keeps a readable column and the
+ * rail scrolls sideways, opening on the step they are at; from md up it is
+ * the rail as it was.
+ */
+function PhoneJourneyRail({ steps, children }: { steps: number; children: ReactNode }) {
+  const box = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    const current = el.querySelector<HTMLElement>(".ck-rail-node.is-current") ?? el.querySelector<HTMLElement>(".ck-rail-node:last-child");
+    if (current) el.scrollLeft = Math.max(0, current.offsetLeft + current.offsetWidth / 2 - el.clientWidth / 2);
+  }, [steps]);
+  return (
+    <div ref={box} className="ckp-rail-scroll" style={{ ["--rail-steps" as string]: steps }} data-phone-rail>
+      <div className="ckp-rail-inner">{children}</div>
+    </div>
+  );
 }
 
 export default function CockpitCandidateDetail() {
@@ -1357,9 +1380,6 @@ function CandidateProfile({
             <InterviewStatus status={interviewLine} />
           </div>
         )}
-        <div className="ck-card p-4">
-          <ApplicantNotesPanel applicationId={c.id} firstName={first} />
-        </div>
         {/* What has been asked of them and what came back, on a phone too: the
             "Document received" notification opens this page, which showed
             nothing to review here (the sixteenth product review). Above the
@@ -1448,16 +1468,34 @@ function CandidateProfile({
             >
               Where they are
             </span>
-            <ApplicantJourneyRail
-              dots={dots}
-              status={status}
-              name={c.name}
-              liveStepId={record?.live?.stepId ?? null}
-              line={{ live: record?.live ?? null, sessions, recommendedAction: c.recommendedAction, now }}
-              entrance={railEntrance}
-            />
+            <PhoneJourneyRail steps={dots.length}>
+              <ApplicantJourneyRail
+                dots={dots}
+                status={status}
+                name={c.name}
+                liveStepId={record?.live?.stepId ?? null}
+                line={{ live: record?.live ?? null, sessions, recommendedAction: c.recommendedAction, now }}
+                entrance={railEntrance}
+                showSummary={false}
+              />
+            </PhoneJourneyRail>
+            {(() => {
+              const said = journeyLine(dots, status, { live: record?.live ?? null, sessions, recommendedAction: c.recommendedAction, now });
+              return said ? (
+                <p className="pb-3 text-[12.5px] leading-[1.45]" style={{ color: "var(--ink-2)" }}>
+                  {said}
+                </p>
+              ) : null;
+            })()}
           </section>
         )}
+
+        {/* The team's own notes, under who they are and where they stand (the
+            phone pass, 2026-11-04): above the name, they were the first thing
+            on every phone profile and pushed the person off the screen. */}
+        <div className="ck-card p-4">
+          <ApplicantNotesPanel applicationId={c.id} firstName={first} />
+        </div>
 
         <div>
           <AvasRead candidate={c} app={application as AvasReadApp | null} record={record} showScore={false} />

@@ -1575,9 +1575,14 @@ export default function ApplicationFormPhase() {
                         syncQuestionError(question, value);
                       }}
                       captionLayout="dropdown"
+                      // Built for a birth date, it refused every day after
+                      // today, so "When can you start?" could not be answered
+                      // (the phone audit, 2026-11-04). A birth date is never
+                      // asked (src/lib/ageCheck.ts); a job's own date question
+                      // is a start date or a past one, so both are open.
                       fromYear={1920}
-                      toYear={new Date().getFullYear()}
-                      disabled={(date) => date > new Date() || date < new Date("1900-01-01")}
+                      toYear={new Date().getFullYear() + 5}
+                      disabled={(date) => date < new Date("1900-01-01")}
                       initialFocus
                       className="pointer-events-auto"
                     />
