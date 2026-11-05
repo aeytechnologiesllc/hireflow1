@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 
@@ -72,8 +73,8 @@ export function ActionDialog({
   const confirmDisabled = busy || (withReason && reasonRequired && reason.trim().length === 0);
   const dangerStyle = tone === "danger";
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="ck-modal fixed inset-0 z-[60] flex items-center justify-center p-4">
       {/* scrim */}
       <div
         className="absolute inset-0"
@@ -154,7 +155,8 @@ export function ActionDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

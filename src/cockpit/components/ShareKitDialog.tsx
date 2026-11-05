@@ -224,7 +224,7 @@ export function ShareKitDialog({ open, job, applyUrl: callerUrl, onClose }: Shar
     // on a laptop (owner, 2026-10-06: "it needs to open up center"). React
     // events still bubble through the portal to the tile, so clicks are
     // swallowed here and the tile's whole-card navigation never fires.
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
+    <div className="ck-modal fixed inset-0 z-[60] flex items-center justify-center p-4" onClick={(e) => e.stopPropagation()}>
       {/* scrim: a blur over a light dark tint, never a pale wash (same as the
           record panel; --slab stays dark in both themes) */}
       <div

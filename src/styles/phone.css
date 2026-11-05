@@ -1,0 +1,191 @@
+/* ══════════════════════════════════════════════════════════════════════════
+   THE PHONE: a mobile-first app, not a website made small.
+
+   The owner, 2026-11-04: "fix the mobile UX and polish it absolutely to the
+   best with the sticky user experience, nice animation, drawer style things,
+   dialogues ... so it feels like the mobile first AAA app."
+
+   Below 640px:
+   - every pop-up is a bottom sheet: it rises from the bottom edge with a
+     grab handle, sits above the home indicator, and a pull down on its
+     handle closes it (src/lib/sheetDrag.ts). The standard dialogs
+     (.hf-modal-pop, src/components/ui/{dialog,alert-dialog}.tsx) and every
+     cockpit pop-up (.ck-modal, whose card is its [role="dialog"]) alike.
+   - a ⋯ menu is an iOS action sheet (ApplicantRowMenu.tsx ActionsMenu).
+   - a tap presses what it touches, and no grey tap flash is drawn.
+   Everything moves on transform and opacity only, and stops under reduced
+   motion (handled globally in index.css).
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@keyframes hf-sheet-up {
+  from { transform: translate3d(0, 100%, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+@keyframes hf-sheet-down {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, 100%, 0); }
+}
+@keyframes hf-scrim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 639px) {
+  /* ── The standard dialogs ── */
+  .hf-modal-pop[data-state] {
+    left: 0;
+    right: 0;
+    top: auto;
+    bottom: 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 14px);
+    border-radius: 24px 24px 0 0;
+    padding-top: 26px;
+    padding-bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    overscroll-behavior: contain;
+  }
+  .hf-modal-pop[data-state="open"] {
+    animation: hf-sheet-up 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .hf-modal-pop[data-state="closed"] {
+    animation: hf-sheet-down 240ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+
+  /* ── Every cockpit pop-up ── */
+  .ck-modal {
+    align-items: flex-end !important;
+    padding: 0 !important;
+  }
+  .ck-modal > [role="dialog"] {
+    width: 100%;
+    max-width: none !important;
+    max-height: calc(100dvh - env(safe-area-inset-top, 0px) - 14px) !important;
+    border-radius: 24px 24px 0 0 !important;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    overscroll-behavior: contain;
+    animation: hf-sheet-up 440ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .ck-modal > :first-child:not([role="dialog"]) {
+    animation: hf-scrim-in 260ms ease both;
+  }
+
+  /* The grab handle: drawn on the sheet itself, so every sheet has one. */
+  .hf-modal-pop[data-state]::before,
+  .ck-modal > [role="dialog"]::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    z-index: 3;
+    width: 40px;
+    height: 5px;
+    margin-left: -20px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--ink) 20%, transparent);
+    pointer-events: none;
+  }
+  /* While a finger pulls it down (sheetDrag.ts): it follows, no animation. */
+  .hf-sheet-dragging {
+    animation: none !important;
+    transition: none !important;
+  }
+  .hf-sheet-settling {
+    animation: none !important;
+    transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+  }
+}
+
+/* ── A ⋯ menu as an action sheet (ApplicantRowMenu.tsx ActionsMenu) ── */
+.hf-action-sheet {
+  animation: hf-sheet-up 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.hf-action-scrim {
+  animation: hf-scrim-in 220ms ease both;
+}
+
+/* ── Touch ─────────────────────────────────────────────────────────────── */
+@media (pointer: coarse) {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Cards and rows that open something press in under the finger. */
+  .ck-card:is(button, a):active,
+  button.ck-card:active,
+  [data-thread-row]:active,
+  [data-interview-past-row]:active,
+  .ck-press:active {
+    transform: scale(0.985);
+    transition: transform 90ms ease-out;
+  }
+}
+
+/* ── The phone's title bar and tab bar (src/cockpit/Shell.tsx) ─────────── */
+.hf-topbar {
+  background: transparent;
+  transition: background 220ms ease, box-shadow 220ms ease, backdrop-filter 220ms ease;
+}
+.hf-topbar-title {
+  transform-origin: left center;
+  transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Scrolled: frosted glass over the page, a hairline under it, a smaller title. */
+.hf-topbar[data-scrolled] {
+  background: color-mix(in srgb, hsl(var(--ck-bg)) 78%, transparent);
+  -webkit-backdrop-filter: saturate(1.6) blur(18px);
+  backdrop-filter: saturate(1.6) blur(18px);
+  box-shadow: 0 1px 0 var(--line-soft);
+}
+.hf-topbar[data-scrolled] .hf-topbar-title {
+  transform: scale(0.78);
+}
+
+/* The tab bar is frosted glass, and its one highlight glides between tabs. */
+.hf-tabbar {
+  background: color-mix(in srgb, var(--hf-bg) 80%, transparent);
+  -webkit-backdrop-filter: saturate(1.6) blur(20px);
+  backdrop-filter: saturate(1.6) blur(20px);
+  box-shadow: 0 -1px 0 var(--line-soft);
+}
+.hf-tabbar-glide {
+  position: absolute;
+  top: 0;
+  /* the nav's 8px side padding, then the middle of the active tab's column */
+  left: calc(8px + (100% - 16px) / var(--tab-count) * (var(--tab-i) + 0.5) - 16px);
+  width: 32px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: var(--action);
+  transition: left 380ms cubic-bezier(0.34, 1.4, 0.5, 1);
+}
+.hf-tab .hf-tab-icon {
+  transition: transform 240ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.hf-tab[data-active] .hf-tab-icon {
+  transform: translateY(-1px) scale(1.06);
+}
+.hf-tab:active .hf-tab-icon {
+  transform: scale(0.88);
+  transition-duration: 90ms;
+}
+
+/* ── Pull to refresh (src/cockpit/hooks/usePullToRefresh.ts) ── */
+.hf-ptr {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 2.5px solid color-mix(in srgb, var(--action) 22%, transparent);
+  border-top-color: var(--action);
+  background: var(--hf-surface-raised);
+  box-shadow: var(--shadow-md);
+}
+.hf-ptr[data-ready] {
+  border-color: color-mix(in srgb, var(--action) 35%, transparent);
+  border-top-color: var(--action);
+}
+.hf-ptr[data-busy] {
+  animation: hf-ptr-spin 700ms linear 8;
+}
+@keyframes hf-ptr-spin {
+  to { transform: translateY(22px) rotate(360deg); }
+}

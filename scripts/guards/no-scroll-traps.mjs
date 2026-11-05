@@ -42,6 +42,10 @@ const ALLOWED = {
     count: 2,
     why: "html/body on phones (the root: stops the browser's bounce, traps nothing) and the unused .scroll-contain helper",
   },
+  "src/styles/phone.css": {
+    count: 2,
+    why: "a phone's bottom sheets (a standard dialog, and a cockpit pop-up's card): overlays, the page behind them must not move",
+  },
   "src/cockpit/components/ApplicantFilters.tsx": {
     count: 2,
     why: "the filter menu and the filter sheet: overlays, the page behind them must not move",

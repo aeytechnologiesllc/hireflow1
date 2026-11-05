@@ -8,6 +8,7 @@ import "./index.css";
 import "./cockpit/cockpit.css";
 import "./styles/candidate-theme.css";
 import "./styles/motion.css";
+import "./styles/phone.css";
 
 // Crash alerts: window 'error' / 'unhandledrejection' (ErrorBoundary.tsx
 // wires the React render-time case separately). See src/lib/crashReporter.ts.

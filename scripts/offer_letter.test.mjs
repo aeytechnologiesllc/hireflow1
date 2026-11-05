@@ -285,7 +285,7 @@ eq("…and none for a year or a day, which the box cannot say", `${lib.payPerFro
     };
     const tracks = (value) => (value == null ? null : /^\d+$/.test(value) ? Array(Number(value)).fill(1) : [...value.matchAll(/minmax\(0,([\d.]+)fr\)/g)].map((m) => Number(m[1])));
     // The dialog's measures (kept in step with the source: the check below fails if they change).
-    const measures = /className="fixed inset-0 z-\[60\] flex items-center justify-center p-3 md:p-4"/.test(dialog) && /max-w-\[1040px\]/.test(dialog) && /gap-x-6 gap-y-5 overflow-y-auto px-5 pb-5 pt-4 md:grid-cols-\[minmax\(0,5fr\)_minmax\(0,6fr\)\]" data-offer-body/.test(dialog);
+    const measures = /className="(?:ck-modal )?fixed inset-0 z-\[60\] flex items-center justify-center p-3 md:p-4"/.test(dialog) && /max-w-\[1040px\]/.test(dialog) && /gap-x-6 gap-y-5 overflow-y-auto px-5 pb-5 pt-4 md:grid-cols-\[minmax\(0,5fr\)_minmax\(0,6fr\)\]" data-offer-body/.test(dialog);
     check("the dialog's measures are the ones this check works from", measures);
     const SCROLLBAR = 17; // a classic scrollbar (Windows) inside the scrolling body
     const fieldWidth = (w) => {

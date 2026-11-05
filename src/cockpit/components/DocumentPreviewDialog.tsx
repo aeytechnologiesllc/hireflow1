@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useState, type ReactNode } from "react";
 import { Download, ExternalLink, FileText, Minus, Plus, RotateCcw, X } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
@@ -166,8 +167,8 @@ export function DocumentPreviewDialog({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 md:p-6">
+  return createPortal(
+    <div className="ck-modal fixed inset-0 z-[70] flex items-center justify-center p-3 md:p-6">
       {/* scrim */}
       <div
         className="absolute inset-0"
@@ -349,7 +350,8 @@ export function DocumentPreviewDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

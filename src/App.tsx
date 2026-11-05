@@ -17,6 +17,7 @@ import { afterFirstScreen, applicantDetailsImporter, jobDetailImporter, opensSig
 import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
 import { insideHireFlowApp, turnOnNativePush } from "@/lib/nativePush";
+import { installSheetDrag } from "@/lib/sheetDrag";
 
 
 // The big screens every visitor used to download up front, whichever one
@@ -214,6 +215,12 @@ function AutoUpdate() {
 // signed in, iOS asks to allow notifications (its own box, once), this phone's
 // push address is saved for them, and a tapped notification opens its page.
 // In a browser it does nothing.
+// A phone's bottom sheets close with a pull down (src/lib/sheetDrag.ts).
+function SheetDrag() {
+  useEffect(() => installSheetDrag(), []);
+  return null;
+}
+
 function NativeAppBridge() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -259,6 +266,7 @@ const App = () => (
               <PageViewTracker />
               <AutoUpdate />
               <NativeAppBridge />
+              <SheetDrag />
               <HostGate>
               <Suspense fallback={<LazyFallback />}>
                 <Routes>

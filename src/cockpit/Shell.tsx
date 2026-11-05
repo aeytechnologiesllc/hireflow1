@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useTheme } from "next-themes";
 import { ChevronDown, Bell, Sun, Moon } from "lucide-react";
@@ -9,6 +9,7 @@ import { useCockpitAccount } from "./hooks/useCockpitData";
 import { useUnreadCount } from "@/hooks/useNotifications";
 import { useUnreadMessagesCount } from "@/hooks/useUnreadMessagesCount";
 import { useInterviewsLeftToday } from "./hooks/useInterviewsLeftToday";
+import { usePullToRefresh } from "./hooks/usePullToRefresh";
 import { Wordmark } from "./components/Wordmark";
 import { AccountMenu } from "./components/AccountMenu";
 import { PlanButton } from "@/components/billing/PlanButton";
@@ -287,15 +288,18 @@ function NotificationBell({ compact }: { compact?: boolean }) {
 // bell moved there with it. The old h-16 header spent 64px of every page on a
 // duplicated account name and a "Today" pill that opened nothing.
 
-function MobileTopBar() {
+/* The phone's title bar, iOS-style (the owner, 2026-11-04: "a mobile first
+   AAA app"): a large title on the page's own ground; once the page scrolls,
+   it settles into a smaller title on frosted glass with a hairline under it. */
+function MobileTopBar({ scrolled }: { scrolled: boolean }) {
   const { pathname } = useLocation();
   const title = TITLES[pathname] ?? "";
   return (
     <header
-      className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3"
-      style={{ background: "hsl(var(--ck-bg))" }}
+      className="hf-topbar md:hidden sticky top-0 z-30 flex items-center justify-between px-4 py-3"
+      data-scrolled={scrolled ? "" : undefined}
     >
-      <h1 className="min-w-0 flex-1 truncate font-display text-[26px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+      <h1 className="hf-topbar-title min-w-0 flex-1 truncate font-display text-[26px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
         {title}
       </h1>
       <div className="flex shrink-0 items-center gap-2">
@@ -317,15 +321,19 @@ function MobileTabBar() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const moreActive = ["/interviews", "/documents", "/team", "/analytics", "/more", "/settings"].some((p) => isActive(pathname, p));
+  const activeIndex = MOBILE_TABS.findIndex((tab) => (tab.to === "/more" ? moreActive : isActive(pathname, tab.to)));
   return (
     <nav
-      className="md:hidden fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around px-2 pt-2"
+      className="hf-tabbar md:hidden fixed inset-x-0 bottom-0 z-40 flex items-stretch justify-around px-2 pt-2"
       style={{
-        background: "var(--hf-bg)",
-        borderTop: "1px solid var(--hf-surface-raised)",
         paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
+        ["--tab-count" as string]: MOBILE_TABS.length,
+        ["--tab-i" as string]: Math.max(0, activeIndex),
       }}
     >
+      {/* One highlight that glides to the tab you tap (the sidebar's ink
+          rail, rotated onto the tab bar's top edge). */}
+      {activeIndex >= 0 && <span aria-hidden className="hf-tabbar-glide" />}
       {MOBILE_TABS.map((tab) => {
         const active = tab.to === "/more" ? moreActive : isActive(pathname, tab.to);
         return (
@@ -334,15 +342,10 @@ function MobileTabBar() {
             onPointerDown={playNavIcon}
             onClick={() => navigate(tab.to)}
             aria-current={active ? "page" : undefined}
-            className="relative flex min-w-0 flex-1 flex-col items-center gap-1 py-1"
+            className="hf-tab relative flex min-w-0 flex-1 flex-col items-center gap-1 py-1"
+            data-active={active ? "" : undefined}
           >
-            {/* The sidebar's ink rail, rotated onto the tab bar's top edge. */}
-            <span
-              aria-hidden
-              className="absolute -top-2 h-[2px] w-8 rounded-full"
-              style={{ background: active ? "var(--action)" : "transparent" }}
-            />
-            <span className="relative">
+            <span className="hf-tab-icon relative">
               <NavIcon name={tab.icon} className="h-[22px] w-[22px]" style={{ color: active ? "var(--hf-text)" : "var(--hf-text-muted)" }} />
               {tab.to === "/messages" && unreadMessages > 0 && (
                 <span
@@ -395,6 +398,12 @@ export function CockpitShell({ children }: { children: ReactNode }) {
   // their own mobile header, so we suppress the shared mobile app bar there.
   const SELF_HEADER_ROUTES = ["/messages"];
   const hasOwnMobileHeader = !(pathname in TITLES) || SELF_HEADER_ROUTES.includes(pathname);
+  // Whether the page has scrolled under the phone's title bar (it frosts and shrinks).
+  const [pageScrolled, setPageScrolled] = useState(false);
+  useEffect(() => setPageScrolled(false), [pathname]);
+  // Pull down at the top to refresh (a phone; never in the job builder, which scrolls itself).
+  const mainRef = useRef<HTMLElement | null>(null);
+  const refresh = usePullToRefresh(mainRef, !fillsFrame);
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden" style={{ background: "hsl(var(--ck-bg))" }}>
       <Sidebar />
@@ -415,11 +424,13 @@ export function CockpitShell({ children }: { children: ReactNode }) {
             under the clock (the phone audit, 2026-11-04). The inset is 0 in a
             browser tab and on a computer, so nothing moves there. */}
         <div className="relative z-[1] flex min-w-0 flex-1 flex-col overflow-hidden" style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}>
-          {!hasOwnMobileHeader && <MobileTopBar />}
+          {!hasOwnMobileHeader && <MobileTopBar scrolled={pageScrolled} />}
           {/* The plan at the top right (the owner, 2026-11-02, "like Higgsfield on the top right"): the business
               owner only, while billing is on, never the exempt account (PlanButton draws nothing otherwise). */}
           <PlanButton />
           <main
+            ref={mainRef}
+            onScroll={(e) => setPageScrolled(e.currentTarget.scrollTop > 8)}
             // .main{padding:18px 26px 40px} in the design — with the top bar
             // gone the page title starts where the mockup starts it.
             className={
@@ -435,7 +446,22 @@ export function CockpitShell({ children }: { children: ReactNode }) {
                 uses the whole screen (docs/APPLICANT-PROFILE.md): at 1240 it
                 sat centred with a quarter of a 1920 screen empty, and the
                 team member's shell, which has no cap, drew it wider. */}
-            <div key={pathname} className={`ck-page mx-auto w-full ${fillsFrame ? "h-full min-h-0 max-w-[1240px]" : PROFILE_ROUTE.test(pathname) ? "max-w-[1680px]" : "max-w-[1240px]"}`}>
+            {(refresh.pull > 0 || refresh.busy) && (
+              <div className="pointer-events-none sticky top-0 z-20 h-0 md:hidden" aria-hidden={!refresh.busy} role={refresh.busy ? "status" : undefined}>
+                <div
+                  className="hf-ptr mx-auto"
+                  data-busy={refresh.busy ? "" : undefined}
+                  data-ready={refresh.ready ? "" : undefined}
+                  style={{ transform: `translateY(${Math.max(6, refresh.pull - 30)}px) rotate(${refresh.busy ? 0 : refresh.pull * 4}deg)`, opacity: Math.min(1, refresh.pull / 40) }}
+                >
+                  {refresh.busy && <span className="sr-only">Refreshing</span>}
+                </div>
+              </div>
+            )}
+            <div
+              key={pathname}
+              style={refresh.pull > 0 ? { transform: `translateY(${refresh.pull}px)`, transition: refresh.busy ? "transform 260ms ease" : "none" } : { transition: "transform 300ms cubic-bezier(0.22, 1, 0.36, 1)" }}
+              className={`ck-page mx-auto w-full ${fillsFrame ? "h-full min-h-0 max-w-[1240px]" : PROFILE_ROUTE.test(pathname) ? "max-w-[1680px]" : "max-w-[1240px]"}`}>
               {children}
             </div>
           </main>

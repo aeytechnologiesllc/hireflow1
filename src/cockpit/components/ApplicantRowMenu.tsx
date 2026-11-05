@@ -69,6 +69,8 @@ export function ActionsMenu({
   const menuRef = useRef<HTMLDivElement | null>(null);
   const list = open ? (typeof items === "function" ? items() : items) : null;
   const count = list?.length ?? 0;
+  // A phone shows the menu as a sheet from the bottom, not a box by the button.
+  const asSheet = open && typeof window !== "undefined" && !!window.matchMedia?.("(max-width: 639px)").matches;
 
   const close = useCallback((refocus: boolean) => {
     setOpen(false);
@@ -198,9 +200,74 @@ export function ActionsMenu({
       >
         <MoreHorizontal aria-hidden className="h-[18px] w-[18px]" />
       </button>
+      {/* On a phone: an iOS action sheet (the owner, 2026-11-04, "a mobile
+          first AAA app"): big rows rising from the bottom over a dimmed page,
+          and Cancel on its own below them. */}
+      {open &&
+        list &&
+        asSheet &&
+        createPortal(
+          <div className="fixed inset-0 z-[70]" data-action-sheet>
+            <div
+              className="hf-action-scrim absolute inset-0"
+              style={{ background: "color-mix(in srgb, var(--slab) 42%, transparent)" }}
+              onClick={() => close(true)}
+              aria-hidden
+            />
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label={label}
+              className="hf-action-sheet absolute inset-x-2 flex flex-col gap-2"
+              style={{ bottom: "calc(8px + env(safe-area-inset-bottom, 0px))" }}
+            >
+              <div className="overflow-hidden rounded-[18px]" style={{ background: "var(--hf-surface-raised)", boxShadow: "var(--shadow-xl)" }}>
+                {list.map((item, i) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    role="menuitem"
+                    disabled={item.disabled}
+                    className="flex min-h-[56px] w-full items-center gap-3.5 px-5 text-left text-[16.5px] font-medium transition-colors active:bg-[color-mix(in_srgb,var(--ink)_7%,transparent)] disabled:opacity-45"
+                    style={{
+                      color: item.danger ? "var(--hf-danger)" : "var(--hf-text)",
+                      borderTop: i === 0 ? undefined : "1px solid var(--line-soft)",
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      close(false);
+                      item.onSelect();
+                    }}
+                  >
+                    {item.icon ?? <span aria-hidden className="h-4 w-4 shrink-0" />}
+                    <span className="min-w-0 flex-1">
+                      {item.label}
+                      {item.hint && (
+                        <span className="mt-0.5 block text-[12.5px] font-normal leading-snug" style={{ color: "var(--ink-3)" }}>
+                          {item.hint}
+                        </span>
+                      )}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="min-h-[56px] w-full rounded-[18px] text-[17px] font-semibold active:opacity-80"
+                style={{ background: "var(--hf-surface-raised)", color: "var(--action)", boxShadow: "var(--shadow-xl)" }}
+                onClick={() => close(true)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
       {open &&
         pos &&
         list &&
+        !asSheet &&
         createPortal(
           <div
             ref={menuRef}

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useEffect, useState, type ReactNode } from "react";
 import { X, ZoomIn, ZoomOut, RotateCcw, FileText } from "lucide-react";
 import AvaSeal from "@/components/ava/AvaSeal";
@@ -78,8 +79,8 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
   const isPdf = isPdfResumeUrl(url);
   const clamp = (z: number) => Math.min(3, Math.max(0.5, +z.toFixed(2)));
 
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-3 md:p-6">
+  return createPortal(
+    <div className="ck-modal fixed inset-0 z-[70] flex items-center justify-center p-3 md:p-6">
       {/* scrim */}
       <div
         className="absolute inset-0"
@@ -166,7 +167,8 @@ export function ResumeViewerDialog({ open, url, candidateName, avaRead, onClose 
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

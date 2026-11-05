@@ -410,7 +410,7 @@ export function OfferLetterDialog({
   const status = !person ? "Choose who the offer is for." : tried && problems.length > 0 ? problems[0].text : words.note;
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 md:p-4">
+    <div className="ck-modal fixed inset-0 z-[60] flex items-center justify-center p-3 md:p-4">
       <div
         className="absolute inset-0"
         style={{ background: "color-mix(in srgb, var(--hf-bg) 70%, transparent)", backdropFilter: "blur(2px)" }}
