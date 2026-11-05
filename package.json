@@ -18,6 +18,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/ios": "^7.6.9",
+    "@capacitor/push-notifications": "^7.0.7",
+    "@capacitor/status-bar": "^7.0.6",
     "@daily-co/daily-js": "^0.92.2",
     "@ffmpeg/ffmpeg": "^0.12.15",
     "@ffmpeg/util": "^0.12.2",
@@ -88,6 +93,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.6.9",
     "@electric-sql/pglite": "^0.5.8",
     "@eslint/js": "^9.32.0",
     "@tailwindcss/typography": "^0.5.16",

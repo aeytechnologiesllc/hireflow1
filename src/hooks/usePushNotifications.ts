@@ -1,3 +1,4 @@
+import { insideHireFlowApp, nativePushGranted, turnOnNativePush } from "@/lib/nativePush";
 import { useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -123,6 +124,8 @@ async function registerNativeDevice(userId: string): Promise<boolean> {
 
 /** Whether the native wrapper already lets this app send notifications (null: it did not answer). */
 export async function nativePermissionGranted(): Promise<boolean | null> {
+  // The HireFlow iPhone app (src/lib/nativePush.ts): its own plugin, no OneSignal.
+  if (insideHireFlowApp()) return nativePushGranted();
   const ready = await waitForNatively(3000);
   if (!ready || !window.NativelyNotifications) return null;
   const notifications = new window.NativelyNotifications();
@@ -140,6 +143,7 @@ export async function nativePermissionGranted(): Promise<boolean | null> {
  * the person to its Settings if they said no before), then register as usual.
  */
 export async function turnOnNativeNotifications(userId: string): Promise<boolean> {
+  if (insideHireFlowApp()) return turnOnNativePush();
   const ready = await waitForNatively(3000);
   if (!ready || !window.NativelyNotifications) return false;
   const notifications = new window.NativelyNotifications();

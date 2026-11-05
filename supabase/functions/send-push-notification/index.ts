@@ -21,7 +21,10 @@
  *     Screen, Chrome on Android, a desktop browser. Needs no outside account;
  *     the sender key pair makes itself (_shared/webPush.ts). A device the push
  *     service says is gone (404/410) is removed.
- *   - OneSignal: the native wrapper's devices, only when ONESIGNAL_* is set
+ *   - Apple: the HireFlow iPhone app's phones (push_subscriptions rows with
+ *     an apns_token), straight to APNs with the project's own key, only when
+ *     APNS_* is set (_shared/apns.ts; 2026-11-04, no OneSignal).
+ *   - OneSignal: the old wrapper's devices, only when ONESIGNAL_* is set
  *     and the user has such a device.
  *
  * It never fails the trigger: a channel that errors is logged and reported in
@@ -35,6 +38,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { pushUrlForLink } from "../_shared/pushLink.ts";
 import { getVapidKeys, pushToDevices } from "../_shared/webPush.ts";
+import { apnsConfigFrom, pushToApns, type ApnsDevice } from "../_shared/apns.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -67,6 +71,7 @@ Deno.serve(async (req) => {
   const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID");
   const ONESIGNAL_REST_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY");
   const oneSignalConfigured = !!ONESIGNAL_APP_ID && !!ONESIGNAL_REST_API_KEY;
+  const apns = apnsConfigFrom((name) => Deno.env.get(name));
 
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
@@ -94,12 +99,13 @@ Deno.serve(async (req) => {
 
     const { data: devices, error: devicesError } = await admin
       .from("push_subscriptions")
-      .select("id, endpoint, p256dh, auth, player_id")
+      .select("id, endpoint, p256dh, auth, player_id, apns_token, apns_environment")
       .eq("user_id", note.user_id);
     if (devicesError) throw devicesError;
     const webDevices = (devices ?? []).filter((d: { endpoint: string | null }) => !!d.endpoint);
-    const nativeDevices = (devices ?? []).filter((d: { endpoint: string | null; player_id: string | null }) => !d.endpoint && !!d.player_id);
-    if (!webDevices.length && !(oneSignalConfigured && nativeDevices.length)) {
+    const appleDevices = (devices ?? []).filter((d: { apns_token: string | null }) => !!d.apns_token) as ApnsDevice[];
+    const nativeDevices = (devices ?? []).filter((d: { endpoint: string | null; player_id: string | null; apns_token: string | null }) => !d.endpoint && !d.apns_token && !!d.player_id);
+    if (!webDevices.length && !(apns && appleDevices.length) && !(oneSignalConfigured && nativeDevices.length)) {
       return json({ success: true, skipped: true, reason: "no_subscriptions" });
     }
 
@@ -120,7 +126,26 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── OneSignal: the native wrapper's devices ───────────────────────────
+    // ── Apple: the HireFlow iPhone app ─────────────────────────────────────
+    if (apns && appleDevices.length) {
+      try {
+        result.apple = await pushToApns(appleDevices, { title: note.title, body: note.message, url, tag: notificationId }, apns, {
+          fetch,
+          removeDevice: async (id) => {
+            await admin.from("push_subscriptions").delete().eq("id", id);
+          },
+          setEnvironment: async (id, environment) => {
+            await admin.from("push_subscriptions").update({ apns_environment: environment }).eq("id", id);
+          },
+        });
+      } catch (error) {
+        console.error("send-push-notification apple push failed:", error instanceof Error ? error.message : error);
+        errors.push("apple");
+        result.apple = { error: "failed" };
+      }
+    }
+
+    // ── OneSignal: the old wrapper's devices ──────────────────────────────
     if (oneSignalConfigured && nativeDevices.length) {
       try {
         const payload: Record<string, unknown> = {

@@ -1,3 +1,4 @@
+import { insideHireFlowApp, removeNativePushBeforeSignOut } from "@/lib/nativePush";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -53,7 +54,8 @@ function canPush(): boolean {
  * browser's "add to Home Screen" instructions meanwhile.
  */
 export function insideNativeApp(): boolean {
-  return typeof navigator !== "undefined" && /Natively\/(iOS|Android)/.test(navigator.userAgent);
+  // The old wrapper, or the HireFlow iPhone app (src/lib/nativePush.ts, 2026-11-04).
+  return typeof navigator !== "undefined" && (/Natively\/(iOS|Android)/.test(navigator.userAgent) || insideHireFlowApp());
 }
 
 /** The part of the answer that needs no waiting. null: the device could, so look closer. */
@@ -370,6 +372,8 @@ export async function removeThisDevice(): Promise<void> {
 
 /** At sign-out: take the device off the account, but never hold the sign-out up for more than a moment. */
 export async function removeThisDeviceBeforeSignOut(): Promise<void> {
+  // The iPhone app's own address first: it has no service worker.
+  await removeNativePushBeforeSignOut();
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return;
   await Promise.race([removeThisDevice(), new Promise<void>((resolve) => setTimeout(resolve, 2500))]);
 }

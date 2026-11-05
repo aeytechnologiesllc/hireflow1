@@ -32,6 +32,7 @@ const MIGRATIONS = path.join(ROOT, "supabase/migrations");
 // the schema than the stub below has, this test fails until the stub is
 // extended or the file is added to NOT_THE_CHECK with its reason.
 const NOT_THE_CHECK = {
+  "20261104200000_native_push_apns.sql": "the iPhone app's push addresses (push_subscriptions.apns_token and its two functions); nothing of jobs, profiles or the email check",
   "20261025110000_voice_recording_this_project.sql": "voice interview evidence (applications), nothing of the check",
   "20261025120000_admin_growth_one_role.sql": "the admin growth report, read-only",
   "20261025160000_ai_business_budget.sql": "the AI budget (its own private tables and ai_budget_take), nothing of jobs or profiles",

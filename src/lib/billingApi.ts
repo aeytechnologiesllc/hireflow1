@@ -16,6 +16,7 @@
  * then the answer is Stripe's hosted page, as before. Card details only ever
  * go to Stripe's form.
  */
+import { insideHireFlowApp } from "@/lib/nativePush";
 import type { ComponentType } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { billingCallOutcome, type BillingCallOutcome } from "@/lib/billing";
@@ -43,6 +44,10 @@ export function stripePublishableKey(): string | null {
 }
 
 async function call(name: "billing-checkout" | "billing-portal", body: Record<string, unknown>): Promise<BillingCallOutcome> {
+  // Inside the HireFlow iPhone app nothing is bought or changed (Apple allows
+  // a paid plan to be used in an app, not bought there outside its own
+  // payments; the owner, 2026-11-04). The screens hide the buttons too.
+  if (insideHireFlowApp()) return { kind: "failed", message: NATIVE_APP_BILLING_WORDS };
   try {
     const { data, error } = await supabase.functions.invoke(name, { body });
     if (!error) return billingCallOutcome(200, data);
@@ -74,3 +79,7 @@ export async function startCheckout(kind: "job" | "unlimited", jobId?: string | 
 export function openBillingPortal(): Promise<BillingCallOutcome> {
   return call("billing-portal", {});
 }
+
+/** What the iPhone app says where a plan would be bought or changed. Names no other place to buy. */
+export const NATIVE_APP_BILLING_WORDS = "Plans and payments can't be changed in the iPhone app.";
+

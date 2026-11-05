@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Loader2, Check, Circle, Eye, EyeOff } from "lucide-react";
+import { insideHireFlowApp } from "@/lib/nativePush";
 import { supabase } from "@/integrations/supabase/client";
 import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { resolvePostAuthDestination } from "@/lib/authRouting";
@@ -545,10 +546,12 @@ export default function Auth() {
       {/* The front page's own fonts at its exact address (public/landing.html), so a visitor from the front page has them already; only Besley is drawn here. */}
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Besley:ital,wght@0,500..800;1,500..600&family=Courier+Prime&family=Schibsted+Grotesk:wght@400..700&display=swap" />
 
-      <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8">
+      {/* Below the iPhone clock in the HireFlow app and the Home Screen app (0 in a browser tab). */}
+      <div className="relative z-10 min-h-[100dvh] flex flex-col px-6 py-6 sm:py-8" style={{ paddingTop: "calc(1.5rem + env(safe-area-inset-top, 0px))" }}>
         {/* On staff.hireflownow.com there is no home behind sign-in: "/" comes
-            straight back here, so the link would loop. */}
-        {!isStaffHost() ? (
+            straight back here, so the link would loop. Inside the HireFlow
+            iPhone app there is no website to go back to at all. */}
+        {insideHireFlowApp() ? null : !isStaffHost() ? (
           <Link
             to={inWebView ? "/?showLanding=true" : "/"}
             className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors self-start"

@@ -1,0 +1,29 @@
+{
+  "appId": "com.aeytechnologies.hireflow",
+  "appName": "HireFlow",
+  "webDir": "native/shell",
+  "server": {
+    "url": "https://staff.hireflownow.com",
+    "errorPath": "offline.html",
+    "allowNavigation": [
+      "staff.hireflownow.com",
+      "hireflownow.com",
+      "www.hireflownow.com",
+      "*.supabase.co",
+      "*.daily.co",
+      "js.stripe.com",
+      "*.stripe.com"
+    ]
+  },
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#DEE3D5",
+    "appendUserAgent": "HireFlowApp/1",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    }
+  }
+}

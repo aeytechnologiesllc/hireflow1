@@ -12,6 +12,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.117.2";
 import { pushUrlForLink } from "../_shared/pushLink.ts";
 import { getVapidKeys, pushToDevices } from "../_shared/webPush.ts";
+import { apnsConfigFrom, pushToApns, type ApnsDevice } from "../_shared/apns.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,11 +50,12 @@ Deno.serve(async (req) => {
 
     const { data: devices, error: devicesError } = await admin
       .from("push_subscriptions")
-      .select("id, endpoint, p256dh, auth, player_id")
+      .select("id, endpoint, p256dh, auth, player_id, apns_token, apns_environment")
       .eq("user_id", user.id);
     if (devicesError) throw devicesError;
     const webDevices = (devices ?? []).filter((d: { endpoint: string | null }) => !!d.endpoint);
-    const nativeDevices = (devices ?? []).filter((d: { endpoint: string | null; player_id: string | null }) => !d.endpoint && !!d.player_id);
+    const appleDevices = (devices ?? []).filter((d: { apns_token: string | null }) => !!d.apns_token) as ApnsDevice[];
+    const nativeDevices = (devices ?? []).filter((d: { endpoint: string | null; player_id: string | null; apns_token: string | null }) => !d.endpoint && !d.apns_token && !!d.player_id);
     console.log(`[test-push] User ${user.id} has ${webDevices.length} web and ${nativeDevices.length} native device(s)`);
 
     let web = { sent: 0, failed: 0, removed: 0 };
@@ -78,7 +80,27 @@ Deno.serve(async (req) => {
       }
     }
 
-    // The native wrapper's devices, only when OneSignal is set up.
+    // The HireFlow iPhone app's phones, straight to Apple (_shared/apns.ts).
+    let apple = { sent: 0, failed: 0, removed: 0 };
+    const apns = apnsConfigFrom((name) => Deno.env.get(name));
+    if (apns && appleDevices.length) {
+      apple = await pushToApns(
+        appleDevices,
+        { title: "HireFlow notifications are on", body: "This is what you'll see when someone applies.", url: pushUrlForLink("/settings"), tag: "hireflow-test" },
+        apns,
+        {
+          fetch,
+          removeDevice: async (id) => {
+            await admin.from("push_subscriptions").delete().eq("id", id);
+          },
+          setEnvironment: async (id, environment) => {
+            await admin.from("push_subscriptions").update({ apns_environment: environment }).eq("id", id);
+          },
+        },
+      );
+    }
+
+    // The old wrapper's devices, only when OneSignal is set up.
     let onesignal: { recipients: number } | null = null;
     const ONESIGNAL_APP_ID = Deno.env.get("ONESIGNAL_APP_ID");
     const ONESIGNAL_REST_API_KEY = Deno.env.get("ONESIGNAL_REST_API_KEY");
@@ -105,12 +127,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    const devicesReached = web.sent + (onesignal?.recipients ?? 0);
+    const devicesReached = web.sent + apple.sent + (onesignal?.recipients ?? 0);
     return json({
       success: true,
       devices: devicesReached,
-      saved_devices: webDevices.length + nativeDevices.length,
+      saved_devices: webDevices.length + appleDevices.length + nativeDevices.length,
       web: webError ? { error: "failed" } : web,
+      apple,
       onesignal,
     });
   } catch (error) {

@@ -182,3 +182,15 @@ deployed (`push-public-key`, `send-push-notification`, `send-test-push`):
 - `notifications.push_sent_at` is claimed before sending, so a push that fails
   (a push-service outage) is not retried later.
 - Web Push to an iPhone needs iOS 16.4 or later.
+
+## The iPhone app (2026-11-04)
+
+The HireFlow iPhone app (`ios/`, docs/IOS-APP.md) sends its phones'
+notifications straight to Apple, with no OneSignal: `push_subscriptions.apns_token`
+(saved by `save_native_push_token`, migration `20261104200000_native_push_apns.sql`),
+sent by `send-push-notification` and `send-test-push` through `_shared/apns.ts`
+with the team's own key (`APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY`).
+The page side is `src/lib/nativePush.ts`; `insideNativeApp()` counts the app,
+so Settings and the first-time card use its own permission. The old
+OneSignal path stays for the old wrapper only, and only when `ONESIGNAL_*`
+is set. Tests: `scripts/apns.test.mjs`, `scripts/ios_app.test.mjs`.

@@ -28,7 +28,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CHECKOUT_DIALOG_WORDS as C, PUBLISH_PAYMENT_WORDS as W } from "@/lib/billing";
-import { startCheckout } from "@/lib/billingApi";
+import { NATIVE_APP_BILLING_WORDS, startCheckout } from "@/lib/billingApi";
+import { insideHireFlowApp } from "@/lib/nativePush";
 import { PaymentConfirmation } from "./PaymentConfirmation";
 import { DIALOG_STEP_EASE, PAY_DIALOG_CLASS, PAY_DIALOG_STYLE, StripePayPanel } from "./StripeCheckoutForm";
 
@@ -142,7 +143,12 @@ export function PublishPaymentDialog({
               <DialogDescription>{W.intro(jobTitle)}</DialogDescription>
             </DialogHeader>
 
-            <div className="grid gap-3 sm:grid-cols-2" data-billing-options>
+            {insideHireFlowApp() && (
+              <p className="text-[13px]" style={{ color: "var(--ink-2)" }} data-native-billing>
+                {NATIVE_APP_BILLING_WORDS}
+              </p>
+            )}
+            <div className={`grid gap-3 sm:grid-cols-2 ${insideHireFlowApp() ? "hidden" : ""}`} data-billing-options>
               <section className="ck-card-flat flex flex-col gap-2 p-4">
                 <h3 className="text-[13px] font-semibold" style={{ color: "var(--ink)" }}>
                   {W.jobHeading}

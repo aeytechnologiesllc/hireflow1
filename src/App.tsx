@@ -16,6 +16,7 @@ import { AuthLoadingScreen } from "@/components/animations/AuthLoadingScreen";
 import { afterFirstScreen, applicantDetailsImporter, jobDetailImporter, opensSignedOut, routeImporters, warmStaffPages } from "@/lib/prefetchRoutes";
 import { usePageViewTracking } from "@/hooks/usePageViewTracking";
 import { useAutoUpdate } from "@/hooks/useAutoUpdate";
+import { insideHireFlowApp, turnOnNativePush } from "@/lib/nativePush";
 
 
 // The big screens every visitor used to download up front, whichever one
@@ -209,6 +210,25 @@ function AutoUpdate() {
   return null;
 }
 
+// Inside the HireFlow iPhone app (src/lib/nativePush.ts): once someone is
+// signed in, iOS asks to allow notifications (its own box, once), this phone's
+// push address is saved for them, and a tapped notification opens its page.
+// In a browser it does nothing.
+function NativeAppBridge() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const userId = user?.id ?? null;
+  useEffect(() => {
+    if (!insideHireFlowApp()) return;
+    document.documentElement.classList.add("hf-native-app");
+  }, []);
+  useEffect(() => {
+    if (!userId || !insideHireFlowApp()) return;
+    void turnOnNativePush((path) => navigate(path));
+  }, [userId, navigate]);
+  return null;
+}
+
 // Sign-up follows the theme like every other page (the run-through of
 // 2026-10-31): it was held Night as the bridge from a dark front page, and the
 // front page has been the light Desk since 2026-10-30.
@@ -238,6 +258,7 @@ const App = () => (
             <BrowserRouter>
               <PageViewTracker />
               <AutoUpdate />
+              <NativeAppBridge />
               <HostGate>
               <Suspense fallback={<LazyFallback />}>
                 <Routes>

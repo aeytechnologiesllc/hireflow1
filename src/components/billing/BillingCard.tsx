@@ -13,7 +13,8 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useBilling } from "@/hooks/useSubscription";
 import { BILLING_CARD_WORDS as W, BILLING_TAB_WORDS as T, PRICE_JOB, PRICE_UNLIMITED, PASS_DAYS, billingCard } from "@/lib/billing";
-import { openBillingPortal, startCheckout } from "@/lib/billingApi";
+import { NATIVE_APP_BILLING_WORDS, openBillingPortal, startCheckout } from "@/lib/billingApi";
+import { insideHireFlowApp } from "@/lib/nativePush";
 import { CheckoutDialog } from "./CheckoutDialog";
 
 export function BillingCard({ onSeeHistory }: { onSeeHistory?: () => void }) {
@@ -76,7 +77,12 @@ export function BillingCard({ onSeeHistory }: { onSeeHistory?: () => void }) {
             {problem}
           </p>
         )}
-        {(card.canGoUnlimited || card.canManage) && (
+        {insideHireFlowApp() && (card.canGoUnlimited || card.canManage) && (
+          <p className="text-[12.5px]" style={{ color: "var(--ink-3)" }} data-native-billing>
+            {NATIVE_APP_BILLING_WORDS}
+          </p>
+        )}
+        {!insideHireFlowApp() && (card.canGoUnlimited || card.canManage) && (
           <div className="flex flex-wrap gap-2 pt-1">
             {card.canGoUnlimited && (
               <button type="button" className="ck-btn ck-btn-paid !px-3.5 !py-2 !text-[12.5px]" disabled={busy !== null} onClick={() => void go("unlimited")}>
@@ -90,7 +96,7 @@ export function BillingCard({ onSeeHistory }: { onSeeHistory?: () => void }) {
             )}
           </div>
         )}
-        {card.canManage && (
+        {card.canManage && !insideHireFlowApp() && (
           <p className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
             {T.manageNote}
           </p>
