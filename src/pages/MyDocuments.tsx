@@ -5,7 +5,7 @@ import { useDocuments, useDocumentsLive, type DocumentWithApplication } from "@/
 import { DocumentRequestCard } from "@/components/documents/DocumentRequestCard";
 import { DocumentUploadDialog } from "@/components/documents/DocumentUploadDialog";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
-import { ApplicantDocumentSheet, isWrittenDocument } from "@/components/documents/ApplicantDocumentSheet";
+import { ApplicantDocumentSheet, opensInSigningScreen } from "@/components/documents/ApplicantDocumentSheet";
 import { applicantDocumentState, waitingOnApplicant } from "@/lib/applicantDocumentTurn";
 import { EmptyStateCard } from "@/components/EmptyStateCard";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -106,11 +106,17 @@ export default function MyDocuments() {
   };
 
   const [uploadDialogRequest, setUploadDialogRequest] = useState<DocumentRequestWithDetails | null>(null);
-  // A written document (an offer letter) opens the applicant's signing
-  // screen; an uploaded PDF, or "Signing record", opens the full viewer.
+  // A written letter or an uploaded PDF opens the applicant's signing screen
+  // (the owner, 2026-11-05: a PDF opened the old boxed viewer); "Signing
+  // record" opens the record itself.
   const [sheetDocument, setSheetDocument] = useState<DocumentWithApplication | null>(null);
   const [viewerDocument, setViewerDocument] = useState<DocumentWithApplication | null>(null);
-  const openDocument = (doc: DocumentWithApplication) => (isWrittenDocument(doc.file_url) ? setSheetDocument(doc) : setViewerDocument(doc));
+  const [viewerAsRecord, setViewerAsRecord] = useState(false);
+  const openDocument = (doc: DocumentWithApplication) => {
+    if (opensInSigningScreen(doc.file_url)) return setSheetDocument(doc);
+    setViewerAsRecord(false);
+    setViewerDocument(doc);
+  };
 
   if (isEmployer) {
     return (
@@ -248,12 +254,14 @@ export default function MyDocuments() {
         }}
         onShowRecord={(doc) => {
           setSheetDocument(null);
+          setViewerAsRecord(true);
           setViewerDocument(doc);
         }}
       />
 
       <SignedDocumentViewer
         document={viewerDocument}
+        recordOnly={viewerAsRecord}
         open={!!viewerDocument}
         onOpenChange={(open) => {
           if (!open) setViewerDocument(null);

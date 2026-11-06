@@ -88,7 +88,10 @@ const SAFE_ASSIGNMENTS = {
   "src/cockpit/components/AvasRead.tsx": /const recording = externalHref\(/,
   "src/components/billing/BillingTab.tsx": /const receipt = externalHref\(row\.receiptUrl\);/,
   "src/components/billing/PaymentConfirmation.tsx": /const receipt = externalHref\(c\.payment\?\.receiptUrl \?\? null\);/,
-  "src/components/documents/SignedDocumentViewer.tsx": /const sent = externalHref\(documentData\?\.uploadedFileUrl\);[\s\S]*?let address = sent;[\s\S]*?const kept = externalHref\([\s\S]*?address = kept;[\s\S]*?const response = await fetch\(address\);[\s\S]*?blobUrl = URL\.createObjectURL\(new Blob\(\[bytes\], \{ type: "application\/pdf" \}\)\);\s*setShownPdf\(\{ src: blobUrl, hash \}\);/,
+  // The viewer's shownPdf.src is the shared loader's blob…
+  "src/components/documents/SignedDocumentViewer.tsx": /const \{ shownPdf, shownPdfFailed \} = useShownPdf\(\{/,
+  // …made only from bytes fetched from an externalHref'd address (useShownPdf).
+  "src/lib/shownPdf.ts": /const sent = enabled \? externalHref\(uploadedFileUrl\) : null;[\s\S]*?let address = sent;[\s\S]*?const kept = externalHref\([\s\S]*?address = kept;[\s\S]*?const response = await fetch\(address\);[\s\S]*?blobUrl = URL\.createObjectURL\(new Blob\(\[bytes\], \{ type: "application\/pdf" \}\)\);\s*setShownPdf\(\{ src: blobUrl, hash \}\);/,
   "src/pages/CandidateAuth.tsx": /const safeRedirectTarget = inAppPath\(redirectTarget\);/,
   "src/pages/AuthCallback.tsx": /return inAppPath\(value\);/,
 };

@@ -2,17 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { CheckCircle2, Clock, Download, FileText, Loader2, PenLine, XCircle } from "lucide-react";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 import { collectSignerContext } from "@/lib/signerContext";
 import { generateV1Hash } from "@/lib/documentHash";
 import { applicantDocumentState } from "@/lib/applicantDocumentTurn";
+import { shownPdfProblem, useShownPdf } from "@/lib/shownPdf";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
-import { LetterText } from "./LetterText";
-import { SignaturePad } from "./SignaturePad";
+import { goToSignPlace, PaperDesk, PaperLetter, PaperPdf, SignatureLineInput, type PaperField, type PaperSpot } from "./PaperDesk";
 
 /**
  * What an applicant sees when they open a document to sign (an offer
@@ -31,13 +29,23 @@ import { SignaturePad } from "./SignaturePad";
  * the full signing record (SignedDocumentViewer) is one tap away once it
  * exists. The signing itself is unchanged: the document-signing function, the
  * same consent words, the same record.
+ *
+ * The owner, 2026-11-05: free floating, "scroll, you sign". The letter, or
+ * an uploaded PDF page by page, lies on the desk (PaperDesk.tsx) with the
+ * signatures on the paper where they go, and the place to sign is under it.
+ * A PDF is signed with the hash of the very bytes it is drawn from
+ * (src/lib/shownPdf.ts), as the old file viewer signed.
  */
+
+// The desk's buttons and their row (PaperDesk.tsx).
+const PILL = "ck-btn ck-btn-primary !rounded-full !px-5 !py-2.5 !text-[14px]";
+const ROW = "mx-auto mt-8 flex max-w-[816px] flex-wrap items-center justify-center gap-4";
 
 /** The same words as the audit record (src/lib/auditTrail.ts, electronic_consent_confirmed). */
 const CONSENT_STATEMENT =
   "I acknowledge that I am signing this document electronically and that my electronic signature has the same legal effect as a handwritten signature.";
 
-type Body = { content?: string; uploadedFileUrl?: string; metadata?: { companyName?: string; jobTitle?: string } };
+type Body = { content?: string; uploadedFileUrl?: string; signatureFields?: PaperField[]; metadata?: { companyName?: string; jobTitle?: string } };
 
 /** The stored body (base64 JSON, or base64 plain text). */
 export function readDocumentBody(fileUrl: string | null | undefined): Body | null {
@@ -51,14 +59,26 @@ export function readDocumentBody(fileUrl: string | null | undefined): Body | nul
   return null;
 }
 
-/** True when this screen can show the document (a written letter, not an uploaded PDF). */
+/** True when the document is a written letter, not an uploaded PDF. */
 export function isWrittenDocument(fileUrl: string | null | undefined): boolean {
   const body = readDocumentBody(fileUrl);
   return !!body && !body.uploadedFileUrl && typeof body.content === "string" && body.content.trim().length > 0;
 }
 
+/** True when the document is a file the business uploaded (a PDF to sign). */
+export function isUploadedDocument(fileUrl: string | null | undefined): boolean {
+  const body = readDocumentBody(fileUrl);
+  return !!body?.uploadedFileUrl && !body.content;
+}
+
+/** The signing screens show both (the owner, 2026-11-05: a PDF opened the old boxed viewer). */
+export function opensInSigningScreen(fileUrl: string | null | undefined): boolean {
+  return isWrittenDocument(fileUrl) || isUploadedDocument(fileUrl);
+}
+
 // Whose turn it is: one rule with My Documents and the sidebar's badge.
 export { applicantDocumentState, type ApplicantDocumentState } from "@/lib/applicantDocumentTurn";
+
 
 function signatureOf(raw: string | null | undefined, side: "recipient" | "employer"): { value: string; name: string } | null {
   if (!raw) return null;
@@ -70,24 +90,6 @@ function signatureOf(raw: string | null | undefined, side: "recipient" | "employ
   } catch {
     return null;
   }
-}
-
-function SignatureLine({ who, at, sig }: { who: string; at: string | null | undefined; sig: { value: string; name: string } | null }) {
-  return (
-    <div className="min-w-0 rounded-xl border border-border bg-background/60 px-4 py-3">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">{who}</div>
-      {sig ? (
-        sig.value.startsWith("data:image") ? (
-          <img src={sig.value} alt={`${who} signature`} className="mt-1 h-12 max-w-full object-contain dark:invert" />
-        ) : (
-          <div className="mt-1 truncate font-signature text-[32px] leading-tight text-foreground">{sig.value}</div>
-        )
-      ) : (
-        <div className="mt-1 text-sm text-muted-foreground">Not signed yet</div>
-      )}
-      {at && <div className="mt-0.5 text-xs text-muted-foreground">{format(new Date(at), "MMM d, yyyy 'at' h:mm a")}</div>}
-    </div>
-  );
 }
 
 export function ApplicantDocumentSheet({
@@ -103,6 +105,7 @@ export function ApplicantDocumentSheet({
   onShowRecord: (document: DocumentWithApplication) => void;
 }) {
   const queryClient = useQueryClient();
+  const { role, isTeamMember } = useAuth();
   // The letter as it was when this sheet opened: the screen never changes it
   // under a half-typed signature. If the stored one ever differs (the database
   // refuses a change to a sent letter since 20261025470000), it says so and
@@ -126,6 +129,15 @@ export function ApplicantDocumentSheet({
   const [reason, setReason] = useState("");
   const [justSigned, setJustSigned] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // An uploaded PDF, drawn from the bytes fetched for this screen and signed with their hash.
+  const isPdf = !!body?.uploadedFileUrl && !body?.content;
+  const { shownPdf, shownPdfFailed } = useShownPdf({
+    documentId: document?.id,
+    uploadedFileUrl: isPdf ? body?.uploadedFileUrl : null,
+    signedByApplicant: !!document?.candidate_signed_at,
+    enabled: open,
+  });
 
   // Fresh each time it opens (not when the same document refreshes after
   // signing, which would hide the celebration); their name to start the
@@ -160,12 +172,15 @@ export function ApplicantDocumentSheet({
   const state = justSigned ? "theirs" : applicantDocumentState(document);
   const isOffer = document.document_type === "offer_letter";
   const company = body?.metadata?.companyName?.trim() || "the hiring team";
+  const Company = company === "the hiring team" ? "The hiring team" : company;
   const title = isOffer ? "Your job offer" : document.name;
   const signBy = document.expires_at ? format(new Date(document.expires_at), "EEEE, MMMM d") : null;
   const mine = signatureOf(document.candidate_signature_data, "recipient");
   const theirs = signatureOf(document.employer_signature_data, "employer");
   const signature = how === "typed" ? typed.trim() : drawn;
-  const canSign = consent && !!signature && (how === "drawn" || typed.trim().length >= 2) && !busy && !letterChanged;
+  const canSign = consent && !!signature && (how === "drawn" || typed.trim().length >= 2) && !busy && !letterChanged && (!isPdf || !!shownPdf);
+  const signing = state === "yours" && !declining;
+  const close = () => !busy && onOpenChange(false);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["documents"] });
@@ -178,9 +193,10 @@ export function ApplicantDocumentSheet({
     try {
       // The device and the place it is signed from (the team sees it; the applicant never sees the team's).
       const signerContext = await collectSignerContext();
-      // The hash of the letter this screen shows: the server signs only that
-      // (supabase/functions/_shared/documentShown.ts).
-      const viewedHash = await generateV1Hash(body?.content ?? "");
+      // The hash of what this screen shows, the letter's text or the PDF's
+      // bytes: the server signs only that (supabase/functions/_shared/documentShown.ts).
+      const viewedHash = isPdf ? shownPdf?.hash ?? null : await generateV1Hash(body?.content ?? "");
+      if (!viewedHash) throw new Error("The document is not open yet. Please wait a moment and try again.");
       await invokeDocumentSigning(supabase, { documentId: document.id, action: "sign", signature: { method: how, value: signature, consentAccepted: true }, signerContext, viewedHash });
       setJustSigned(true);
       refresh();
@@ -224,192 +240,197 @@ export function ApplicantDocumentSheet({
 
   const chip =
     state === "yours"
-      ? { text: "Waiting for your signature", cls: "bg-amber-500/15 text-amber-700 dark:text-amber-300", Icon: PenLine }
+      ? { text: "Waiting for your signature", bg: "var(--amber-bg)", fg: "var(--amber-fg)", Icon: PenLine }
       : state === "theirs"
-        ? { text: `You signed · ${company} signs next`, cls: "bg-primary/15 text-primary", Icon: Clock }
+        ? { text: `You signed · ${company} signs next`, bg: "var(--action-soft)", fg: "var(--action-soft-fg)", Icon: Clock }
         : state === "done"
-          ? { text: "Signed by both", cls: "bg-primary/15 text-primary", Icon: CheckCircle2 }
+          ? { text: "Signed by both", bg: "var(--action-soft)", fg: "var(--action-soft-fg)", Icon: CheckCircle2 }
           : state === "declined"
-            ? { text: "You declined", cls: "bg-muted text-muted-foreground", Icon: XCircle }
+            ? { text: "You declined", bg: "var(--surface-2)", fg: "var(--ink-2)", Icon: XCircle }
             : state === "withdrawn"
-              ? { text: "Withdrawn", cls: "bg-muted text-muted-foreground", Icon: XCircle }
-              : { text: "Expired", cls: "bg-muted text-muted-foreground", Icon: Clock };
+              ? { text: "Withdrawn", bg: "var(--surface-2)", fg: "var(--ink-2)", Icon: XCircle }
+              : { text: "Expired", bg: "var(--surface-2)", fg: "var(--ink-2)", Icon: Clock };
+
+  // The two places to sign, on the paper.
+  const stillOpen = state === "yours" || state === "theirs";
+  const mySpot: PaperSpot = mine
+    ? { mark: { value: mine.value, at: document.candidate_signed_at } }
+    : signing
+      ? { mark: null, mine: true, preview: signature || null }
+      : { mark: null };
+  const theirSpot: PaperSpot = theirs
+    ? { mark: { value: theirs.value, at: document.employer_signed_at } }
+    : { mark: null, waitingLabel: stillOpen ? `${Company} signs here` : undefined };
+  const goSign = () => goToSignPlace("ck-appdoc-sign");
+  const note = "mx-auto mb-5 max-w-[816px] text-[14px] leading-snug";
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !busy && onOpenChange(o)}>
-      <DialogContent className="flex max-h-[calc(100dvh-24px)] w-[calc(100vw-24px)] max-w-2xl flex-col gap-0 overflow-hidden p-0" data-applicant-document={state}>
-        {/* Head: who it is from, what it is, where it stands */}
-        <div className="border-b border-border px-5 pb-4 pt-5 sm:px-6">
-          <div className="text-xs font-medium text-muted-foreground">{company === "the hiring team" ? "From the hiring team" : `From ${company}`}</div>
-          <DialogTitle className="mt-0.5 font-display text-[24px] font-semibold leading-tight text-foreground">{title}</DialogTitle>
-          <DialogDescription asChild>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${chip.cls}`} data-applicant-document-chip>
-                <chip.Icon className="h-3.5 w-3.5" aria-hidden />
-                {chip.text}
-              </span>
-              {state === "yours" && signBy && <span className="text-xs text-muted-foreground">Please sign by {signBy}</span>}
-            </div>
-          </DialogDescription>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
-          {state === "theirs" && justSigned ? (
-            // The moment they accept: a celebration, then what happens next.
-            <div className="py-6 text-center" data-applicant-document-celebration>
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-primary/15">
-                <CheckCircle2 className="h-9 w-9 text-primary" aria-hidden />
-              </div>
-              <h3 className="mt-4 font-display text-[26px] font-semibold text-foreground">{isOffer ? "You accepted the offer!" : "Signed!"}</h3>
-              <p className="mx-auto mt-2 max-w-sm text-sm text-muted-foreground">
-                {company === "the hiring team" ? "The hiring team" : company} signs next. You'll get the final copy here, and an email when it's ready.
-              </p>
-              {isOffer && (
-                <p className="mx-auto mt-3 max-w-sm text-sm text-muted-foreground">
-                  They may also ask for your ID and the email you're paid on. If they do, it shows in Your documents.
-                </p>
-              )}
-              <Button className="mt-6" onClick={() => onOpenChange(false)}>
-                Done
-              </Button>
-            </div>
-          ) : (
-            <>
-              {state === "yours" && (
-                <p className="mb-4 text-sm text-muted-foreground">
-                  {isOffer ? "Read your offer, then sign at the bottom to accept it. It takes a minute." : "Read it, then sign at the bottom."}
-                </p>
-              )}
-              {state === "declined" && <p className="mb-4 text-sm text-muted-foreground">You declined this. {company === "the hiring team" ? "The hiring team" : company} was told.</p>}
-              {state === "withdrawn" && <p className="mb-4 text-sm text-muted-foreground">{company === "the hiring team" ? "The hiring team" : company} withdrew this. There's nothing to sign.</p>}
-              {state === "expired" && <p className="mb-4 text-sm text-muted-foreground">The date to sign has passed. If you still want it, message {company === "the hiring team" ? "the hiring team" : company}.</p>}
-
-              {letterChanged && (
-                <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-foreground" role="alert" data-applicant-document-changed>
-                  This letter was changed while you were reading it.{" "}
-                  <button
-                    type="button"
-                    className="font-medium underline underline-offset-2"
-                    onClick={() => {
-                      setShownFileUrl(document.file_url ?? null);
-                      setConsent(false);
-                    }}
-                  >
-                    Show the new version
-                  </button>
-                </div>
-              )}
-              {/* The letter itself */}
-              <article className="rounded-xl border border-border bg-card px-5 py-5 text-[14.5px] leading-[1.65] text-foreground shadow-sm" data-applicant-document-letter>
-                {body?.content ? <LetterText text={body.content} /> : <p className="text-muted-foreground">This document can't be shown here.</p>}
-              </article>
-
-              {/* Signatures, once anyone has signed */}
-              {(state === "theirs" || state === "done") && (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2" data-applicant-document-signatures>
-                  <SignatureLine who="You" at={document.candidate_signed_at} sig={mine} />
-                  <SignatureLine who={company === "the hiring team" ? "The hiring team" : company} at={document.employer_signed_at} sig={theirs} />
-                </div>
-              )}
-
-              {/* The one thing to do */}
-              {state === "yours" && !declining && (
-                <section className="mt-5 rounded-xl border border-primary/40 bg-primary/5 px-4 py-4 sm:px-5" aria-labelledby="sign-title" data-applicant-document-sign>
-                  <h3 id="sign-title" className="text-base font-semibold text-foreground">
-                    {isOffer ? "Sign to accept" : "Sign"}
-                  </h3>
-                  {how === "typed" ? (
-                    <>
-                      <label htmlFor="sign-name" className="mt-3 block text-sm text-muted-foreground">
-                        Type your full name
-                      </label>
-                      <input
-                        id="sign-name"
-                        className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-1.5 font-signature text-[30px] leading-snug text-foreground outline-none focus:ring-2 focus:ring-primary/40"
-                        value={typed}
-                        maxLength={120}
-                        onChange={(e) => setTyped(e.target.value)}
-                        autoComplete="name"
-                      />
-                      <button type="button" className="mt-1.5 text-xs font-medium text-muted-foreground underline underline-offset-2" onClick={() => setHow("drawn")}>
-                        Draw it instead
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="mt-3 text-sm text-muted-foreground">Draw your signature</div>
-                      <div className="mt-1">
-                        <SignaturePad onChange={setDrawn} />
-                      </div>
-                      <button type="button" className="mt-1.5 text-xs font-medium text-muted-foreground underline underline-offset-2" onClick={() => setHow("typed")}>
-                        Type it instead
-                      </button>
-                    </>
-                  )}
-                  <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug text-muted-foreground">
-                    <Checkbox checked={consent} onCheckedChange={(v) => setConsent(v === true)} className="mt-0.5" id="sign-consent" />
-                    <span>{CONSENT_STATEMENT}</span>
-                  </label>
-                  {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
-                  <Button className="mt-4 h-11 w-full text-[15px]" onClick={() => void sign()} disabled={!canSign} data-applicant-document-sign-button>
-                    {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <PenLine className="mr-2 h-4 w-4" />}
-                    {busy ? "Signing..." : isOffer ? "Sign and accept the offer" : "Sign"}
-                  </Button>
-                  <button type="button" className="mt-3 w-full text-center text-[13px] text-muted-foreground underline underline-offset-2" onClick={() => setDeclining(true)}>
-                    {isOffer ? "I don't want to accept" : "I don't want to sign"}
-                  </button>
-                </section>
-              )}
-
-              {state === "yours" && declining && (
-                <section className="mt-5 rounded-xl border border-border bg-muted/40 px-4 py-4 sm:px-5" data-applicant-document-decline>
-                  <h3 className="text-base font-semibold text-foreground">{isOffer ? "Decline the offer?" : "Decline?"}</h3>
-                  <label htmlFor="decline-reason" className="mt-2 block text-sm text-muted-foreground">
-                    A short reason for {company === "the hiring team" ? "the hiring team" : company}
-                  </label>
-                  <textarea
-                    id="decline-reason"
-                    className="mt-1 min-h-[72px] w-full rounded-lg border border-border bg-background px-3 py-2 text-base text-foreground sm:text-sm"
-                    maxLength={500}
-                    value={reason}
-                    onChange={(e) => setReason(e.target.value)}
-                    placeholder="I accepted another job."
-                  />
-                  {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
-                  <div className="mt-3 flex flex-wrap justify-end gap-2">
-                    <Button variant="ghost" onClick={() => setDeclining(false)} disabled={busy}>
-                      Back
-                    </Button>
-                    <Button variant="destructive" onClick={() => void decline()} disabled={busy || reason.trim().length < 3}>
-                      {busy ? "Sending..." : isOffer ? "Decline the offer" : "Decline"}
-                    </Button>
-                  </div>
-                </section>
-              )}
-
-              {state === "theirs" && (
-                <p className="mt-4 text-sm text-muted-foreground">
-                  {company === "the hiring team" ? "The hiring team" : company} signs next. You'll get the final copy here, and an email when it's ready.
-                </p>
-              )}
-
-              {state === "done" && (
-                <div className="mt-5 flex flex-wrap items-center gap-3" data-applicant-document-done>
-                  <Button onClick={() => void download()} disabled={downloading}>
-                    {downloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
-                    Download signed copy
-                  </Button>
-                  <button type="button" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline underline-offset-2" onClick={() => onShowRecord(document)}>
-                    <FileText className="h-4 w-4" aria-hidden />
-                    Signing record
-                  </button>
-                </div>
-              )}
-            </>
+    <PaperDesk
+      open={open}
+      busy={busy}
+      onClose={close}
+      titleId="ck-appdoc-title"
+      eyebrow={company === "the hiring team" ? "From the hiring team" : `From ${company}`}
+      title={title}
+      status={
+        <>
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ background: chip.bg, color: chip.fg }} data-applicant-document-chip>
+            <chip.Icon className="h-3.5 w-3.5" aria-hidden />
+            {chip.text}
+          </span>
+          {state === "yours" && signBy && (
+            <span className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+              Please sign by {signBy}
+            </span>
           )}
+        </>
+      }
+      signPlaceId={signing && !justSigned ? "ck-appdoc-sign" : null}
+      signLabel={isOffer ? "Sign to accept" : "Sign"}
+      data={{ "data-applicant-document": state }}
+    >
+      {state === "theirs" && justSigned ? (
+        // The moment they accept: a celebration, then what happens next.
+        <div className="ck-rise mx-auto max-w-md py-16 text-center" data-applicant-document-celebration>
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full" style={{ background: "var(--action-soft)" }}>
+            <CheckCircle2 className="h-9 w-9" style={{ color: "var(--action)" }} aria-hidden />
+          </div>
+          <h3 className="mt-4 font-display text-[28px] font-semibold" style={{ color: "var(--hf-text)" }}>
+            {isOffer ? "You accepted the offer!" : "Signed!"}
+          </h3>
+          <p className="mx-auto mt-2 max-w-sm text-[14px]" style={{ color: "var(--ink-2)" }}>
+            {Company} signs next. You'll get the final copy here, and an email when it's ready.
+          </p>
+          {isOffer && (
+            <p className="mx-auto mt-3 max-w-sm text-[14px]" style={{ color: "var(--ink-2)" }}>
+              They may also ask for your ID and the email you're paid on. If they do, it shows in Your documents.
+            </p>
+          )}
+          <button type="button" className="ck-btn ck-btn-primary mt-6 !rounded-full !px-6 !py-2.5 !text-[14px]" onClick={() => onOpenChange(false)}>
+            Done
+          </button>
         </div>
-      </DialogContent>
-    </Dialog>
+      ) : (
+        <>
+          {state === "yours" && (
+            <p className={note} style={{ color: "var(--ink-2)" }}>
+              {isOffer ? "Read your offer, then sign at the bottom to accept it. It takes a minute." : "Read it, then sign at the bottom."}
+            </p>
+          )}
+          {state === "declined" && <p className={note} style={{ color: "var(--ink-2)" }}>You declined this. {Company} was told.</p>}
+          {state === "withdrawn" && <p className={note} style={{ color: "var(--ink-2)" }}>{Company} withdrew this. There's nothing to sign.</p>}
+          {state === "expired" && <p className={note} style={{ color: "var(--ink-2)" }}>The date to sign has passed. If you still want it, message {company}.</p>}
+          {state === "theirs" && <p className={note} style={{ color: "var(--ink-2)" }}>{Company} signs next. You'll get the final copy here, and an email when it's ready.</p>}
+
+          {letterChanged && (
+            <p className={note} style={{ color: "var(--crit)" }} role="alert" data-applicant-document-changed>
+              This letter was changed while you were reading it.{" "}
+              <button
+                type="button"
+                className="font-semibold underline underline-offset-2"
+                onClick={() => {
+                  setShownFileUrl(document.file_url ?? null);
+                  setConsent(false);
+                }}
+              >
+                Show the new version
+              </button>
+            </p>
+          )}
+
+          {/* The paper itself, with the signatures where they go. */}
+          {isPdf ? (
+            shownPdf ? (
+              <PaperPdf src={shownPdf.src} fields={body?.signatureFields} spots={{ candidate: mySpot, employer: theirSpot }} labels={{ candidate: "You", employer: Company }} onSignHere={goSign} />
+            ) : (
+              <p className="py-20 text-center text-[14px]" style={{ color: "var(--ink-2)" }} data-applicant-document-file-problem>
+                {shownPdfProblem(shownPdfFailed, role, isTeamMember)}
+              </p>
+            )
+          ) : body?.content ? (
+            <PaperLetter text={body.content} candidate={{ who: "You", spot: mySpot }} employer={{ who: Company, spot: theirSpot }} onSignHere={goSign} />
+          ) : (
+            <p className="py-20 text-center text-[14px]" style={{ color: "var(--ink-3)" }}>
+              This document can't be shown here.
+            </p>
+          )}
+
+          {/* The one thing to do */}
+          {state === "yours" && !declining && (
+            <section id="ck-appdoc-sign" className="mx-auto mt-12 w-full max-w-[520px] scroll-mt-24" aria-labelledby="sign-title" data-applicant-document-sign>
+              <h3 id="sign-title" className="text-center font-display text-[26px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+                {isOffer ? "Sign to accept" : "Sign"}
+              </h3>
+              <p className="mt-1 text-center text-[13.5px]" style={{ color: "var(--ink-3)" }}>
+                Your signature goes on the {isOffer ? "letter" : "document"}, where it says Sign here.
+              </p>
+              <SignatureLineInput id="sign-name" how={how} onHow={setHow} typed={typed} onTyped={setTyped} onDrawn={setDrawn} />
+              <label className="mt-6 flex cursor-pointer items-start gap-3 text-[13.5px] leading-snug" style={{ color: "var(--ink-2)" }}>
+                <input id="sign-consent" type="checkbox" className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-[var(--action)]" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                <span>{CONSENT_STATEMENT}</span>
+              </label>
+              {error && (
+                <p className="mt-4 text-center text-[13.5px]" style={{ color: "var(--crit)" }}>
+                  {error}
+                </p>
+              )}
+              <button type="button" className="ck-btn ck-btn-primary mt-6 w-full !rounded-full !py-3.5 !text-[15px]" onClick={() => void sign()} disabled={!canSign} data-applicant-document-sign-button>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+                {busy ? "Signing..." : isOffer ? "Sign and accept the offer" : "Sign"}
+              </button>
+              <button type="button" className="mt-4 w-full text-center text-[13.5px] underline underline-offset-2" style={{ color: "var(--ink-3)" }} onClick={() => setDeclining(true)}>
+                {isOffer ? "I don't want to accept" : "I don't want to sign"}
+              </button>
+            </section>
+          )}
+
+          {state === "yours" && declining && (
+            <section className="mx-auto mt-12 w-full max-w-[520px]" data-applicant-document-decline>
+              <h3 className="text-center font-display text-[24px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+                {isOffer ? "Decline the offer?" : "Decline?"}
+              </h3>
+              <label htmlFor="decline-reason" className="mt-4 block text-[13.5px]" style={{ color: "var(--ink-2)" }}>
+                A short reason for {company}
+              </label>
+              <textarea
+                id="decline-reason"
+                className="ck-input mt-1.5 min-h-[84px] w-full px-3 py-2 text-base sm:text-sm"
+                maxLength={500}
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="I accepted another job."
+              />
+              {error && (
+                <p className="mt-2 text-[13.5px]" style={{ color: "var(--crit)" }}>
+                  {error}
+                </p>
+              )}
+              <div className="mt-4 flex flex-wrap justify-end gap-2">
+                <button type="button" className="ck-btn ck-btn-ghost !rounded-full !px-5" onClick={() => setDeclining(false)} disabled={busy}>
+                  Back
+                </button>
+                <button type="button" className="ck-btn !rounded-full !px-5" style={{ background: "var(--crit)", color: "#fff" }} onClick={() => void decline()} disabled={busy || reason.trim().length < 3}>
+                  {busy ? "Sending..." : isOffer ? "Decline the offer" : "Decline"}
+                </button>
+              </div>
+            </section>
+          )}
+
+          {state === "done" && (
+            <div className={ROW} data-applicant-document-done>
+              <button type="button" className={PILL} onClick={() => void download()} disabled={downloading}>
+                {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Download signed copy
+              </button>
+              <button type="button" className="inline-flex items-center gap-1.5 text-[13.5px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onShowRecord(document)}>
+                <FileText className="h-4 w-4" aria-hidden />
+                Signing record
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </PaperDesk>
   );
 }
 

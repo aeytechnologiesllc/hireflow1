@@ -70,6 +70,13 @@
     animation: hf-scrim-in 260ms ease both;
   }
 
+  /* The signing screens' desk (src/components/documents/PaperDesk.tsx) is
+     the sheet itself: the pages lie on it, nothing between. */
+  .ck-modal > .hf-paper-desk {
+    background: var(--hf-bg);
+    box-shadow: 0 -10px 40px -20px rgba(0, 0, 0, 0.35);
+  }
+
   /* The grab handle: drawn on the sheet itself, so every sheet has one. */
   .hf-modal-pop[data-state]::before,
   .ck-modal > [role="dialog"]::before {

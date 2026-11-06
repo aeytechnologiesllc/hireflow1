@@ -33,6 +33,9 @@ const applicant = read("src/components/documents/ApplicantDocumentSheet.tsx");
 const team = read("src/cockpit/components/TeamDocumentSheet.tsx");
 const myDocs = read("src/pages/MyDocuments.tsx");
 const docsPage = read("src/cockpit/pages/Documents.tsx");
+// The one loader for every screen that shows a file to sign (the owner, 2026-11-05: the PDFs moved to the two signing screens).
+const shown = read("src/lib/shownPdf.ts");
+const shownLoader = /const sent = enabled \? externalHref\(uploadedFileUrl\) : null;[\s\S]*?\}\)\(\);/.exec(shown)?.[0] ?? "";
 
 for (const [who, src] of [["applicant", applicant], ["team", team]]) {
   check(`${who}: none of the old record buttons`, !/Signed PDF|Audit PDF|View Audit Trail|>\s*Certificate\s*</.test(src));
@@ -54,7 +57,7 @@ check("PDF viewer: the applicant's audit trail once they have signed, countersig
 check("PDF viewer: the footer only where it has a button: everywhere with the audit trail, on a phone for 'Sign' alone, else none", /const footerOn: "both" \| "phone" \| "none" = auditTrailOffered \? "both" : canSignAsCandidate \|\| canCountersignAsEmployer \? "phone" : "none";/.test(viewer) && /\{footerOn !== "none" && \(\s*<div className=\{`p-3 sm:p-4 border-t border-border bg-card shrink-0 \$\{footerOn === "phone" \? "sm:hidden" : ""\}`\}/.test(viewer) && /className="gap-2 whitespace-nowrap sm:hidden"\s*data-go-to-sign/.test(viewer));
 // The twelfth product review: a teammate without "Send documents" is offered neither Countersign nor the signing record
 // (document-signing refuses them; document_audit_log returns them nothing), and the Documents page says which they are.
-check("PDF viewer: Countersign and the signing record only for someone who may send documents", /canSendDocuments = true \}: SignedDocumentViewerProps/.test(viewer) && /\(role === "employer" \|\| role === "team_member"\) &&\s*canSendDocuments &&/.test(viewer) && /<SignedDocumentViewer\s+document=\{viewerDocument\}\s+canSendDocuments=\{canSend\}/.test(docsPage));
+check("PDF viewer: Countersign and the signing record only for someone who may send documents", /canSendDocuments = true, recordOnly = false \}: SignedDocumentViewerProps/.test(viewer) && /\(role === "employer" \|\| role === "team_member"\) &&\s*canSendDocuments &&/.test(viewer) && /<SignedDocumentViewer\s+document=\{viewerDocument\}\s+canSendDocuments=\{canSend\}/.test(docsPage));
 check("Team sheet: a decline after the applicant signed is the team's own, never quoted as theirs; an already-hired person has no Hire to press", /const declinedByTeam = state === "declined" && !!document\.candidate_signed_at;/.test(read("src/cockpit/components/TeamDocumentSheet.tsx")) && /declinedByTeam \? "You declined this" : `\$\{First\} declined`/.test(read("src/cockpit/components/TeamDocumentSheet.tsx")) && /document\.applications\?\.status === "hired"/.test(read("src/cockpit/components/TeamDocumentSheet.tsx")) && /candidate_id,\s*status,\s*jobs\(\*\)/.test(read("src/hooks/useDocuments.ts")));
 // The seventh product review: an applicant now opens the audit trail before
 // the countersign and after a void, so the screen must not call a voided one
@@ -83,10 +86,10 @@ check("Audit PDF: the record's own status and 'Not completed' for a closed one, 
 // A PDF the applicant signed and the team voided: the viewer shows only the
 // kept copy, which the function now gives on a voided document too; a file it
 // cannot show is blamed on the file only when it is not a PDF.
-check("PDF viewer: 'not a PDF' only for a file that is not one; a copy that could not be fetched says so, without blaming the file", /setShownPdfFailed\("not_pdf"\)/.test(viewer) && /setShownPdfFailed\("unavailable"\)/.test(viewer) && /shownPdfFailed === "not_pdf"\s*\? role === "candidate"\s*\? "This file is not a PDF, so it can't be shown or signed here\. Ask the hiring team to send it again as a PDF\."\s*: "This file is not a PDF, so it can't be shown or signed here\. Send it again as a PDF\."\s*: shownPdfFailed === "unavailable"\s*\? "This document could not be loaded just now\. Close it and open it again\."/.test(viewer) && !/if it is another kind of file, send it again as a PDF/.test(viewer) && !/throw new Error\("not a pdf"\)/.test(viewer));
+check("PDF viewer: 'not a PDF' only for a file that is not one; a copy that could not be fetched says so, without blaming the file", /setShownPdfFailed\("not_pdf"\)/.test(shown) && /setShownPdfFailed\("unavailable"\)/.test(shown) && [viewer, team, applicant].every((src) => /shownPdfProblem\(shownPdfFailed, role, isTeamMember\)/.test(src)) && /shownPdfFailed === "not_pdf"\s*\? role === "candidate"\s*\? "This file is not a PDF, so it can't be shown or signed here\. Ask the hiring team to send it again as a PDF\."\s*: "This file is not a PDF, so it can't be shown or signed here\. Send it again as a PDF\."\s*: shownPdfFailed === "unavailable"\s*\? "This document could not be loaded just now\. Close it and open it again\."/.test(shown) && !/if it is another kind of file, send it again as a PDF/.test(shown) && !/throw new Error\("not a pdf"\)/.test(shown));
 {
-  // Which of "unavailable" and "not_pdf" the viewer's own loader lands on.
-  const loader = /const signedByApplicant = !!document\?\.candidate_signed_at;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
+  // Which of "unavailable" and "not_pdf" the shared loader lands on.
+  const loader = shownLoader;
   check("…the kept copy refused (a void, the network) lands on 'unavailable', never 'not_pdf'", /if \(!kept\) throw new Error\("no signed copy"\);/.test(loader) && /\} catch \{[\s\S]*?setShownPdfFailed\("unavailable"\)/.test(loader) && loader.indexOf('setShownPdfFailed("not_pdf")') > loader.indexOf('!== "%PDF-"'));
 }
 check("PDF viewer: 'Signed PDF' only for a document signed by both (it was offered on declined, expired, voided and unsigned ones, and saved '<name>_Signed.pdf')", /\{record === "done" && \(\s*<Button variant="outline" size="sm" onClick=\{handleDownload\} data-viewer-signed-pdf>\s*<Download className="h-4 w-4 mr-2" \/>\s*Signed PDF/.test(viewer) && (viewer.match(/>\s*Signed PDF\s*</g) ?? []).length === 1 && /const handleDownload = async \(\) => \{\s*\/\/[^\n]*\n\s*if \(!document \|\| recordState\(document\) !== "done"\) return;/.test(viewer));
@@ -139,10 +142,10 @@ check("team: no Withdraw or 'your turn' for a teammate who cannot send; the copy
 // told it "could not be loaded just now… open it again" (document-signing
 // answers them 403, role_mismatch): now they are told why.
 {
-  const loader = /const signedByApplicant = !!document\?\.candidate_signed_at;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
+  const loader = shownLoader;
   const refusal = loader.indexOf("if (await refusedForRole(data, error)) {");
-  check("PDF viewer: a refused kept copy is told apart from a failed load, before anything else is read from the answer", refusal !== -1 && /const \{ data, error \} = await supabase\.functions\.invoke\("document-signing", \{ body: \{ documentId: document\.id, action: "original" \} \}\);/.test(loader) && refusal < loader.indexOf("const kept = ") && /if \(await refusedForRole\(data, error\)\) \{\s*if \(!cancelled\) setShownPdfFailed\("not_allowed"\);\s*return;\s*\}/.test(loader));
-  check("…and says plainly who may open it, naming the switch to a teammate", /shownPdfFailed === "not_allowed"\s*\? `On your team, only someone who may send documents can open the signed file\.\$\{isTeamMember \? ` Ask the owner to turn on \$\{TEAM_PERMISSION_NAMES\.canSendDocuments\} for you\.` : ""\}`/.test(viewer));
+  check("PDF viewer: a refused kept copy is told apart from a failed load, before anything else is read from the answer", refusal !== -1 && /const \{ data, error \} = await supabase\.functions\.invoke\("document-signing", \{ body: \{ documentId, action: "original" \} \}\);/.test(loader) && refusal < loader.indexOf("const kept = ") && /if \(await refusedForRole\(data, error\)\) \{\s*if \(!cancelled\) setShownPdfFailed\("not_allowed"\);\s*return;\s*\}/.test(loader));
+  check("…and says plainly who may open it, naming the switch to a teammate", /shownPdfFailed === "not_allowed"\s*\? `On your team, only someone who may send documents can open the signed file\.\$\{isTeamMember \? ` Ask the owner to turn on \$\{TEAM_PERMISSION_NAMES\.canSendDocuments\} for you\.` : ""\}`/.test(shown));
   const { build } = await import("esbuild");
   const out = await build({ entryPoints: [resolve(root, "src/lib/documentSigningErrors.ts")], bundle: true, write: false, format: "esm", platform: "node", logLevel: "silent" });
   const loaded = await import(`data:text/javascript;base64,${Buffer.from(out.outputFiles[0].text).toString("base64")}`);
@@ -236,8 +239,16 @@ check("applicant: 'Sign and accept the offer'", /Sign and accept the offer/.test
 check("team: says it waits on the applicant when it does", /Nothing to do yet\.<\/strong> \{First\} signs first/.test(team));
 check("team: countersigns with the review confirmation", /action: "countersign"[\s\S]{0,200}reviewConfirmed: true/.test(team));
 check("team: the button stays off until both boxes are ticked", /const canSign = consent && reviewed &&/.test(team));
-check("the applicant's page opens written letters in the new screen", /isWrittenDocument\(doc\.file_url\) \? setSheetDocument\(doc\) : setViewerDocument\(doc\)/.test(myDocs));
-check("the team's page opens written letters in the new screen", /if \(isWrittenDocument\(full\.file_url\)\) setSheetDocId\(row\.id\);/.test(docsPage) && /<TeamDocumentSheet/.test(docsPage));
+check("the applicant's page opens written letters and uploaded PDFs in the new screen", /if \(opensInSigningScreen\(doc\.file_url\)\) return setSheetDocument\(doc\);/.test(myDocs));
+check("the team's page opens written letters and uploaded PDFs in the new screen", /if \(opensInSigningScreen\(full\.file_url\)\) setSheetDocId\(row\.id\);/.test(docsPage) && /<TeamDocumentSheet/.test(docsPage));
+// The owner, 2026-11-05: "free floating ... Scroll, you sign." Both screens lie on the desk, a PDF page by page.
+{
+  const desk = read("src/components/documents/PaperDesk.tsx");
+  check("both signing screens are the desk, and draw a PDF from the bytes the shared loader hashed", [team, applicant].every((src) => /<PaperDesk\b/.test(src) && /<PaperPdf src=\{shownPdf\.src\}/.test(src) && /useShownPdf\(\{/.test(src)) && /<Document\s+file=\{file\}/.test(desk) && /const file = useMemo\(\(\) => \(\{ url: src \}\), \[src\]\);/.test(desk));
+  check("…no frame, no PDF toolbar, no second box around the pages", !/<iframe/.test(desk + team + applicant) && !/ck-card/.test(desk) && /renderAnnotationLayer=\{false\}/.test(desk));
+  check("…and while the place to sign is out of sight, one button goes to it", /signPlaceId && !signInView && \(/.test(desk) && /signPlaceId=\{signing && !justFinished \? "ck-teamdoc-sign" : null\}/.test(team) && /signPlaceId=\{signing && !justSigned \? "ck-appdoc-sign" : null\}/.test(applicant));
+  check("…the signing record opens on the record itself", /recordOnly=\{viewerAsRecord\}/.test(docsPage) && /recordOnly=\{viewerAsRecord\}/.test(myDocs) && /useState\(recordOnly\)/.test(viewer));
+}
 check("the team's row button says Sign on their turn", /row\.candidateSignedAt && !row\.isVoided \? "Sign" : "Open"/.test(docsPage));
 check("a refresh after signing never hides the finished moment (resets only on open or another document)", /\}, \[open, documentId, userId, fileUrl\]\);/.test(team) && /\}, \[open, documentId\]\);/.test(applicant));
 

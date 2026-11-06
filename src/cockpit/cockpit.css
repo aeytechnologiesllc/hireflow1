@@ -332,6 +332,23 @@ main.ck-scroll,
 }
 .ck-rise { animation: ck-rise 0.42s cubic-bezier(0.4, 0, 0.2, 1) both; }
 
+/* ── The signing screens' desk (src/components/documents/PaperDesk.tsx) ──
+   The pages fade out under the header as they scroll up, and the place
+   waiting for this person's signature breathes a few times to be found.
+   (The desk's scroller holds swipes by the dialog rule above.) */
+.hf-paper-scroll {
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
+  mask-image: linear-gradient(to bottom, transparent 0, #000 18px);
+}
+@keyframes hf-sign-here {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--action) 35%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--action) 0%, transparent); }
+}
+.hf-sign-here { animation: hf-sign-here 2.2s ease-in-out 4; cursor: pointer; }
+@media (prefers-reduced-motion: reduce) {
+  .hf-sign-here { animation: none; }
+}
+
 /* Reusable staggered reveal — fade + subtle rise. Drive the per-item offset
    with the inline `--ck-i` custom property (the index); the delay is computed
    from it so a section of cards/rows comes to life in a clean sequence.

@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { CheckCircle2, Clock, Download, FileText, Loader2, PenLine, X, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Download, FileText, Loader2, PenLine, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { invokeDocumentSigning } from "@/lib/documentSigningErrors";
 import { collectSignerContext } from "@/lib/signerContext";
+import { shownPdfProblem, useShownPdf } from "@/lib/shownPdf";
 import type { DocumentWithApplication } from "@/hooks/useDocuments";
-import { LetterText } from "@/components/documents/LetterText";
-import { SignaturePad } from "@/components/documents/SignaturePad";
 import { readDocumentBody } from "@/components/documents/ApplicantDocumentSheet";
+import { goToSignPlace, PaperDesk, PaperLetter, PaperPdf, SignatureLineInput, type PaperSpot } from "@/components/documents/PaperDesk";
 
 /**
  * The hiring team's own view of a document it sent (an offer letter, most
@@ -30,7 +29,17 @@ import { readDocumentBody } from "@/components/documents/ApplicantDocumentSheet"
  *   - declined, withdrawn, voided or expired: said plainly, with the reason,
  *     and the signing record one tap away (the tenth product review).
  * The signing is the document-signing function's, unchanged.
+ *
+ * The owner, 2026-11-05: free floating, "scroll, you sign". The letter, or
+ * an uploaded PDF page by page, lies on the desk (PaperDesk.tsx) with the
+ * signatures on the paper where they go; the place to sign is under it, with
+ * nothing around it. A PDF is drawn from the bytes the screen fetched
+ * (src/lib/shownPdf.ts), as the signing record's viewer did.
  */
+
+// The desk's buttons and their row (PaperDesk.tsx).
+const PILL = "ck-btn ck-btn-primary !rounded-full !px-5 !py-2.5 !text-[14px]";
+const ROW = "mx-auto mt-8 flex max-w-[816px] flex-wrap items-center justify-center gap-4";
 
 const CONSENT_STATEMENT =
   "I acknowledge that I am signing this document electronically and that my electronic signature has the same legal effect as a handwritten signature.";
@@ -90,16 +99,6 @@ export function signerInLetter(content: string | null | undefined): string | nul
   return name && name.length <= 120 ? name : null;
 }
 
-function Mark({ value }: { value: string | null }) {
-  if (!value) return <div className="mt-1 text-[13px]" style={{ color: "var(--ink-3)" }}>Not signed yet</div>;
-  return value.startsWith("data:image") ? (
-    <img src={value} alt="" className="mt-1 h-12 max-w-full object-contain dark:invert" />
-  ) : (
-    <div className="mt-1 truncate font-signature text-[32px] leading-tight" style={{ color: "var(--hf-text)" }}>
-      {value}
-    </div>
-  );
-}
 
 export function TeamDocumentSheet({
   document,
@@ -126,7 +125,7 @@ export function TeamDocumentSheet({
   onShowRecord: (document: DocumentWithApplication) => void;
 }) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, role, isTeamMember } = useAuth();
   const body = useMemo(() => readDocumentBody(document?.file_url), [document?.file_url]);
   const documentId = document?.id ?? null;
   const [typed, setTyped] = useState("");
@@ -138,6 +137,15 @@ export function TeamDocumentSheet({
   const [error, setError] = useState<string | null>(null);
   const [justFinished, setJustFinished] = useState(false);
   const [downloading, setDownloading] = useState(false);
+
+  // An uploaded PDF, shown from the bytes fetched for this screen.
+  const isPdf = !!body?.uploadedFileUrl && !body?.content;
+  const { shownPdf, shownPdfFailed } = useShownPdf({
+    documentId,
+    uploadedFileUrl: isPdf ? body?.uploadedFileUrl : null,
+    signedByApplicant: !!document?.candidate_signed_at,
+    enabled: open,
+  });
 
   // The applicant's signing record (when, where, on what device): the team's to see.
   const { data: record = [] } = useQuery({
@@ -180,15 +188,6 @@ export function TeamDocumentSheet({
     };
   }, [open, documentId, userId, fileUrl]);
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
   if (!open || !document) return null;
 
   const state: TeamDocumentState = justFinished ? "done" : teamDocumentState(document);
@@ -204,7 +203,8 @@ export function TeamDocumentSheet({
   const theirRow = record.find((r) => r.action === "candidate_signed");
   const theirWhere = whereLine(theirRow);
   const signature = how === "typed" ? typed.trim() : drawn;
-  const canSign = consent && reviewed && !!signature && (how === "drawn" || typed.trim().length >= 2) && !busy;
+  const canSign = consent && reviewed && !!signature && (how === "drawn" || typed.trim().length >= 2) && !busy && (!isPdf || !!shownPdf);
+  const signing = state === "yours" && canSend;
 
   const finish = async () => {
     if (!canSign || !signature) return;
@@ -263,249 +263,214 @@ export function TeamDocumentSheet({
                 ? { text: "Voided", bg: "var(--crit-bg)", fg: "var(--crit)", Icon: XCircle }
                 : { text: "Expired", bg: "var(--surface-2)", fg: "var(--ink-2)", Icon: Clock };
 
-  return createPortal(
-    <div className="ck-modal fixed inset-0 z-[60] flex items-center justify-center p-3 md:p-4">
-      <div className="absolute inset-0" style={{ background: "color-mix(in srgb, var(--hf-bg) 70%, transparent)", backdropFilter: "blur(2px)" }} onClick={() => !busy && onClose()} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ck-teamdoc-title"
-        data-team-document={state}
-        className="ck-card relative flex max-h-[calc(100dvh-24px)] w-full max-w-[760px] flex-col p-0"
-        style={{ animation: "ck-rise 0.22s cubic-bezier(0.4,0,0.2,1) both" }}
-      >
-        <div className="border-b px-5 pb-4 pt-5" style={{ borderColor: "var(--line)" }}>
-          <button onClick={onClose} disabled={busy} className="absolute right-3 top-3 p-1 disabled:opacity-40" style={{ color: "var(--hf-text-muted)" }} aria-label="Close">
-            <X className="h-4 w-4" />
-          </button>
-          <h2 id="ck-teamdoc-title" className="pr-8 font-display text-[22px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
-            {title}
-          </h2>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ background: chip.bg, color: chip.fg }} data-team-document-chip>
-              <chip.Icon className="h-3.5 w-3.5" aria-hidden />
-              {chip.text}
-            </span>
-            <span className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
-              Sent {sentOn}
-              {state === "waiting" && signBy ? ` · they have until ${signBy}` : ""}
-            </span>
+  // The two places to sign, on the paper: what is signed there, else who signs it.
+  const stillOpen = state === "waiting" || state === "yours";
+  const theirSpot: PaperSpot = theirMark
+    ? { mark: { value: theirMark, at: document.candidate_signed_at } }
+    : { mark: null, waitingLabel: stillOpen ? `${First} ${First === "They" ? "sign" : "signs"} here` : undefined };
+  const mySpot: PaperSpot = myMark
+    ? { mark: { value: myMark, at: document.employer_signed_at } }
+    : signing
+      ? { mark: null, mine: true, preview: signature || null }
+      : { mark: null, waitingLabel: stillOpen ? (canSend ? "You sign here, after them" : "Your team signs here") : undefined };
+  const goSign = () => goToSignPlace("ck-teamdoc-sign");
+  const note = "mx-auto mb-5 max-w-[816px] text-[14px] leading-snug";
+
+  return (
+    <PaperDesk
+      open={open}
+      busy={busy}
+      onClose={onClose}
+      titleId="ck-teamdoc-title"
+      title={title}
+      status={
+        <>
+          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-semibold" style={{ background: chip.bg, color: chip.fg }} data-team-document-chip>
+            <chip.Icon className="h-3.5 w-3.5" aria-hidden />
+            {chip.text}
+          </span>
+          <span className="text-[12.5px]" style={{ color: "var(--ink-3)" }}>
+            Sent {sentOn}
+            {state === "waiting" && signBy ? ` · they have until ${signBy}` : ""}
+          </span>
+        </>
+      }
+      signPlaceId={signing && !justFinished ? "ck-teamdoc-sign" : null}
+      signLabel="Sign"
+      data={{ "data-team-document": state }}
+    >
+      {justFinished ? (
+        <div className="ck-rise mx-auto max-w-md py-16 text-center" data-team-document-finished>
+          <div className="mx-auto grid h-16 w-16 place-items-center rounded-full" style={{ background: "var(--action-soft)" }}>
+            <CheckCircle2 className="h-9 w-9" style={{ color: "var(--action)" }} aria-hidden />
+          </div>
+          <h3 className="mt-4 font-display text-[28px]" style={{ color: "var(--hf-text)", fontWeight: 600 }}>
+            {isOffer ? "Signed by both. It's official." : "Signed by both."}
+          </h3>
+          <p className="mx-auto mt-2 max-w-sm text-[14px]" style={{ color: "var(--ink-2)" }}>
+            {/* An already-hired person has no Hire to press (the twelfth product review: a letter sent after the hire). */}
+            {document.applications?.status === "hired"
+              ? `${First} gets the final copy too. ${First === "They" ? "They're" : `${First} is`} already hired, so there is nothing more to do here.`
+              : <>{First} gets the final copy too. When you're ready, press Hire on {first === "they" ? "their" : `${first}'s`} page to welcome them and ask for their documents.</>}
+          </p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <button type="button" className={PILL} onClick={() => void download()} disabled={downloading}>
+              {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+              Download signed copy
+            </button>
+            <button type="button" className="ck-btn ck-btn-ghost !rounded-full !px-5 !py-2.5 !text-[14px]" onClick={onClose}>
+              Done
+            </button>
           </div>
         </div>
+      ) : (
+        <>
+          {state === "waiting" && (
+            <p className={note} style={{ color: "var(--ink-2)" }} data-team-document-wait>
+              {/* Only the account owner is notified when the applicant signs (document-signing), so this
+                  never promises a teammate a notification (the fourteenth product review), and tells each
+                  reader who signs next (the fifteenth: the owner read about "the account owner"). */}
+              <strong style={{ color: "var(--hf-text)" }}>Nothing to do yet.</strong> {First} signs first.{" "}
+              {isOwner
+                ? "You'll get a notification when they do, and then you sign here to finish."
+                : canSend
+                  ? "The account owner gets a notification when they do; then you or the owner sign here to finish."
+                  : "The account owner gets a notification when they do; then someone on your team who may send documents signs it here."}
+            </p>
+          )}
+          {state === "yours" && document.candidate_signed_at && (
+            <p className={note} style={{ color: "var(--ink-2)" }} data-team-document-where>
+              <strong style={{ color: "var(--hf-text)" }}>
+                {First} signed {format(new Date(document.candidate_signed_at), "MMM d 'at' h:mm a")}
+              </strong>
+              {theirWhere ? ` · ${theirWhere}` : ""}
+              {canSend ? ". Read it, then sign at the bottom." : "."}
+            </p>
+          )}
+          {state === "declined" && (
+            <p className={note} style={{ color: "var(--crit)" }}>
+              {declinedByTeam ? "You declined this" : `${First} declined`}{document.decline_reason ? `: "${document.decline_reason}"` : "."}
+            </p>
+          )}
+          {(state === "withdrawn" || state === "voided") && (
+            <p className={note} style={{ color: "var(--ink-2)" }}>
+              You {state === "withdrawn" ? "withdrew" : "voided"} this{document.voided_reason ? `: "${document.voided_reason}"` : "."}
+            </p>
+          )}
+          {/* What to do about it: nothing once a later letter went out, and
+              "send a new one" only to someone who can (the eleventh product
+              review: it was said to a teammate without "Send documents",
+              and beside a newer letter already signed). Offer letter lists
+              hired people too, so it still works after the hire. */}
+          {state === "expired" && (
+            <p className={note} style={{ color: "var(--ink-2)" }} data-team-document-expired>
+              {First} didn't sign by {signBy ?? "the date given"}.
+              {newerLetterSentAt
+                ? ` A newer offer letter went out on ${format(new Date(newerLetterSentAt), "MMMM d")}.`
+                : isOffer && canSend
+                  ? " Send a new offer letter if you still want them."
+                  : ""}
+            </p>
+          )}
 
-        <div className="ck-scroll min-h-0 flex-1 overflow-y-auto px-5 py-5">
-          {justFinished ? (
-            <div className="py-6 text-center" data-team-document-finished>
-              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full" style={{ background: "var(--action-soft)" }}>
-                <CheckCircle2 className="h-9 w-9" style={{ color: "var(--action)" }} aria-hidden />
-              </div>
-              <h3 className="mt-4 font-display text-[26px]" style={{ color: "var(--hf-text)", fontWeight: 600 }}>
-                {isOffer ? "Signed by both. It's official." : "Signed by both."}
-              </h3>
-              <p className="mx-auto mt-2 max-w-sm text-[13.5px]" style={{ color: "var(--ink-2)" }}>
-                {/* An already-hired person has no Hire to press (the twelfth product review: a letter sent after the hire). */}
-                {document.applications?.status === "hired"
-                  ? `${First} gets the final copy too. ${First === "They" ? "They're" : `${First} is`} already hired, so there is nothing more to do here.`
-                  : <>{First} gets the final copy too. When you're ready, press Hire on {first === "they" ? "their" : `${first}'s`} page to welcome them and ask for their documents.</>}
+          {/* The paper itself, with the signatures where they go. */}
+          {isPdf ? (
+            shownPdf ? (
+              <PaperPdf src={shownPdf.src} fields={body?.signatureFields} spots={{ candidate: theirSpot, employer: mySpot }} labels={{ candidate: person === "the applicant" ? "Applicant" : person, employer: "You" }} onSignHere={goSign} />
+            ) : (
+              <p className="py-20 text-center text-[14px]" style={{ color: "var(--ink-2)" }} data-team-document-file-problem>
+                {shownPdfProblem(shownPdfFailed, role, isTeamMember)}
               </p>
-              <div className="mt-5 flex flex-wrap justify-center gap-2">
-                <button type="button" className="ck-btn ck-btn-primary !py-2 !text-[13px]" onClick={() => void download()} disabled={downloading}>
-                  {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  Download signed copy
-                </button>
-                <button type="button" className="ck-btn ck-btn-ghost !py-2 !text-[13px]" onClick={onClose}>
-                  Done
-                </button>
-              </div>
-            </div>
+            )
+          ) : body?.content ? (
+            <PaperLetter text={body.content} candidate={{ who: person === "the applicant" ? "Applicant" : person, spot: theirSpot }} employer={{ who: "You", spot: mySpot }} onSignHere={goSign} />
           ) : (
-            <>
-              {state === "waiting" && (
-                <div className="mb-4 rounded-[12px] px-4 py-3 text-[13.5px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }} data-team-document-wait>
-                  {/* Only the account owner is notified when the applicant signs (document-signing), so this
-                      never promises a teammate a notification (the fourteenth product review), and tells each
-                      reader who signs next (the fifteenth: the owner read about "the account owner"). */}
-                  <strong style={{ color: "var(--hf-text)" }}>Nothing to do yet.</strong> {First} signs first.{" "}
-                  {isOwner
-                    ? "You'll get a notification when they do, and then you sign here to finish."
-                    : canSend
-                      ? "The account owner gets a notification when they do; then you or the owner sign here to finish."
-                      : "The account owner gets a notification when they do; then someone on your team who may send documents signs it here."}
-                </div>
-              )}
-              {state === "declined" && (
-                <div className="mb-4 rounded-[12px] px-4 py-3 text-[13.5px]" style={{ background: "var(--crit-bg)", color: "var(--crit)" }}>
-                  {declinedByTeam ? "You declined this" : `${First} declined`}{document.decline_reason ? `: "${document.decline_reason}"` : "."}
-                </div>
-              )}
-              {(state === "withdrawn" || state === "voided") && (
-                <div className="mb-4 rounded-[12px] px-4 py-3 text-[13.5px]" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }}>
-                  You {state === "withdrawn" ? "withdrew" : "voided"} this{document.voided_reason ? `: "${document.voided_reason}"` : "."}
-                </div>
-              )}
-              {/* What to do about it: nothing once a later letter went out, and
-                  "send a new one" only to someone who can (the eleventh product
-                  review: it was said to a teammate without "Send documents",
-                  and beside a newer letter already signed). Offer letter lists
-                  hired people too, so it still works after the hire. */}
-              {state === "expired" && (
-                <div className="mb-4 rounded-[12px] px-4 py-3 text-[13.5px]" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }} data-team-document-expired>
-                  {First} didn't sign by {signBy ?? "the date given"}.
-                  {newerLetterSentAt
-                    ? ` A newer offer letter went out on ${format(new Date(newerLetterSentAt), "MMMM d")}.`
-                    : isOffer && canSend
-                      ? " Send a new offer letter if you still want them."
-                      : ""}
-                </div>
-              )}
+            <p className="py-20 text-center text-[14px]" style={{ color: "var(--ink-3)" }}>
+              This document can't be shown here. Open the signing record.
+            </p>
+          )}
 
-              <article className="rounded-[12px] border px-5 py-5 text-[14px] leading-[1.6]" style={{ borderColor: "var(--line)", background: "var(--hf-surface)", color: "var(--hf-text)" }} data-team-document-letter>
-                {body?.content ? <LetterText text={body.content} /> : <p style={{ color: "var(--ink-3)" }}>This document can't be shown here. Open the signing record.</p>}
-              </article>
+          {/* Only someone who may send documents signs for the business, keeps the
+              signed copy and reads the signing record (document-signing's
+              resolveDocumentRole, document_audit_log): a teammate without "Send
+              documents" was offered "Sign to finish", refused on pressing it, and
+              links that opened an empty viewer (the thirteenth product review). */}
+          {!canSend && (state === "yours" || state === "done" || state === "declined" || state === "withdrawn" || state === "voided" || state === "expired") && (
+            <p className="mx-auto mt-8 max-w-[816px] text-center text-[13.5px] leading-snug" style={{ color: "var(--ink-2)" }} data-team-document-no-send>
+              {/* Only a letter signed by both has a signed copy (the fourteenth product review). */}
+              {state === "yours"
+                ? "Someone on your team who may send documents signs this to finish it."
+                : state === "done"
+                  ? "Only someone on your team who may send documents can open the signed copy and the signing record."
+                  : "Only someone on your team who may send documents can open the signing record."}
+            </p>
+          )}
 
-              {(state === "yours" || state === "done" || state === "voided") && (
-                <div className="mt-4 grid gap-3 sm:grid-cols-2" data-team-document-signatures>
-                  <div className="min-w-0 rounded-[12px] border px-4 py-3" style={{ borderColor: "var(--line)" }}>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>
-                      {person === "the applicant" ? "Applicant" : person}
-                    </div>
-                    <Mark value={theirMark} />
-                    {document.candidate_signed_at && (
-                      <div className="mt-0.5 text-[12px]" style={{ color: "var(--ink-3)" }}>
-                        {format(new Date(document.candidate_signed_at), "MMM d, yyyy 'at' h:mm a")}
-                      </div>
-                    )}
-                    {theirWhere && (
-                      <div className="mt-0.5 text-[12px]" style={{ color: "var(--ink-3)" }} data-team-document-where>
-                        {theirWhere}
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 rounded-[12px] border px-4 py-3" style={{ borderColor: "var(--line)" }}>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--ink-3)" }}>
-                      You
-                    </div>
-                    <Mark value={myMark} />
-                    {document.employer_signed_at && state === "done" && (
-                      <div className="mt-0.5 text-[12px]" style={{ color: "var(--ink-3)" }}>
-                        {format(new Date(document.employer_signed_at), "MMM d, yyyy 'at' h:mm a")}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Only someone who may send documents signs for the business, keeps the
-                  signed copy and reads the signing record (document-signing's
-                  resolveDocumentRole, document_audit_log): a teammate without "Send
-                  documents" was offered "Sign to finish", refused on pressing it, and
-                  links that opened an empty viewer (the thirteenth product review). */}
-              {!canSend && (state === "yours" || state === "done" || state === "declined" || state === "withdrawn" || state === "voided" || state === "expired") && (
-                <p className="mt-5 rounded-[12px] px-4 py-3 text-[13px] leading-snug" style={{ background: "var(--surface-2)", color: "var(--ink-2)" }} data-team-document-no-send>
-                  {/* Only a letter signed by both has a signed copy (the fourteenth product review). */}
-                  {state === "yours"
-                    ? "Someone on your team who may send documents signs this to finish it."
-                    : state === "done"
-                      ? "Only someone on your team who may send documents can open the signed copy and the signing record."
-                      : "Only someone on your team who may send documents can open the signing record."}
+          {state === "yours" && canSend && (
+            <section id="ck-teamdoc-sign" className="mx-auto mt-12 w-full max-w-[520px] scroll-mt-24" aria-labelledby="ck-teamdoc-sign-title" data-team-document-sign>
+              <h3 id="ck-teamdoc-sign-title" className="text-center font-display text-[26px]" style={{ color: "var(--hf-text)", fontWeight: 500 }}>
+                Sign to finish
+              </h3>
+              <p className="mt-1 text-center text-[13.5px]" style={{ color: "var(--ink-3)" }}>
+                Your signature goes on the {isOffer ? "letter" : "document"}{theirMark ? `, beside ${first === "they" ? "theirs" : `${First}'s`}` : ""}.
+              </p>
+              <SignatureLineInput id="ck-teamdoc-name" how={how} onHow={setHow} typed={typed} onTyped={setTyped} onDrawn={setDrawn} />
+              <label className="mt-6 flex cursor-pointer items-start gap-3 text-[13.5px] leading-snug" style={{ color: "var(--ink-2)" }}>
+                <input id="ck-teamdoc-review" type="checkbox" className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-[var(--action)]" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} />
+                <span>I've read the {isOffer ? "letter" : "document"} and {first === "they" ? "their" : `${first}'s`} signature above.</span>
+              </label>
+              <label className="mt-3 flex cursor-pointer items-start gap-3 text-[13.5px] leading-snug" style={{ color: "var(--ink-2)" }}>
+                <input id="ck-teamdoc-consent" type="checkbox" className="mt-0.5 h-[18px] w-[18px] shrink-0 accent-[var(--action)]" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+                <span>{CONSENT_STATEMENT}</span>
+              </label>
+              {error && (
+                <p className="mt-4 text-center text-[13.5px]" style={{ color: "var(--crit)" }}>
+                  {error}
                 </p>
               )}
-
-              {state === "yours" && canSend && (
-                <section className="mt-5 rounded-[14px] border px-4 py-4" style={{ borderColor: "var(--action)", background: "color-mix(in srgb, var(--action-soft) 55%, transparent)" }} data-team-document-sign>
-                  <h3 className="text-[15px] font-semibold" style={{ color: "var(--hf-text)" }}>
-                    Sign to finish
-                  </h3>
-                  {how === "typed" ? (
-                    <>
-                      <label htmlFor="ck-teamdoc-name" className="mt-3 block text-[12.5px]" style={{ color: "var(--ink-2)" }}>
-                        Type your full name
-                      </label>
-                      <input
-                        id="ck-teamdoc-name"
-                        className="ck-input mt-1 w-full px-3 py-1.5 font-signature !text-[30px] leading-snug"
-                        value={typed}
-                        maxLength={120}
-                        onChange={(e) => setTyped(e.target.value)}
-                        autoComplete="name"
-                      />
-                      <button type="button" className="mt-1.5 text-[12px] underline underline-offset-2" style={{ color: "var(--ink-3)" }} onClick={() => setHow("drawn")}>
-                        Draw it instead
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <div className="mt-3 text-[12.5px]" style={{ color: "var(--ink-2)" }}>
-                        Draw your signature
-                      </div>
-                      <div className="mt-1">
-                        <SignaturePad onChange={setDrawn} />
-                      </div>
-                      <button type="button" className="mt-1.5 text-[12px] underline underline-offset-2" style={{ color: "var(--ink-3)" }} onClick={() => setHow("typed")}>
-                        Type it instead
-                      </button>
-                    </>
-                  )}
-                  <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug" style={{ color: "var(--ink-2)" }}>
-                    <input id="ck-teamdoc-review" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--action)]" checked={reviewed} onChange={(e) => setReviewed(e.target.checked)} />
-                    <span>I've read the letter and {first === "they" ? "their" : `${first}'s`} signature above.</span>
-                  </label>
-                  <label className="mt-2 flex cursor-pointer items-start gap-2.5 text-[13px] leading-snug" style={{ color: "var(--ink-2)" }}>
-                    <input id="ck-teamdoc-consent" type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--action)]" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
-                    <span>{CONSENT_STATEMENT}</span>
-                  </label>
-                  {error && (
-                    <p className="mt-3 text-[13px]" style={{ color: "var(--crit)" }}>
-                      {error}
-                    </p>
-                  )}
-                  <button type="button" className="ck-btn ck-btn-primary mt-4 w-full !py-2.5 !text-[14px]" onClick={() => void finish()} disabled={!canSign} data-team-document-sign-button>
-                    {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
-                    {busy ? "Signing..." : "Sign and finish"}
-                  </button>
-                </section>
-              )}
-
-              {state === "done" && canSend && (
-                <div className="mt-5 flex flex-wrap items-center gap-3" data-team-document-done>
-                  <button type="button" className="ck-btn ck-btn-primary !py-2 !text-[13px]" onClick={() => void download()} disabled={downloading}>
-                    {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                    Download signed copy
-                  </button>
-                  <button type="button" className="inline-flex items-center gap-1.5 text-[13px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onShowRecord(document)}>
-                    <FileText className="h-4 w-4" aria-hidden />
-                    Signing record
-                  </button>
-                </div>
-              )}
-
-              {/* A closed letter keeps its record too: who did what and when,
-                  and a copy of that record to save (the tenth product review:
-                  the link was there only once both had signed, so a declined,
-                  withdrawn, voided or expired letter had no way to it). */}
-              {(state === "declined" || state === "withdrawn" || state === "voided" || state === "expired") && canSend && (
-                <div className="mt-5 flex justify-end" data-team-document-closed-record>
-                  <button type="button" className="inline-flex items-center gap-1.5 text-[13px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onShowRecord(document)}>
-                    <FileText className="h-4 w-4" aria-hidden />
-                    Signing record
-                  </button>
-                </div>
-              )}
-
-              {state === "waiting" && canSend && (
-                <div className="mt-5 flex justify-end">
-                  <button type="button" className="text-[13px] underline underline-offset-2" style={{ color: "var(--ink-3)" }} onClick={() => onWithdraw(document)} data-team-document-withdraw>
-                    {isOffer ? "Withdraw this offer" : "Withdraw"}
-                  </button>
-                </div>
-              )}
-            </>
+              <button type="button" className="ck-btn ck-btn-primary mt-6 w-full !rounded-full !py-3.5 !text-[15px]" onClick={() => void finish()} disabled={!canSign} data-team-document-sign-button>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenLine className="h-4 w-4" />}
+                {busy ? "Signing..." : "Sign and finish"}
+              </button>
+            </section>
           )}
-        </div>
-      </div>
-    </div>,
-    // window.document: `document` here is the prop (the letter).
-    window.document.body,
+
+          {state === "done" && canSend && (
+            <div className={ROW} data-team-document-done>
+              <button type="button" className={PILL} onClick={() => void download()} disabled={downloading}>
+                {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                Download signed copy
+              </button>
+              <button type="button" className="inline-flex items-center gap-1.5 text-[13.5px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onShowRecord(document)}>
+                <FileText className="h-4 w-4" aria-hidden />
+                Signing record
+              </button>
+            </div>
+          )}
+
+          {/* A closed letter keeps its record too: who did what and when,
+              and a copy of that record to save (the tenth product review:
+              the link was there only once both had signed, so a declined,
+              withdrawn, voided or expired letter had no way to it). */}
+          {(state === "declined" || state === "withdrawn" || state === "voided" || state === "expired") && canSend && (
+            <div className="mt-5 flex justify-end" data-team-document-closed-record>
+              <button type="button" className="inline-flex items-center gap-1.5 text-[13.5px] underline underline-offset-2" style={{ color: "var(--ink-2)" }} onClick={() => onShowRecord(document)}>
+                <FileText className="h-4 w-4" aria-hidden />
+                Signing record
+              </button>
+            </div>
+          )}
+
+          {state === "waiting" && canSend && (
+            <div className="mx-auto mt-8 flex max-w-[816px] justify-center">
+              <button type="button" className="text-[13.5px] underline underline-offset-2" style={{ color: "var(--ink-3)" }} onClick={() => onWithdraw(document)} data-team-document-withdraw>
+                {isOffer ? "Withdraw this offer" : "Withdraw"}
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </PaperDesk>
   );
 }
 

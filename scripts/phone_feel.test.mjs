@@ -47,7 +47,9 @@ const dialogs = ["RequestDocumentsDialog", "TeamDocumentSheet", "ResumeViewerDia
 const missing = [];
 const notPortalled = [];
 for (const name of dialogs) {
-  const src = await read(`src/cockpit/components/${name}.tsx`);
+  // The letter's sheet is drawn by the signing screens' desk (src/components/documents/PaperDesk.tsx, 2026-11-05).
+  const own = await read(`src/cockpit/components/${name}.tsx`);
+  const src = name === "TeamDocumentSheet" && /<PaperDesk\b/.test(own) ? await read("src/components/documents/PaperDesk.tsx") : own;
   if (!/className="ck-modal fixed inset-0/.test(src)) missing.push(name);
   if (!/return createPortal\(\s*(?:\{\/\*[\s\S]*?\*\/\}\s*|\/\/[^\n]*\n\s*)*<div className="ck-modal/.test(src)) notPortalled.push(name);
 }

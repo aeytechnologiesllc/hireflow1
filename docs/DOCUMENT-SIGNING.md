@@ -38,6 +38,36 @@ chain no longer reconciles"), though nothing had been altered:
   applicant's notice) was rehearsed on production as the service role inside a
   transaction that rolled back: every write was accepted.
 
+## The signing screens: paper on a desk (2026-11-05)
+
+The owner, on an uploaded offer letter in the old viewer: "The big container,
+then another container, and then you have another container that scrolls a
+PDF ... You need to come up with something that's free floating. Scroll, you
+sign." So every document a business sends, a written letter or an uploaded
+PDF, now opens in the two signing screens (`ApplicantDocumentSheet`,
+`TeamDocumentSheet`, routed by `opensInSigningScreen`), drawn by
+`src/components/documents/PaperDesk.tsx`:
+
+- the app dims behind, and the pages lie on it: a PDF page by page
+  (react-pdf, no frame, no toolbar, no links), a written letter as one sheet;
+  one scroll for all of it;
+- the signatures already made are drawn on the page where they go (the first
+  field of each side, as the countersign places them), the place waiting for
+  this person says "Sign here" and shows their name as they type it, and the
+  other side's place says who signs it;
+- the signing (name on a line, or drawn; the same consent words) is under the
+  last page with nothing around it; while it is out of sight one button
+  floats at the bottom to it. On a phone the desk is the app's bottom sheet.
+
+A PDF is fetched once, before signing from this project's documents bucket
+only and after signing as the kept copy, and drawn from those very bytes;
+the applicant signs with their hash (`src/lib/shownPdf.ts`, the loader the
+signing record's viewer uses too). "Signing record" opens
+`SignedDocumentViewer` on the audit trail itself (`recordOnly`). The site's
+CSP allows `blob:` in connect-src for that read (`scripts/csp.mjs`). Local
+check: `__previewDocs=pdf,signed,fields` (a two-page file with a place for
+each signature) in the dev preview.
+
 ## Signing record and who sees it (2026-10-11)
 
 The owner, asked whether a signature captures location, IP and device

@@ -50,7 +50,7 @@ import { AuditCertificate } from "./AuditCertificate";
 import { downloadAuditTrailPDF, downloadAuditTrailJSON, AuditExportData, AuditExportEntry } from "@/lib/auditExport";
 import { generateCompletionCertificate, CompletionCertificate } from "@/lib/completionCertificate";
 import { downloadCertificatePDF } from "@/lib/certificatePDF";
-import { burnSignaturesIntoPdf, generatePdfHash, type SignatureOverlay, type CertificateData } from "@/lib/pdfSignatureBurner";
+import { burnSignaturesIntoPdf, type SignatureOverlay, type CertificateData } from "@/lib/pdfSignatureBurner";
 import {
   formatAuditActionLabel,
   getAuditActionColor,
@@ -61,8 +61,7 @@ import {
 import { candidateOrigin } from "@/lib/hosts";
 import { externalHref } from "@/lib/safeLink";
 import { generateV1Hash } from "@/lib/documentHash";
-import { refusedForRole } from "@/lib/documentSigningErrors";
-import { TEAM_PERMISSION_NAMES } from "@/lib/teamPermissions";
+import { useShownPdf, shownPdfProblem } from "@/lib/shownPdf";
 
 interface AuditLog {
   id: string;
@@ -121,6 +120,10 @@ interface SignedDocumentViewerProps {
    *  teammate with "Send documents"; document-signing's resolveDocumentRole and
    *  document_audit_log agree). Absent: yes. */
   canSendDocuments?: boolean;
+  /** Opened as "Signing record" from a signing screen: straight to the audit
+   *  trail, and its Back closes it, back to that screen (the owner,
+   *  2026-11-05: the document itself is the signing screen's to show). */
+  recordOnly?: boolean;
 }
 
 const getActionIcon = (action: string) => {
@@ -273,21 +276,17 @@ function pdfFileName(title: string | null | undefined): string {
   return `${name || "Document"}.pdf`;
 }
 
-export function SignedDocumentViewer({ document, open, onOpenChange, canSendDocuments = true }: SignedDocumentViewerProps) {
-  const [showAuditTrail, setShowAuditTrail] = useState(false);
+export function SignedDocumentViewer({ document, open, onOpenChange, canSendDocuments = true, recordOnly = false }: SignedDocumentViewerProps) {
+  const [showAuditTrail, setShowAuditTrail] = useState(recordOnly);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [documentData, setDocumentData] = useState<DocumentData | null>(null);
-  // What this screen shows, and its hash: an uploaded PDF is fetched once and
-  // framed from those very bytes, and the signature is sent with their hash,
-  // so the server signs nothing the applicant did not see (the third Phase 7
-  // security review; supabase/functions/_shared/documentShown.ts).
-  const [shownPdf, setShownPdf] = useState<{ src: string; hash: string } | null>(null);
-  // Why it could not be shown: the file is not a PDF ("not_pdf"), or it could
-  // not be fetched just now ("unavailable"). Only the first is the file's
-  // fault (the tenth product review: a voided PDF was "not a PDF"). Or the
-  // signed copy is not this person's to open ("not_allowed": on the team, it
-  // is for those who may send documents; the eleventh product review).
-  const [shownPdfFailed, setShownPdfFailed] = useState<"not_pdf" | "unavailable" | "not_allowed" | null>(null);
+  // What this screen shows, and its hash: one loader for every screen that
+  // shows a file to sign (src/lib/shownPdf.ts).
+  const { shownPdf, shownPdfFailed } = useShownPdf({
+    documentId: document?.id,
+    uploadedFileUrl: documentData?.uploadedFileUrl,
+    signedByApplicant: !!document?.candidate_signed_at,
+  });
   const [viewedHash, setViewedHash] = useState<string | null>(null);
   const [candidateSignature, setCandidateSignature] = useState<string | null>(null);
   const [employerSignature, setEmployerSignature] = useState<string | null>(null);
@@ -451,7 +450,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange, canSendDocu
       parseDocumentData();
       parseSignatures();
       loadCompletionCertificate();
-      setShowAuditTrail(false);
+      setShowAuditTrail(recordOnly);
       // Replaces DocumentViewerDialog.tsx's old recordDocumentView — the
       // edge function is idempotent (only the first call per document sets
       // viewed_at / writes an audit row), so firing this on every open is
@@ -461,7 +460,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange, canSendDocu
           // Best-effort — a failed "viewed" ping never blocks reading the document.
         });
     }
-  }, [document, open, fetchAuditLogs, parseDocumentData, parseSignatures, loadCompletionCertificate]);
+  }, [document, open, recordOnly, fetchAuditLogs, parseDocumentData, parseSignatures, loadCompletionCertificate]);
 
   const getDocumentCode = () => {
     return document?.document_code || `DOC-${document?.id.slice(0, 6).toUpperCase()}`;
@@ -836,55 +835,6 @@ export function SignedDocumentViewer({ document, open, onOpenChange, canSendDocu
     pdf.save(`${document.name}.pdf`);
   };
 
-  useEffect(() => {
-    const sent = externalHref(documentData?.uploadedFileUrl);
-    setShownPdf(null);
-    setShownPdfFailed(null);
-    if (!sent) return;
-    let cancelled = false;
-    let blobUrl: string | null = null;
-    const signedByApplicant = !!document?.candidate_signed_at;
-    (async () => {
-      try {
-        // After the applicant signs, the copy the server kept, which is what
-        // was signed; the sender's own folder could hold another file by then
-        // (the fourth security review).
-        let address = sent;
-        if (signedByApplicant && document) {
-          const { data, error } = await supabase.functions.invoke("document-signing", { body: { documentId: document.id, action: "original" } });
-          // Not theirs to open (a teammate without "Send documents"): said
-          // as that, not as a failed load (the eleventh product review).
-          if (await refusedForRole(data, error)) {
-            if (!cancelled) setShownPdfFailed("not_allowed");
-            return;
-          }
-          const kept = externalHref((data as { url?: string } | null)?.url);
-          if (!kept) throw new Error("no signed copy");
-          address = kept;
-        }
-        const response = await fetch(address);
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const bytes = await response.arrayBuffer();
-        // A PDF only: a Word or text file cannot be shown or signed here.
-        const head = new Uint8Array(bytes.slice(0, 5));
-        if (String.fromCharCode(...head) !== "%PDF-") {
-          if (!cancelled) setShownPdfFailed("not_pdf");
-          return;
-        }
-        const hash = await generatePdfHash(bytes);
-        if (cancelled) return;
-        blobUrl = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
-        setShownPdf({ src: blobUrl, hash });
-      } catch {
-        // Refused or unreachable (the kept copy, the network): not the file's fault.
-        if (!cancelled) setShownPdfFailed("unavailable");
-      }
-    })();
-    return () => {
-      cancelled = true;
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
-    };
-  }, [documentData?.uploadedFileUrl, document?.id, document?.candidate_signed_at]);
 
   useEffect(() => {
     let cancelled = false;
@@ -911,19 +861,7 @@ export function SignedDocumentViewer({ document, open, onOpenChange, canSendDocu
       if (!shownPdf) {
         return (
           <span className="text-muted-foreground">
-            {/* Said to whoever is looking (the fifth product review: the team
-                was told to ask the hiring team), and "not a PDF" only for a
-                file that is not one (the tenth product review: a PDF the team
-                voided was blamed on its file, "send it again as a PDF"). */}
-            {shownPdfFailed === "not_pdf"
-              ? role === "candidate"
-                ? "This file is not a PDF, so it can't be shown or signed here. Ask the hiring team to send it again as a PDF."
-                : "This file is not a PDF, so it can't be shown or signed here. Send it again as a PDF."
-              : shownPdfFailed === "unavailable"
-                ? "This document could not be loaded just now. Close it and open it again."
-                : shownPdfFailed === "not_allowed"
-                  ? `On your team, only someone who may send documents can open the signed file.${isTeamMember ? ` Ask the owner to turn on ${TEAM_PERMISSION_NAMES.canSendDocuments} for you.` : ""}`
-                  : "Loading document..."}
+            {shownPdfProblem(shownPdfFailed, role, isTeamMember)}
           </span>
         );
       }
@@ -1405,8 +1343,8 @@ export function SignedDocumentViewer({ document, open, onOpenChange, canSendDocu
                       </p>
                     </div>
                   </div>
-                  <Button variant="outline" className="shrink-0" onClick={() => setShowAuditTrail(false)}>
-                    Back to Document
+                  <Button variant="outline" className="shrink-0" onClick={() => (recordOnly ? onOpenChange(false) : setShowAuditTrail(false))}>
+                    {recordOnly ? "Close" : "Back to Document"}
                   </Button>
                 </div>
               </DialogHeader>

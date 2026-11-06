@@ -111,6 +111,11 @@ export function buildPolicy({ indexHtml, landingHtml }) {
         "https://cdn.jsdelivr.net",
         "https://api.stripe.com",
         STRIPE_CHECKOUT,
+        // The signing screens draw a PDF from the very bytes they hashed,
+        // read back from a blob: address made in the page (src/lib/shownPdf.ts,
+        // src/components/documents/PaperDesk.tsx; PdfSignaturePlacer reads an
+        // upload the same way).
+        "blob:",
       ],
     ],
     [

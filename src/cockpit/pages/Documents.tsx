@@ -7,7 +7,7 @@ import { useApplicationsForDocuments } from "@/hooks/useApplicationsForDocuments
 import { useDocuments } from "@/hooks/useDocuments";
 import { DocumentWizard } from "@/components/documents/DocumentWizard";
 import { SignedDocumentViewer } from "@/components/documents/SignedDocumentViewer";
-import { isWrittenDocument } from "@/components/documents/ApplicantDocumentSheet";
+import { opensInSigningScreen } from "@/components/documents/ApplicantDocumentSheet";
 import { TeamDocumentSheet } from "../components/TeamDocumentSheet";
 import { CockpitErrorCard } from "../components/ErrorCard";
 import { ActionDialog } from "../components/ActionDialog";
@@ -381,12 +381,14 @@ export default function CockpitDocuments() {
   // and SignedDocumentViewer needs the full DocumentWithApplication.
   const { data: fullDocuments = [] } = useDocuments();
   const [viewerDocId, setViewerDocId] = useState<string | null>(null);
-  // A written document (an offer letter) opens the team's own screen: what
-  // stands, and the one thing to do (TeamDocumentSheet). An uploaded PDF, or
-  // "Signing record", opens the full viewer.
+  // A written letter or an uploaded PDF opens the team's own screen: what
+  // stands, and the one thing to do (TeamDocumentSheet; the owner,
+  // 2026-11-05: a PDF opened the old boxed viewer). "Signing record" opens
+  // the record itself.
   const [sheetDocId, setSheetDocId] = useState<string | null>(null);
   const sheetDocument = fullDocuments.find((d) => d.id === sheetDocId) ?? null;
   const viewerDocument = fullDocuments.find((d) => d.id === viewerDocId) ?? null;
+  const [viewerAsRecord, setViewerAsRecord] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [actionDialog, setActionDialog] = useState<{ type: "withdraw" | "void"; row: DocRow } | null>(null);
@@ -438,8 +440,11 @@ export default function CockpitDocuments() {
     // an empty dialog.
     const full = fullDocuments.find((d) => d.id === row.id);
     if (full) {
-      if (isWrittenDocument(full.file_url)) setSheetDocId(row.id);
-      else setViewerDocId(row.id);
+      if (opensInSigningScreen(full.file_url)) setSheetDocId(row.id);
+      else {
+        setViewerAsRecord(false);
+        setViewerDocId(row.id);
+      }
     } else if (row.fileUrl) {
       openDocument(row.fileUrl);
     }
@@ -793,6 +798,7 @@ export default function CockpitDocuments() {
         }}
         onShowRecord={(doc) => {
           setSheetDocId(null);
+          setViewerAsRecord(true);
           setViewerDocId(doc.id);
         }}
       />
@@ -800,6 +806,7 @@ export default function CockpitDocuments() {
       <SignedDocumentViewer
         document={viewerDocument}
         canSendDocuments={canSend}
+        recordOnly={viewerAsRecord}
         open={!!viewerDocId}
         onOpenChange={(open) => {
           if (!open) setViewerDocId(null);

@@ -75,8 +75,12 @@ check("the signing view keeps an uploaded address only when it is this project's
 
 const sheet = read("src/components/documents/ApplicantDocumentSheet.tsx");
 const panel = read("src/components/documents/DocumentSigningPanel.tsx");
-check("the letter screen signs with the hash of the letter it shows", /const viewedHash = await generateV1Hash\(body\?\.content \?\? ""\);/.test(sheet) && /action: "sign",[^}]*\},\s*signerContext, viewedHash \}/.test(sheet));
-check("the file screen frames the very bytes it hashed, and the panel signs with that hash", /setShownPdf\(\{ src: blobUrl, hash \}\)/.test(viewer) && /src=\{shownPdf\.src\}/.test(viewer) && !/src=\{uploadedSrc\}/.test(viewer) && /viewedHash=\{viewedHash\}/.test(viewer) && /\{ viewedHash \}\),/.test(panel) && /mode === "sign" \? !!viewedHash/.test(panel));
+const shown = read("src/lib/shownPdf.ts");
+const team = read("src/cockpit/components/TeamDocumentSheet.tsx");
+check("the letter screen signs with the hash of what it shows: the letter's text, or the PDF's bytes", /const viewedHash = isPdf \? shownPdf\?\.hash \?\? null : await generateV1Hash\(body\?\.content \?\? ""\);\s*if \(!viewedHash\) throw/.test(sheet) && /action: "sign",[^}]*\},\s*signerContext, viewedHash \}/.test(sheet) && /\(!isPdf \|\| !!shownPdf\)/.test(sheet));
+check("…and draws a PDF from those very bytes, as the team's screen does", [sheet, team].every((src) => /<PaperPdf src=\{shownPdf\.src\}/.test(src)));
+check("the shared loader fetches only this project's documents file before the applicant signs, and the kept copy after", /if \(!signedByApplicant && !ownDocumentsPath\(sent, SUPABASE_URL\)\) throw/.test(shown) && /action: "original"/.test(shown));
+check("the file screen frames the very bytes it hashed, and the panel signs with that hash", /setShownPdf\(\{ src: blobUrl, hash \}\)/.test(shown) && /src=\{shownPdf\.src\}/.test(viewer) && !/src=\{uploadedSrc\}/.test(viewer) && /viewedHash=\{viewedHash\}/.test(viewer) && /\{ viewedHash \}\),/.test(panel) && /mode === "sign" \? !!viewedHash/.test(panel));
 const verify = read("supabase/functions/verify-document/index.ts");
 check("/verify says verified only for a document signed by both and finalized (locked, final PDF and v3 hashes), never pending or declined", /const isComplete = document\.status === 'signed' && document\.is_locked === true && !!document\.final_pdf_hash && !!document\.v3_hash;\s*const verified = isComplete && !document\.is_voided;/.test(verify) && /This document has not been signed by everyone yet\./.test(verify) && /This document was declined\./.test(verify));
 

@@ -146,6 +146,9 @@ export const PREVIEW_SCREENS: PreviewScreen[] = [
   { id: "pdf-signed", group: "On-site jobs and files to sign", label: "My documents: uploaded PDF, signed, the team's turn", role: "candidate", path: "/my-documents?__previewDocs=pdf,signed" },
   { id: "pdf-voided", group: "On-site jobs and files to sign", label: "My documents: uploaded PDF, voided after signing", role: "candidate", path: "/my-documents?__previewDocs=pdf,voided" },
   { id: "pdf-team", group: "On-site jobs and files to sign", label: "Documents: uploaded PDF, the team's turn", role: "employer", path: "/documents?__previewDocs=pdf,signed" },
+  // 2026-11-05: the signing screens' desk, a two-page file with a place for each signature.
+  { id: "pdf-team-placed", group: "On-site jobs and files to sign", label: "Documents: two-page PDF with signature places, the team's turn", role: "employer", path: "/documents?__previewDocs=pdf,signed,fields" },
+  { id: "pdf-placed-to-sign", group: "On-site jobs and files to sign", label: "My documents: two-page PDF with signature places, before signing", role: "candidate", path: "/my-documents?__previewDocs=pdf,fields" },
   // The eighth product review: the date to sign is the applicant's.
   { id: "pdf-expired", group: "On-site jobs and files to sign", label: "My documents: uploaded PDF, its date passed before signing", role: "candidate", path: "/my-documents?__previewDocs=pdf,expired" },
   { id: "pdf-team-late", group: "On-site jobs and files to sign", label: "Documents: signed in time, the date passed, the team's turn", role: "employer", path: "/documents?__previewDocs=pdf,signed,expired" },

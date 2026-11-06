@@ -160,11 +160,12 @@ export default [
       "told the team to \"send it again as a PDF\" and the applicant to ask for one. Fails if the viewer stops telling " +
       "a file that is not a PDF from one it could not fetch, or blames the file for the second.",
     run: async ({ read }) => {
-      const viewer = await read("src/components/documents/SignedDocumentViewer.tsx");
-      if (!viewer) return { ok: false, detail: ["SignedDocumentViewer.tsx is missing"] };
+      // The loader and its words are the one every screen showing a file to sign uses (src/lib/shownPdf.ts, 2026-11-05).
+      const viewer = await read("src/lib/shownPdf.ts");
+      if (!viewer) return { ok: false, detail: ["src/lib/shownPdf.ts is missing"] };
       const detail = [];
       if (!/useState<"not_pdf" \| "unavailable"(?: \| "[a-z_]+")* \| null>\(null\)/.test(viewer)) detail.push("shownPdfFailed must say why: \"not_pdf\" or \"unavailable\"");
-      const loader = /const signedByApplicant = !!document\?\.candidate_signed_at;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
+      const loader = /const sent = enabled \? externalHref\(uploadedFileUrl\) : null;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
       if (!/!== "%PDF-"\) \{\s*if \(!cancelled\) setShownPdfFailed\("not_pdf"\);/.test(loader)) detail.push('only the "%PDF-" check may set "not_pdf"');
       if (!/\} catch \{[\s\S]*?setShownPdfFailed\("unavailable"\)/.test(loader) || /catch \{[^}]*not_pdf/.test(loader)) detail.push('a refused or failed fetch must set "unavailable", never "not_pdf"');
       const unavailable = /shownPdfFailed === "unavailable"\s*\?\s*"([^"]*)"/.exec(viewer)?.[1] ?? "";
@@ -233,11 +234,12 @@ export default [
       "Fails if the viewer stops reading a refusal from the answer before treating it as a failed load, or loses the " +
       "words that say who may open it.",
     run: async ({ read }) => {
-      const viewer = await read("src/components/documents/SignedDocumentViewer.tsx");
+      // The shared loader (src/lib/shownPdf.ts, 2026-11-05) and its words.
+      const viewer = await read("src/lib/shownPdf.ts");
       const errors = await read("src/lib/documentSigningErrors.ts");
-      if (!viewer || !errors) return { ok: false, detail: ["SignedDocumentViewer.tsx or src/lib/documentSigningErrors.ts is missing"] };
+      if (!viewer || !errors) return { ok: false, detail: ["src/lib/shownPdf.ts or src/lib/documentSigningErrors.ts is missing"] };
       const detail = [];
-      const loader = /const signedByApplicant = !!document\?\.candidate_signed_at;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
+      const loader = /const sent = enabled \? externalHref\(uploadedFileUrl\) : null;[\s\S]*?\}\)\(\);/.exec(viewer)?.[0] ?? "";
       const refusal = loader.indexOf("if (await refusedForRole(data, error)) {");
       if (refusal === -1 || refusal > loader.indexOf("const kept = ") || !/if \(await refusedForRole\(data, error\)\) \{\s*if \(!cancelled\) setShownPdfFailed\("not_allowed"\);\s*return;/.test(loader)) detail.push("the viewer must read a refusal (refusedForRole) before it reads the kept copy's address, and say not_allowed");
       if (!/shownPdfFailed === "not_allowed"\s*\? `On your team, only someone who may send documents can open the signed file\./.test(viewer)) detail.push("the viewer must say who may open the signed file");

@@ -653,16 +653,16 @@ function previewShortlistHandlers(tables: FixtureTables, user: FixtureAuthUser):
  * decline, withdraw and void move the row as the real function does (the
  * hashes, the locked PDF and the certificate are the real function's alone).
  */
-/** A one-page PDF of plain lines, made here (no file, no library). ASCII only, so each character is one byte. */
-function previewPdfBytes(lines: string[]): Uint8Array {
-  const text = lines.map((line, i) => `BT /F1 ${i === 0 ? 20 : 12} Tf 72 ${720 - i * 28} Td (${line.replace(/[()\\]/g, "\\$&")}) Tj ET`).join("\n");
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    `<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
-  ];
+/** A PDF of plain lines, one list of lines a page, made here (no file, no library). ASCII only, so each character is one byte. */
+function previewPdfBytes(pages: string[][]): Uint8Array {
+  const n = pages.length;
+  // 1 catalog, 2 pages, 3 font, then a page and its contents for each page.
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", `<< /Type /Pages /Kids [${pages.map((_, i) => `${4 + i * 2} 0 R`).join(" ")}] /Count ${n} >>`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  pages.forEach((lines, p) => {
+    const text = lines.map((line, i) => `BT /F1 ${i === 0 && p === 0 ? 20 : 12} Tf 72 ${720 - i * 28} Td (${line.replace(/[()\\]/g, "\\$&")}) Tj ET`).join("\n");
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + p * 2} 0 R >>`);
+    objects.push(`<< /Length ${text.length} >>\nstream\n${text}\nendstream`);
+  });
   let out = "%PDF-1.4\n";
   const offsets: number[] = [];
   objects.forEach((body, i) => {
@@ -676,8 +676,8 @@ function previewPdfBytes(lines: string[]): Uint8Array {
 }
 
 /** Answers a fetch of exactly `address` with a PDF made here; every other fetch goes out as before. */
-function installPreviewPdf(address: string, lines: string[]): void {
-  const bytes = previewPdfBytes(lines);
+function installPreviewPdf(address: string, pages: string[][]): void {
+  const bytes = previewPdfBytes(pages);
   const realFetch = window.fetch.bind(window);
   window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
@@ -915,7 +915,18 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
     const profile = (tables.profiles ?? []).find((p) => p.user_id === candidateId);
     const name = String(profile?.full_name ?? user.user_metadata?.full_name ?? "Ana Maria Reyes");
     previewPdfAddress = `${SUPABASE_URL}/storage/v1/object/sign/documents/${String(job?.employer_id ?? "preview")}/house-rules.pdf?token=preview`;
-    installPreviewPdf(previewPdfAddress, ["House rules", "Please read these before your first day.", "1. Be on time for your shift.", "2. Keep customer information private."]);
+    // `pdf,...,fields`: a two-page letter with a place for each signature at
+    // the foot of page 2, as a designed offer letter has (PaperDesk.tsx).
+    const placed = flags.includes("fields");
+    installPreviewPdf(
+      previewPdfAddress,
+      placed
+        ? [
+            ["House rules", "Please read these before your first day.", "1. Be on time for your shift.", "2. Keep customer information private.", "3. Ask when something is not clear.", "4. Take care of the customer and the business.", "5. Tell us early if you cannot make a shift."],
+            ["House rules, page 2", "Breaks are 15 minutes every 4 hours.", "We review how it is going after 30 days.", "", "Signed for the business:                    Accepted by:", "", "", "", "", "", "_______________________                    _______________________"],
+          ]
+        : [["House rules", "Please read these before your first day.", "1. Be on time for your shift.", "2. Keep customer information private."]],
+    );
     const signed = flags.includes("signed") || flags.includes("voided") || flags.includes("done");
     const done = flags.includes("done");
     const signedAt = new Date(Date.now() - 50 * 60_000).toISOString();
@@ -928,7 +939,7 @@ function previewDocuments(tables: FixtureTables, user: FixtureAuthUser, role: Pr
       applications: application ? { id: application.id, candidate_id: candidateId, jobs: job } : null,
       name: "House rules",
       document_type: "custom",
-      file_url: encodeDocumentBody({ content: null, uploadedFileUrl: previewPdfAddress, uploadedFileName: "house-rules.pdf", uploadedFileType: "application/pdf", signatureFields: [], metadata: { recipientName: name, recipientEmail: profile?.email ?? user.email, hasPositionedSignatures: true } }),
+      file_url: encodeDocumentBody({ content: null, uploadedFileUrl: previewPdfAddress, uploadedFileName: "house-rules.pdf", uploadedFileType: "application/pdf", signatureFields: placed ? [{ id: "candidate_signature", type: "candidate", page: 2, x: 48, y: 38.4, width: 26, height: 6 }, { id: "candidate_date", type: "candidate", page: 2, x: 48, y: 45, width: 12, height: 2.4 }, { id: "employer_signature", type: "employer", page: 2, x: 12, y: 38.4, width: 26, height: 6 }, { id: "employer_date", type: "employer", page: 2, x: 12, y: 45, width: 12, height: 2.4 }] : [], metadata: { recipientName: name, recipientEmail: profile?.email ?? user.email, hasPositionedSignatures: true } }),
       status: done ? "signed" : "pending",
       sender_id: job?.employer_id ?? null,
       recipient_id: candidateId,
