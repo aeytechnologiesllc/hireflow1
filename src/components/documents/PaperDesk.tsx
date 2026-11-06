@@ -63,12 +63,13 @@ function Mark({ value, preview = false }: { value: string; preview?: boolean }) 
   );
 }
 
-/** A signature place drawn on the paper. `pageWidth` sizes its small print. */
+/** A signature place drawn on the paper. `pageWidth` sizes its small print.
+ *  Above the page's text layer (react-pdf's, z-index 2), or it takes the taps. */
 function Spot({ spot, style, pageWidth, onSignHere }: { spot: PaperSpot; style: CSSProperties; pageWidth: number; onSignHere?: () => void }) {
   const small = Math.max(8, Math.min(11.5, pageWidth * 0.0138));
   if (spot.mark) {
     return (
-      <div className="pointer-events-none absolute flex items-end [container-type:size]" style={style} data-paper-mark>
+      <div className="pointer-events-none absolute z-[3] flex items-end [container-type:size]" style={style} data-paper-mark>
         <Mark value={spot.mark.value} />
         {spot.mark.at && (
           <span className="absolute left-0 top-full mt-[1px] whitespace-nowrap" style={{ fontSize: small, color: "#5d6862" }}>
@@ -83,14 +84,15 @@ function Spot({ spot, style, pageWidth, onSignHere }: { spot: PaperSpot; style: 
       <button
         type="button"
         onClick={onSignHere}
-        className="hf-sign-here absolute flex items-end rounded-[4px] [container-type:size]"
+        className="hf-sign-here absolute z-[3] flex items-end rounded-[4px] [container-type:size]"
         style={{ ...style, outline: "1.5px dashed var(--action)", outlineOffset: 2, background: "color-mix(in srgb, var(--action) 9%, transparent)" }}
         aria-label="Sign here"
         data-paper-sign-here
       >
         {/* Their name as they type it, in the place it will go; "Sign here" until it is signed. */}
         {spot.preview && <Mark value={spot.preview} preview />}
-        <span className="absolute -top-[1.9em] left-0 inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[2px] font-semibold text-white" style={{ fontSize: Math.max(10, small), background: "var(--action)" }}>
+        {/* Under the box, where the signed copy prints the name and date: above it, it covered the letter's own words. */}
+        <span className="absolute left-0 top-full mt-[3px] inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-[2px] font-semibold text-white" style={{ fontSize: Math.max(10, small), background: "var(--action)" }}>
           Sign here
         </span>
       </button>
@@ -98,7 +100,7 @@ function Spot({ spot, style, pageWidth, onSignHere }: { spot: PaperSpot; style: 
   }
   if (spot.waitingLabel) {
     return (
-      <div className="pointer-events-none absolute flex items-end rounded-[4px] px-1" style={{ ...style, outline: "1px dashed #b9c2bc", outlineOffset: 2 }}>
+      <div className="pointer-events-none absolute z-[3] flex items-end rounded-[4px] px-1" style={{ ...style, outline: "1px dashed #b9c2bc", outlineOffset: 2 }}>
         <span className="truncate" style={{ fontSize: small, color: "#7b867f" }}>
           {spot.waitingLabel}
         </span>
